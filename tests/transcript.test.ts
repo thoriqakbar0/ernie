@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   assistantText,
   makeAssistantStreamController,
@@ -7,6 +9,7 @@ import {
   type TranscriptAction,
 } from "../src/renderer/src/transcript";
 import { safeAgentErrorMessage } from "../src/renderer/src/useTranscript";
+import { IPythonExecutionCard } from "../src/renderer/src/IPythonExecutionCard";
 
 function makeHarness() {
   let nextHandle = 0;
@@ -101,6 +104,38 @@ describe("transcript reducer", () => {
     }
   });
 
+  it("merges IPython start, update, and end events into one execution record", () => {
+    const start: TranscriptAction = { type: "tool", id: "execution-1", event: {
+      kind: "tool", sequence: 1, phase: "start", callId: "call-1", name: "ipython", isError: false, detail: "",
+      ipython: { executionTarget: "local", status: "running", code: "print(1)", detail: "", startedAt: 1_000, durationMs: null },
+    } };
+    const update: TranscriptAction = { type: "tool", id: "ignored-update", event: {
+      kind: "tool", sequence: 2, phase: "update", callId: "call-1", name: "ipython", isError: false, detail: "",
+      ipython: { executionTarget: "local", status: "running", code: "print(1)", detail: "starting", startedAt: 1_000, durationMs: null },
+    } };
+    const end: TranscriptAction = { type: "tool", id: "ignored-end", event: {
+      kind: "tool", sequence: 3, phase: "end", callId: "call-1", name: "ipython", isError: false, detail: "",
+      ipython: { executionTarget: "local", status: "succeeded", code: "print(1)", detail: "1", startedAt: 1_000, durationMs: 25.5 },
+    } };
+
+    const items = [start, update, end].reduce(transcriptReducer, []);
+
+    expect(items).toEqual([{
+      id: "execution-1", kind: "ipython_execution", callId: "call-1", executionTarget: "local",
+      status: "succeeded", code: "print(1)", detail: "1", startedAt: 1_000, durationMs: 25.5,
+    }]);
+  });
+
+  it("keeps generic tools generic instead of guessing that they are IPython executions", () => {
+    const action: TranscriptAction = { type: "tool", id: "tool-1", event: {
+      kind: "tool", sequence: 1, phase: "end", callId: "call-1", name: "python", isError: false, detail: "done",
+    } };
+
+    expect(transcriptReducer([], action)).toEqual([{
+      id: "tool-1", kind: "tool", callId: "call-1", name: "python", detail: "done", phase: "end", isError: false,
+    }]);
+  });
+
   it("updates one delegation block in place as a subagent progresses", () => {
     const running: TranscriptAction = { type: "delegation", id: "block-1", event: { kind: "delegation", sequence: 1, childId: "sub-1", activeSessionId: "active-1", name: "reviewer", task: "Review the API", status: "running", detail: "" } };
     const done: TranscriptAction = { type: "delegation", id: "ignored", event: { kind: "delegation", sequence: 2, childId: "sub-1", activeSessionId: "active-1", name: "reviewer", task: "Review the API", status: "done", detail: "No findings" } };
@@ -119,6 +154,40 @@ describe("transcript reducer", () => {
     const items = actions.reduce(transcriptReducer, []);
     const assistant = items[0];
     expect(assistant?.kind === "assistant" ? assistantText(assistant) : null).toBe("");
+  });
+});
+
+it("preserves legacy remote IPython executions as truthful execution cards", () => {
+  const items = transcriptReducer([], { type: "tool", id: "remote-1", event: {
+    kind: "tool", sequence: 1, phase: "end", callId: "remote-call", name: "ipython", isError: false, detail: "done",
+    ipython: { executionTarget: "modal", status: "succeeded", code: "print(1)", detail: "1", startedAt: 1_000, durationMs: 4 },
+  } });
+  expect(items[0]).toMatchObject({ kind: "ipython_execution", executionTarget: "modal" });
+});
+
+describe("IPython execution card", () => {
+  it("exposes accessible structure while preserving the captured runtime", () => {
+    const markup = renderToStaticMarkup(createElement(IPythonExecutionCard, { execution: {
+      id: "execution-1", kind: "ipython_execution", callId: "call-1", executionTarget: "modal",
+      status: "succeeded", code: "print(1)", detail: "1", startedAt: 1_000, durationMs: 25,
+    } }));
+
+    expect(markup).toContain("<section");
+    expect(markup).toContain("aria-labelledby=");
+    expect(markup).toContain('aria-label="Executed code"');
+    expect(markup).toContain('aria-label="Execution output"');
+    expect(markup).toContain("Remote (legacy)");
+    expect(markup).not.toContain(">Local<");
+  });
+
+  it("omits fabricated timing when historical start time is unavailable", () => {
+    const markup = renderToStaticMarkup(createElement(IPythonExecutionCard, { execution: {
+      id: "execution-2", kind: "ipython_execution", callId: "call-2", executionTarget: "unknown",
+      status: "succeeded", code: "print(2)", detail: "2", startedAt: null, durationMs: null,
+    } }));
+    expect(markup).toContain("Runtime unavailable");
+    expect(markup).not.toContain("Started");
+    expect(markup).not.toContain("1970");
   });
 });
 

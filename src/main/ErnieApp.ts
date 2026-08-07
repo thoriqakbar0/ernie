@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -7,15 +7,23 @@ import { AgentCommandSchema } from "./IpcProtocol";
 import { ErnieWindow, hardenElectron } from "./ErnieWindow";
 import { PrimeAgentRpc } from "./PrimeAgentRpc";
 import { WorkspaceCatalog } from "./WorkspaceCatalog";
+import { DevServerCatalog } from "./DevServerCatalog";
+import { SessionTranscriptStream } from "./SessionTranscriptStream";
+
+const DevServerPortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65_535 }));
+const DevServerOpenSchema = Schema.Struct({ worktreeId: Schema.String, port: DevServerPortSchema });
 
 export const program = Effect.scoped(Effect.gen(function* () {
   const rpc = yield* PrimeAgentRpc;
   const catalog = yield* WorkspaceCatalog;
+  const devServers = yield* DevServerCatalog;
+  const sessionTranscripts = yield* SessionTranscriptStream;
   const window = yield* ErnieWindow;
   yield* Effect.promise(() => app.whenReady());
   yield* hardenElectron;
   yield* window.create;
   yield* Effect.forkScoped(Stream.runForEach(rpc.events, window.send));
+  yield* Effect.forkScoped(Stream.runForEach(sessionTranscripts.events, window.sendSessionTranscript));
   yield* Effect.forkScoped(Stream.runForEach(catalog.events, (event) => event.kind === "snapshot"
     ? window.send({ kind: "workspace", snapshot: event.snapshot })
     : window.send({ kind: "error", source: "workspace_catalog", message: event.message })));
@@ -40,6 +48,38 @@ export const program = Effect.scoped(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         return yield* rpc.availableCommands;
       })));
+      ipcMain.handle("session-transcript:select", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const activeSessionId = yield* Schema.decodeUnknownEffect(Schema.String)(input);
+        const workspace = yield* catalog.current;
+        const agent = workspace.agents.find((candidate) => candidate.id === activeSessionId && candidate.activeSessionId === activeSessionId);
+        if (!agent) return yield* Effect.die(new Error("Unknown active session"));
+        return yield* sessionTranscripts.select(activeSessionId);
+      })));
+      ipcMain.handle("session-transcript:detach", (event) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        yield* sessionTranscripts.detach;
+      })));
+      ipcMain.handle("dev-server:refresh", (event, worktreeId: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const id = yield* Schema.decodeUnknownEffect(Schema.String)(worktreeId);
+        const workspace = yield* catalog.current;
+        const worktree = workspace.worktrees.find((candidate) => candidate.id === id);
+        if (!worktree) return yield* Effect.die(new Error("Unknown worktree"));
+        return yield* devServers.refresh(worktree.path);
+      })));
+      ipcMain.handle("dev-server:open", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const { worktreeId, port } = yield* Schema.decodeUnknownEffect(DevServerOpenSchema)(input);
+        const workspace = yield* catalog.current;
+        const worktree = workspace.worktrees.find((candidate) => candidate.id === worktreeId);
+        if (!worktree) return { ok: false, error: "This worktree is no longer available." } satisfies CommandResult;
+        const snapshot = yield* devServers.refresh(worktree.path);
+        const server = snapshot.servers.find((candidate) => candidate.port === port);
+        if (!server) return { ok: false, error: "The development server is no longer available in this worktree." } satisfies CommandResult;
+        yield* Effect.tryPromise(() => shell.openExternal(server.url));
+        return { ok: true } satisfies CommandResult;
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, error: "Unable to open the local development server." } satisfies CommandResult)))));
       ipcMain.handle("agent:command", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         const parsed = yield* Schema.decodeUnknownEffect(AgentCommandSchema)(input).pipe(
@@ -52,6 +92,10 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.removeHandler("agent:get-state");
       ipcMain.removeHandler("workspace:get-snapshot");
       ipcMain.removeHandler("agent:get-commands");
+      ipcMain.removeHandler("session-transcript:select");
+      ipcMain.removeHandler("session-transcript:detach");
+      ipcMain.removeHandler("dev-server:refresh");
+      ipcMain.removeHandler("dev-server:open");
       ipcMain.removeHandler("agent:command");
     }),
   );

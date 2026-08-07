@@ -102,6 +102,23 @@ function handle(request) {
         result: { content: [{ type: "text", text: "final output" }] },
         isError: false,
       });
+      send({
+        type: "tool_execution_start",
+        toolCallId: "call-ipython",
+        toolName: "ipython",
+        args: { code: "servers = discover_ports()" },
+      });
+      send({
+        type: "tool_execution_update",
+        toolCallId: "call-ipython",
+        partialResult: { content: [{ type: "text", text: "Scanning local ports…" }] },
+      });
+      send({
+        type: "tool_execution_end",
+        toolCallId: "call-ipython",
+        result: { content: [{ type: "text", text: "[3000, 5173]" }], details: { status: "success" } },
+        isError: false,
+      });
       send({ type: "rlm_child_update", child: { id: "sub-1", activeSessionId: "child-active-1", sessionName: "api-reviewer", label: "Review the API", status: "done", answerPreview: "No blocking findings" } });
       send({ type: "message_start", message: { role: "toolResult", content: [] } });
       send({ type: "message_end", message: { role: "toolResult", content: [] } });

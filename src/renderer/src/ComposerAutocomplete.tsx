@@ -32,8 +32,8 @@ interface ComposerAutocompleteProps {
 export function ComposerAutocomplete({ commands, activeIndex, onActiveIndexChange, onChoose }: ComposerAutocompleteProps) {
   if (commands.length === 0) return null;
 
-  return <div id="prime-command-menu" className="command-menu" role="listbox" aria-label="Prime Agent commands">
-    <div className="command-menu-heading"><span>Commands</span><kbd>↑↓</kbd><span>navigate</span><kbd>↵</kbd><span>insert</span></div>
+  return <div id="prime-command-menu" className="command-menu" role="listbox" aria-label="Prime Agent commands and skills">
+    <div className="command-menu-heading"><span>Commands &amp; skills</span><kbd>↑↓</kbd><span>navigate</span><kbd>↵</kbd><span>insert</span></div>
     <div className="command-menu-options">
       {commands.map((command, index) => <button
         key={`${command.source}:${command.name}`}

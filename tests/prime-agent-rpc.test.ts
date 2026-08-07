@@ -7,7 +7,7 @@ import * as Stream from "effect/Stream";
 import { join, resolve } from "node:path";
 import type { AgentEvent } from "../src/shared/contract";
 import { AgentCommandSchema } from "../src/main/IpcProtocol";
-import { PrimeAgentRpc, layer } from "../src/main/PrimeAgentRpc";
+import { isIPythonToolName, PrimeAgentRpc, layer } from "../src/main/PrimeAgentRpc";
 
 const root = resolve(import.meta.dirname, "..");
 const options = (environment?: Readonly<Record<string, string>>) => ({
@@ -22,6 +22,13 @@ const provideRpc = <A, E>(effect: Effect.Effect<A, E, PrimeAgentRpc>, environmen
   effect.pipe(Effect.provide(layer(options(environment))));
 
 describe("PrimeAgentRpc", () => {
+  it("recognizes only the built-in IPython tool identity", () => {
+    expect(isIPythonToolName("ipython")).toBe(true);
+    expect(isIPythonToolName("IPython")).toBe(false);
+    expect(isIPythonToolName("python")).toBe(false);
+    expect(isIPythonToolName("functions.ipython")).toBe(false);
+  });
+
   it("handshakes with the pinned runtime and publishes normalized state", async () => {
     const result = await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
       const rpc = yield* PrimeAgentRpc;
@@ -59,7 +66,11 @@ describe("PrimeAgentRpc", () => {
     expect(messages.at(-1)).toMatchObject({ phase: "end", blocks: [{ contentIndex: 0, text: "done" }] });
     expect(result.events.findIndex((event) => event.kind === "assistant_message" && event.phase === "end" && event.messageId === "m:1"))
       .toBeLessThan(result.events.findIndex((event) => event.kind === "tool" && event.phase === "start"));
-    expect(result.events.filter((event) => event.kind === "tool").map((event) => event.phase)).toEqual(["start", "update", "end"]);
+    const toolEvents = result.events.filter((event) => event.kind === "tool");
+    expect(toolEvents.filter((event) => event.name === "read").map((event) => event.phase)).toEqual(["start", "update", "end"]);
+    expect(toolEvents.filter((event) => event.name === "read").every((event) => event.ipython === undefined)).toBe(true);
+    expect(toolEvents.filter((event) => event.name === "ipython").map((event) => event.phase)).toEqual(["start", "update", "end"]);
+    expect(toolEvents.filter((event) => event.name === "ipython").every((event) => event.ipython?.executionTarget === "local")).toBe(true);
     expect(result.events.filter((event) => event.kind === "delegation").map((event) => [event.status, event.childId])).toEqual([
       ["running", "sub-1"], ["done", "sub-1"],
     ]);

@@ -2,14 +2,22 @@ import { Agentation } from "agentation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, WheelEvent } from "react";
 import type { AgentSlashCommand } from "../../shared/commands";
 import type { AgentState } from "../../shared/contract";
-import type { WorkspaceSnapshot } from "../../shared/workspace";
+import type { SessionTranscriptEvent } from "../../shared/sessionTranscript";
+import type { WorkspaceAgent, WorkspaceSnapshot } from "../../shared/workspace";
 import { ComposerAutocomplete, matchingCommands } from "./ComposerAutocomplete";
-import { assistantText } from "./transcript";
+import { assistantText, type ThreadItem } from "./transcript";
 import { NewThreadLauncher } from "./NewThreadLauncher";
-import { RemoteExecutionControl } from "./RemoteExecutionControl";
+import { LocalRuntimeRecovery } from "./LocalRuntimeRecovery";
+import { IPythonExecutionCard } from "./IPythonExecutionCard";
+import { VirtualAgentExplorer } from "./VirtualAgentExplorer";
+import { VirtualTranscript } from "./VirtualTranscript";
+import { SessionTranscriptView } from "./SessionTranscriptView";
+import { AccessibleTranscriptDialog } from "./AccessibleTranscriptDialog";
+import { sessionTranscriptReducer } from "./sessionTranscript";
+import { DevServerPanel } from "./DevServerPanel";
 import { StartupComposer, StartupRail, useStartupStoryboard } from "./StartupExperience";
 import { useTranscript } from "./useTranscript";
-import { AgentOverview, AgentTabChooser, DetachedAgentOverview, WorkspaceTabStrip, WorkspaceTree, WorktreeManager, WorktreeManagerDialog, type WorkspaceLoadState } from "./WorkspaceChrome";
+import { AgentOverview, AgentTabChooser, DetachedAgentOverview, EmptyWorktreeOverview, WorkspaceTabStrip, WorktreeManager, WorktreeManagerDialog, type WorkspaceLoadState } from "./WorkspaceChrome";
 import { initialWorkspaceTabs, resolveRootTabStatus, resolveWorkspaceTabSurface, workspaceTabsReducer } from "./workspaceTabs";
 
 const EMPTY_WORKSPACE: WorkspaceSnapshot = { worktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
@@ -45,8 +53,14 @@ export function App() {
   const [workspaceSnapshot, setWorkspaceSnapshot] = useState<WorkspaceSnapshot>(EMPTY_WORKSPACE);
   const [workspaceLoadState, setWorkspaceLoadState] = useState<WorkspaceLoadState>("loading");
   const [workspaceTabs, dispatchWorkspaceTab] = useReducer(workspaceTabsReducer, undefined, () => initialWorkspaceTabs({ agentId: "current", worktreeId: "current", title: "ernie" }));
+  const [sessionItems, dispatchSessionTranscript] = useReducer(sessionTranscriptReducer, []);
+  const [sessionTranscriptState, setSessionTranscriptState] = useState<"loading" | "ready" | "error">("loading");
+  const [sessionRetryNonce, setSessionRetryNonce] = useState(0);
+  const [sessionAccessibilityStatus, setSessionAccessibilityStatus] = useState("");
+  const selectedSessionRef = useRef<string | undefined>(undefined);
   const [tabChooserOpen, setTabChooserOpen] = useState(false);
   const [worktreeManagerOpen, setWorktreeManagerOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [availableCommands, setAvailableCommands] = useState<readonly AgentSlashCommand[]>([]);
@@ -60,15 +74,34 @@ export function App() {
   const [accessibilityStatus, setAccessibilityStatus] = useState({ sequence: 0, text: "" });
   const appShellRef = useRef<HTMLDivElement>(null);
   const railToggleRef = useRef<HTMLButtonElement>(null);
+  const browserToggleRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const composerWrapRef = useRef<HTMLDivElement>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const [isFollowing, setIsFollowing] = useState(true);
+  const closeBrowser = useCallback(() => {
+    setBrowserOpen(false);
+    requestAnimationFrame(() => browserToggleRef.current?.focus());
+  }, []);
   const isStarting = state.connection === "starting";
   const startupStage = useStartupStoryboard(isStarting);
   const commandMatches = useMemo(() => commandMenuDismissed ? [] : matchingCommands(availableCommands, draft), [availableCommands, commandMenuDismissed, draft]);
+
+  useEffect(() => window.ernie.onSessionTranscriptEvent((event: SessionTranscriptEvent) => {
+    if (event.activeSessionId !== selectedSessionRef.current) return;
+    dispatchSessionTranscript(event);
+    if (event.kind === "snapshot") {
+      setSessionTranscriptState("ready");
+      setSessionAccessibilityStatus("Selected session transcript loaded.");
+    } else if (event.kind === "assistant_end") setSessionAccessibilityStatus("Selected session message completed.");
+    else if (event.kind === "tool" && event.phase === "end") setSessionAccessibilityStatus(`${event.name} ${event.status === "failed" ? "failed" : "completed"} in the selected session.`);
+    else if (event.kind === "closed") {
+      setSessionTranscriptState("error");
+      setSessionAccessibilityStatus("Live updates for the selected session stopped.");
+    }
+  }), []);
 
   useEffect(() => {
     let active = true;
@@ -76,14 +109,14 @@ export function App() {
     void window.ernie.getWorkspace().then((snapshot) => { if (active) {
       setWorkspaceSnapshot(snapshot);
       if (snapshot.updatedAt !== EMPTY_WORKSPACE.updatedAt) setWorkspaceLoadState("ready");
-      dispatchWorkspaceTab({ type: "sync_agents", agents: snapshot.agents });
+      dispatchWorkspaceTab({ type: "sync_workspace", worktrees: snapshot.worktrees, agents: snapshot.agents });
     } }).catch(() => { if (active) setWorkspaceLoadState("error"); });
     const unsubscribe = window.ernie.onAgentEvent((event) => {
       transcript.handleEvent(event);
       if (event.kind === "workspace") {
         setWorkspaceLoadState("ready");
         setWorkspaceSnapshot(event.snapshot);
-        dispatchWorkspaceTab({ type: "sync_agents", agents: event.snapshot.agents });
+        dispatchWorkspaceTab({ type: "sync_workspace", worktrees: event.snapshot.worktrees, agents: event.snapshot.agents });
         return;
       }
       if (event.kind === "state") {
@@ -330,42 +363,85 @@ export function App() {
   };
   const isExecutionSwitching = state.switchingExecutionTo !== undefined;
   const executionControlDisabled = state.connection !== "ready" || state.isStreaming || state.isCompacting || isExecutionSwitching;
+  const localOnlyBlocked = state.executionTarget !== "local" || isExecutionSwitching;
   const statusLabel = state.connection === "ready" ? (state.isStreaming ? "Working" : "Ready") : state.connection === "starting" ? "Connecting" : "Offline";
-  const hasConversation = items.length > 0;
-  const activeSurface = resolveWorkspaceTabSurface(workspaceTabs, workspaceSnapshot.agents);
+  const activeSurface = resolveWorkspaceTabSurface(workspaceTabs, workspaceSnapshot);
   const activeTab = activeSurface.tab;
   const selectedAgent = activeSurface.kind === "agent" ? activeSurface.agent : undefined;
-  const activeAgentId = selectedAgent?.id ?? activeTab.agentId;
+  const selectedActiveSessionId = selectedAgent?.activeSessionId;
+  useEffect(() => {
+    selectedSessionRef.current = selectedActiveSessionId;
+    if (!selectedActiveSessionId) {
+      void window.ernie.detachSessionTranscript().catch(() => undefined);
+      return;
+    }
+    setSessionTranscriptState("loading");
+    dispatchSessionTranscript({ kind: "snapshot", activeSessionId: selectedActiveSessionId, items: [], historyTruncated: false });
+    let active = true;
+    void window.ernie.selectSessionTranscript(selectedActiveSessionId).then((snapshot) => {
+      if (!active || selectedSessionRef.current !== selectedActiveSessionId) return;
+      void snapshot;
+      setSessionTranscriptState("ready");
+    }).catch(() => {
+      if (active && selectedSessionRef.current === selectedActiveSessionId) setSessionTranscriptState("error");
+    });
+    return () => { active = false; };
+  }, [selectedActiveSessionId, sessionRetryNonce]);
+  const activeAgentId = selectedAgent?.id ?? activeTab.selectedAgentId;
+  const selectWorkspaceAgent = (agent: WorkspaceAgent) => {
+    const worktree = workspaceSnapshot.worktrees.find((candidate) => candidate.id === agent.worktreeId);
+    dispatchWorkspaceTab({ type: "open_agent", agent, ...(worktree ? { worktree } : {}) });
+  };
+  const renderTranscriptItem = (item: ThreadItem, assistantLabel = "Ernie", promptLabel = "You") => {
+    if (item.kind === "ipython_execution") return <IPythonExecutionCard execution={item} />;
+    if (item.kind === "tool") return <details className={`tool-item ${item.isError ? "error" : ""}`} data-phase={item.phase} key={item.id} open={item.phase !== "end"}><summary><span className="tool-indicator" />{item.name}<span className="tool-phase">{item.phase === "end" ? (item.isError ? "failed" : "done") : "running"}</span></summary>{item.detail && <pre>{item.detail}</pre>}</details>;
+    if (item.kind === "delegation") return <details className={`delegation-item ${item.status}`} key={item.id} open={item.status === "running" || item.status === "error"}>
+      <summary><span className="delegation-glyph" aria-hidden="true">↳</span><span className="delegation-copy"><strong>{item.name}</strong><small>{item.task || "Delegated work"}</small></span><span className="delegation-status">{item.status}</span></summary>
+      {item.detail && <div className="delegation-detail">{item.detail}</div>}
+    </details>;
+    if (item.kind === "notice") return <div className={`notice ${item.tone}`} key={item.id}>{item.text}</div>;
+    if (item.kind === "user") return <article className="message user" key={item.id}><div className="message-role">{promptLabel}</div><div className="message-copy">{item.text}</div></article>;
+    const text = assistantText(item);
+    return <article className="message assistant" key={item.id}><div className="message-role">{assistantLabel}</div><div className="message-copy">{text}{item.active && <span className="stream-cursor" aria-label="Streaming" />}</div></article>;
+  };
 
   return <div className="app-shell" ref={appShellRef}>
     <a className="skip-link" href="#workspace-main">Skip to workspace</a>
     <aside ref={railRef} id="workspace-rail" className={`project-rail ${isStarting ? "is-starting" : ""} ${railOpen ? "is-open" : ""}`} role={railOpen ? "dialog" : undefined} aria-modal={railOpen || undefined} aria-label={railOpen ? "Workspace navigation" : undefined}>
       <div className="titlebar-drag" aria-hidden="true" />
-      <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadReturnsToRail(railOpen); if (railOpen) setRailOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
-      <WorkspaceTree
+      <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadReturnsToRail(railOpen); if (railOpen) setRailOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New root thread</span><kbd>⌘N</kbd></button>
+      <VirtualAgentExplorer
         snapshot={workspaceSnapshot}
         currentSessionId={state.sessionId}
         activeAgentId={activeAgentId}
-        onOpenAgent={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setRailOpen(false); requestAnimationFrame(() => document.getElementById(`workspace-tab-agent:${agent.id}`)?.focus()); }}
+        onOpenAgent={(agent) => { selectWorkspaceAgent(agent); setRailOpen(false); requestAnimationFrame(() => document.getElementById(agent.worktreeId === workspaceTabs.rootWorktreeId ? "workspace-tab-root" : `workspace-tab-worktree:${agent.worktreeId}`)?.focus()); }}
         loadState={workspaceLoadState}
       />
       <div className="rail-runtime">
-        <RemoteExecutionControl
-          executionTarget={state.executionTarget}
-          switchingExecutionTo={state.switchingExecutionTo}
-          disabled={executionControlDisabled}
-          onSelect={changeExecutionTarget}
-        />
+        {state.executionTarget === "local" && !isExecutionSwitching
+          ? <div className="local-runtime" aria-label="IPython runtime: Local"><span>IPython</span><small>Local kernel</small></div>
+          : <div className="local-runtime-setup"><small>Switch to Local to continue</small><LocalRuntimeRecovery
+              disabled={executionControlDisabled}
+              switching={isExecutionSwitching}
+              onSwitch={() => changeExecutionTarget("local")}
+            /></div>}
       </div>
       <div className="rail-spacer" />
-      <WorktreeManager active={worktreeManagerOpen} onOpen={() => { if (railOpen) railToggleRef.current?.focus(); setWorktreeManagerOpen(true); setRailOpen(false); }} />
+      <WorktreeManager active={worktreeManagerOpen} onOpen={() => {
+        if (!railOpen) { setWorktreeManagerOpen(true); return; }
+        setRailOpen(false);
+        requestAnimationFrame(() => {
+          railToggleRef.current?.focus();
+          setWorktreeManagerOpen(true);
+        });
+      }} />
       {isStarting
         ? <StartupRail stage={startupStage} />
         : <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>}
     </aside>
     {railOpen && <button type="button" className="rail-backdrop" tabIndex={-1} aria-label="Close workspace navigation" onClick={() => { setRailOpen(false); railToggleRef.current?.focus(); }} />}
 
-    <main className="workspace" id="workspace-main" tabIndex={-1} inert={railOpen ? true : undefined}>
+    <main className={`workspace ${browserOpen ? "browser-open" : ""}`} id="workspace-main" tabIndex={-1} inert={railOpen ? true : undefined}>
       <header className="workspace-toolbar titlebar-drag">
         <button
           ref={railToggleRef}
@@ -383,6 +459,7 @@ export function App() {
           onClose={(tabId) => dispatchWorkspaceTab({ type: "close", tabId })}
           onAdd={() => setTabChooserOpen(true)}
         />
+        <button ref={browserToggleRef} type="button" className={`browser-toggle no-drag ${browserOpen ? "active" : ""}`} aria-pressed={browserOpen} aria-expanded={browserOpen} aria-controls="dev-server-panel" onClick={() => setBrowserOpen((current) => !current)}>Browser</button>
       </header>
 
       <div
@@ -391,11 +468,21 @@ export function App() {
         id={`workspace-panel-${activeTab.id}`}
         aria-labelledby={`workspace-tab-${activeTab.id}`}
       >
-      {activeSurface.kind === "agent" ? <AgentOverview agent={activeSurface.agent} />
+      {activeSurface.kind === "agent" ? (activeSurface.agent.activeSessionId
+        ? <SessionTranscriptView key={activeSurface.agent.activeSessionId} agent={activeSurface.agent} items={sessionItems} state={sessionTranscriptState} onRetry={() => setSessionRetryNonce((value) => value + 1)} renderItem={(item) => renderTranscriptItem(item, activeSurface.agent.name, "Prompt")} />
+        : <AgentOverview agent={activeSurface.agent} />)
+      : activeSurface.kind === "empty" ? <EmptyWorktreeOverview worktree={activeSurface.worktree} />
       : activeSurface.kind === "detached" ? <DetachedAgentOverview tab={activeSurface.tab} />
       : <>
-      <div className="transcript" ref={transcriptRef} onScroll={transcriptScroll} onWheel={transcriptWheel} role="region" aria-label="Conversation" aria-busy={state.isStreaming}>
-        {!hasConversation && <section className="welcome">
+      <AccessibleTranscriptDialog items={items} assistantLabel="Ernie" promptLabel="You" />
+      <VirtualTranscript
+        items={items}
+        scrollRef={transcriptRef}
+        busy={state.isStreaming}
+        onScroll={transcriptScroll}
+        onWheel={transcriptWheel}
+        renderItem={renderTranscriptItem}
+        empty={<section className="welcome">
           <div className="welcome-mark"><Icon name="spark" size={23} /></div>
           <h1>What would you like to work on?</h1>
           <p>Ask Prime Agent to inspect the project, make a change, or continue an existing task.</p>
@@ -403,35 +490,25 @@ export function App() {
             {["Explain this codebase", "Find the next useful improvement", "Run the project checks"].map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)} disabled={state.connection !== "ready"}>{suggestion}</button>)}
           </div>
         </section>}
-        {items.map((item) => {
-          if (item.kind === "tool") return <details className={`tool-item ${item.isError ? "error" : ""}`} data-phase={item.phase} key={item.id} open={item.phase !== "end"}><summary><span className="tool-indicator" />{item.name}<span className="tool-phase">{item.phase === "end" ? (item.isError ? "failed" : "done") : "running"}</span></summary>{item.detail && <pre>{item.detail}</pre>}</details>;
-          if (item.kind === "delegation") return <details className={`delegation-item ${item.status}`} key={item.id} open={item.status === "running" || item.status === "error"}>
-            <summary><span className="delegation-glyph" aria-hidden="true">↳</span><span className="delegation-copy"><strong>{item.name}</strong><small>{item.task || "Delegated work"}</small></span><span className="delegation-status">{item.status}</span></summary>
-            {item.detail && <div className="delegation-detail">{item.detail}</div>}
-          </details>;
-          if (item.kind === "notice") return <div className={`notice ${item.tone}`} key={item.id}>{item.text}</div>;
-          if (item.kind === "user") return <article className="message user" key={item.id}><div className="message-role">You</div><div className="message-copy">{item.text}</div></article>;
-          const text = assistantText(item);
-          return <article className="message assistant" key={item.id}><div className="message-role">Ernie</div><div className="message-copy">{text}{item.active && <span className="stream-cursor" aria-label="Streaming" />}</div></article>;
-        })}
-      </div>
+      />
 
       <div className="composer-wrap" ref={composerWrapRef}>
         {!isStarting && <ComposerAutocomplete commands={commandMatches} activeIndex={commandIndex} onActiveIndexChange={setCommandIndex} onChoose={chooseCommand} />}
         {!isFollowing && <button type="button" className="jump-latest" onClick={() => followLatest(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}><span className="jump-live-dot" />Jump to latest</button>}
         {isStarting ? <StartupComposer stage={startupStage} /> : <form className="composer" onSubmit={submit}>
-          <textarea ref={composerTextareaRef} aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={isExecutionSwitching ? "Switching IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : "Prime Agent is offline. Reconnect to send a message."} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
+          <textarea ref={composerTextareaRef} aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={localOnlyBlocked ? "Switch to Local IPython to continue…" : state.connection === "ready" ? "Message Prime Agent…" : "Prime Agent is offline. Reconnect to send a message."} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || localOnlyBlocked} />
           <div className="composer-footer">
             <div className="usage"><span>{state.contextPercent}% context</span><span>·</span><span>{formatTokens(state.totalTokens)} {state.totalTokens === 1 ? "token" : "tokens"}</span><span>·</span><span>{state.cost}</span></div>
-            {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready" || isExecutionSwitching}><Icon name="send" size={16} /></button>}
+            {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready" || localOnlyBlocked}><Icon name="send" size={16} /></button>}
           </div>
         </form>}
         {composerError && <div className="composer-error" role="alert">{composerError}</div>}
       </div>
       </>}
       </div>
+      <DevServerPanel open={browserOpen} worktreeId={activeTab.worktreeId} worktreeLabel={activeTab.title} onClose={closeBrowser} />
     </main>
-    <div className="sr-only" aria-live="polite" aria-atomic="true"><span key={accessibilityStatus.sequence}>{accessibilityStatus.text}</span></div>
+    <div className="sr-only" aria-live="polite" aria-atomic="true"><span key={accessibilityStatus.sequence}>{accessibilityStatus.text}</span><span>{sessionAccessibilityStatus}</span></div>
 
     <WorktreeManagerDialog
       open={worktreeManagerOpen}
@@ -444,7 +521,11 @@ export function App() {
       open={tabChooserOpen}
       snapshot={workspaceSnapshot}
       onClose={() => setTabChooserOpen(false)}
-      onChoose={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setTabChooserOpen(false); }}
+      onChooseWorktree={(worktree) => {
+        dispatchWorkspaceTab({ type: "open_worktree", worktree });
+        setTabChooserOpen(false);
+      }}
+      onChoose={(agent) => { selectWorkspaceAgent(agent); setTabChooserOpen(false); }}
       loadState={workspaceLoadState}
     />
     <NewThreadLauncher

@@ -46,7 +46,7 @@ describe("WorkspaceCatalog", () => {
       name: "Root", status: "waiting", runtimeKind: "root",
     });
     expect(result.refreshed.agents[1]).toMatchObject({
-      id: "child-session", sessionId: "child-session", worktreeId: "/tmp/ernie-feature",
+      id: "child-active", activeSessionId: "child-active", sessionId: "child-session", worktreeId: "/tmp/ernie-feature",
       parentAgentId: "root-active", childId: "sub-child", status: "working", runtimeKind: "subagent",
     });
     expect(result.events).toEqual([{ kind: "snapshot", snapshot: result.refreshed }]);
@@ -72,7 +72,7 @@ describe("WorkspaceCatalog", () => {
         yield* Effect.forkScoped(Stream.runForEach(catalog.events, (event) => Effect.sync(() => { events.push(event); })));
         yield* Effect.yieldNow;
         yield* Effect.forkScoped(catalog.start);
-        yield* Effect.sleep(350);
+        yield* Effect.sleep(1_000);
         return { snapshot: yield* catalog.current, events };
       })).pipe(Effect.provide(layer({
         repositoryPath: root, gitPath, nodePath: process.execPath, primeAgentCliPath,

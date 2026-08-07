@@ -172,7 +172,7 @@ export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread, lo
         return <div key={worktree.id} title={`${worktree.label} — ${worktree.path}`}><span className="worktree-icon"><Icon name="branch" /></span><span><strong title={worktree.label}>{worktree.label}</strong><small title={worktree.path}>{worktree.path}</small></span><em>{countLabel(agentCount, "agent")}</em></div>;
       }) : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection; Ernie will retry automatically." : "No worktrees found in this repository."}</div>}
     </div>
-    <div className="manager-footer"><button type="button" onClick={onNewThread}>New thread in current worktree</button></div>
+    <div className="manager-footer"><button type="button" onClick={onNewThread}>New thread in root worktree</button></div>
   </ModalDialog>;
 }
 
@@ -201,7 +201,7 @@ export function WorkspaceTabStrip({ tabs, activeTabId, onSelect, onClose, onAdd 
   };
 
   return <div className="workspace-tab-strip no-drag">
-    <div className="workspace-tab-viewport" role="tablist" aria-label="Open workspace surfaces" onKeyDown={(event) => {
+    <div className="workspace-tab-viewport" role="tablist" aria-label="Open worktrees" onKeyDown={(event) => {
       const target = event.target as HTMLElement;
       if (target.getAttribute("role") !== "tab") return;
       const index = tabs.findIndex((tab) => tab.id === activeTabId);
@@ -246,7 +246,7 @@ export function WorkspaceTabStrip({ tabs, activeTabId, onSelect, onClose, onAdd 
         {!tab.pinned && <button type="button" tabIndex={-1} className="tab-close" aria-label={`Close ${tab.title}`} title={`Close ${tab.title}`} onClick={() => onClose(tab.id)}><Icon name="close" /></button>}
       </div>)}
     </div>
-    <button type="button" className="workspace-tab-add" aria-label="Open agent tab" title="Open agent tab" onClick={onAdd}><Icon name="add" /></button>
+    <button type="button" className="workspace-tab-add" aria-label="Open worktree view" title="Open worktree view" onClick={onAdd}><Icon name="add" /></button>
   </div>;
 }
 
@@ -262,6 +262,16 @@ export function AgentOverview({ agent }: { readonly agent: WorkspaceAgent }) {
   </section>;
 }
 
+/** Attached worktree view with no selected session. */
+export function EmptyWorktreeOverview({ worktree }: { readonly worktree: WorkspaceWorktree }) {
+  return <section className="agent-overview empty-worktree">
+    <div className="agent-overview-mark idle"><Icon name="branch" /></div>
+    <div className="agent-overview-path">Worktree · No session selected</div>
+    <h1 title={worktree.label}>{worktree.label}</h1>
+    <p>This worktree is available. Select a session in the navigator, or start work from the root session.</p>
+  </section>;
+}
+
 /** Explicit stale-tab state; it never exposes the current root composer. */
 export function DetachedAgentOverview({ tab }: { readonly tab: WorkspaceTab }) {
   return <section className="agent-overview detached-agent">
@@ -273,27 +283,38 @@ export function DetachedAgentOverview({ tab }: { readonly tab: WorkspaceTab }) {
 }
 
 /** Chooser used by the global plus button to open known agents as tabs. */
-export function AgentTabChooser({ open, snapshot, onClose, onChoose, loadState }: {
+export function AgentTabChooser({ open, snapshot, onClose, onChooseWorktree, onChoose, loadState }: {
   readonly open: boolean;
   readonly snapshot: WorkspaceSnapshot;
   readonly onClose: () => void;
+  readonly onChooseWorktree: (worktree: WorkspaceWorktree) => void;
   readonly onChoose: (agent: WorkspaceAgent) => void;
   readonly loadState: WorkspaceLoadState;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const worktreeById = new Map(snapshot.worktrees.map((worktree) => [worktree.id, worktree]));
   return <ModalDialog open={open} onRequestClose={onClose} labelledBy="tab-chooser-title" className="tab-chooser" initialFocusRef={closeButton}>
-    <div className="tab-chooser-heading"><div><h2 id="tab-chooser-title">Open agent tab</h2><p>Open an agent from any worktree.</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label="Close tab chooser"><Icon name="close" /></button></div>
+    <div className="tab-chooser-heading"><div><h2 id="tab-chooser-title">Open worktree view</h2><p>Open any worktree, then choose a session when one is available.</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label="Close tab chooser"><Icon name="close" /></button></div>
     <div className="tab-chooser-list">
-      {snapshot.agents.length > 0 ? snapshot.agents.map((agent) => {
-        const worktreeLabel = worktreeById.get(agent.worktreeId)?.label ?? "Unknown worktree";
-        const summary = agent.summary || statusLabel(agent);
-        return <button key={agent.id} type="button" onClick={() => onChoose(agent)} aria-label={`${agent.name}, ${statusLabel(agent)}, ${worktreeLabel}, ${summary}`} title={`${agent.name} — ${worktreeLabel} — ${summary}`}>
-          <span className={`agent-state ${agent.status}`} aria-hidden="true" />
-          <span><strong title={agent.name}>{agent.name}</strong><small title={`${worktreeLabel} · ${summary}`}>{worktreeLabel} · {summary}</small></span>
-          <span className="tab-chooser-open">Open</span>
-        </button>;
-      }) : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading agents…" : loadState === "error" ? "Unable to load agents. Check the workspace connection; Ernie will retry automatically." : "No agents yet. Start a new thread or delegate a task to create one."}</div>}
+      {snapshot.worktrees.length > 0 ? <>
+        {snapshot.worktrees.map((worktree) => {
+          const count = snapshot.agents.filter((agent) => agent.worktreeId === worktree.id).length;
+          return <button className="worktree-choice" key={worktree.id} type="button" onClick={() => onChooseWorktree(worktree)} aria-label={`${worktree.label}, ${count} ${count === 1 ? "session" : "sessions"}`} title={worktree.path}>
+            <span className="worktree-icon" aria-hidden="true"><Icon name="branch" /></span>
+            <span><strong title={worktree.label}>{worktree.label}</strong><small>{count === 0 ? "No active sessions" : `${count} active ${count === 1 ? "session" : "sessions"}`}</small></span>
+            <span className="tab-chooser-open">Open</span>
+          </button>;
+        })}
+        {snapshot.agents.map((agent) => {
+          const worktreeLabel = worktreeById.get(agent.worktreeId)?.label ?? "Unknown worktree";
+          const summary = agent.summary || statusLabel(agent);
+          return <button key={agent.id} type="button" onClick={() => onChoose(agent)} aria-label={`${agent.name}, ${statusLabel(agent)}, ${worktreeLabel}, ${summary}`} title={`${agent.name} — ${worktreeLabel} — ${summary}`}>
+            <span className={`agent-state ${agent.status}`} aria-hidden="true" />
+            <span><strong title={agent.name}>{agent.name}</strong><small title={`${worktreeLabel} · ${summary}`}>{worktreeLabel} · {summary}</small></span>
+            <span className="tab-chooser-open">View session</span>
+          </button>;
+        })}
+      </> : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection; Ernie will retry automatically." : "No worktrees found in this repository."}</div>}
     </div>
   </ModalDialog>;
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
+import net from "node:net";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { ensureElectronRuntime } from "./ensure-electron-runtime.mjs";
@@ -8,6 +9,59 @@ import { ensureElectronRuntime } from "./ensure-electron-runtime.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), "ernie-smoke-"));
 const executablePath = ensureElectronRuntime();
+const daemonSocketPath = path.join(userData, "daemon.sock");
+let daemonSequence = 0;
+const fakeDaemon = net.createServer((socket) => {
+  socket.setEncoding("utf8");
+  socket.write(`${JSON.stringify({
+    type: "daemon_hello",
+    protocol: { name: "prime-agent.daemon", version: 7 },
+    serverCapabilities: ["attach_snapshot", "event_sequence"],
+  })}\n`);
+  let carry = "";
+  socket.on("data", (chunk) => {
+    carry += chunk;
+    for (;;) {
+      const newline = carry.indexOf("\n");
+      if (newline < 0) break;
+      const line = carry.slice(0, newline); carry = carry.slice(newline + 1);
+      if (!line) continue;
+      const envelope = JSON.parse(line);
+      const command = envelope.command;
+      if (command.type === "detach") {
+        socket.write(`${JSON.stringify({ id: command.id, type: "response", command: "detach", success: true })}\n`);
+        continue;
+      }
+      if (command.type !== "attach") continue;
+      const activeSessionId = command.activeSessionId;
+      socket.write(`${JSON.stringify({
+        id: command.id, type: "response", command: "attach", success: true,
+        data: {
+          activeSessionId,
+          snapshot: {
+            activeSessionId,
+            messages: [
+              { id: "child-user", role: "user", content: [{ type: "text", text: "Review the selected worktree" }] },
+              { id: "child-assistant", role: "assistant", content: [{ type: "text", text: "Initial child result" }] },
+            ],
+          },
+        },
+      })}\n`);
+      const emit = (event) => socket.write(`${JSON.stringify({ type: "session_event", activeSessionId, event, meta: { activeSessionId, sequence: ++daemonSequence } })}\n`);
+      setTimeout(() => {
+        emit({ type: "message_start", message: { id: "child-live", role: "assistant", content: [] } });
+        emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Streaming child update" } });
+        emit({ type: "message_end", message: { id: "child-live", role: "assistant", content: [{ type: "text", text: "Streaming child update" }] } });
+        emit({ type: "tool_execution_start", toolCallId: "child-ipython", toolName: "ipython", args: { code: "print('child')" } });
+        emit({ type: "tool_execution_end", toolCallId: "child-ipython", toolName: "ipython", result: { content: [{ type: "text", text: "child" }], details: { status: "ok", durationMs: 4 } }, isError: false });
+      }, 20);
+    }
+  });
+});
+await new Promise((resolveListen, rejectListen) => {
+  fakeDaemon.once("error", rejectListen);
+  fakeDaemon.listen(daemonSocketPath, () => { fakeDaemon.off("error", rejectListen); resolveListen(); });
+});
 const electronApp = await electron.launch({
   executablePath,
   args: [root, `--user-data-dir=${userData}`],
@@ -17,6 +71,8 @@ const electronApp = await electron.launch({
     ERNIE_AGENT_CLI_PATH: path.join(root, "tests/fake-prime-agent.mjs"),
     ERNIE_CATALOG_CLI_PATH: path.join(root, "tests/fixtures/workspace-prime-agent.mjs"),
     ERNIE_CATALOG_GIT_PATH: path.join(root, "tests/fixtures/workspace-git.mjs"),
+    ERNIE_DEV_SERVER_LSOF_PATH: path.join(root, "tests/fixtures/dev-server-lsof.mjs"),
+    ERNIE_DAEMON_SOCKET_PATH: daemonSocketPath,
     ERNIE_FIXTURE_ROOT: root,
     ERNIE_FAKE_MODE: "lifecycle",
     ERNIE_FAKE_STARTUP_DELAY_MS: "700",
@@ -34,24 +90,65 @@ try {
   assert.match((await startup.textContent()) ?? "", /Starting Prime Agent/);
   await window.getByText("Ready", { exact: true }).waitFor({ timeout: 15_000 });
   assert.equal(await window.getByText("Test Model", { exact: true }).first().textContent(), "Test Model");
-  await window.locator(".agent-tree-row").filter({ hasText: "Child" }).waitFor({ timeout: 10_000 });
-  await window.locator(".agent-tree-row").filter({ hasText: "Child" }).click();
-  await window.locator(".agent-overview").getByRole("heading", { name: "Child" }).waitFor();
-  assert.equal(await window.locator(".workspace-tab-shell").count(), 2);
+  await window.getByLabel("IPython runtime: Local").waitFor();
+  assert.equal(await window.getByRole("button", { name: /IPython ·/ }).count(), 0);
+  await window.getByRole("button", { name: "Browser" }).click();
+  const browserPanel = window.getByRole("complementary", { name: "Browser and local development servers" });
+  await browserPanel.getByText("127.0.0.1:5173", { exact: true }).waitFor({ timeout: 10_000 });
+  assert.equal(await browserPanel.getByRole("button", { name: "Open" }).count(), 3);
+  await electronApp.evaluate(({ shell }) => {
+    globalThis.__ernieOpenedExternal = "";
+    shell.openExternal = async (url) => { globalThis.__ernieOpenedExternal = url; };
+  });
+  await browserPanel.locator(".dev-server-card").filter({ hasText: "127.0.0.1:5173" }).getByRole("button", { name: "Open" }).click();
+  let openedExternal = "";
+  for (let attempt = 0; attempt < 50 && openedExternal === ""; attempt += 1) {
+    await window.waitForTimeout(50);
+    openedExternal = await electronApp.evaluate(() => globalThis.__ernieOpenedExternal);
+  }
+  assert.equal(openedExternal, "http://127.0.0.1:5173");
+  await browserPanel.getByRole("button", { name: "Close browser panel" }).click();
+  await browserPanel.waitFor({ state: "hidden" });
+  assert.equal(await window.getByRole("button", { name: "Browser" }).evaluate((element) => element === document.activeElement), true);
+  await window.getByRole("button", { name: "Browser" }).click();
+  await browserPanel.waitFor({ state: "visible" });
+  await window.keyboard.press("Escape");
+  await browserPanel.waitFor({ state: "hidden" });
+  const virtualExplorer = window.locator(".virtual-agent-explorer");
+  await virtualExplorer.waitFor({ timeout: 10_000 });
+  assert.ok(await virtualExplorer.evaluate((element) => element.scrollHeight > element.clientHeight));
+  const firstTreeItem = virtualExplorer.getByRole("button").first();
+  await firstTreeItem.focus();
+  await window.keyboard.press("End");
+  await window.waitForTimeout(100);
+  assert.equal(await window.evaluate(() => document.activeElement?.tagName), "BUTTON");
+  assert.match((await window.evaluate(() => document.activeElement?.getAttribute("aria-keyshortcuts"))) ?? "", /ArrowDown/);
+  assert.ok(await virtualExplorer.evaluate((element) => element.scrollTop > 0));
+  await window.getByRole("button", { name: "Open worktree view" }).click();
+  await window.getByRole("dialog", { name: "Open worktree view" }).getByRole("button", { name: /^Child,/ }).click();
+  const childSessionView = window.locator(".session-transcript-view");
+  await childSessionView.getByRole("heading", { name: "Child" }).waitFor();
+  await childSessionView.getByText("Streaming child update", { exact: true }).waitFor({ timeout: 10_000 });
+  assert.match((await childSessionView.locator(".ipython-execution-card").textContent()) ?? "", /IPython execution.*Runtime unavailable.*Completed.*print\('child'\).*child/s);
+  await childSessionView.getByRole("button", { name: "Browse full transcript" }).click();
+  const accessibleTranscript = window.getByRole("dialog", { name: "Full transcript" });
+  assert.match((await accessibleTranscript.textContent()) ?? "", /Prompt: Review the selected worktree.*Child: Initial child result/s);
+  await accessibleTranscript.getByRole("button", { name: "Close full transcript" }).click();
+  assert.equal(await window.locator(".workspace-tab-shell").count(), 2, JSON.stringify(await window.locator(".workspace-tab").allTextContents()));
   const selectedTab = window.getByRole("tab", { selected: true });
   assert.equal(await selectedTab.getAttribute("aria-controls"), await window.getByRole("tabpanel").getAttribute("id"));
   assert.equal(await selectedTab.getAttribute("tabindex"), "0");
-  await window.getByRole("button", { name: "Close Child" }).click();
-  assert.equal(await window.locator(".agent-overview").count(), 0);
-  await window.getByRole("button", { name: "Open agent tab" }).click();
-  assert.match((await window.getByRole("dialog", { name: "Open agent tab" }).textContent()) ?? "", /Root.*Child/s);
-  await window.getByRole("dialog", { name: "Open agent tab" }).locator("button").filter({ hasText: "Child" }).click();
+  await window.locator(".workspace-tab-shell.active .tab-close").click();
+  assert.equal(await window.locator(".session-transcript-view").count(), 0);
+  await window.getByRole("button", { name: "Open worktree view" }).click();
+  assert.match((await window.getByRole("dialog", { name: "Open worktree view" }).textContent()) ?? "", /Root.*Child/s);
+  await window.getByRole("dialog", { name: "Open worktree view" }).getByRole("button", { name: /^Child,/ }).click();
   await window.getByRole("tabpanel").getByRole("heading", { name: "Child" }).waitFor();
   const managerTrigger = window.getByRole("button", { name: /Worktree manager/ });
   await managerTrigger.click();
   const managerDialog = window.getByRole("dialog", { name: "Worktree manager" });
   await managerDialog.waitFor();
-  assert.match((await window.locator(".manager-footer").textContent()) ?? "", /New thread in current worktree/);
+  assert.match((await window.locator(".manager-footer").textContent()) ?? "", /New thread in root worktree/);
   assert.ok(await window.locator(".manager-worktree-list").evaluate((element) => element.scrollHeight > element.clientHeight));
   for (let index = 0; index < 4; index += 1) await window.keyboard.press("Tab");
   assert.equal(await window.evaluate(() => document.activeElement?.closest("dialog")?.getAttribute("aria-labelledby")), "manager-title");
@@ -64,12 +161,12 @@ try {
   assert.equal(await window.getByRole("tab", { selected: true }).getAttribute("id"), "workspace-tab-root");
   await window.evaluate(() => { document.documentElement.dir = "ltr"; });
   for (let index = 1; index <= 8; index += 1) {
-    await window.getByRole("button", { name: "Open agent tab" }).click();
-    await window.getByRole("dialog", { name: "Open agent tab" }).getByRole("button", { name: new RegExp(`^Review agent ${index},`) }).click();
+    await window.getByRole("button", { name: "Open worktree view" }).click();
+    await window.getByRole("dialog", { name: "Open worktree view" }).getByRole("button", { name: new RegExp(`^Review agent ${index},`) }).click();
   }
   assert.equal(await window.locator(".workspace-tab-shell").count(), 10);
   assert.equal(await window.locator(".workspace-tab-viewport").evaluate((element) => element.scrollWidth > element.clientWidth), true);
-  const addTabBox = await window.getByRole("button", { name: "Open agent tab" }).boundingBox();
+  const addTabBox = await window.getByRole("button", { name: "Open worktree view" }).boundingBox();
   assert.ok(addTabBox && addTabBox.x + addTabBox.width <= await window.evaluate(() => innerWidth));
   await window.locator("#workspace-tab-root").click();
   assert.equal(await window.locator("[data-agentation-toolbar]").count(), 0);
@@ -103,6 +200,9 @@ try {
   await window.locator(".tool-item").waitFor({ state: "attached", timeout: 10_000 });
   assert.match((await window.locator(".tool-item").textContent()) ?? "", /readdone.*final output/);
   assert.equal(await window.locator(".tool-item .tool-indicator").evaluate((element) => getComputedStyle(element).animationName), "none");
+  const ipythonCard = window.locator(".ipython-execution-card");
+  await ipythonCard.waitFor({ state: "attached" });
+  assert.match((await ipythonCard.textContent()) ?? "", /IPython execution.*Local.*Completed.*servers = discover_ports\(\).*\[3000, 5173\]/s);
   assert.match((await window.locator(".delegation-item").textContent()) ?? "", /api-reviewer.*Review the API.*done/);
   assert.match((await window.locator(".usage").textContent()) ?? "", /2k tokens/);
 
@@ -155,7 +255,7 @@ try {
   assert.ok(fourXPanel && fourXComposer && fourXComposer.y >= fourXPanel.y && fourXComposer.y + fourXComposer.height <= fourXPanel.y + fourXPanel.height, JSON.stringify({ fourXPanel, fourXComposer, fourXTarget, fourXViewport }));
   assert.ok(fourXTarget && fourXTarget.width >= 40 && fourXTarget.height >= 40 && fourXTarget.y >= fourXPanel.y && fourXTarget.y + fourXTarget.height <= fourXViewport.height);
   await railToggle.click();
-  await window.getByRole("button", { name: "New thread" }).click();
+  await window.getByRole("button", { name: "New root thread" }).click();
   const compactDialog = window.getByRole("dialog", { name: "New thread" });
   await compactDialog.waitFor();
   const compactBox = await compactDialog.boundingBox();
@@ -174,6 +274,12 @@ try {
   await window.setViewportSize({ width: 700, height: 700 });
   await railToggle.click();
   await window.locator(".project-rail.is-open").waitFor();
+  await window.getByRole("button", { name: /Worktree manager/ }).click();
+  const mobileManager = window.getByRole("dialog", { name: "Worktree manager" });
+  await mobileManager.waitFor();
+  await mobileManager.getByRole("button", { name: "Close worktree manager" }).click();
+  await mobileManager.waitFor({ state: "hidden" });
+  assert.equal(await railToggle.evaluate((element) => element === document.activeElement), true);
   await window.setViewportSize({ width: 900, height: 700 });
   await window.waitForTimeout(100);
   assert.equal(await window.locator(".project-rail.is-open").count(), 0);
@@ -202,7 +308,7 @@ try {
   assert.equal(new Set(forcedColorSignatures).size, forcedColorSignatures.length);
   await window.emulateMedia({ forcedColors: "none" });
 
-  await window.getByRole("button", { name: "New thread" }).click();
+  await window.getByRole("button", { name: "New root thread" }).click();
   await window.getByRole("dialog", { name: "New thread" }).waitFor({ timeout: 5_000 });
   await window.getByRole("button", { name: "Create blank thread" }).click();
   await window.getByText("What would you like to work on?", { exact: true }).waitFor({ timeout: 10_000 });
@@ -219,6 +325,8 @@ try {
       ERNIE_AGENT_CLI_PATH: path.join(root, "tests/fake-prime-agent.mjs"),
       ERNIE_CATALOG_CLI_PATH: path.join(root, "tests/fixtures/workspace-prime-agent.mjs"),
       ERNIE_CATALOG_GIT_PATH: path.join(root, "tests/fixtures/workspace-git.mjs"),
+    ERNIE_DEV_SERVER_LSOF_PATH: path.join(root, "tests/fixtures/dev-server-lsof.mjs"),
+    ERNIE_DAEMON_SOCKET_PATH: daemonSocketPath,
       ERNIE_FIXTURE_ROOT: root,
       ERNIE_FIXTURE_EMPTY: "1",
       ERNIE_FAKE_MODE: "lifecycle",
@@ -228,8 +336,8 @@ try {
     const emptyWindow = await emptyApp.firstWindow();
     await emptyWindow.getByText("Ready", { exact: true }).waitFor({ timeout: 15_000 });
     await emptyWindow.getByRole("navigation", { name: "Worktrees and agents" }).getByText("No worktrees found in this repository.", { exact: true }).waitFor();
-    await emptyWindow.getByRole("button", { name: "Open agent tab" }).click();
-    await emptyWindow.getByText("No agents yet. Start a new thread or delegate a task to create one.", { exact: true }).waitFor();
+    await emptyWindow.getByRole("button", { name: "Open worktree view" }).click();
+    await emptyWindow.getByText("No worktrees found in this repository.", { exact: true }).last().waitFor();
     await emptyWindow.getByRole("button", { name: "Close tab chooser" }).click();
     await emptyWindow.getByRole("button", { name: /Worktree manager/ }).click();
     await emptyWindow.getByRole("dialog", { name: "Worktree manager" }).getByText("No worktrees found in this repository.", { exact: true }).waitFor();
@@ -240,5 +348,6 @@ try {
   process.stdout.write("Electron smoke test passed.\n");
 } finally {
   if (!primaryClosed) await electronApp.close();
+  await new Promise((resolveClose) => fakeDaemon.close(() => resolveClose()));
   fs.rmSync(userData, { recursive: true, force: true });
 }

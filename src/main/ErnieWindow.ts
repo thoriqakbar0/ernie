@@ -6,6 +6,7 @@ import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import type { AgentEvent } from "../shared/contract";
+import type { SessionTranscriptEvent } from "../shared/sessionTranscript";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -26,6 +27,7 @@ export class ErnieWindowError extends Schema.TaggedErrorClass<ErnieWindowError>(
 export class ErnieWindow extends Context.Service<ErnieWindow, {
   readonly create: Effect.Effect<BrowserWindow, ErnieWindowError>;
   readonly send: (event: AgentEvent) => Effect.Effect<void>;
+  readonly sendSessionTranscript: (event: SessionTranscriptEvent) => Effect.Effect<void>;
   readonly trustedSender: (event: IpcMainInvokeEvent) => Effect.Effect<boolean>;
 }>()("@ernie/main/ErnieWindow") {}
 
@@ -45,6 +47,11 @@ export const make = Effect.gen(function* () {
   const send = Effect.fn("ErnieWindow.send")(function* (event: AgentEvent) {
     const active = yield* Ref.get(current);
     if (Option.isSome(active) && !active.value.isDestroyed()) active.value.webContents.send("agent:event", event);
+  });
+
+  const sendSessionTranscript = Effect.fn("ErnieWindow.sendSessionTranscript")(function* (event: SessionTranscriptEvent) {
+    const active = yield* Ref.get(current);
+    if (Option.isSome(active) && !active.value.isDestroyed()) active.value.webContents.send("session-transcript:event", event);
   });
 
   const create = Effect.gen(function* () {
@@ -80,7 +87,7 @@ export const make = Effect.gen(function* () {
     return window;
   }).pipe(Effect.withSpan("ErnieWindow.create"));
 
-  return ErnieWindow.of({ create, send, trustedSender });
+  return ErnieWindow.of({ create, send, sendSessionTranscript, trustedSender });
 });
 
 export const layer = Layer.effect(ErnieWindow, make);

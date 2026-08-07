@@ -14,7 +14,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type { AgentSlashCommand } from "../shared/commands";
-import type { AgentCommand, AgentEvent, AgentState, ExecutionTarget } from "../shared/contract";
+import type { AgentCommand, AgentEvent, AgentState, ExecutionTarget, IPythonExecution, IPythonExecutionStatus } from "../shared/contract";
 
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
 const MAX_STDERR_BYTES = 128 * 1024;
@@ -139,6 +139,46 @@ function toolDetail(payload: unknown): string {
   try { return JSON.stringify(payload).slice(0, 8_000); } catch { return ""; }
 }
 
+function textContent(payload: unknown): string {
+  const content = asRecord(payload)["content"];
+  if (!Array.isArray(content)) return "";
+  return content.flatMap((block) => {
+    const record = asRecord(block);
+    return record["type"] === "text" && typeof record["text"] === "string" ? [record["text"]] : [];
+  }).join("\n").slice(0, 8_000);
+}
+
+function ipythonStatus(phase: "start" | "update" | "end", payload: unknown, isError: boolean): IPythonExecutionStatus {
+  if (phase !== "end") return "running";
+  const status = string(asRecord(asRecord(payload)["details"])["status"]);
+  if (status === "aborted") return "aborted";
+  return isError || status === "error" ? "failed" : "succeeded";
+}
+
+/** Returns true only for Prime Agent's built-in IPython tool identity. */
+export function isIPythonToolName(name: string): boolean {
+  return name === "ipython";
+}
+
+interface ActiveIPythonExecution {
+  readonly executionTarget: ExecutionTarget;
+  readonly code: string;
+  readonly startedAt: number;
+  readonly monotonicStartedAt: number;
+  readonly detail: string;
+}
+
+function ipythonDetail(payload: unknown): string {
+  const content = textContent(payload);
+  if (content) return content;
+  const details = asRecord(asRecord(payload)["details"]);
+  for (const key of ["stderr", "stdout", "result", "errorEname"]) {
+    const value = details[key];
+    if (typeof value === "string" && value.length > 0) return value.slice(0, 8_000);
+  }
+  return "";
+}
+
 export class PrimeAgentRpc extends Context.Service<
   PrimeAgentRpc,
   {
@@ -164,6 +204,8 @@ export const make = (options: Options) => Effect.gen(function* () {
   const framing = yield* Ref.make<FramingState>({ carry: Buffer.alloc(0) });
   const events = yield* PubSub.unbounded<AgentEvent>();
   const executionTargetSwitch = yield* Ref.make<Option.Option<{ readonly target: ExecutionTarget; readonly deferred: Deferred.Deferred<void, PrimeAgentRpcError> }>>(Option.none());
+  const activeIPythonExecutions = yield* Ref.make<ReadonlyMap<string, ActiveIPythonExecution>>(new Map());
+  const activeToolNames = yield* Ref.make<ReadonlyMap<string, string>>(new Map());
 
   const publish = (event: AgentEvent) => PubSub.publish(events, event).pipe(Effect.asVoid);
   const snapshot = Ref.get(state).pipe(Effect.map((value) => ({ ...value })));
@@ -354,7 +396,54 @@ export const make = (options: Options) => Effect.gen(function* () {
     if (type === "tool_execution_start" || type === "tool_execution_update" || type === "tool_execution_end") {
       const phase = type.endsWith("start") ? "start" as const : type.endsWith("update") ? "update" as const : "end" as const;
       const payload = phase === "start" ? event["args"] : phase === "update" ? event["partialResult"] : event["result"];
-      yield* publish({ kind: "tool", sequence, phase, callId: string(event["toolCallId"]), name: string(event["toolName"]), isError: event["isError"] === true, detail: toolDetail(payload) });
+      const callId = string(event["toolCallId"]);
+      if (!callId) {
+        yield* publish({ kind: "error", source: "protocol", message: "Tool execution event is missing its call identity", detail: event });
+        return;
+      }
+      const reportedName = string(event["toolName"]);
+      const knownToolNames = yield* Ref.get(activeToolNames);
+      const name = reportedName || knownToolNames.get(callId) || "";
+      const isError = event["isError"] === true;
+      yield* Ref.update(activeToolNames, (names) => {
+        const next = new Map(names);
+        if (phase === "end") next.delete(callId);
+        else if (name) next.set(callId, name);
+        return next;
+      });
+      let ipython: IPythonExecution | undefined;
+      const currentExecutions = yield* Ref.get(activeIPythonExecutions);
+      const previous = currentExecutions.get(callId);
+      if (isIPythonToolName(name) || previous !== undefined) {
+        const observedAt = Date.now();
+        const monotonicObservedAt = performance.now();
+        const currentState = yield* Ref.get(state);
+        const detail = ipythonDetail(payload) || previous?.detail || "";
+        const activeExecution: ActiveIPythonExecution = phase === "start" || previous === undefined
+          ? {
+              executionTarget: currentState.executionTarget,
+              code: phase === "start" ? string(asRecord(payload)["code"]) : "",
+              startedAt: observedAt,
+              monotonicStartedAt: monotonicObservedAt,
+              detail,
+            }
+          : { ...previous, detail };
+        ipython = {
+          executionTarget: activeExecution.executionTarget,
+          status: ipythonStatus(phase, payload, isError),
+          code: activeExecution.code,
+          detail,
+          startedAt: activeExecution.startedAt,
+          durationMs: phase === "end" ? Math.max(0, monotonicObservedAt - activeExecution.monotonicStartedAt) : null,
+        };
+        yield* Ref.update(activeIPythonExecutions, (executions) => {
+          const next = new Map(executions);
+          if (phase === "end") next.delete(callId);
+          else next.set(callId, activeExecution);
+          return next;
+        });
+      }
+      yield* publish({ kind: "tool", sequence, phase, callId, name, isError, detail: toolDetail(payload), ...(ipython ? { ipython } : {}) });
       return;
     }
     const lifecycle = new Set(["agent_start", "agent_end", "turn_start", "turn_end", "message_start", "message_end", "session_action_update", "compaction_start", "compaction_end", "auto_retry_start", "auto_retry_end"]);
@@ -550,6 +639,8 @@ export const make = (options: Options) => Effect.gen(function* () {
       case "new_session": {
         const value = asRecord(yield* request("new_session", {}));
         if (value["cancelled"] === true) return { cancelled: true };
+        yield* Ref.set(activeIPythonExecutions, new Map());
+        yield* Ref.set(activeToolNames, new Map());
         yield* refresh; return {};
       }
       case "compact": yield* request("compact", {}); yield* refresh; return {};

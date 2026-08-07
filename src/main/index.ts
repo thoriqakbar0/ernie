@@ -13,6 +13,8 @@ import * as ErnieApp from "./ErnieApp";
 import * as ErnieWindow from "./ErnieWindow";
 import * as PrimeAgentRpc from "./PrimeAgentRpc";
 import * as WorkspaceCatalog from "./WorkspaceCatalog";
+import * as DevServerCatalog from "./DevServerCatalog";
+import * as SessionTranscriptStream from "./SessionTranscriptStream";
 
 const runtime = app.isPackaged ? join(process.resourcesPath, "runtime") : join(app.getAppPath(), "assets/runtime");
 const projectPath = resolve(process.env["ERNIE_PROJECT_PATH"] || "/Users/thor/work/ernie");
@@ -28,6 +30,8 @@ const remoteUvPath = process.env["PRIME_AGENT_REMOTE_UV"] ?? (existsSync(default
 
 const applicationLayer = Layer.mergeAll(
   ErnieWindow.layer,
+  SessionTranscriptStream.layer({ ...(process.env["ERNIE_DAEMON_SOCKET_PATH"] ? { socketPath: process.env["ERNIE_DAEMON_SOCKET_PATH"] } : {}) }),
+  DevServerCatalog.layer({ ...(process.env["ERNIE_DEV_SERVER_LSOF_PATH"] ? { lsofPath: process.env["ERNIE_DEV_SERVER_LSOF_PATH"] } : {}) }),
   PrimeAgentRpc.layer({
     nodePath: agentNodePath,
     cliPath: rpcAgentCliPath,

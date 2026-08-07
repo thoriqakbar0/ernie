@@ -5,6 +5,7 @@ export type ThreadItem =
   | { readonly id: string; readonly kind: "user"; readonly text: string }
   | { readonly id: string; readonly kind: "assistant"; readonly segments: readonly string[]; readonly active: boolean }
   | { readonly id: string; readonly kind: "tool"; readonly callId: string; readonly name: string; readonly detail: string; readonly phase: "start" | "update" | "end"; readonly isError: boolean }
+  | { readonly id: string; readonly kind: "ipython_execution"; readonly callId: string; readonly executionTarget: "local" | "modal" | "unknown"; readonly status: "running" | "succeeded" | "failed" | "aborted"; readonly code: string; readonly detail: string; readonly startedAt: number | null; readonly durationMs: number | null }
   | { readonly id: string; readonly kind: "delegation"; readonly childId: string; readonly activeSessionId?: string; readonly name: string; readonly task: string; readonly status: "queued" | "running" | "done" | "error" | "cancelled"; readonly detail: string }
   | { readonly id: string; readonly kind: "notice"; readonly text: string; readonly tone: "neutral" | "error" };
 
@@ -52,6 +53,23 @@ export function transcriptReducer(items: readonly ThreadItem[], action: Transcri
         return { ...item, segments, active: false };
       });
     case "tool": {
+      const execution = action.event.ipython;
+      if (execution !== undefined) {
+        const index = items.findIndex((item) => item.kind === "ipython_execution" && item.callId === action.event.callId);
+        const previous = index >= 0 && items[index]?.kind === "ipython_execution" ? items[index] : null;
+        const next: ThreadItem = {
+          id: previous?.id ?? action.id,
+          kind: "ipython_execution",
+          callId: action.event.callId,
+          executionTarget: execution.executionTarget,
+          status: execution.status,
+          code: execution.code || previous?.code || "",
+          detail: execution.detail || previous?.detail || "",
+          startedAt: execution.startedAt,
+          durationMs: execution.durationMs,
+        };
+        return index < 0 ? [...items, next] : items.map((item, itemIndex) => itemIndex === index ? next : item);
+      }
       const index = items.findIndex((item) => item.kind === "tool" && item.callId === action.event.callId);
       const previous = index >= 0 && items[index]?.kind === "tool" ? items[index] : null;
       const next: ThreadItem = {

@@ -9,7 +9,7 @@ import { NewThreadLauncher } from "./NewThreadLauncher";
 import { RemoteExecutionControl } from "./RemoteExecutionControl";
 import { StartupComposer, StartupRail, useStartupStoryboard } from "./StartupExperience";
 import { useTranscript } from "./useTranscript";
-import { AgentOverview, AgentTabChooser, DetachedAgentOverview, WorkspaceTabStrip, WorkspaceTree, WorktreeManager, WorktreeManagerDialog } from "./WorkspaceChrome";
+import { AgentOverview, AgentTabChooser, DetachedAgentOverview, WorkspaceTabStrip, WorkspaceTree, WorktreeManager, WorktreeManagerDialog, type WorkspaceLoadState } from "./WorkspaceChrome";
 import { initialWorkspaceTabs, resolveRootTabStatus, resolveWorkspaceTabSurface, workspaceTabsReducer } from "./workspaceTabs";
 
 const EMPTY_WORKSPACE: WorkspaceSnapshot = { worktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
@@ -43,6 +43,7 @@ export function App() {
   const transcript = useTranscript();
   const { items } = transcript;
   const [workspaceSnapshot, setWorkspaceSnapshot] = useState<WorkspaceSnapshot>(EMPTY_WORKSPACE);
+  const [workspaceLoadState, setWorkspaceLoadState] = useState<WorkspaceLoadState>("loading");
   const [workspaceTabs, dispatchWorkspaceTab] = useReducer(workspaceTabsReducer, undefined, () => initialWorkspaceTabs({ agentId: "current", worktreeId: "current", title: "ernie" }));
   const [tabChooserOpen, setTabChooserOpen] = useState(false);
   const [worktreeManagerOpen, setWorktreeManagerOpen] = useState(false);
@@ -70,10 +71,15 @@ export function App() {
   useEffect(() => {
     let active = true;
     void window.ernie.getState().then((snapshot) => { if (active && snapshot) setState(snapshot); });
-    void window.ernie.getWorkspace().then((snapshot) => { if (active) { setWorkspaceSnapshot(snapshot); dispatchWorkspaceTab({ type: "sync_agents", agents: snapshot.agents }); } });
+    void window.ernie.getWorkspace().then((snapshot) => { if (active) {
+      setWorkspaceSnapshot(snapshot);
+      if (snapshot.updatedAt !== EMPTY_WORKSPACE.updatedAt) setWorkspaceLoadState("ready");
+      dispatchWorkspaceTab({ type: "sync_agents", agents: snapshot.agents });
+    } }).catch(() => { if (active) setWorkspaceLoadState("error"); });
     const unsubscribe = window.ernie.onAgentEvent((event) => {
       transcript.handleEvent(event);
       if (event.kind === "workspace") {
+        setWorkspaceLoadState("ready");
         setWorkspaceSnapshot(event.snapshot);
         dispatchWorkspaceTab({ type: "sync_agents", agents: event.snapshot.agents });
         return;
@@ -83,6 +89,7 @@ export function App() {
         if (!event.state.isStreaming) transcript.finish();
         return;
       }
+      if (event.kind === "error" && event.source === "workspace_catalog") setWorkspaceLoadState("error");
       if (event.kind === "connection") {
         setState((current) => ({ ...current, connection: event.state, detail: event.detail }));
         if (event.state === "failed" || event.state === "closed") transcript.finish();
@@ -318,6 +325,7 @@ export function App() {
         currentSessionId={state.sessionId}
         activeAgentId={activeAgentId}
         onOpenAgent={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setRailOpen(false); }}
+        loadState={workspaceLoadState}
       />
       <div className="rail-runtime">
         <RemoteExecutionControl
@@ -408,6 +416,7 @@ export function App() {
       snapshot={workspaceSnapshot}
       onClose={() => setWorktreeManagerOpen(false)}
       onNewThread={() => { setWorktreeManagerOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}
+      loadState={workspaceLoadState}
     />
     <AgentTabChooser
       open={tabChooserOpen}

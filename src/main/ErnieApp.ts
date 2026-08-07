@@ -16,7 +16,9 @@ export const program = Effect.scoped(Effect.gen(function* () {
   yield* hardenElectron;
   yield* window.create;
   yield* Effect.forkScoped(Stream.runForEach(rpc.events, window.send));
-  yield* Effect.forkScoped(Stream.runForEach(catalog.events, (event) => window.send({ kind: "workspace", snapshot: event.snapshot })));
+  yield* Effect.forkScoped(Stream.runForEach(catalog.events, (event) => event.kind === "snapshot"
+    ? window.send({ kind: "workspace", snapshot: event.snapshot })
+    : window.send({ kind: "error", source: "workspace_catalog", message: event.message })));
 
   const runEffect = Effect.runPromise;
   const command = (input: AgentCommand) => rpc.command(input).pipe(

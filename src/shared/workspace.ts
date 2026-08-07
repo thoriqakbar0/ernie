@@ -53,8 +53,7 @@ export interface WorkspaceSnapshot {
   readonly updatedAt: string;
 }
 
-/** Notification published after a complete snapshot replaces the prior one. */
-export interface WorkspaceCatalogEvent {
-  readonly kind: "snapshot";
-  readonly snapshot: WorkspaceSnapshot;
-}
+/** Read-only catalog notifications projected without command or diagnostic detail. */
+export type WorkspaceCatalogEvent =
+  | { readonly kind: "snapshot"; readonly snapshot: WorkspaceSnapshot }
+  | { readonly kind: "error"; readonly message: string };

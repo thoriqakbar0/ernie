@@ -6,6 +6,7 @@ import {
   type FrameScheduler,
   type TranscriptAction,
 } from "../src/renderer/src/transcript";
+import { safeAgentErrorMessage } from "../src/renderer/src/useTranscript";
 
 function makeHarness() {
   let nextHandle = 0;
@@ -118,5 +119,12 @@ describe("transcript reducer", () => {
     const items = actions.reduce(transcriptReducer, []);
     const assistant = items[0];
     expect(assistant?.kind === "assistant" ? assistantText(assistant) : null).toBe("");
+  });
+});
+
+describe("safe agent errors", () => {
+  it("keeps backend diagnostics out of actionable renderer copy", () => {
+    expect(safeAgentErrorMessage("workspace_catalog")).toBe("Unable to refresh the workspace. Check the workspace connection and try again.");
+    expect(safeAgentErrorMessage("rpc: secret /Users/example")).toBe("Prime Agent encountered an error. Check the connection and try again.");
   });
 });

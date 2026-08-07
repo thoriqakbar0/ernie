@@ -19,11 +19,14 @@ function Icon({ name, ...props }: { readonly name: IconName } & SVGProps<SVGSVGE
   return <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...props}>{paths[name]}</svg>;
 }
 
+export type WorkspaceLoadState = "loading" | "ready" | "error";
+
 interface WorkspaceTreeProps {
   readonly snapshot: WorkspaceSnapshot;
   readonly currentSessionId: string;
   readonly activeAgentId: string;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
+  readonly loadState: WorkspaceLoadState;
 }
 
 function statusLabel(agent: WorkspaceAgent): string {
@@ -43,7 +46,7 @@ function countLabel(count: number, singular: string): string {
 }
 
 /** Worktree-first navigation with recursively nested agent sessions. */
-export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpenAgent }: WorkspaceTreeProps) {
+export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpenAgent, loadState }: WorkspaceTreeProps) {
   const agentsByWorktree = new Map<string, WorkspaceAgent[]>();
   for (const agent of snapshot.agents) {
     const agents = agentsByWorktree.get(agent.worktreeId) ?? [];
@@ -134,7 +137,9 @@ export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpe
   return <>
     <div className="rail-section-label worktree-heading">Worktrees</div>
     <nav className="worktree-tree" aria-label="Worktrees and agents">
-      {snapshot.worktrees.length > 0 ? renderWorktrees(undefined, 0) : <div className="worktree-empty">No worktrees are available.</div>}
+      {snapshot.worktrees.length > 0
+        ? renderWorktrees(undefined, 0)
+        : <div className="worktree-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection and try again." : "No worktrees found in this repository."}</div>}
     </nav>
   </>;
 }
@@ -148,11 +153,12 @@ export function WorktreeManager({ active, onOpen }: { readonly active: boolean; 
 }
 
 /** Read-only worktree and agent manager surface. */
-export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread }: {
+export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread, loadState }: {
   readonly open: boolean;
   readonly snapshot: WorkspaceSnapshot;
   readonly onClose: () => void;
   readonly onNewThread: () => void;
+  readonly loadState: WorkspaceLoadState;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   return <ModalDialog open={open} onRequestClose={onClose} labelledBy="manager-title" className="tab-chooser worktree-manager-dialog" initialFocusRef={closeButton}>
@@ -162,7 +168,7 @@ export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread }: 
       {snapshot.worktrees.length > 0 ? snapshot.worktrees.map((worktree) => {
         const agentCount = snapshot.agents.filter((agent) => agent.worktreeId === worktree.id).length;
         return <div key={worktree.id} title={`${worktree.label} — ${worktree.path}`}><span className="worktree-icon"><Icon name="branch" /></span><span><strong title={worktree.label}>{worktree.label}</strong><small title={worktree.path}>{worktree.path}</small></span><em>{countLabel(agentCount, "agent")}</em></div>;
-      }) : <div className="tab-chooser-empty">No worktrees are available.</div>}
+      }) : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection and try again." : "No worktrees found in this repository."}</div>}
     </div>
     <div className="manager-footer"><button type="button" onClick={onNewThread}>New thread in current worktree</button></div>
   </ModalDialog>;

@@ -66,17 +66,22 @@ describe("WorkspaceCatalog", () => {
     const temporary = mkdtempSync(join(tmpdir(), "ernie-catalog-retry-"));
     const failOnceFile = join(temporary, "failed-once");
     try {
-      const snapshot = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
         const catalog = yield* WorkspaceCatalog;
+        const events: Array<{ readonly kind: string; readonly message?: string }> = [];
+        yield* Effect.forkScoped(Stream.runForEach(catalog.events, (event) => Effect.sync(() => { events.push(event); })));
+        yield* Effect.yieldNow;
         yield* Effect.forkScoped(catalog.start);
         yield* Effect.sleep(350);
-        return yield* catalog.current;
+        return { snapshot: yield* catalog.current, events };
       })).pipe(Effect.provide(layer({
         repositoryPath: root, gitPath, nodePath: process.execPath, primeAgentCliPath,
         refreshIntervalMs: 10,
         environment: { ERNIE_FIXTURE_ROOT: root, ERNIE_FIXTURE_FAIL_ONCE_FILE: failOnceFile },
       }))));
-      expect(snapshot.agents).toHaveLength(2);
+      expect(result.snapshot.agents).toHaveLength(2);
+      expect(result.events).toContainEqual({ kind: "error", message: "Unable to refresh the workspace." });
+      expect(result.events.some((event) => event.kind === "snapshot")).toBe(true);
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }

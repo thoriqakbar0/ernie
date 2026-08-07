@@ -261,7 +261,12 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
     ? refresh.pipe(Effect.asVoid)
     : Effect.forever(
       refresh.pipe(
-        Effect.catch((error) => Effect.logWarning(`Workspace catalog refresh failed: ${error.message}`)),
+        Effect.catch((error) => PubSub.publish(notifications, {
+          kind: "error",
+          message: "Unable to refresh the workspace.",
+        } satisfies WorkspaceCatalogEvent).pipe(
+          Effect.andThen(Effect.logWarning(`Workspace catalog refresh failed: ${error.message}`)),
+        )),
         Effect.andThen(Effect.sleep(interval)),
       ),
     );

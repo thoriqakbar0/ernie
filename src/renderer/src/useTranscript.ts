@@ -12,6 +12,12 @@ const browserFrameScheduler: FrameScheduler = {
   cancel: (handle) => window.cancelAnimationFrame(handle),
 };
 
+export function safeAgentErrorMessage(source: string): string {
+  return source === "workspace_catalog"
+    ? "Unable to refresh the workspace. Check the workspace connection and try again."
+    : "Prime Agent encountered an error. Check the connection and try again.";
+}
+
 /** Connects normalized agent events to the frame-coalesced transcript domain. */
 export function useTranscript() {
   const [items, dispatch] = useReducer(transcriptReducer, []);
@@ -63,7 +69,10 @@ export function useTranscript() {
       return;
     }
     if (event.kind === "error") {
-      dispatch({ type: "notice", id: crypto.randomUUID(), text: event.message, tone: "error" });
+      const message = safeAgentErrorMessage(event.source);
+      stream.finish();
+      dispatch({ type: "notice", id: crypto.randomUUID(), text: message, tone: "error" });
+      announce(message);
     }
   }, []);
 

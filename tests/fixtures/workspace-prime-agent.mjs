@@ -11,6 +11,15 @@ if (process.env.ERNIE_FIXTURE_MALFORMED === "1") {
   process.stdout.write('{"sessions":"not-an-array"}');
   process.exit(0);
 }
+const extraAgents = process.env.ERNIE_FIXTURE_MANY_AGENTS === "1"
+  ? Array.from({ length: 10 }, (_, index) => ({
+      id: `extra-${index + 1}`, lifecycle: "live", activity: "idle", isSessionActive: false,
+      activeSessionId: `extra-active-${index + 1}`, sessionId: `extra-session-${index + 1}`,
+      sessionName: `Review agent ${index + 1}`, cwd: root, isStreaming: false,
+      runtimeKind: "subagent", parentActiveSessionId: "root-active", parentSessionId: "root-session",
+      rlmChildId: `sub-extra-${index + 1}`, summary: `Review workspace area ${index + 1}`,
+    }))
+  : [];
 process.stdout.write(JSON.stringify({ sessions: [
   {
     id: "root-active", lifecycle: "live", activity: "idle", isSessionActive: false,
@@ -27,5 +36,6 @@ process.stdout.write(JSON.stringify({ sessions: [
   {
     id: "outside", lifecycle: "live", activity: "idle", isSessionActive: false,
     sessionId: "outside", cwd: "/tmp/unrelated", isStreaming: false
-  }
+  },
+  ...extraAgents,
 ] }));

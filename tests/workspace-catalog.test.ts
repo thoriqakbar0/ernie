@@ -87,6 +87,27 @@ describe("WorkspaceCatalog", () => {
     }
   });
 
+  it("preserves unusual worktree paths and excludes prunable records", async () => {
+    const snapshot = await Effect.runPromise(Effect.gen(function* () {
+      const catalog = yield* WorkspaceCatalog;
+      return yield* catalog.refresh;
+    }).pipe(Effect.provide(layer({
+      repositoryPath: root,
+      gitPath,
+      nodePath: process.execPath,
+      primeAgentCliPath,
+      refreshIntervalMs: false,
+      environment: { ERNIE_FIXTURE_ROOT: root, ERNIE_FIXTURE_NUL_EDGE: "1" },
+    }))));
+
+    expect(snapshot.worktrees).toEqual([{
+      id: "/tmp/ernie feature\nline",
+      path: "/tmp/ernie feature\nline",
+      label: "feature/newline",
+    }]);
+    expect(snapshot.agents).toEqual([]);
+  });
+
   it("returns a typed parse failure for malformed Prime Agent JSON", async () => {
     const error = await Effect.runPromise(provideCatalog(Effect.gen(function* () {
       const catalog = yield* WorkspaceCatalog;

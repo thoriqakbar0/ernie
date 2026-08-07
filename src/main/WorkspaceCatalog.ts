@@ -137,24 +137,26 @@ function runCommand(
 
 function parseGitWorktrees(output: string): Effect.Effect<readonly GitWorktreeRecord[], WorkspaceCatalogParseError> {
   return Effect.try({
-    try: () => output.split(/\r?\n\r?\n/u).filter((record) => record.trim().length > 0).map((record) => {
+    try: () => output.split("\0\0").filter((record) => record.length > 0).flatMap((record) => {
       let path: string | undefined;
       let head: string | undefined;
       let branch: string | null = null;
       let detached = false;
       let locked = false;
-      for (const line of record.split(/\r?\n/u)) {
-        const separator = line.indexOf(" ");
-        const key = separator < 0 ? line : line.slice(0, separator);
-        const value = separator < 0 ? "" : line.slice(separator + 1);
+      let prunable = false;
+      for (const field of record.split("\0")) {
+        const separator = field.indexOf(" ");
+        const key = separator < 0 ? field : field.slice(0, separator);
+        const value = separator < 0 ? "" : field.slice(separator + 1);
         if (key === "worktree") path = resolve(value);
         else if (key === "HEAD") head = value;
         else if (key === "branch") branch = value.replace(/^refs\/heads\//u, "");
         else if (key === "detached") detached = true;
         else if (key === "locked") locked = true;
+        else if (key === "prunable") prunable = true;
       }
       if (path === undefined || head === undefined) throw new Error("A Git worktree record omitted worktree or HEAD");
-      return { path, head, branch, detached, locked };
+      return prunable ? [] : [{ path, head, branch, detached, locked }];
     }),
     catch: (cause) => parseError("git", "Could not decode git worktree porcelain output", cause),
   });
@@ -243,7 +245,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
 
   const refresh = Effect.fn("WorkspaceCatalog.refresh")(function* () {
     const [gitOutput, primeOutput] = yield* Effect.all([
-      runCommand(gitPath, ["worktree", "list", "--porcelain"], repositoryPath, environment, "git-worktree-list"),
+      runCommand(gitPath, ["worktree", "list", "--porcelain", "-z"], repositoryPath, environment, "git-worktree-list"),
       runCommand(nodePath, [primeAgentCliPath, "list", "--json"], repositoryPath, environment, "prime-agent-list"),
     ], { concurrency: "unbounded" });
     const records = yield* parseGitWorktrees(gitOutput);

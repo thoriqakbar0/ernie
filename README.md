@@ -56,7 +56,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/ErnieWindow.ts` — Effect-owned Electron window and security boundary.
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
-- `src/preload/index.ts` — sandbox-compatible CJS preload exposing only typed state, worktree/session streams, local-server actions, commands, and skills.
+- `src/preload/index.ts` — sandbox-compatible CJS preload exposing only typed state, worktree/session streams, local-server actions, commands, skills, and bounded clipboard writes for Agentation output.
 - `src/renderer/src/App.tsx` — intentionally empty renderer canvas with direct, development-only Agentation.
 - `src/renderer/src/workspaceTabs.ts`, `transcript.ts`, and `sessionTranscript.ts` — retained pure state modules for the replacement interface.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.

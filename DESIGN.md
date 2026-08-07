@@ -25,6 +25,7 @@ This is a UX reference, not permission to copy T3 Code’s unsafe webview archit
 ## Preserved constraints
 
 - Renderer sandboxing, CSP, context isolation, typed IPC, and navigation denial remain product guarantees.
+- Agentation copy uses a sender-validated, write-only, size-bounded clipboard IPC capability; the renderer cannot read clipboard contents.
 - Agentation is development-only and is used directly rather than reimplemented.
 - Main-process Prime Agent RPC, daemon attachment, workspace catalog, and browser authority remain intact behind the empty renderer.
 - Reduced-motion, forced-colors, keyboard, screen-reader, zoom, and minimum-window support must be rebuilt with the replacement interface.

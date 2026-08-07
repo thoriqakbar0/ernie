@@ -12,6 +12,7 @@ const api: ErnieApi = Object.freeze({
   getWorkspace: () => ipcRenderer.invoke("workspace:get-snapshot") as Promise<WorkspaceSnapshot>,
   refreshDevServers: (worktreeId: string) => ipcRenderer.invoke("dev-server:refresh", worktreeId) as Promise<DevServerSnapshot>,
   openDevServer: (worktreeId: string, port: number, url: string) => ipcRenderer.invoke("dev-server:open", { worktreeId, port, url }) as Promise<CommandResult>,
+  copyText: (text: string) => ipcRenderer.invoke("clipboard:write-text", text) as Promise<CommandResult>,
   selectSessionTranscript: (activeSessionId: string) => ipcRenderer.invoke("session-transcript:select", activeSessionId) as Promise<SessionTranscriptSnapshot>,
   detachSessionTranscript: () => ipcRenderer.invoke("session-transcript:detach") as Promise<void>,
   command: (command: AgentCommand) => ipcRenderer.invoke("agent:command", command) as Promise<CommandResult>,

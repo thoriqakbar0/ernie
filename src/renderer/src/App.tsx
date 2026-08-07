@@ -73,6 +73,10 @@ export function App() {
     <ProjectSidebar projectName={projectName} worktrees={workspace.worktrees} agents={workspace.agents} state={agentState} busy={busy} onNewThread={() => void startThread()} />
     <ChatComposer projectName={projectName} draft={draft} state={agentState} busy={busy} error={error} inputRef={inputRef} onDraftChange={setDraft} onSend={() => void send(draft)} />
 
-    {import.meta.env.DEV && <Agentation onSubmit={(output) => void send(output)} />}
+    {import.meta.env.DEV && <Agentation
+      copyToClipboard={false}
+      onCopy={(output) => { void window.ernie.copyText(output); }}
+      onSubmit={(output) => { void send(output); }}
+    />}
   </main>;
 }

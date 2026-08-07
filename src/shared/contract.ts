@@ -77,6 +77,7 @@ export interface ErnieApi {
   getWorkspace(): Promise<WorkspaceSnapshot>;
   refreshDevServers(worktreeId: string): Promise<DevServerSnapshot>;
   openDevServer(worktreeId: string, port: number, url: string): Promise<CommandResult>;
+  copyText(text: string): Promise<CommandResult>;
   selectSessionTranscript(activeSessionId: string): Promise<SessionTranscriptSnapshot>;
   detachSessionTranscript(): Promise<void>;
   command(command: AgentCommand): Promise<CommandResult>;

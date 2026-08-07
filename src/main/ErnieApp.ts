@@ -9,6 +9,7 @@ import { PrimeAgentRpc } from "./PrimeAgentRpc";
 import { WorkspaceCatalog } from "./WorkspaceCatalog";
 import { DevServerCatalog } from "./DevServerCatalog";
 import { SessionTranscriptStream } from "./SessionTranscriptStream";
+import { ClipboardWriter } from "./ClipboardWriter";
 
 const DevServerPortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65_535 }));
 const DevServerOpenSchema = Schema.Struct({ worktreeId: Schema.String, port: DevServerPortSchema, url: Schema.String });
@@ -18,6 +19,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
   const catalog = yield* WorkspaceCatalog;
   const devServers = yield* DevServerCatalog;
   const sessionTranscripts = yield* SessionTranscriptStream;
+  const clipboard = yield* ClipboardWriter;
   const window = yield* ErnieWindow;
   yield* Effect.promise(() => app.whenReady());
   yield* hardenElectron;
@@ -80,6 +82,13 @@ export const program = Effect.scoped(Effect.gen(function* () {
         yield* Effect.tryPromise(() => shell.openExternal(server.url));
         return { ok: true } satisfies CommandResult;
       }).pipe(Effect.catch(() => Effect.succeed({ ok: false, error: "Unable to open the local development server." } satisfies CommandResult)))));
+      ipcMain.handle("clipboard:write-text", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const text = yield* Schema.decodeUnknownEffect(Schema.String)(input);
+        if (text.length > 524_288) return { ok: false, error: "Clipboard content is too large." } satisfies CommandResult;
+        yield* clipboard.writeText(text);
+        return { ok: true } satisfies CommandResult;
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, error: "Unable to copy text." } satisfies CommandResult)))));
       ipcMain.handle("agent:command", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         const parsed = yield* Schema.decodeUnknownEffect(AgentCommandSchema)(input).pipe(
@@ -96,6 +105,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.removeHandler("session-transcript:detach");
       ipcMain.removeHandler("dev-server:refresh");
       ipcMain.removeHandler("dev-server:open");
+      ipcMain.removeHandler("clipboard:write-text");
       ipcMain.removeHandler("agent:command");
     }),
   );

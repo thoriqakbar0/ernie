@@ -66,7 +66,7 @@ export function StartupRail({ stage }: { readonly stage: number }) {
       <PrimeGlyph />
       <div className="startup-rail-copy">
         <strong>Starting Prime Agent</strong>
-        <span>Connecting model and tools</span>
+        <span>Connecting to the model and tools…</span>
       </div>
     </div>
     <div className="startup-progress" aria-hidden="true"><span /></div>
@@ -85,14 +85,14 @@ export function StartupComposer({ stage }: { readonly stage: number }) {
     <div className="startup-composer-main">
       <PrimeGlyph compact />
       <div className="startup-composer-copy">
-        <strong>Getting your workspace ready</strong>
-        <span>Starting the session, model, and tools</span>
+        <strong>Starting Prime Agent</strong>
+        <span>Connecting to the model and tools…</span>
       </div>
       <ActivityBars />
     </div>
     <div className="startup-composer-footer">
       <span>Prime Agent</span>
-      <span className="startup-composer-state"><i />Connecting securely</span>
+      <span className="startup-composer-state"><i />Connecting to the model and tools…</span>
     </div>
   </div>;
 }

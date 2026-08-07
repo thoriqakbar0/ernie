@@ -143,7 +143,7 @@ export function App() {
         {!hasConversation && <section className="welcome">
           <div className="welcome-mark"><Icon name="spark" size={23} /></div>
           <h1>What should we build?</h1>
-          <p>Ask Prime Agent to inspect the project, ship a change, or annotate this interface directly.</p>
+          <p>Ask Prime Agent to inspect the project, ship a change, or continue an existing task.</p>
           <div className="suggestions">
             {["Explain this codebase", "Find the next useful improvement", "Run the project checks"].map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}
           </div>

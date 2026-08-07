@@ -1,6 +1,23 @@
 import { useEffect, useRef } from "react";
+import type { ReactNode, SVGProps } from "react";
 import type { WorkspaceAgent, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
+import { ModalDialog } from "./ModalDialog";
 import type { WorkspaceTab } from "./workspaceTabs";
+
+type IconName = "add" | "branch" | "chevron" | "close" | "detached" | "manager" | "subagent";
+
+function Icon({ name, ...props }: { readonly name: IconName } & SVGProps<SVGSVGElement>) {
+  const paths: Record<IconName, ReactNode> = {
+    add: <path d="M12 5v14M5 12h14" />,
+    branch: <><path d="M7 4v11a4 4 0 0 0 4 4h6" /><path d="m14 16 3 3-3 3" /><circle cx="7" cy="4" r="2" /></>,
+    chevron: <path d="m7 10 5 5 5-5" />,
+    close: <path d="m7 7 10 10M17 7 7 17" />,
+    detached: <circle cx="12" cy="12" r="7" />,
+    manager: <><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 9h8M8 13h5" /></>,
+    subagent: <><path d="M6 5v8a4 4 0 0 0 4 4h8" /><path d="m15 14 3 3-3 3" /></>,
+  };
+  return <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...props}>{paths[name]}</svg>;
+}
 
 interface WorkspaceTreeProps {
   readonly snapshot: WorkspaceSnapshot;
@@ -10,10 +27,22 @@ interface WorkspaceTreeProps {
 }
 
 function statusLabel(agent: WorkspaceAgent): string {
-  return agent.status === "working" ? "Working" : agent.status === "waiting" ? "Waiting" : agent.status;
+  switch (agent.status) {
+    case "working": return "Working";
+    case "waiting": return "Waiting";
+    case "idle": return "Idle";
+    case "completed": return "Completed";
+    case "failed": return "Failed";
+    case "cancelled": return "Cancelled";
+    case "disconnected": return "Disconnected";
+  }
 }
 
-/** Worktree-first navigation with recursively nested Prime Agent sessions. */
+function countLabel(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+/** Worktree-first navigation with recursively nested agent sessions. */
 export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpenAgent }: WorkspaceTreeProps) {
   const agentsByWorktree = new Map<string, WorkspaceAgent[]>();
   for (const agent of snapshot.agents) {
@@ -58,51 +87,67 @@ export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpe
       siblings.push(agent);
       byParent.set(parent, siblings);
     }
-    const renderLevel = (parent: string | undefined, depth: number): React.ReactNode => (byParent.get(parent) ?? []).map((agent) => <div key={agent.id} role="none">
-      <button
-        type="button"
-        role="treeitem"
-        aria-selected={agent.id === activeAgentId}
-        className={`agent-tree-row ${agent.id === activeAgentId ? "active" : ""}`}
-        style={{ paddingInlineStart: `${10 + depth * 17}px` }}
-        onClick={() => onOpenAgent(agent)}
-      >
-        <span className={`agent-state ${agent.status}`} aria-hidden="true" />
-        <span className="agent-tree-copy"><strong>{agent.sessionId === currentSessionId ? "Current agent" : agent.name}</strong><small>{agent.summary || statusLabel(agent)}</small></span>
-        {agent.runtimeKind === "subagent" && <span className="agent-kind">child</span>}
-      </button>
-      {renderLevel(agent.id, depth + 1)}
-    </div>);
+    const renderLevel = (parent: string | undefined, depth: number): ReactNode => {
+      const children = byParent.get(parent) ?? [];
+      if (children.length === 0) return null;
+      return <ul>{children.map((agent) => {
+        const displayName = agent.sessionId === currentSessionId ? "Current agent" : agent.name;
+        const summary = agent.summary || statusLabel(agent);
+        return <li key={agent.id}>
+          <button
+            type="button"
+            aria-current={agent.id === activeAgentId ? "page" : undefined}
+            className={`agent-tree-row ${agent.id === activeAgentId ? "active" : ""}`}
+            style={{ paddingInlineStart: `${10 + depth * 17}px` }}
+            onClick={() => onOpenAgent(agent)}
+            title={`${displayName} — ${summary}`}
+          >
+            <span className={`agent-state ${agent.status}`} aria-hidden="true" />
+            <span className="agent-tree-copy"><strong title={displayName}>{displayName}</strong><small title={summary}>{summary}</small></span>
+            {agent.runtimeKind === "subagent" && <span className="agent-kind">Subagent</span>}
+          </button>
+          {renderLevel(agent.id, depth + 1)}
+        </li>;
+      })}</ul>;
+    };
     return renderLevel(undefined, 0);
   };
 
-  const renderWorktrees = (parent: string | undefined, depth: number): React.ReactNode => (worktreesByParent.get(parent) ?? []).map((worktree) => <div key={worktree.id} role="none" className="worktree-group">
-    <div className="worktree-row" role="treeitem" aria-expanded="true" style={{ paddingInlineStart: `${7 + depth * 14}px` }}>
-      <span className="worktree-disclosure" aria-hidden="true">⌄</span>
-      <span className="worktree-icon" aria-hidden="true">◇</span>
-      <span>{worktree.label}</span>
-      <span className="worktree-count">{(agentsByWorktree.get(worktree.id) ?? []).length}</span>
-    </div>
-    <div role="group">{renderAgents(worktree.id)}{renderWorktrees(worktree.id, depth + 1)}</div>
-  </div>);
+  const renderWorktrees = (parent: string | undefined, depth: number): ReactNode => {
+    const children = worktreesByParent.get(parent) ?? [];
+    if (children.length === 0) return null;
+    return <ul>{children.map((worktree) => {
+      const agentCount = (agentsByWorktree.get(worktree.id) ?? []).length;
+      return <li key={worktree.id} className="worktree-group">
+        <div className="worktree-row" style={{ paddingInlineStart: `${7 + depth * 14}px` }} title={`${worktree.label} — ${worktree.path}`}>
+          <span className="worktree-disclosure"><Icon name="chevron" /></span>
+          <span className="worktree-icon"><Icon name="branch" /></span>
+          <span title={worktree.label}>{worktree.label}</span>
+          <span className="worktree-count" aria-label={countLabel(agentCount, "agent")}>{agentCount}</span>
+        </div>
+        {renderAgents(worktree.id)}
+        {renderWorktrees(worktree.id, depth + 1)}
+      </li>;
+    })}</ul>;
+  };
 
   return <>
     <div className="rail-section-label worktree-heading">Worktrees</div>
-    <div className="worktree-tree" role="tree" aria-label="Worktrees and agents">
-      {snapshot.worktrees.length > 0 ? renderWorktrees(undefined, 0) : <div className="worktree-empty">Worktrees appear here when the catalog connects.</div>}
-    </div>
+    <nav className="worktree-tree" aria-label="Worktrees and agents">
+      {snapshot.worktrees.length > 0 ? renderWorktrees(undefined, 0) : <div className="worktree-empty">No worktrees are available.</div>}
+    </nav>
   </>;
 }
 
-/** Fixed workspace-level entry point for worktree orchestration. */
+/** Fixed workspace-level entry point for inspecting worktrees and agents. */
 export function WorktreeManager({ active, onOpen }: { readonly active: boolean; readonly onOpen: () => void }) {
   return <button type="button" className={`worktree-manager ${active ? "active" : ""}`} onClick={onOpen}>
-    <span className="manager-mark" aria-hidden="true">⌘</span>
-    <span><strong>Worktree manager</strong><small>Create and coordinate work</small></span>
+    <span className="manager-mark"><Icon name="manager" /></span>
+    <span><strong>Worktree manager</strong><small>Inspect worktrees and agents</small></span>
   </button>;
 }
 
-/** Read-only worktree manager surface until daemon-backed create/retire commands land. */
+/** Read-only worktree and agent manager surface. */
 export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread }: {
   readonly open: boolean;
   readonly snapshot: WorkspaceSnapshot;
@@ -110,24 +155,17 @@ export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread }: 
   readonly onNewThread: () => void;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    closeButton.current?.focus();
-    const keyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", keyDown);
-    return () => window.removeEventListener("keydown", keyDown);
-  }, [onClose, open]);
-  if (!open) return null;
-  return <div className="tab-chooser-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="tab-chooser worktree-manager-dialog" role="dialog" aria-modal="true" aria-labelledby="manager-title">
-      <div className="tab-chooser-heading"><div><h2 id="manager-title">Worktree manager</h2><p>Inspect the workspace without changing a running agent.</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label="Close worktree manager">×</button></div>
-      <div className="manager-summary"><strong>{snapshot.worktrees.length}</strong><span>worktrees</span><strong>{snapshot.agents.length}</strong><span>agents</span></div>
-      <div className="manager-worktree-list">
-        {snapshot.worktrees.map((worktree) => <div key={worktree.id}><span className="worktree-icon" aria-hidden="true">◇</span><span><strong>{worktree.label}</strong><small>{worktree.path}</small></span><em>{snapshot.agents.filter((agent) => agent.worktreeId === worktree.id).length} agents</em></div>)}
-      </div>
-      <div className="manager-footer"><span>Worktree create and retire commands require the daemon adapter.</span><button type="button" onClick={onNewThread}>New thread in current worktree</button></div>
-    </section>
-  </div>;
+  return <ModalDialog open={open} onRequestClose={onClose} labelledBy="manager-title" className="tab-chooser worktree-manager-dialog" initialFocusRef={closeButton}>
+    <div className="tab-chooser-heading"><div><h2 id="manager-title">Worktree manager</h2><p>Inspect worktrees and agents.</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label="Close worktree manager"><Icon name="close" /></button></div>
+    <div className="manager-summary"><strong>{snapshot.worktrees.length}</strong><span>{snapshot.worktrees.length === 1 ? "worktree" : "worktrees"}</span><strong>{snapshot.agents.length}</strong><span>{snapshot.agents.length === 1 ? "agent" : "agents"}</span></div>
+    <div className="manager-worktree-list">
+      {snapshot.worktrees.length > 0 ? snapshot.worktrees.map((worktree) => {
+        const agentCount = snapshot.agents.filter((agent) => agent.worktreeId === worktree.id).length;
+        return <div key={worktree.id} title={`${worktree.label} — ${worktree.path}`}><span className="worktree-icon"><Icon name="branch" /></span><span><strong title={worktree.label}>{worktree.label}</strong><small title={worktree.path}>{worktree.path}</small></span><em>{countLabel(agentCount, "agent")}</em></div>;
+      }) : <div className="tab-chooser-empty">No worktrees are available.</div>}
+    </div>
+    <div className="manager-footer"><button type="button" onClick={onNewThread}>New thread in current worktree</button></div>
+  </ModalDialog>;
 }
 
 interface WorkspaceTabStripProps {
@@ -140,52 +178,88 @@ interface WorkspaceTabStripProps {
 
 /** Global tab strip whose views may span multiple worktrees. */
 export function WorkspaceTabStrip({ tabs, activeTabId, onSelect, onClose, onAdd }: WorkspaceTabStripProps) {
-  return <div className="workspace-tab-strip no-drag" role="tablist" aria-label="Open workspace surfaces" onKeyDown={(event) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const index = tabs.findIndex((tab) => tab.id === activeTabId);
-    const offset = event.key === "ArrowRight" ? 1 : -1;
-    const next = tabs[(index + offset + tabs.length) % tabs.length];
-    if (next) onSelect(next.id);
-  }}>
-    {tabs.map((tab) => <div className={`workspace-tab-shell ${tab.id === activeTabId ? "active" : ""}`} key={tab.id}>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={tab.id === activeTabId}
-        className="workspace-tab"
-        onClick={() => onSelect(tab.id)}
-      >
-        <span className={`tab-state ${tab.status}`} aria-hidden="true" />
-        <span>{tab.title}</span>
-      </button>
-      {!tab.pinned && <button type="button" className="tab-close" aria-label={`Close ${tab.title}`} onClick={() => onClose(tab.id)}>×</button>}
-    </div>)}
-    <button type="button" className="workspace-tab-add" aria-label="Open agent tab" onClick={onAdd}>+</button>
+  const tabElements = useRef(new Map<string, HTMLButtonElement>());
+  const pendingFocusTabId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const tabId = pendingFocusTabId.current;
+    if (tabId === undefined || tabId !== activeTabId) return;
+    pendingFocusTabId.current = undefined;
+    tabElements.current.get(tabId)?.focus();
+  }, [activeTabId, tabs]);
+
+  const selectAndFocus = (tabId: string) => {
+    pendingFocusTabId.current = tabId;
+    onSelect(tabId);
+  };
+
+  return <div className="workspace-tab-strip no-drag">
+    <div className="workspace-tab-viewport" role="tablist" aria-label="Open workspace surfaces" onKeyDown={(event) => {
+      const target = event.target as HTMLElement;
+      if (target.getAttribute("role") !== "tab") return;
+      const index = tabs.findIndex((tab) => tab.id === activeTabId);
+      if (index < 0 || tabs.length === 0) return;
+      const direction = getComputedStyle(event.currentTarget).direction;
+      if (event.key === "Delete" || event.key === "Backspace") {
+        const activeTab = tabs[index];
+        if (!activeTab || activeTab.pinned) return;
+        event.preventDefault();
+        const next = tabs[index + 1] ?? tabs[index - 1];
+        if (next) pendingFocusTabId.current = next.id;
+        onClose(activeTab.id);
+        return;
+      }
+      let nextIndex: number | undefined;
+      if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = tabs.length - 1;
+      else if (event.key === "ArrowRight") nextIndex = (index + (direction === "rtl" ? -1 : 1) + tabs.length) % tabs.length;
+      else if (event.key === "ArrowLeft") nextIndex = (index + (direction === "rtl" ? 1 : -1) + tabs.length) % tabs.length;
+      if (nextIndex === undefined) return;
+      event.preventDefault();
+      const next = tabs[nextIndex];
+      if (next) selectAndFocus(next.id);
+    }}>
+      {tabs.map((tab) => <div className={`workspace-tab-shell ${tab.id === activeTabId ? "active" : ""}`} key={tab.id}>
+        <button
+          ref={(element) => { if (element) tabElements.current.set(tab.id, element); else tabElements.current.delete(tab.id); }}
+          id={`workspace-tab-${tab.id}`}
+          type="button"
+          role="tab"
+          aria-selected={tab.id === activeTabId}
+          aria-controls={`workspace-panel-${tab.id}`}
+          tabIndex={tab.id === activeTabId ? 0 : -1}
+          className="workspace-tab"
+          onClick={() => onSelect(tab.id)}
+          title={tab.title}
+        >
+          <span className={`tab-state ${tab.status}`} aria-hidden="true" />
+          <span title={tab.title}>{tab.title}</span>
+        </button>
+        {!tab.pinned && <button type="button" tabIndex={-1} className="tab-close" aria-label={`Close ${tab.title}`} title={`Close ${tab.title}`} onClick={() => onClose(tab.id)}><Icon name="close" /></button>}
+      </div>)}
+    </div>
+    <button type="button" className="workspace-tab-add" aria-label="Open agent tab" title="Open agent tab" onClick={onAdd}><Icon name="add" /></button>
   </div>;
 }
 
-/** Read-only selected-agent view until a daemon-backed conversation attachment is available. */
-export function AgentOverview({ agent, onReturn }: { readonly agent: WorkspaceAgent; readonly onReturn: () => void }) {
+/** Read-only selected-agent view. */
+export function AgentOverview({ agent }: { readonly agent: WorkspaceAgent }) {
+  const summary = agent.summary || "No task summary is available.";
   return <section className="agent-overview">
-    <div className={`agent-overview-mark ${agent.status}`} aria-hidden="true">↳</div>
+    <div className={`agent-overview-mark ${agent.status}`}><Icon name="subagent" /></div>
     <div className="agent-overview-path">{agent.runtimeKind === "subagent" ? "Subagent" : "Agent"} · {statusLabel(agent)}</div>
-    <h1>{agent.name}</h1>
-    <p>{agent.summary || "This agent has not published a task summary yet."}</p>
-    {agent.answerPreview && <div className="agent-answer-preview"><span>Latest result</span>{agent.answerPreview}</div>}
-    <div className="agent-overview-actions"><button type="button" onClick={onReturn}>Return to current agent</button><span>Live transcript attachment comes next.</span></div>
+    <h1 title={agent.name}>{agent.name}</h1>
+    <p title={summary}>{summary}</p>
+    {agent.answerPreview && <div className="agent-answer-preview" title={agent.answerPreview}><span>Latest result</span>{agent.answerPreview}</div>}
   </section>;
 }
 
-
 /** Explicit stale-tab state; it never exposes the current root composer. */
-export function DetachedAgentOverview({ tab, onReturn }: { readonly tab: WorkspaceTab; readonly onReturn: () => void }) {
+export function DetachedAgentOverview({ tab }: { readonly tab: WorkspaceTab }) {
   return <section className="agent-overview detached-agent">
-    <div className="agent-overview-mark disconnected" aria-hidden="true">○</div>
+    <div className="agent-overview-mark disconnected"><Icon name="detached" /></div>
     <div className="agent-overview-path">Detached agent view</div>
-    <h1>{tab.title}</h1>
-    <p>This agent is no longer present in the live workspace catalog. Closing this view will not stop or delete its saved session.</p>
-    <div className="agent-overview-actions"><button type="button" onClick={onReturn}>Return to current agent</button><span>Commands are disabled for detached views.</span></div>
+    <h1 title={tab.title}>{tab.title}</h1>
+    <p>This agent is no longer present in the workspace. Closing this view will not stop or delete its saved session.</p>
   </section>;
 }
 
@@ -197,25 +271,19 @@ export function AgentTabChooser({ open, snapshot, onClose, onChoose }: {
   readonly onChoose: (agent: WorkspaceAgent) => void;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    closeButton.current?.focus();
-    const keyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", keyDown);
-    return () => window.removeEventListener("keydown", keyDown);
-  }, [onClose, open]);
-  if (!open) return null;
   const worktreeById = new Map(snapshot.worktrees.map((worktree) => [worktree.id, worktree]));
-  return <div className="tab-chooser-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="tab-chooser" role="dialog" aria-modal="true" aria-labelledby="tab-chooser-title">
-      <div className="tab-chooser-heading"><div><h2 id="tab-chooser-title">Open agent tab</h2><p>Tabs can span every worktree in this workspace.</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label="Close tab chooser">×</button></div>
-      <div className="tab-chooser-list">
-        {snapshot.agents.length > 0 ? snapshot.agents.map((agent) => <button key={agent.id} type="button" onClick={() => onChoose(agent)}>
+  return <ModalDialog open={open} onRequestClose={onClose} labelledBy="tab-chooser-title" className="tab-chooser" initialFocusRef={closeButton}>
+    <div className="tab-chooser-heading"><div><h2 id="tab-chooser-title">Open agent tab</h2><p>Open an agent from any worktree.</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label="Close tab chooser"><Icon name="close" /></button></div>
+    <div className="tab-chooser-list">
+      {snapshot.agents.length > 0 ? snapshot.agents.map((agent) => {
+        const worktreeLabel = worktreeById.get(agent.worktreeId)?.label ?? "Unknown worktree";
+        const summary = agent.summary || statusLabel(agent);
+        return <button key={agent.id} type="button" onClick={() => onChoose(agent)} title={`${agent.name} — ${worktreeLabel} — ${summary}`}>
           <span className={`agent-state ${agent.status}`} aria-hidden="true" />
-          <span><strong>{agent.name}</strong><small>{worktreeById.get(agent.worktreeId)?.label ?? "Worktree"} · {agent.summary || statusLabel(agent)}</small></span>
+          <span><strong title={agent.name}>{agent.name}</strong><small title={`${worktreeLabel} · ${summary}`}>{worktreeLabel} · {summary}</small></span>
           <span className="tab-chooser-open">Open</span>
-        </button>) : <div className="tab-chooser-empty">No additional agents are available yet.</div>}
-      </div>
-    </section>
-  </div>;
+        </button>;
+      }) : <div className="tab-chooser-empty">No agents are available.</div>}
+    </div>
+  </ModalDialog>;
 }

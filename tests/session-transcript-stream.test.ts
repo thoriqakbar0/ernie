@@ -110,6 +110,35 @@ describe("SessionTranscriptStream", () => {
     }
   });
 
+  it("closes the connection after a malformed successful attach snapshot", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ernie-transcript-malformed-"));
+    const socketPath = join(directory, "daemon.sock");
+    const sockets = new Set<Socket>();
+    const server = createServer((socket) => {
+      sockets.add(socket); socket.once("close", () => sockets.delete(socket));
+      socket.write(`${JSON.stringify({ type: "daemon_hello", protocol: { name: "prime-agent.daemon", version: 7 }, serverCapabilities: ["attach_snapshot", "event_sequence"] })}
+`);
+      socket.once("data", (chunk) => {
+        const envelope = JSON.parse(chunk.toString("utf8").trim()) as { id: string };
+        socket.write(`${JSON.stringify({ type: "response", id: envelope.id, command: "attach", success: true, data: { activeSessionId: "wrong-session", snapshot: {} } })}
+`);
+      });
+    });
+    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
+    try {
+      await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+        const service = yield* SessionTranscriptStream;
+        yield* Effect.flip(service.select("expected-session"));
+      }).pipe(Effect.provide(layer({ socketPath })))));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(sockets.size).toBe(0);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("sends only attach/detach and detaches before scoped socket cleanup", async () => {
     const fake = await fakeDaemon();
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {

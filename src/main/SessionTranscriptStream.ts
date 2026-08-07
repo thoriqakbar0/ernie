@@ -205,6 +205,7 @@ class Connection {
     this.toolNames.clear();
     this.ipythonExecutions.clear();
     let data: unknown;
+    let attachAccepted = false;
     try {
       data = await this.request("attach", {
       activeSessionId,
@@ -212,6 +213,7 @@ class Connection {
       capabilities: ["attach_snapshot", "event_sequence", "slim_attach"],
       supportsExtensionUi: false,
       });
+      attachAccepted = true;
       const snapshot = projectSnapshot(activeSessionId, data, this.options.maxHistoryItems);
       Queue.offerUnsafe(this.eventsQueue, snapshot);
       this.attaching = false;
@@ -219,9 +221,12 @@ class Connection {
       this.bufferedEvents = [];
       return snapshot;
     } catch (cause) {
-      this.selected = undefined;
-      this.attaching = false;
-      this.bufferedEvents = [];
+      if (attachAccepted) this.fail("attach", "Malformed attach snapshot");
+      else {
+        this.selected = undefined;
+        this.attaching = false;
+        this.bufferedEvents = [];
+      }
       throw cause;
     }
   }
@@ -329,8 +334,8 @@ class Connection {
   private onResponse(message: RecordValue): void {
     const id = requiredString(message["id"]); if (!id) return;
     const pending = this.pending.get(id); if (!pending) return;
+    if (message["command"] !== pending.command || typeof message["success"] !== "boolean") { this.fail(pending.command, "Malformed daemon response"); return; }
     clearTimeout(pending.timeout); this.pending.delete(id);
-    if (message["command"] !== pending.command || typeof message["success"] !== "boolean") { pending.reject(this.error(pending.command, "Malformed daemon response")); return; }
     if (!message["success"]) { pending.reject(this.error(pending.command, `Daemon rejected ${pending.command}`)); return; }
     pending.resolve(message["data"]);
   }

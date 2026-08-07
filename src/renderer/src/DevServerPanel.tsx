@@ -32,10 +32,10 @@ export function DevServerPanel({ open, worktreeId, worktreeLabel, onClose }: { r
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose, worktreeId]);
 
-  const openServer = async (port: number) => {
+  const openServer = async (port: number, url: string) => {
     setMessage("");
     try {
-      const result = await window.ernie.openDevServer(worktreeId, port);
+      const result = await window.ernie.openDevServer(worktreeId, port, url);
       if (!result.ok) setMessage(result.error ?? "Unable to open the local development server.");
     } catch {
       setMessage("Unable to open the local development server.");
@@ -57,10 +57,10 @@ export function DevServerPanel({ open, worktreeId, worktreeLabel, onClose }: { r
       <p>Start your development server, then refresh this panel.</p>
     </div>}
     <div className="dev-server-list" aria-live="polite">
-      {snapshot.servers.map((server) => <article key={server.port} className="dev-server-card">
+      {snapshot.servers.map((server) => <article key={server.url} className="dev-server-card">
         <span className="dev-server-live" aria-hidden="true" />
         <div><strong>{server.url.replace("http://", "")}</strong><small>Running from this worktree</small></div>
-        <button type="button" onClick={() => void openServer(server.port)} disabled={state === "loading"}>Open</button>
+        <button type="button" onClick={() => void openServer(server.port, server.url)} disabled={state === "loading"}>Open</button>
       </article>)}
     </div>
     <p className="dev-server-footnote">Opens in your default browser. Ernie never embeds untrusted pages.</p>

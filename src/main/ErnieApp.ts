@@ -11,7 +11,7 @@ import { DevServerCatalog } from "./DevServerCatalog";
 import { SessionTranscriptStream } from "./SessionTranscriptStream";
 
 const DevServerPortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65_535 }));
-const DevServerOpenSchema = Schema.Struct({ worktreeId: Schema.String, port: DevServerPortSchema });
+const DevServerOpenSchema = Schema.Struct({ worktreeId: Schema.String, port: DevServerPortSchema, url: Schema.String });
 
 export const program = Effect.scoped(Effect.gen(function* () {
   const rpc = yield* PrimeAgentRpc;
@@ -70,12 +70,12 @@ export const program = Effect.scoped(Effect.gen(function* () {
       })));
       ipcMain.handle("dev-server:open", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
-        const { worktreeId, port } = yield* Schema.decodeUnknownEffect(DevServerOpenSchema)(input);
+        const { worktreeId, port, url } = yield* Schema.decodeUnknownEffect(DevServerOpenSchema)(input);
         const workspace = yield* catalog.current;
         const worktree = workspace.worktrees.find((candidate) => candidate.id === worktreeId);
         if (!worktree) return { ok: false, error: "This worktree is no longer available." } satisfies CommandResult;
         const snapshot = yield* devServers.refresh(worktree.path);
-        const server = snapshot.servers.find((candidate) => candidate.port === port);
+        const server = snapshot.servers.find((candidate) => candidate.port === port && candidate.url === url);
         if (!server) return { ok: false, error: "The development server is no longer available in this worktree." } satisfies CommandResult;
         yield* Effect.tryPromise(() => shell.openExternal(server.url));
         return { ok: true } satisfies CommandResult;

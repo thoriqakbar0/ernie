@@ -324,7 +324,7 @@ export function App() {
         snapshot={workspaceSnapshot}
         currentSessionId={state.sessionId}
         activeAgentId={activeAgentId}
-        onOpenAgent={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setRailOpen(false); }}
+        onOpenAgent={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setRailOpen(false); requestAnimationFrame(() => document.getElementById(`workspace-tab-agent:${agent.id}`)?.focus()); }}
         loadState={workspaceLoadState}
       />
       <div className="rail-runtime">

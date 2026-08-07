@@ -121,9 +121,9 @@ try {
   const firstTreeItem = virtualExplorer.getByRole("button").first();
   await firstTreeItem.focus();
   await window.keyboard.press("End");
-  await window.waitForTimeout(100);
-  assert.equal(await window.evaluate(() => document.activeElement?.tagName), "BUTTON");
+  await window.locator(".agent-tree-row:focus").waitFor({ timeout: 2_000 });
   assert.match((await window.evaluate(() => document.activeElement?.getAttribute("aria-keyshortcuts"))) ?? "", /ArrowDown/);
+  assert.equal(await window.evaluate(() => document.activeElement?.getAttribute("data-explorer-index")), await virtualExplorer.getAttribute("data-last-agent-index"));
   assert.ok(await virtualExplorer.evaluate((element) => element.scrollTop > 0));
   await window.getByRole("button", { name: "Open worktree view" }).click();
   await window.getByRole("dialog", { name: "Open worktree view" }).getByRole("button", { name: /^Child,/ }).click();

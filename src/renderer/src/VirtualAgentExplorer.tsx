@@ -164,13 +164,14 @@ export function VirtualAgentExplorer({
     setFocusRowIndex(rowIndex);
     pendingFocusIndex.current = rowIndex;
     virtualizer.scrollToIndex(rowIndex, { align: "auto" });
-    requestAnimationFrame(() => {
+    const focusWhenMounted = (attempts: number) => requestAnimationFrame(() => {
       const button = scrollElement.current?.querySelector<HTMLButtonElement>(`button[data-explorer-index="${rowIndex}"]`);
       if (button) {
         pendingFocusIndex.current = undefined;
         button.focus();
-      }
+      } else if (attempts > 0 && pendingFocusIndex.current === rowIndex) focusWhenMounted(attempts - 1);
     });
+    focusWhenMounted(12);
   }, [virtualizer]);
 
   const handleAgentKeyDown = (event: KeyboardEvent<HTMLButtonElement>, rowIndex: number) => {
@@ -197,6 +198,7 @@ export function VirtualAgentExplorer({
             role="list"
             aria-label="Virtualized worktree and session navigation"
             data-testid="virtual-agent-explorer"
+            data-last-agent-index={agentRowIndexes.at(-1)}
             style={{ position: "relative" }}
           >
             <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative", width: "100%" }}>

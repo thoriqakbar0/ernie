@@ -2,6 +2,10 @@
 const root = process.env.ERNIE_FIXTURE_ROOT;
 if (!root) process.exit(2);
 if (process.env.ERNIE_FIXTURE_EMPTY === "1") process.exit(0);
+if (process.env.ERNIE_FIXTURE_MALFORMED_GIT === "1") {
+  process.stdout.write("worktree /tmp/incomplete\0\0");
+  process.exit(0);
+}
 
 const record = (...fields) => `${fields.join("\0")}\0\0`;
 if (process.env.ERNIE_FIXTURE_NUL_EDGE === "1") {

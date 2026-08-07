@@ -108,6 +108,23 @@ describe("WorkspaceCatalog", () => {
     expect(snapshot.agents).toEqual([]);
   });
 
+  it("returns a typed parse failure for malformed Git porcelain", async () => {
+    const error = await Effect.runPromise(Effect.gen(function* () {
+      const catalog = yield* WorkspaceCatalog;
+      return yield* Effect.flip(catalog.refresh);
+    }).pipe(Effect.provide(layer({
+      repositoryPath: root,
+      gitPath,
+      nodePath: process.execPath,
+      primeAgentCliPath,
+      refreshIntervalMs: false,
+      environment: { ERNIE_FIXTURE_ROOT: root, ERNIE_FIXTURE_MALFORMED_GIT: "1" },
+    }))));
+
+    expect(error).toBeInstanceOf(WorkspaceCatalogParseError);
+    expect(error).toMatchObject({ _tag: "WorkspaceCatalogParseError", source: "git" });
+  });
+
   it("returns a typed parse failure for malformed Prime Agent JSON", async () => {
     const error = await Effect.runPromise(provideCatalog(Effect.gen(function* () {
       const catalog = yield* WorkspaceCatalog;

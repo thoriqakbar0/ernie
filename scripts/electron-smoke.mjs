@@ -43,6 +43,7 @@ const fakeDaemon = net.createServer((socket) => {
             messages: [
               { id: "child-user", role: "user", content: [{ type: "text", text: "Review the selected worktree" }] },
               { id: "child-assistant", role: "assistant", content: [{ type: "text", text: "Initial child result" }] },
+              ...Array.from({ length: 42 }, (_, index) => ({ id: `child-history-${index}`, role: "assistant", content: [{ type: "text", text: `Historical child item ${index}: ${"bounded readable content ".repeat(8)}` }] })),
             ],
           },
         },
@@ -132,6 +133,17 @@ try {
   assert.match((await childSessionView.locator(".ipython-execution-card").textContent()) ?? "", /IPython execution.*Runtime unavailable.*Completed.*print\('child'\).*child/s);
   await childSessionView.getByRole("button", { name: "Browse full transcript" }).click();
   const accessibleTranscript = window.getByRole("dialog", { name: "Full transcript" });
+  assert.match((await accessibleTranscript.textContent()) ?? "", /Historical child item 41/);
+  const transcriptPager = accessibleTranscript.locator(".accessible-transcript-pager");
+  assert.equal(await transcriptPager.isVisible(), true);
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(4));
+  await window.waitForTimeout(100);
+  assert.equal(await transcriptPager.isVisible(), true);
+  const pagerBox = await transcriptPager.boundingBox();
+  const dialogBox = await accessibleTranscript.boundingBox();
+  assert.ok(pagerBox && dialogBox && pagerBox.y + pagerBox.height <= dialogBox.y + dialogBox.height + 1);
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1));
+  await accessibleTranscript.getByRole("button", { name: "Previous page" }).click();
   assert.match((await accessibleTranscript.textContent()) ?? "", /Prompt: Review the selected worktree.*Child: Initial child result/s);
   await accessibleTranscript.getByRole("button", { name: "Close full transcript" }).click();
   assert.equal(await window.locator(".workspace-tab-shell").count(), 2, JSON.stringify(await window.locator(".workspace-tab").allTextContents()));

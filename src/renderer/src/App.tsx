@@ -56,7 +56,7 @@ export function App() {
   const [sessionItems, dispatchSessionTranscript] = useReducer(sessionTranscriptReducer, []);
   const [sessionTranscriptState, setSessionTranscriptState] = useState<"loading" | "ready" | "error">("loading");
   const [sessionRetryNonce, setSessionRetryNonce] = useState(0);
-  const [sessionAccessibilityStatus, setSessionAccessibilityStatus] = useState("");
+  const [sessionAccessibilityStatus, setSessionAccessibilityStatus] = useState({ sequence: 0, text: "" });
   const selectedSessionRef = useRef<string | undefined>(undefined);
   const [tabChooserOpen, setTabChooserOpen] = useState(false);
   const [worktreeManagerOpen, setWorktreeManagerOpen] = useState(false);
@@ -94,12 +94,12 @@ export function App() {
     dispatchSessionTranscript(event);
     if (event.kind === "snapshot") {
       setSessionTranscriptState("ready");
-      setSessionAccessibilityStatus("Selected session transcript loaded.");
-    } else if (event.kind === "assistant_end") setSessionAccessibilityStatus("Selected session message completed.");
-    else if (event.kind === "tool" && event.phase === "end") setSessionAccessibilityStatus(`${event.name} ${event.status === "failed" ? "failed" : "completed"} in the selected session.`);
+      setSessionAccessibilityStatus((status) => ({ sequence: status.sequence + 1, text: "Selected session transcript loaded." }));
+    } else if (event.kind === "assistant_end") setSessionAccessibilityStatus((status) => ({ sequence: status.sequence + 1, text: "Selected session message completed." }));
+    else if (event.kind === "tool" && event.phase === "end") setSessionAccessibilityStatus((status) => ({ sequence: status.sequence + 1, text: `${event.name} ${event.status === "failed" ? "failed" : "completed"} in the selected session.` }));
     else if (event.kind === "closed") {
       setSessionTranscriptState("error");
-      setSessionAccessibilityStatus("Live updates for the selected session stopped.");
+      setSessionAccessibilityStatus((status) => ({ sequence: status.sequence + 1, text: "Live updates for the selected session stopped." }));
     }
   }), []);
 
@@ -508,7 +508,8 @@ export function App() {
       </div>
       <DevServerPanel open={browserOpen} worktreeId={activeTab.worktreeId} worktreeLabel={activeTab.title} onClose={closeBrowser} />
     </main>
-    <div className="sr-only" aria-live="polite" aria-atomic="true"><span key={accessibilityStatus.sequence}>{accessibilityStatus.text}</span><span>{sessionAccessibilityStatus}</span></div>
+    <div className="sr-only" aria-live="polite" aria-atomic="true"><span key={accessibilityStatus.sequence}>{accessibilityStatus.text}</span></div>
+    <div className="sr-only" aria-live="polite" aria-atomic="true"><span key={sessionAccessibilityStatus.sequence}>{sessionAccessibilityStatus.text}</span></div>
 
     <WorktreeManagerDialog
       open={worktreeManagerOpen}

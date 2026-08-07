@@ -40,9 +40,8 @@ export function VirtualTranscript({ items, scrollRef, busy, empty, renderItem, o
     ref={scrollRef}
     onScroll={onScroll}
     onWheel={onWheel}
-    role="log"
-    aria-label="Conversation"
-    aria-live="off"
+    role="region"
+    aria-label="Virtualized conversation viewport"
     aria-busy={busy}
   >
     {items.length === 0 ? empty : <div className="virtual-transcript-canvas" style={{ height: `${virtualizer.getTotalSize()}px` }}>

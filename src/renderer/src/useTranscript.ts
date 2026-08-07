@@ -13,9 +13,13 @@ const browserFrameScheduler: FrameScheduler = {
 };
 
 export function safeAgentErrorMessage(source: string): string {
-  return source === "workspace_catalog"
-    ? "Unable to refresh the workspace. Check the workspace connection and try again."
-    : "Prime Agent encountered an error. Check the connection and try again.";
+  switch (source) {
+    case "workspace_catalog": return "Unable to refresh the workspace. Check the workspace connection and try again.";
+    case "protocol": return "Unable to process the response. Restart Prime Agent and try again.";
+    case "assistant": return "The response stopped unexpectedly. Send your message again.";
+    case "extension": return "An extension failed. Try the action again.";
+    default: return "Prime Agent could not complete the action. Try again.";
+  }
 }
 
 /** Connects normalized agent events to the frame-coalesced transcript domain. */

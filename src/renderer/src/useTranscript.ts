@@ -14,7 +14,7 @@ const browserFrameScheduler: FrameScheduler = {
 
 export function safeAgentErrorMessage(source: string): string {
   switch (source) {
-    case "workspace_catalog": return "Unable to refresh the workspace. Check the workspace connection and try again.";
+    case "workspace_catalog": return "Unable to refresh the workspace. Check the workspace connection; Ernie will retry automatically.";
     case "protocol": return "Unable to process the response. Restart Prime Agent and try again.";
     case "assistant": return "The response stopped unexpectedly. Send your message again.";
     case "extension": return "An extension failed. Try the action again.";

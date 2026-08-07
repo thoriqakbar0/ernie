@@ -124,7 +124,7 @@ describe("transcript reducer", () => {
 
 describe("safe agent errors", () => {
   it("keeps backend diagnostics out of actionable renderer copy", () => {
-    expect(safeAgentErrorMessage("workspace_catalog")).toBe("Unable to refresh the workspace. Check the workspace connection and try again.");
+    expect(safeAgentErrorMessage("workspace_catalog")).toBe("Unable to refresh the workspace. Check the workspace connection; Ernie will retry automatically.");
     expect(safeAgentErrorMessage("protocol")).toBe("Unable to process the response. Restart Prime Agent and try again.");
     expect(safeAgentErrorMessage("assistant")).toBe("The response stopped unexpectedly. Send your message again.");
     expect(safeAgentErrorMessage("extension")).toBe("An extension failed. Try the action again.");

@@ -59,7 +59,7 @@ export function NewThreadLauncher({ open, busy, error, onClose, onCreate, return
       />
       {error && <div className="thread-launcher-error" role="alert">{error}</div>}
       <div className="thread-launcher-footer">
-        <span><kbd>↵</kbd> create <span>·</span> <kbd>⇧↵</kbd> new line</span>
+        <span>{prompt.trim().length > 0 && <><kbd>↵</kbd> create and send <span>·</span> </>}<kbd>⇧↵</kbd> new line</span>
         <button type="button" onClick={() => void onCreate(undefined)} disabled={busy}>Create blank thread</button>
         <button type="submit" className="primary" disabled={busy || prompt.trim().length === 0}>{busy ? "Creating…" : "Create thread and send message"}</button>
       </div>

@@ -141,7 +141,7 @@ export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpe
     <nav className="worktree-tree" aria-label="Worktrees and agents">
       {snapshot.worktrees.length > 0
         ? renderWorktrees(undefined, 0)
-        : <div className="worktree-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection and try again." : "No worktrees found in this repository."}</div>}
+        : <div className="worktree-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection; Ernie will retry automatically." : "No worktrees found in this repository."}</div>}
     </nav>
   </>;
 }
@@ -170,7 +170,7 @@ export function WorktreeManagerDialog({ open, snapshot, onClose, onNewThread, lo
       {snapshot.worktrees.length > 0 ? snapshot.worktrees.map((worktree) => {
         const agentCount = snapshot.agents.filter((agent) => agent.worktreeId === worktree.id).length;
         return <div key={worktree.id} title={`${worktree.label} — ${worktree.path}`}><span className="worktree-icon"><Icon name="branch" /></span><span><strong title={worktree.label}>{worktree.label}</strong><small title={worktree.path}>{worktree.path}</small></span><em>{countLabel(agentCount, "agent")}</em></div>;
-      }) : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection and try again." : "No worktrees found in this repository."}</div>}
+      }) : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading worktrees…" : loadState === "error" ? "Unable to load worktrees. Check the workspace connection; Ernie will retry automatically." : "No worktrees found in this repository."}</div>}
     </div>
     <div className="manager-footer"><button type="button" onClick={onNewThread}>New thread in current worktree</button></div>
   </ModalDialog>;

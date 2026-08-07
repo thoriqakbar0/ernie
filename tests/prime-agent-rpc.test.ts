@@ -44,10 +44,51 @@ describe("PrimeAgentRpc", () => {
 
     const raw = result.events.find((event) => event.kind === "raw" && (event.event as { type?: string }).type === "fake_prompt_received");
     expect(raw).toMatchObject({ kind: "raw", event: { streamingBehavior: "followUp" } });
-    expect(result.events.find((event) => event.kind === "assistant_delta")).toMatchObject({ delta: "A".repeat(5_000) });
+    const deltas = result.events.filter((event) => event.kind === "assistant_delta");
+    expect(deltas.map((event) => event.delta).join("")).toBe("A".repeat(5_000));
+    expect(new Set(deltas.map((event) => event.messageId))).toEqual(new Set(["m:1"]));
+    const messages = result.events.filter((event) => event.kind === "assistant_message");
+    expect(messages.map((event) => [event.phase, event.messageId])).toEqual([
+      ["start", "m:1"], ["end", "m:1"], ["start", "m:2"], ["end", "m:2"],
+    ]);
+    expect(messages.at(-1)).toMatchObject({ phase: "end", blocks: [{ contentIndex: 0, text: "done" }] });
+    expect(result.events.findIndex((event) => event.kind === "assistant_message" && event.phase === "end" && event.messageId === "m:1"))
+      .toBeLessThan(result.events.findIndex((event) => event.kind === "tool" && event.phase === "start"));
     expect(result.events.filter((event) => event.kind === "tool").map((event) => event.phase)).toEqual(["start", "update", "end"]);
     expect(result.events.filter((event) => event.kind === "lifecycle").map((event) => event.type)).toEqual(expect.arrayContaining(["agent_start", "agent_end"]));
     expect(result.state.isStreaming).toBe(false);
+  });
+
+  it("closes an interrupted message before the next agent run starts", async () => {
+    const events = await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
+      const rpc = yield* PrimeAgentRpc;
+      yield* rpc.start;
+      const captured: AgentEvent[] = [];
+      yield* Effect.forkScoped(Stream.runForEach(rpc.events, (event) => Effect.sync(() => { captured.push(event); })));
+      yield* rpc.command({ type: "prompt", message: "hello" });
+      yield* Effect.sleep("50 millis");
+      return captured;
+    })), { ERNIE_FAKE_MODE: "missing-message-end" }));
+
+    expect(events.filter((event) => event.kind === "assistant_message").map((event) => [event.phase, event.messageId])).toEqual([
+      ["start", "m:1"], ["end", "m:1"], ["start", "m:2"], ["end", "m:2"],
+    ]);
+    expect(events.some((event) => event.kind === "error" && event.source === "protocol")).toBe(false);
+  });
+
+  it("rejects malformed content indexes instead of merging them into the first text block", async () => {
+    const events = await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
+      const rpc = yield* PrimeAgentRpc;
+      yield* rpc.start;
+      const captured: AgentEvent[] = [];
+      yield* Effect.forkScoped(Stream.runForEach(rpc.events, (event) => Effect.sync(() => { captured.push(event); })));
+      yield* rpc.command({ type: "prompt", message: "hello" });
+      yield* Effect.sleep("50 millis");
+      return captured;
+    })), { ERNIE_FAKE_MODE: "invalid-index" }));
+
+    expect(events.some((event) => event.kind === "assistant_delta")).toBe(false);
+    expect(events.find((event) => event.kind === "error")).toMatchObject({ source: "protocol", message: expect.stringMatching(/content index/i) });
   });
 
   it("fails closed when stdout ends with an unterminated record", async () => {

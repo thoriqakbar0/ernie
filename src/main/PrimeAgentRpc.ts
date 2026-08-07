@@ -87,7 +87,19 @@ function asRecord(value: unknown): Readonly<Record<string, unknown>> {
 }
 const string = (value: unknown): string => typeof value === "string" ? value : "";
 const integer = (value: unknown): number => typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
+const nonNegativeInteger = (value: unknown): number | null => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 const finite = (value: unknown): number => typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+function assistantTextBlocks(message: unknown): ReadonlyArray<{ readonly contentIndex: number; readonly text: string }> {
+  const content = asRecord(message)["content"];
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block, contentIndex) => {
+    const record = asRecord(block);
+    return record["type"] === "text" && typeof record["text"] === "string"
+      ? [{ contentIndex, text: record["text"] }]
+      : [];
+  });
+}
 
 function toolDetail(payload: unknown): string {
   const record = asRecord(payload);
@@ -115,6 +127,8 @@ export const make = (options: Options) => Effect.gen(function* () {
   const pending = yield* Ref.make<ReadonlyMap<string, PendingRequest>>(new Map());
   const requestSequence = yield* Ref.make(0);
   const eventSequence = yield* Ref.make(0);
+  const assistantMessageSequence = yield* Ref.make(0);
+  const activeAssistantMessage = yield* Ref.make<Option.Option<string>>(Option.none());
   const stderr = yield* Ref.make(Buffer.alloc(0));
   const messages = yield* Queue.unbounded<ProcessMessage>();
   const framing = yield* Ref.make<FramingState>({ carry: Buffer.alloc(0) });
@@ -212,13 +226,60 @@ export const make = (options: Options) => Effect.gen(function* () {
     yield* request("get_state", {}); yield* request("get_session_stats", {});
   }).pipe(Effect.asVoid);
 
+  const startAssistantMessage = Effect.fn("PrimeAgentRpc.startAssistantMessage")(function* (sequence: number) {
+    const active = yield* Ref.get(activeAssistantMessage);
+    if (Option.isSome(active)) {
+      yield* publish({ kind: "error", source: "protocol", message: "Assistant message started before the previous message ended" });
+      yield* publish({ kind: "assistant_message", sequence, phase: "end", messageId: active.value, blocks: null });
+    }
+    const ordinal = yield* Ref.updateAndGet(assistantMessageSequence, (value) => value + 1);
+    const messageId = `m:${ordinal}`;
+    yield* Ref.set(activeAssistantMessage, Option.some(messageId));
+    yield* publish({ kind: "assistant_message", sequence, phase: "start", messageId, blocks: null });
+    return messageId;
+  });
+
+  const activeOrSynthesizedAssistantMessage = Effect.fn("PrimeAgentRpc.activeOrSynthesizedAssistantMessage")(function* (sequence: number) {
+    const active = yield* Ref.get(activeAssistantMessage);
+    if (Option.isSome(active)) return active.value;
+    yield* publish({ kind: "error", source: "protocol", message: "Assistant update arrived without an active message" });
+    return yield* startAssistantMessage(sequence);
+  });
+
+  const closeActiveAssistantMessage = Effect.fn("PrimeAgentRpc.closeActiveAssistantMessage")(function* (sequence: number) {
+    const active = yield* Ref.get(activeAssistantMessage);
+    if (Option.isNone(active)) return;
+    yield* publish({ kind: "assistant_message", sequence, phase: "end", messageId: active.value, blocks: null });
+    yield* Ref.set(activeAssistantMessage, Option.none());
+  });
+
   const handleEvent = Effect.fn("PrimeAgentRpc.handleEvent")(function* (event: Readonly<Record<string, unknown>>) {
     const sequence = yield* Ref.get(eventSequence); const type = string(event["type"]);
+    if (type === "message_start" && string(asRecord(event["message"])["role"]) === "assistant") {
+      yield* startAssistantMessage(sequence);
+      return;
+    }
     if (type === "message_update") {
       const delta = asRecord(event["assistantMessageEvent"]);
-      if (delta["type"] === "text_delta") yield* publish({ kind: "assistant_delta", sequence, contentIndex: integer(delta["contentIndex"]), delta: string(delta["delta"]) });
-      else if (delta["type"] === "error") yield* publish({ kind: "error", source: "assistant", message: string(asRecord(delta["error"])["message"]) || string(delta["reason"]) || "Assistant stream error", detail: delta });
-      else yield* publish({ kind: "lifecycle", sequence, type: `message_${string(delta["type"]) || "update"}`, detail: delta });
+      if (delta["type"] === "text_delta") {
+        const contentIndex = nonNegativeInteger(delta["contentIndex"]);
+        if (contentIndex === null) {
+          yield* publish({ kind: "error", source: "protocol", message: "Assistant text delta has an invalid content index", detail: delta });
+          return;
+        }
+        const messageId = yield* activeOrSynthesizedAssistantMessage(sequence);
+        yield* publish({ kind: "assistant_delta", sequence, messageId, contentIndex, delta: string(delta["delta"]) });
+      } else if (delta["type"] === "error") {
+        yield* publish({ kind: "error", source: "assistant", message: string(asRecord(delta["error"])["message"]) || string(delta["reason"]) || "Assistant stream error", detail: delta });
+      } else {
+        yield* publish({ kind: "lifecycle", sequence, type: `message_${string(delta["type"]) || "update"}`, detail: delta });
+      }
+      return;
+    }
+    if (type === "message_end" && string(asRecord(event["message"])["role"]) === "assistant") {
+      const messageId = yield* activeOrSynthesizedAssistantMessage(sequence);
+      yield* publish({ kind: "assistant_message", sequence, phase: "end", messageId, blocks: assistantTextBlocks(event["message"]) });
+      yield* Ref.set(activeAssistantMessage, Option.none());
       return;
     }
     if (type === "tool_execution_start" || type === "tool_execution_update" || type === "tool_execution_end") {
@@ -229,6 +290,7 @@ export const make = (options: Options) => Effect.gen(function* () {
     }
     const lifecycle = new Set(["agent_start", "agent_end", "turn_start", "turn_end", "message_start", "message_end", "session_action_update", "compaction_start", "compaction_end", "auto_retry_start", "auto_retry_end"]);
     if (lifecycle.has(type)) {
+      if (type === "agent_end") yield* closeActiveAssistantMessage(sequence);
       yield* publish({ kind: "lifecycle", sequence, type, detail: event });
       if (type === "agent_start" || type === "agent_end" || type === "compaction_start" || type === "compaction_end") {
         const next = yield* Ref.updateAndGet(state, (current) => ({

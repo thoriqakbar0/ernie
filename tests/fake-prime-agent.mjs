@@ -44,13 +44,34 @@ function handle(request) {
       allX: /^x+$/.test(request.message),
       streamingBehavior: request.streamingBehavior || "now",
     });
+    if (process.env.ERNIE_FAKE_MODE === "missing-message-end") {
+      send({ type: "agent_start" });
+      send({ type: "message_start", message: { role: "assistant", content: [] } });
+      send({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "partial" } });
+      send({ type: "agent_end", messages: [{ role: "assistant" }] });
+      send({ type: "agent_start" });
+      send({ type: "message_start", message: { role: "assistant", content: [] } });
+      send({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "next" }] } });
+      send({ type: "agent_end", messages: [{ role: "assistant" }] });
+    }
+    if (process.env.ERNIE_FAKE_MODE === "invalid-index") {
+      send({ type: "message_start", message: { role: "assistant", content: [] } });
+      send({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: -1, delta: "must not render" } });
+      send({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [] } });
+    }
     if (process.env.ERNIE_FAKE_MODE === "lifecycle") {
       send({ type: "agent_start" });
       send({ type: "turn_start" });
       send({ type: "message_start", message: { role: "assistant", content: [] } });
+      for (let index = 0; index < 100; index += 1) {
+        send({
+          type: "message_update",
+          assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "A".repeat(50) },
+        });
+      }
       send({
-        type: "message_update",
-        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "A".repeat(5000) },
+        type: "message_end",
+        message: { role: "assistant", stopReason: "toolUse", content: [{ type: "text", text: "A".repeat(5000) }] },
       });
       send({
         type: "tool_execution_start",
@@ -69,15 +90,13 @@ function handle(request) {
         result: { content: [{ type: "text", text: "final output" }] },
         isError: false,
       });
-      send({
-        type: "message_end",
-        message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "done" }] },
-      });
-      send({
-        type: "turn_end",
-        message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "done" }] },
-        toolResults: [{}],
-      });
+      send({ type: "message_start", message: { role: "toolResult", content: [] } });
+      send({ type: "message_end", message: { role: "toolResult", content: [] } });
+      send({ type: "turn_end", message: { role: "assistant" }, toolResults: [{}] });
+      send({ type: "turn_start" });
+      send({ type: "message_start", message: { role: "assistant", content: [] } });
+      send({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "done" }] } });
+      send({ type: "turn_end", message: { role: "assistant" }, toolResults: [] });
       send({ type: "agent_end", messages: [{ role: "assistant" }] });
     }
     return respond(request);

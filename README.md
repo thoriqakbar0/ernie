@@ -53,6 +53,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing only state, commands, and event subscription.
 - `src/renderer/src/App.tsx` — React workbench and conversation state.
+- `src/renderer/src/transcript.ts` — message-aware transcript reducer and frame-coalesced stream controller.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.
 

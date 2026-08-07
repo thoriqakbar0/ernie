@@ -25,7 +25,8 @@ Ernie Dev uses a compact developer-workbench composition: a 228 px project rail,
 - Enter sends; Shift+Enter inserts a newline; IME composition is preserved.
 - Assistant deltas append to a stable active message.
 - Tool updates replace the matching call by call ID.
-- Auto-follow occurs only while the reader remains near the bottom.
+- Assistant text is keyed by RPC message and content-block identity, coalesced once per animation frame, and reconciled against the authoritative completed message.
+- Auto-follow is instant only while pinned to the tail. Scrolling upward releases it and exposes an explicit “Jump to latest” control.
 - Reduced-motion preference removes decorative animation.
 - New thread clears the visible transcript only after an authoritative non-cancelled RPC response.
 

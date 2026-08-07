@@ -1,11 +1,8 @@
 import { Agentation } from "agentation";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentEvent, AgentState } from "../../shared/contract";
-
-type ThreadItem =
-  | { readonly id: string; readonly kind: "user" | "assistant"; readonly text: string }
-  | { readonly id: string; readonly kind: "tool"; readonly callId: string; readonly name: string; readonly detail: string; readonly phase: "start" | "update" | "end"; readonly isError: boolean }
-  | { readonly id: string; readonly kind: "notice"; readonly text: string; readonly tone: "neutral" | "error" };
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, WheelEvent } from "react";
+import type { AgentState } from "../../shared/contract";
+import { assistantText } from "./transcript";
+import { useTranscript } from "./useTranscript";
 
 const EMPTY_STATE: AgentState = {
   connection: "starting", detail: "Launching Prime Agent RPC", sessionId: "", sessionName: "",
@@ -34,73 +31,75 @@ function formatTokens(value: number): string {
   return String(value);
 }
 
-function itemFromEvent(event: AgentEvent): ThreadItem | null {
-  if (event.kind === "error") return { id: crypto.randomUUID(), kind: "notice", text: event.message, tone: "error" };
-  return null;
-}
-
 export function App() {
   const [state, setState] = useState(EMPTY_STATE);
-  const [items, setItems] = useState<ThreadItem[]>([]);
+  const transcript = useTranscript();
+  const { items } = transcript;
   const [draft, setDraft] = useState("");
   const [composerError, setComposerError] = useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
+  const [isFollowing, setIsFollowing] = useState(true);
 
   useEffect(() => {
     let active = true;
     void window.ernie.getState().then((snapshot) => { if (active && snapshot) setState(snapshot); });
     const unsubscribe = window.ernie.onAgentEvent((event) => {
-      if (event.kind === "state") { setState(event.state); return; }
+      transcript.handleEvent(event);
+      if (event.kind === "state") {
+        setState(event.state);
+        if (!event.state.isStreaming) transcript.finish();
+        return;
+      }
       if (event.kind === "connection") {
         setState((current) => ({ ...current, connection: event.state, detail: event.detail }));
-        return;
+        if (event.state === "failed" || event.state === "closed") transcript.finish();
       }
-      if (event.kind === "assistant_delta") {
-        setItems((current) => {
-          const last = current.at(-1);
-          if (last?.kind === "assistant") return [...current.slice(0, -1), { ...last, text: last.text + event.delta }];
-          return [...current, { id: crypto.randomUUID(), kind: "assistant", text: event.delta }];
-        });
-        return;
-      }
-      if (event.kind === "tool") {
-        setItems((current) => {
-          const index = current.findIndex((item) => item.kind === "tool" && item.callId === event.callId);
-          const previous = index >= 0 && current[index]?.kind === "tool" ? current[index] : null;
-          const next: ThreadItem = { id: previous?.id ?? crypto.randomUUID(), kind: "tool", callId: event.callId, name: event.name || previous?.name || "Tool", detail: event.detail, phase: event.phase, isError: event.isError };
-          if (index < 0) return [...current, next];
-          return current.map((item, itemIndex) => itemIndex === index ? next : item);
-        });
-        return;
-      }
-      const item = itemFromEvent(event);
-      if (item) setItems((current) => [...current, item]);
     });
     return () => { active = false; unsubscribe(); };
-  }, []);
+  }, [transcript.handleEvent, transcript.finish]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const viewport = transcriptRef.current;
     if (!viewport || !shouldFollowRef.current) return;
-    requestAnimationFrame(() => viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" }));
+    viewport.scrollTop = viewport.scrollHeight;
   }, [items]);
 
   const transcriptScroll = () => {
     const viewport = transcriptRef.current;
     if (!viewport) return;
-    shouldFollowRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120;
+    const next = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 48;
+    if (next === shouldFollowRef.current) return;
+    shouldFollowRef.current = next;
+    setIsFollowing(next);
   };
+
+  const stopFollowing = useCallback(() => {
+    shouldFollowRef.current = false;
+    setIsFollowing(false);
+  }, []);
+
+  const transcriptWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) stopFollowing();
+  };
+
+  const followLatest = useCallback((behavior: ScrollBehavior = "auto") => {
+    shouldFollowRef.current = true;
+    setIsFollowing(true);
+    const viewport = transcriptRef.current;
+    if (viewport) viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  }, []);
 
   const send = useCallback(async (message: string) => {
     const trimmed = message.trim();
     if (!trimmed) return;
     setComposerError("");
-    setItems((current) => [...current, { id: crypto.randomUUID(), kind: "user", text: trimmed }]);
+    followLatest();
+    transcript.appendUser(trimmed);
     setDraft("");
     const result = await window.ernie.command({ type: "prompt", message: trimmed, behavior: state.isStreaming ? "steer" : "now" });
     if (!result.ok) setComposerError(result.error ?? "Prime Agent rejected the message");
-  }, [state.isStreaming]);
+  }, [followLatest, state.isStreaming, transcript.appendUser]);
 
   const submit = (event: FormEvent) => { event.preventDefault(); void send(draft); };
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -110,7 +109,7 @@ export function App() {
   };
   const newThread = async () => {
     const result = await window.ernie.command({ type: "new_session" });
-    if (result.ok && !result.cancelled) { setItems([]); setComposerError(""); }
+    if (result.ok && !result.cancelled) { transcript.reset(); followLatest(); setComposerError(""); }
   };
   const stop = () => { void window.ernie.command({ type: "abort" }); };
   const statusLabel = state.connection === "ready" ? (state.isStreaming ? "Working" : "Ready") : state.connection === "starting" ? "Connecting" : "Offline";
@@ -139,7 +138,7 @@ export function App() {
         </div>
       </header>
 
-      <div className="transcript" ref={transcriptRef} onScroll={transcriptScroll}>
+      <div className="transcript" ref={transcriptRef} onScroll={transcriptScroll} onWheel={transcriptWheel} role="log" aria-live="polite" aria-relevant="additions text" aria-busy={state.isStreaming}>
         {!hasConversation && <section className="welcome">
           <div className="welcome-mark"><Icon name="spark" size={23} /></div>
           <h1>What should we build?</h1>
@@ -151,11 +150,14 @@ export function App() {
         {items.map((item) => {
           if (item.kind === "tool") return <details className={`tool-item ${item.isError ? "error" : ""}`} key={item.id} open={item.phase !== "end"}><summary><span className="tool-indicator" />{item.name}<span className="tool-phase">{item.phase === "end" ? (item.isError ? "failed" : "done") : "running"}</span></summary>{item.detail && <pre>{item.detail}</pre>}</details>;
           if (item.kind === "notice") return <div className={`notice ${item.tone}`} key={item.id}>{item.text}</div>;
-          return <article className={`message ${item.kind}`} key={item.id}><div className="message-role">{item.kind === "user" ? "You" : "Ernie"}</div><div className="message-copy">{item.text || <span className="stream-cursor" />}</div></article>;
+          if (item.kind === "user") return <article className="message user" key={item.id}><div className="message-role">You</div><div className="message-copy">{item.text}</div></article>;
+          const text = assistantText(item);
+          return <article className="message assistant" key={item.id}><div className="message-role">Ernie</div><div className="message-copy">{text}{item.active && <span className="stream-cursor" aria-label="Streaming" />}</div></article>;
         })}
       </div>
 
       <div className="composer-wrap">
+        {!isFollowing && <button type="button" className="jump-latest" onClick={() => followLatest(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}><span className="jump-live-dot" />Jump to latest</button>}
         <form className="composer" onSubmit={submit}>
           <textarea aria-label="Message Prime Agent" placeholder={state.connection === "ready" ? "Message Prime Agent…" : state.detail} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready"} />
           <div className="composer-footer">

@@ -1,0 +1,113 @@
+import { describe, expect, it } from "vitest";
+import {
+  assistantText,
+  makeAssistantStreamController,
+  transcriptReducer,
+  type FrameScheduler,
+  type TranscriptAction,
+} from "../src/renderer/src/transcript";
+
+function makeHarness() {
+  let nextHandle = 0;
+  const callbacks = new Map<number, () => void>();
+  const events: Array<readonly [string, unknown]> = [];
+  const scheduler: FrameScheduler = {
+    request: (callback) => {
+      nextHandle += 1;
+      callbacks.set(nextHandle, callback);
+      return nextHandle;
+    },
+    cancel: (handle) => { callbacks.delete(handle); },
+  };
+  let id = 0;
+  const controller = makeAssistantStreamController(scheduler, {
+    makeId: () => `assistant-${++id}`,
+    onStart: (assistantId) => { events.push(["start", assistantId]); },
+    onAppend: (assistantId, segments) => { events.push(["append", { assistantId, segments }]); },
+    onFinish: (assistantId) => { events.push(["finish", assistantId]); },
+  });
+  const present = () => {
+    const scheduled = [...callbacks.values()];
+    callbacks.clear();
+    for (const callback of scheduled) callback();
+  };
+  return { controller, events, callbacks, present };
+}
+
+describe("assistant stream controller", () => {
+  it("coalesces arbitrary deltas into one presented-frame update", () => {
+    const harness = makeHarness();
+    for (let index = 0; index < 1_000; index += 1) harness.controller.push("assistant-1", 0, "x");
+
+    expect(harness.callbacks.size).toBe(1);
+    expect(harness.events).toEqual([["start", "assistant-1"]]);
+    harness.present();
+    expect(harness.events).toEqual([
+      ["start", "assistant-1"],
+      ["append", { assistantId: "assistant-1", segments: [[0, "x".repeat(1_000)]] }],
+    ]);
+  });
+
+  it("preserves content-index ordering and flushes before a boundary", () => {
+    const harness = makeHarness();
+    harness.controller.push("assistant-1", 2, "after");
+    harness.controller.push("assistant-1", 0, "before");
+    harness.controller.finish();
+
+    expect(harness.callbacks.size).toBe(0);
+    expect(harness.events).toEqual([
+      ["start", "assistant-1"],
+      ["append", { assistantId: "assistant-1", segments: [[0, "before"], [2, "after"]] }],
+      ["finish", "assistant-1"],
+    ]);
+    harness.present();
+    expect(harness.events).toHaveLength(3);
+  });
+
+  it("creates a stable new message only after the previous stream finishes", () => {
+    const harness = makeHarness();
+    harness.controller.push("message-1", 0, "one");
+    harness.present();
+    harness.controller.finish();
+    harness.controller.push("message-2", 0, "two");
+    harness.present();
+
+    expect(harness.events.map(([type, value]) => type === "start" ? value : type)).toEqual([
+      "message-1", "append", "finish", "message-2", "append",
+    ]);
+  });
+});
+
+describe("transcript reducer", () => {
+  it("updates one assistant identity without disturbing surrounding items", () => {
+    const actions: readonly TranscriptAction[] = [
+      { type: "append_user", id: "user-1", text: "Question" },
+      { type: "start_assistant", id: "assistant-1" },
+      { type: "append_assistant", id: "assistant-1", segments: [[0, "Answer"], [1, " continued"]] },
+      { type: "finish_assistant", id: "assistant-1", segments: [[0, "Final"], [1, " answer"]] },
+      { type: "start_assistant", id: "assistant-1" },
+      { type: "finish_assistant", id: "assistant-1" },
+    ];
+    const items = actions.reduce(transcriptReducer, []);
+    const assistant = items.find((item) => item.kind === "assistant");
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ kind: "user", text: "Question" });
+    expect(assistant?.kind).toBe("assistant");
+    if (assistant?.kind === "assistant") {
+      expect(assistantText(assistant)).toBe("Final answer");
+      expect(assistant.active).toBe(false);
+    }
+  });
+
+  it("clears speculative text when the authoritative message has no text blocks", () => {
+    const actions: readonly TranscriptAction[] = [
+      { type: "start_assistant", id: "assistant-1" },
+      { type: "append_assistant", id: "assistant-1", segments: [[0, "speculative"]] },
+      { type: "finish_assistant", id: "assistant-1", segments: [] },
+    ];
+    const items = actions.reduce(transcriptReducer, []);
+    const assistant = items[0];
+    expect(assistant?.kind === "assistant" ? assistantText(assistant) : null).toBe("");
+  });
+});

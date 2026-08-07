@@ -1,4 +1,5 @@
 import { KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { ModalDialog } from "./ModalDialog";
 
 type ExecutionTarget = "local" | "modal";
 
@@ -14,15 +15,19 @@ const TARGETS: ReadonlyArray<{ readonly target: ExecutionTarget; readonly label:
   { target: "modal", label: "Modal", detail: "Remote runtime" },
 ];
 
+/** Selects an IPython runtime and confirms switches that destroy a remote runtime. */
 export function RemoteExecutionControl({ executionTarget, switchingExecutionTo, disabled, onSelect }: RemoteExecutionControlProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isConfirmingLocalSwitch, setIsConfirmingLocalSwitch] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const confirmationCancelRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = useId();
+  const confirmationTitleId = useId();
   const isSwitching = switchingExecutionTo !== undefined;
   const label = isSwitching
-    ? "IPython · Moving…"
+    ? "IPython · Switching…"
     : `IPython · ${executionTarget === "modal" ? "Modal" : "Local"}`;
 
   const close = (restoreFocus = false) => {
@@ -62,11 +67,10 @@ export function RemoteExecutionControl({ executionTarget, switchingExecutionTo, 
       return;
     }
     if (target === "local" && executionTarget === "modal") {
-      const confirmed = window.confirm("Switch to Local IPython? The Modal runtime and all storage attached to it will be permanently destroyed.");
-      if (!confirmed) {
-        close(true);
-        return;
-      }
+      close();
+      triggerRef.current?.focus();
+      setIsConfirmingLocalSwitch(true);
+      return;
     }
     close(true);
     await onSelect(target);
@@ -125,5 +129,28 @@ export function RemoteExecutionControl({ executionTarget, switchingExecutionTo, 
         <span className="execution-option-check" aria-hidden="true">{executionTarget === target ? "✓" : ""}</span>
       </button>)}
     </div>}
+    <ModalDialog
+      open={isConfirmingLocalSwitch}
+      onRequestClose={() => setIsConfirmingLocalSwitch(false)}
+      labelledBy={confirmationTitleId}
+      className="runtime-switch-dialog"
+      initialFocusRef={confirmationCancelRef}
+    >
+      <div className="runtime-switch-confirmation">
+        <h2 id={confirmationTitleId}>Switch to Local IPython?</h2>
+        <p>The Modal runtime and all storage attached to it will be permanently destroyed.</p>
+        <div className="runtime-switch-actions">
+          <button ref={confirmationCancelRef} type="button" onClick={() => setIsConfirmingLocalSwitch(false)}>Cancel</button>
+          <button
+            type="button"
+            className="danger"
+            onClick={() => {
+              setIsConfirmingLocalSwitch(false);
+              void onSelect("local");
+            }}
+          >Delete runtime and switch</button>
+        </div>
+      </div>
+    </ModalDialog>
   </div>;
 }

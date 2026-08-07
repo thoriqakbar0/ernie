@@ -16,12 +16,16 @@ const electronApp = await electron.launch({
     ERNIE_PROJECT_PATH: root,
     ERNIE_AGENT_CLI_PATH: path.join(root, "tests/fake-prime-agent.mjs"),
     ERNIE_FAKE_MODE: "lifecycle",
+    ERNIE_FAKE_STARTUP_DELAY_MS: "700",
   },
 });
 
 try {
   const window = await electronApp.firstWindow();
   await window.waitForLoadState("domcontentloaded");
+  const startup = window.locator('[data-startup-experience="composer"]');
+  await startup.waitFor({ state: "visible", timeout: 5_000 });
+  assert.match((await startup.textContent()) ?? "", /Getting your workspace ready/);
   await window.getByText("Ready", { exact: true }).waitFor({ timeout: 15_000 });
   assert.equal(await window.getByText("Test Model", { exact: true }).first().textContent(), "Test Model");
   assert.equal(await window.locator("[data-agentation-toolbar]").count(), 0);

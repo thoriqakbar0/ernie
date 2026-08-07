@@ -2,6 +2,7 @@
 import process from "node:process";
 
 let carry = "";
+let startupDelayUsed = false;
 const state = {
   sessionId: "bridge-test-session",
   sessionName: "S".repeat(5000),
@@ -29,6 +30,11 @@ function respond(request, data = {}) {
 }
 
 function handle(request) {
+  if (request.type === "get_state" && !startupDelayUsed && process.env.ERNIE_FAKE_STARTUP_DELAY_MS) {
+    startupDelayUsed = true;
+    setTimeout(() => respond(request, state), Number(process.env.ERNIE_FAKE_STARTUP_DELAY_MS));
+    return;
+  }
   if (request.type === "get_state" && process.env.ERNIE_FAKE_MODE === "unterminated") {
     process.stdout.write(JSON.stringify({ type: "response", id: request.id, command: request.type, success: true, data: state }));
     process.stdout.end();

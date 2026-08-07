@@ -2,19 +2,20 @@ import { Agentation } from "agentation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, WheelEvent } from "react";
 import type { AgentState } from "../../shared/contract";
 import { assistantText } from "./transcript";
+import { RemoteExecutionControl } from "./RemoteExecutionControl";
+import { StartupComposer, StartupRail, useStartupStoryboard } from "./StartupExperience";
 import { useTranscript } from "./useTranscript";
 
 const EMPTY_STATE: AgentState = {
   connection: "starting", detail: "Launching Prime Agent RPC", sessionId: "", sessionName: "",
-  provider: "", modelId: "", modelName: "Discovering model", thinkingLevel: "", isStreaming: false,
+  provider: "", modelId: "", modelName: "Discovering model", thinkingLevel: "", executionTarget: "local", isStreaming: false,
   isCompacting: false, messageCount: 0, queuedCount: 0, contextTokens: 0, contextWindow: 0,
   contextPercent: 0, totalTokens: 0, cost: "$0.0000",
 };
 
-function Icon({ name, size = 16 }: { readonly name: "plus" | "chat" | "code" | "chevron" | "stop" | "send" | "spark" | "refresh"; readonly size?: number }) {
+function Icon({ name, size = 16 }: { readonly name: "plus" | "code" | "chevron" | "stop" | "send" | "spark" | "refresh"; readonly size?: number }) {
   const paths: Record<typeof name, React.ReactNode> = {
     plus: <><path d="M12 5v14M5 12h14" /></>,
-    chat: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /></>,
     code: <><path d="m8 9-4 3 4 3m8-6 4 3-4 3m-2-10-4 14" /></>,
     chevron: <path d="m9 18 6-6-6-6" />,
     stop: <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none" />,
@@ -40,6 +41,8 @@ export function App() {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const [isFollowing, setIsFollowing] = useState(true);
+  const isStarting = state.connection === "starting";
+  const startupStage = useStartupStoryboard(isStarting);
 
   useEffect(() => {
     let active = true;
@@ -112,20 +115,31 @@ export function App() {
     if (result.ok && !result.cancelled) { transcript.reset(); followLatest(); setComposerError(""); }
   };
   const stop = () => { void window.ernie.command({ type: "abort" }); };
+  const changeExecutionTarget = async (target: "local" | "modal") => {
+    setComposerError("");
+    try {
+      const result = await window.ernie.command({ type: "set_execution_target", target });
+      if (!result.ok) setComposerError(result.error ?? `Could not switch IPython to ${target === "modal" ? "Modal" : "Local"}`);
+    } catch (error) {
+      setComposerError(error instanceof Error ? error.message : "Could not switch the IPython runtime");
+    }
+  };
+  const isExecutionSwitching = state.switchingExecutionTarget !== undefined;
+  const executionControlDisabled = state.connection !== "ready" || state.isStreaming || state.isCompacting || isExecutionSwitching;
   const statusLabel = state.connection === "ready" ? (state.isStreaming ? "Working" : "Ready") : state.connection === "starting" ? "Connecting" : "Offline";
   const hasConversation = items.length > 0;
   const projectLabel = useMemo(() => "ernie", []);
 
   return <div className="app-shell">
-    <aside className="project-rail">
+    <aside className={`project-rail ${isStarting ? "is-starting" : ""}`}>
       <div className="titlebar-drag" aria-hidden="true" />
       <button className="new-thread" onClick={newThread}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
       <div className="rail-section-label">Project</div>
       <button className="project-row active"><Icon name="code" size={15} /><span>{projectLabel}</span><Icon name="chevron" size={13} /></button>
-      <div className="rail-section-label thread-heading">Threads</div>
-      <button className="thread-row active"><Icon name="chat" size={14} /><span>{state.sessionName || "Current thread"}</span></button>
       <div className="rail-spacer" />
-      <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>
+      {isStarting
+        ? <StartupRail stage={startupStage} />
+        : <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>}
     </aside>
 
     <main className="workspace">
@@ -134,6 +148,12 @@ export function App() {
         <div className="toolbar-actions no-drag">
           <button className="text-control" onClick={() => void window.ernie.command({ type: "cycle_model" })}>{state.modelName}</button>
           <button className="text-control thinking" onClick={() => void window.ernie.command({ type: "cycle_thinking_level" })}>{state.thinkingLevel || "thinking"}</button>
+          <RemoteExecutionControl
+            executionTarget={state.executionTarget}
+            switchingExecutionTarget={state.switchingExecutionTarget}
+            disabled={executionControlDisabled}
+            onSelect={changeExecutionTarget}
+          />
           <button className="icon-control" aria-label="Refresh session state" onClick={() => void window.ernie.command({ type: "refresh" })}><Icon name="refresh" size={14} /></button>
         </div>
       </header>
@@ -144,7 +164,7 @@ export function App() {
           <h1>What should we build?</h1>
           <p>Ask Prime Agent to inspect the project, ship a change, or continue an existing task.</p>
           <div className="suggestions">
-            {["Explain this codebase", "Find the next useful improvement", "Run the project checks"].map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}
+            {["Explain this codebase", "Find the next useful improvement", "Run the project checks"].map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)} disabled={state.connection !== "ready"}>{suggestion}</button>)}
           </div>
         </section>}
         {items.map((item) => {
@@ -158,13 +178,13 @@ export function App() {
 
       <div className="composer-wrap">
         {!isFollowing && <button type="button" className="jump-latest" onClick={() => followLatest(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}><span className="jump-live-dot" />Jump to latest</button>}
-        <form className="composer" onSubmit={submit}>
-          <textarea aria-label="Message Prime Agent" placeholder={state.connection === "ready" ? "Message Prime Agent…" : state.detail} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready"} />
+        {isStarting ? <StartupComposer stage={startupStage} /> : <form className="composer" onSubmit={submit}>
+          <textarea aria-label="Message Prime Agent" placeholder={isExecutionSwitching ? "Moving IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : state.detail} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
           <div className="composer-footer">
             <div className="usage"><span>{state.contextPercent}% context</span><span>·</span><span>{formatTokens(state.totalTokens)} tokens</span><span>·</span><span>{state.cost}</span></div>
-            {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready"}><Icon name="send" size={16} /></button>}
+            {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready" || isExecutionSwitching}><Icon name="send" size={16} /></button>}
           </div>
-        </form>
+        </form>}
         {composerError && <div className="composer-error" role="alert">{composerError}</div>}
       </div>
     </main>

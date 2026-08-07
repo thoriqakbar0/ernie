@@ -27,6 +27,10 @@ export const program = Effect.scoped(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         return yield* rpc.state;
       })));
+      ipcMain.handle("agent:get-commands", (event) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        return yield* rpc.availableCommands;
+      })));
       ipcMain.handle("agent:command", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         const parsed = yield* Schema.decodeUnknownEffect(AgentCommandSchema)(input).pipe(
@@ -37,6 +41,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
     }),
     () => Effect.sync(() => {
       ipcMain.removeHandler("agent:get-state");
+      ipcMain.removeHandler("agent:get-commands");
       ipcMain.removeHandler("agent:command");
     }),
   );

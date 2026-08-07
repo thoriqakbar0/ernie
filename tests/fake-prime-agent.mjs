@@ -43,6 +43,11 @@ function handle(request) {
   }
   if (request.type === "get_state") return respond(request, state);
   if (request.type === "get_session_stats") return respond(request, stats);
+  if (request.type === "get_commands") return respond(request, { commands: [
+    { name: "skill:research", description: "Research a topic from primary sources", source: "skill" },
+    { name: "fix-tests", description: "Run and repair the project test suite", source: "prompt" },
+    { name: "session-name", description: "Rename the current session", source: "extension" },
+  ] });
   if (request.type === "prompt") {
     send({
       type: "fake_prompt_received",

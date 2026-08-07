@@ -13,6 +13,7 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import type { AgentSlashCommand } from "../shared/commands";
 import type { AgentCommand, AgentEvent, AgentState, ExecutionTarget } from "../shared/contract";
 
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
@@ -36,6 +37,14 @@ const RpcResponse = Schema.Struct({
   error: Schema.optionalKey(Schema.Unknown),
 });
 type RpcResponse = typeof RpcResponse.Type;
+
+const RpcSlashCommandResponse = Schema.Struct({
+  commands: Schema.Array(Schema.Struct({
+    name: Schema.String,
+    description: Schema.optionalKey(Schema.String),
+    source: Schema.Literals(["extension", "prompt", "skill"]),
+  })),
+});
 
 interface Options {
   readonly nodePath: string;
@@ -137,6 +146,7 @@ export class PrimeAgentRpc extends Context.Service<
     readonly stop: Effect.Effect<void>;
     readonly state: Effect.Effect<AgentState>;
     readonly events: Stream.Stream<AgentEvent>;
+    readonly availableCommands: Effect.Effect<readonly AgentSlashCommand[], PrimeAgentRpcError>;
     readonly command: (command: AgentCommand) => Effect.Effect<{ readonly cancelled?: boolean }, PrimeAgentRpcError>;
   }
 >()("@ernie/main/PrimeAgentRpc") {}
@@ -472,6 +482,12 @@ export const make = (options: Options) => Effect.gen(function* () {
     Effect.withSpan("PrimeAgentRpc.start"),
   );
 
+  const availableCommands = request("get_commands", {}).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(RpcSlashCommandResponse)),
+    Effect.map((data): readonly AgentSlashCommand[] => data.commands),
+    Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("get_commands", "Prime Agent returned an invalid command catalog", cause)),
+  );
+
   const command = Effect.fn("PrimeAgentRpc.command")(function* (input: AgentCommand) {
     switch (input.type) {
       case "prompt": {
@@ -525,7 +541,7 @@ export const make = (options: Options) => Effect.gen(function* () {
 
   yield* Effect.forkScoped(consume);
   yield* Effect.addFinalizer(() => stop);
-  return PrimeAgentRpc.of({ start, stop, state: snapshot, events: Stream.fromPubSub(events), command });
+  return PrimeAgentRpc.of({ start, stop, state: snapshot, events: Stream.fromPubSub(events), availableCommands, command });
 });
 
 export const layer = (options: Options) => Layer.effect(PrimeAgentRpc, make(options));

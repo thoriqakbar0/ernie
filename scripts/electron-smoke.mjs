@@ -49,6 +49,10 @@ try {
   }
 
   const composer = window.getByLabel("Message Prime Agent");
+  await composer.fill("/res");
+  await window.getByRole("option", { name: /skill:research/ }).waitFor({ timeout: 5_000 });
+  await composer.press("Enter");
+  assert.equal(await composer.inputValue(), "/skill:research ");
   await composer.fill("smoke test");
   await window.getByLabel("Send message").click();
   await window.getByText("A".repeat(5_000), { exact: true }).waitFor({ timeout: 10_000 });
@@ -57,6 +61,8 @@ try {
   assert.match((await window.locator(".usage").textContent()) ?? "", /2k tokens/);
 
   await window.getByRole("button", { name: "New thread" }).click();
+  await window.getByRole("dialog", { name: "New agent thread" }).waitFor({ timeout: 5_000 });
+  await window.getByRole("button", { name: "Start blank" }).click();
   await window.getByText("What should we build?", { exact: true }).waitFor({ timeout: 10_000 });
   process.stdout.write("Electron smoke test passed.\n");
 } finally {

@@ -1,3 +1,5 @@
+import type { AgentSlashCommand } from "./commands";
+
 export type ConnectionState = "starting" | "ready" | "failed" | "closed";
 export type ExecutionTarget = "local" | "modal";
 
@@ -51,6 +53,7 @@ export interface CommandResult {
 
 export interface ErnieApi {
   getState(): Promise<AgentState>;
+  getCommands(): Promise<readonly AgentSlashCommand[]>;
   command(command: AgentCommand): Promise<CommandResult>;
   onAgentEvent(listener: (event: AgentEvent) => void): () => void;
   platform: string;

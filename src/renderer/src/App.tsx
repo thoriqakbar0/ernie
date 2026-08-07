@@ -1,7 +1,10 @@
 import { Agentation } from "agentation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, WheelEvent } from "react";
+import type { AgentSlashCommand } from "../../shared/commands";
 import type { AgentState } from "../../shared/contract";
+import { ComposerAutocomplete, matchingCommands } from "./ComposerAutocomplete";
 import { assistantText } from "./transcript";
+import { NewThreadLauncher } from "./NewThreadLauncher";
 import { RemoteExecutionControl } from "./RemoteExecutionControl";
 import { StartupComposer, StartupRail, useStartupStoryboard } from "./StartupExperience";
 import { useTranscript } from "./useTranscript";
@@ -37,12 +40,19 @@ export function App() {
   const transcript = useTranscript();
   const { items } = transcript;
   const [draft, setDraft] = useState("");
+  const [availableCommands, setAvailableCommands] = useState<readonly AgentSlashCommand[]>([]);
+  const [commandIndex, setCommandIndex] = useState(0);
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const [composerError, setComposerError] = useState("");
+  const [newThreadOpen, setNewThreadOpen] = useState(false);
+  const [newThreadBusy, setNewThreadBusy] = useState(false);
+  const [newThreadError, setNewThreadError] = useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const [isFollowing, setIsFollowing] = useState(true);
   const isStarting = state.connection === "starting";
   const startupStage = useStartupStoryboard(isStarting);
+  const commandMatches = useMemo(() => commandMenuDismissed ? [] : matchingCommands(availableCommands, draft), [availableCommands, commandMenuDismissed, draft]);
 
   useEffect(() => {
     let active = true;
@@ -61,6 +71,33 @@ export function App() {
     });
     return () => { active = false; unsubscribe(); };
   }, [transcript.handleEvent, transcript.finish]);
+
+  useEffect(() => {
+    if (state.connection !== "ready") return;
+    let active = true;
+    void window.ernie.getCommands()
+      .then((commands) => { if (active) setAvailableCommands(commands); })
+      .catch(() => { if (active) setAvailableCommands([]); });
+    return () => { active = false; };
+  }, [state.connection]);
+
+  useEffect(() => {
+    setCommandIndex(0);
+    setCommandMenuDismissed(false);
+  }, [draft]);
+
+  useEffect(() => {
+    const keyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "n") return;
+      event.preventDefault();
+      if (state.connection === "ready") {
+        setNewThreadError("");
+        setNewThreadOpen(true);
+      }
+    };
+    window.addEventListener("keydown", keyDown);
+    return () => window.removeEventListener("keydown", keyDown);
+  }, [state.connection]);
 
   useLayoutEffect(() => {
     const viewport = transcriptRef.current;
@@ -104,15 +141,54 @@ export function App() {
     if (!result.ok) setComposerError(result.error ?? "Prime Agent rejected the message");
   }, [followLatest, state.isStreaming, transcript.appendUser]);
 
+  const chooseCommand = useCallback((command: AgentSlashCommand) => {
+    setDraft(`/${command.name} `);
+    setCommandMenuDismissed(true);
+  }, []);
+
   const submit = (event: FormEvent) => { event.preventDefault(); void send(draft); };
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (commandMatches.length > 0) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setCommandIndex((current) => (current + direction + commandMatches.length) % commandMatches.length);
+        return;
+      }
+      if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing)) {
+        event.preventDefault();
+        const command = commandMatches[Math.min(commandIndex, commandMatches.length - 1)];
+        if (command) chooseCommand(command);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCommandMenuDismissed(true);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault(); void send(draft);
     }
   };
-  const newThread = async () => {
+  const createThread = async (firstPrompt: string | undefined) => {
+    setNewThreadBusy(true);
+    setNewThreadError("");
     const result = await window.ernie.command({ type: "new_session" });
-    if (result.ok && !result.cancelled) { transcript.reset(); followLatest(); setComposerError(""); }
+    if (!result.ok || result.cancelled) {
+      setNewThreadError(result.error ?? "Prime Agent cancelled the new thread");
+      setNewThreadBusy(false);
+      return;
+    }
+    transcript.reset();
+    followLatest();
+    setComposerError("");
+    setNewThreadOpen(false);
+    setNewThreadBusy(false);
+    if (firstPrompt === undefined) return;
+    transcript.appendUser(firstPrompt);
+    const promptResult = await window.ernie.command({ type: "prompt", message: firstPrompt, behavior: "now" });
+    if (!promptResult.ok) setComposerError(promptResult.error ?? "Prime Agent rejected the first instruction");
   };
   const stop = () => { void window.ernie.command({ type: "abort" }); };
   const changeExecutionTarget = async (target: "local" | "modal") => {
@@ -133,9 +209,17 @@ export function App() {
   return <div className="app-shell">
     <aside className={`project-rail ${isStarting ? "is-starting" : ""}`}>
       <div className="titlebar-drag" aria-hidden="true" />
-      <button className="new-thread" onClick={newThread}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
+      <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
       <div className="rail-section-label">Project</div>
       <button className="project-row active"><Icon name="code" size={15} /><span>{projectLabel}</span><Icon name="chevron" size={13} /></button>
+      <div className="rail-runtime">
+        <RemoteExecutionControl
+          executionTarget={state.executionTarget}
+          switchingExecutionTo={state.switchingExecutionTo}
+          disabled={executionControlDisabled}
+          onSelect={changeExecutionTarget}
+        />
+      </div>
       <div className="rail-spacer" />
       {isStarting
         ? <StartupRail stage={startupStage} />
@@ -146,14 +230,6 @@ export function App() {
       <header className="workspace-toolbar titlebar-drag">
         <div className="toolbar-title no-drag"><span>{projectLabel}</span><span className="slash">/</span><span>{state.sessionName || "Current thread"}</span></div>
         <div className="toolbar-actions no-drag">
-          <button className="text-control" onClick={() => void window.ernie.command({ type: "cycle_model" })}>{state.modelName}</button>
-          <button className="text-control thinking" onClick={() => void window.ernie.command({ type: "cycle_thinking_level" })}>{state.thinkingLevel || "thinking"}</button>
-          <RemoteExecutionControl
-            executionTarget={state.executionTarget}
-            switchingExecutionTo={state.switchingExecutionTo}
-            disabled={executionControlDisabled}
-            onSelect={changeExecutionTarget}
-          />
           <button className="icon-control" aria-label="Refresh session state" onClick={() => void window.ernie.command({ type: "refresh" })}><Icon name="refresh" size={14} /></button>
         </div>
       </header>
@@ -177,9 +253,10 @@ export function App() {
       </div>
 
       <div className="composer-wrap">
+        {!isStarting && <ComposerAutocomplete commands={commandMatches} activeIndex={commandIndex} onActiveIndexChange={setCommandIndex} onChoose={chooseCommand} />}
         {!isFollowing && <button type="button" className="jump-latest" onClick={() => followLatest(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}><span className="jump-live-dot" />Jump to latest</button>}
         {isStarting ? <StartupComposer stage={startupStage} /> : <form className="composer" onSubmit={submit}>
-          <textarea aria-label="Message Prime Agent" placeholder={isExecutionSwitching ? "Moving IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : state.detail} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
+          <textarea aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={isExecutionSwitching ? "Moving IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : state.detail} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
           <div className="composer-footer">
             <div className="usage"><span>{state.contextPercent}% context</span><span>·</span><span>{formatTokens(state.totalTokens)} tokens</span><span>·</span><span>{state.cost}</span></div>
             {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready" || isExecutionSwitching}><Icon name="send" size={16} /></button>}
@@ -189,6 +266,13 @@ export function App() {
       </div>
     </main>
 
+    <NewThreadLauncher
+      open={newThreadOpen}
+      busy={newThreadBusy}
+      error={newThreadError}
+      onClose={() => { setNewThreadOpen(false); setNewThreadError(""); }}
+      onCreate={createThread}
+    />
     {import.meta.env.DEV && <Agentation onSubmit={(output) => void send(output)} />}
   </div>;
 }

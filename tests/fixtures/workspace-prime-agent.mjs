@@ -7,6 +7,10 @@ if (failOnceFile && !fs.existsSync(failOnceFile)) {
   process.exit(1);
 }
 const root = process.env.ERNIE_FIXTURE_ROOT;
+if (process.env.ERNIE_FIXTURE_EMPTY === "1") {
+  process.stdout.write(JSON.stringify({ sessions: [] }));
+  process.exit(0);
+}
 if (process.env.ERNIE_FIXTURE_MALFORMED === "1") {
   process.stdout.write('{"sessions":"not-an-array"}');
   process.exit(0);

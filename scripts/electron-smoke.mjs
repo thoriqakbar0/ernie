@@ -24,6 +24,7 @@ const electronApp = await electron.launch({
     ERNIE_FIXTURE_MANY_AGENTS: "1",
   },
 });
+let primaryClosed = false;
 
 try {
   const window = await electronApp.firstWindow();
@@ -119,6 +120,13 @@ try {
   await window.waitForTimeout(50);
   assert.equal(await window.evaluate(() => document.activeElement?.closest("#workspace-rail") !== null), true);
   assert.equal(await window.locator("#workspace-main").evaluate((element) => element.inert), true);
+  const backdropBox = await window.getByRole("button", { name: "Close workspace navigation" }).boundingBox();
+  assert.ok(backdropBox);
+  await window.mouse.move(backdropBox.x + backdropBox.width - 4, backdropBox.y + 8);
+  await window.mouse.down();
+  assert.equal(await window.getByRole("button", { name: "Close workspace navigation" }).evaluate((element) => getComputedStyle(element).transform), "none");
+  await window.mouse.move(4, 8);
+  await window.mouse.up();
   for (let index = 0; index < 12; index += 1) {
     await window.keyboard.press(index % 3 === 0 ? "Shift+Tab" : "Tab");
     assert.equal(await window.evaluate(() => document.activeElement?.closest("#workspace-rail") !== null), true);
@@ -126,6 +134,11 @@ try {
   await window.keyboard.press("Escape");
   await window.waitForTimeout(50);
   assert.equal(await railToggle.evaluate((element) => element === document.activeElement), true);
+  for (const key of ["Shift+Tab", "Tab", "Tab", "Tab"]) {
+    await window.keyboard.press(key);
+    assert.equal(await window.evaluate(() => document.activeElement?.closest("#workspace-rail") === null), true);
+  }
+  await railToggle.focus();
   const targetBox = await window.getByLabel("Send message").boundingBox();
   const twoXViewport = await window.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   assert.ok(targetBox && targetBox.width >= 40 && targetBox.height >= 40 && targetBox.y < twoXViewport.height && targetBox.y + targetBox.height > 0);
@@ -136,8 +149,11 @@ try {
   await window.waitForTimeout(200);
   assert.equal(await window.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   const fourXTarget = await window.getByLabel("Send message").boundingBox();
+  const fourXComposer = await window.getByLabel("Message Prime Agent").boundingBox();
+  const fourXPanel = await window.locator(".workspace-panel").boundingBox();
   const fourXViewport = await window.evaluate(() => ({ width: innerWidth, height: innerHeight }));
-  assert.ok(fourXTarget && fourXTarget.y < fourXViewport.height && fourXTarget.y + fourXTarget.height > 0);
+  assert.ok(fourXPanel && fourXComposer && fourXComposer.y >= fourXPanel.y && fourXComposer.y + fourXComposer.height <= fourXPanel.y + fourXPanel.height, JSON.stringify({ fourXPanel, fourXComposer, fourXTarget, fourXViewport }));
+  assert.ok(fourXTarget && fourXTarget.width >= 40 && fourXTarget.height >= 40 && fourXTarget.y >= fourXPanel.y && fourXTarget.y + fourXTarget.height <= fourXViewport.height);
   await railToggle.click();
   await window.getByRole("button", { name: "New thread" }).click();
   const compactDialog = window.getByRole("dialog", { name: "New thread" });
@@ -190,8 +206,39 @@ try {
   await window.getByRole("dialog", { name: "New thread" }).waitFor({ timeout: 5_000 });
   await window.getByRole("button", { name: "Create blank thread" }).click();
   await window.getByText("What would you like to work on?", { exact: true }).waitFor({ timeout: 10_000 });
+
+  await electronApp.close();
+  primaryClosed = true;
+  const emptyUserData = fs.mkdtempSync(path.join(os.tmpdir(), "ernie-empty-smoke-"));
+  const emptyApp = await electron.launch({
+    executablePath,
+    args: [root, `--user-data-dir=${emptyUserData}`],
+    env: {
+      ...process.env,
+      ERNIE_PROJECT_PATH: root,
+      ERNIE_AGENT_CLI_PATH: path.join(root, "tests/fake-prime-agent.mjs"),
+      ERNIE_CATALOG_CLI_PATH: path.join(root, "tests/fixtures/workspace-prime-agent.mjs"),
+      ERNIE_CATALOG_GIT_PATH: path.join(root, "tests/fixtures/workspace-git.mjs"),
+      ERNIE_FIXTURE_ROOT: root,
+      ERNIE_FIXTURE_EMPTY: "1",
+      ERNIE_FAKE_MODE: "lifecycle",
+    },
+  });
+  try {
+    const emptyWindow = await emptyApp.firstWindow();
+    await emptyWindow.getByText("Ready", { exact: true }).waitFor({ timeout: 15_000 });
+    await emptyWindow.getByRole("navigation", { name: "Worktrees and agents" }).getByText("No worktrees found in this repository.", { exact: true }).waitFor();
+    await emptyWindow.getByRole("button", { name: "Open agent tab" }).click();
+    await emptyWindow.getByText("No agents yet. Start a new thread or delegate a task to create one.", { exact: true }).waitFor();
+    await emptyWindow.getByRole("button", { name: "Close tab chooser" }).click();
+    await emptyWindow.getByRole("button", { name: /Worktree manager/ }).click();
+    await emptyWindow.getByRole("dialog", { name: "Worktree manager" }).getByText("No worktrees found in this repository.", { exact: true }).waitFor();
+  } finally {
+    await emptyApp.close();
+    fs.rmSync(emptyUserData, { recursive: true, force: true });
+  }
   process.stdout.write("Electron smoke test passed.\n");
 } finally {
-  await electronApp.close();
+  if (!primaryClosed) await electronApp.close();
   fs.rmSync(userData, { recursive: true, force: true });
 }

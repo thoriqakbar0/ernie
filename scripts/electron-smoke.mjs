@@ -27,6 +27,23 @@ try {
   assert.equal(await window.locator("[data-agentation-toolbar]").count(), 0);
   assert.deepEqual(await window.evaluate(() => ({ require: typeof globalThis.require, electron: typeof globalThis.process })), { require: "undefined", electron: "undefined" });
 
+  const originalClipboard = await electronApp.evaluate(({ clipboard }) => clipboard.readText());
+  const clipboardProbe = `ernie-clipboard-${Date.now()}`;
+  try {
+    const clipboardWrite = await window.evaluate(async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? `${error.name}: ${error.message}` : String(error) };
+      }
+    }, clipboardProbe);
+    assert.deepEqual(clipboardWrite, { ok: true });
+    assert.equal(await electronApp.evaluate(({ clipboard }) => clipboard.readText()), clipboardProbe);
+  } finally {
+    await electronApp.evaluate(({ clipboard }, text) => clipboard.writeText(text), originalClipboard);
+  }
+
   const composer = window.getByLabel("Message Prime Agent");
   await composer.fill("smoke test");
   await window.getByLabel("Send message").click();

@@ -11,6 +11,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+function isTrustedRendererUrl(url: string): boolean {
+  return url.startsWith("file://") || url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:");
+}
+
 export class ErnieWindowError extends Schema.TaggedErrorClass<ErnieWindowError>()(
   "ErnieWindowError",
   { operation: Schema.String, message: Schema.String, cause: Schema.optionalKey(Schema.Defect()) },
@@ -29,8 +33,7 @@ export const make = Effect.gen(function* () {
   const trustedSender = Effect.fn("ErnieWindow.trustedSender")(function* (event: IpcMainInvokeEvent) {
     const active = yield* Ref.get(current);
     if (Option.isNone(active) || event.sender.id !== active.value.webContents.id || event.senderFrame === null) return false;
-    const url = event.senderFrame.url;
-    return url.startsWith("file://") || url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:");
+    return isTrustedRendererUrl(event.senderFrame.url);
   });
 
   const send = Effect.fn("ErnieWindow.send")(function* (event: AgentEvent) {
@@ -71,8 +74,23 @@ export const make = Effect.gen(function* () {
 export const layer = Layer.effect(ErnieWindow, make);
 
 export const hardenElectron = Effect.sync(() => {
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+    const allowClipboardWrite = !app.isPackaged
+      && permission === "clipboard-sanitized-write"
+      && details.isMainFrame
+      && isTrustedRendererUrl(details.requestingUrl)
+      && isTrustedRendererUrl(contents.getURL());
+    callback(allowClipboardWrite);
+  });
+  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
+    const requestingUrl = details.requestingUrl ?? requestingOrigin;
+    return !app.isPackaged
+      && contents !== null
+      && permission === "clipboard-sanitized-write"
+      && details.isMainFrame
+      && isTrustedRendererUrl(requestingUrl)
+      && isTrustedRendererUrl(contents.getURL());
+  });
   session.defaultSession.on("will-download", (event) => event.preventDefault());
   app.on("web-contents-created", (_event, contents) => {
     contents.setWindowOpenHandler(() => ({ action: "deny" }));

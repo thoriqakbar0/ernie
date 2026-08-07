@@ -15,7 +15,7 @@ import { initialWorkspaceTabs, resolveRootTabStatus, resolveWorkspaceTabSurface,
 const EMPTY_WORKSPACE: WorkspaceSnapshot = { worktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
 
 const EMPTY_STATE: AgentState = {
-  connection: "starting", detail: "Launching Prime Agent RPC", sessionId: "", sessionName: "",
+  connection: "starting", detail: "Starting Prime Agent", sessionId: "", sessionName: "",
   provider: "", modelId: "", modelName: "Discovering model", thinkingLevel: "", executionTarget: "local", isStreaming: false,
   isCompacting: false, messageCount: 0, queuedCount: 0, contextTokens: 0, contextWindow: 0,
   contextPercent: 0, totalTokens: 0, cost: "$0.0000",
@@ -53,6 +53,10 @@ export function App() {
   const [newThreadOpen, setNewThreadOpen] = useState(false);
   const [newThreadBusy, setNewThreadBusy] = useState(false);
   const [newThreadError, setNewThreadError] = useState("");
+  const [accessibilityStatus, setAccessibilityStatus] = useState({ sequence: 0, text: "" });
+  const appShellRef = useRef<HTMLDivElement>(null);
+  const composerWrapRef = useRef<HTMLDivElement>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
   const [isFollowing, setIsFollowing] = useState(true);
@@ -111,6 +115,40 @@ export function App() {
   }, [draft]);
 
   useEffect(() => {
+    const label = state.connection === "ready" ? "Connected." : state.connection === "starting" ? "Connecting." : "Connection unavailable.";
+    setAccessibilityStatus((current) => ({ sequence: current.sequence + 1, text: label }));
+  }, [state.connection]);
+
+  useEffect(() => {
+    if (transcript.announcement.text) setAccessibilityStatus(transcript.announcement);
+  }, [transcript.announcement]);
+
+  useEffect(() => {
+    document.title = `${workspaceTabs.tabs.find((tab) => tab.id === workspaceTabs.activeTabId)?.title ?? "Ernie"} — Ernie`;
+  }, [workspaceTabs.activeTabId, workspaceTabs.tabs]);
+
+  useLayoutEffect(() => {
+    const textarea = composerTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const height = Math.min(textarea.scrollHeight, 170);
+    textarea.style.height = `${height}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 170 ? "auto" : "hidden";
+  }, [draft, isStarting]);
+
+  useLayoutEffect(() => {
+    const shell = appShellRef.current;
+    const composer = composerWrapRef.current;
+    if (!shell || !composer) return;
+    const updateHeight = () => shell.style.setProperty("--composer-height", `${composer.getBoundingClientRect().height}px`);
+    updateHeight();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, [isStarting]);
+
+  useEffect(() => {
     const keyDown = (event: globalThis.KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "n") return;
       event.preventDefault();
@@ -161,8 +199,12 @@ export function App() {
     followLatest();
     transcript.appendUser(trimmed);
     setDraft("");
-    const result = await window.ernie.command({ type: "prompt", message: trimmed, behavior: state.isStreaming ? "steer" : "now" });
-    if (!result.ok) setComposerError(result.error ?? "Prime Agent rejected the message");
+    try {
+      const result = await window.ernie.command({ type: "prompt", message: trimmed, behavior: state.isStreaming ? "steer" : "now" });
+      if (!result.ok) setComposerError("Unable to send your message. Check your connection and try again.");
+    } catch {
+      setComposerError("Unable to send your message. Check your connection and try again.");
+    }
   }, [followLatest, state.isStreaming, transcript.appendUser]);
 
   const chooseCommand = useCallback((command: AgentSlashCommand) => {
@@ -198,9 +240,16 @@ export function App() {
   const createThread = async (firstPrompt: string | undefined) => {
     setNewThreadBusy(true);
     setNewThreadError("");
-    const result = await window.ernie.command({ type: "new_session" });
+    let result;
+    try {
+      result = await window.ernie.command({ type: "new_session" });
+    } catch {
+      setNewThreadError("Unable to start a new thread. Check your connection and try again.");
+      setNewThreadBusy(false);
+      return;
+    }
     if (!result.ok || result.cancelled) {
-      setNewThreadError(result.error ?? "Prime Agent cancelled the new thread");
+      setNewThreadError(result.cancelled ? "New thread creation was cancelled. Your current thread is unchanged." : "Unable to start a new thread. Check your connection and try again.");
       setNewThreadBusy(false);
       return;
     }
@@ -211,17 +260,21 @@ export function App() {
     setNewThreadBusy(false);
     if (firstPrompt === undefined) return;
     transcript.appendUser(firstPrompt);
-    const promptResult = await window.ernie.command({ type: "prompt", message: firstPrompt, behavior: "now" });
-    if (!promptResult.ok) setComposerError(promptResult.error ?? "Prime Agent rejected the first instruction");
+    try {
+      const promptResult = await window.ernie.command({ type: "prompt", message: firstPrompt, behavior: "now" });
+      if (!promptResult.ok) setComposerError("The new thread started, but your message was not sent. Try sending it again.");
+    } catch {
+      setComposerError("The new thread started, but your message was not sent. Try sending it again.");
+    }
   };
   const stop = () => { void window.ernie.command({ type: "abort" }); };
   const changeExecutionTarget = async (target: "local" | "modal") => {
     setComposerError("");
     try {
       const result = await window.ernie.command({ type: "set_execution_target", target });
-      if (!result.ok) setComposerError(result.error ?? `Could not switch IPython to ${target === "modal" ? "Modal" : "Local"}`);
-    } catch (error) {
-      setComposerError(error instanceof Error ? error.message : "Could not switch the IPython runtime");
+      if (!result.ok) setComposerError(`Unable to switch to ${target === "modal" ? "Modal" : "Local"}. Check your connection and try again.`);
+    } catch {
+      setComposerError("Unable to switch the IPython runtime. Check your connection and try again.");
     }
   };
   const isExecutionSwitching = state.switchingExecutionTo !== undefined;
@@ -233,7 +286,8 @@ export function App() {
   const selectedAgent = activeSurface.kind === "agent" ? activeSurface.agent : undefined;
   const activeAgentId = selectedAgent?.id ?? activeTab.agentId;
 
-  return <div className="app-shell">
+  return <div className="app-shell" ref={appShellRef}>
+    <a className="skip-link" href="#workspace-main">Skip to workspace</a>
     <aside className={`project-rail ${isStarting ? "is-starting" : ""}`}>
       <div className="titlebar-drag" aria-hidden="true" />
       <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
@@ -258,7 +312,7 @@ export function App() {
         : <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>}
     </aside>
 
-    <main className="workspace">
+    <main className="workspace" id="workspace-main" tabIndex={-1}>
       <header className="workspace-toolbar titlebar-drag">
         <WorkspaceTabStrip
           tabs={workspaceTabs.tabs}
@@ -269,20 +323,26 @@ export function App() {
         />
       </header>
 
-      {activeSurface.kind === "agent" ? <AgentOverview agent={activeSurface.agent} onReturn={() => dispatchWorkspaceTab({ type: "select", tabId: "root" })} />
-      : activeSurface.kind === "detached" ? <DetachedAgentOverview tab={activeSurface.tab} onReturn={() => dispatchWorkspaceTab({ type: "select", tabId: "root" })} />
+      <div
+        className="workspace-panel"
+        role="tabpanel"
+        id={`workspace-panel-${activeTab.id}`}
+        aria-labelledby={`workspace-tab-${activeTab.id}`}
+      >
+      {activeSurface.kind === "agent" ? <AgentOverview agent={activeSurface.agent} />
+      : activeSurface.kind === "detached" ? <DetachedAgentOverview tab={activeSurface.tab} />
       : <>
-      <div className="transcript" ref={transcriptRef} onScroll={transcriptScroll} onWheel={transcriptWheel} role="log" aria-live="polite" aria-relevant="additions text" aria-busy={state.isStreaming}>
+      <div className="transcript" ref={transcriptRef} onScroll={transcriptScroll} onWheel={transcriptWheel} role="region" aria-label="Conversation" aria-busy={state.isStreaming}>
         {!hasConversation && <section className="welcome">
           <div className="welcome-mark"><Icon name="spark" size={23} /></div>
-          <h1>What should we build?</h1>
-          <p>Ask Prime Agent to inspect the project, ship a change, or continue an existing task.</p>
+          <h1>What would you like to work on?</h1>
+          <p>Ask Prime Agent to inspect the project, make a change, or continue an existing task.</p>
           <div className="suggestions">
             {["Explain this codebase", "Find the next useful improvement", "Run the project checks"].map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)} disabled={state.connection !== "ready"}>{suggestion}</button>)}
           </div>
         </section>}
         {items.map((item) => {
-          if (item.kind === "tool") return <details className={`tool-item ${item.isError ? "error" : ""}`} key={item.id} open={item.phase !== "end"}><summary><span className="tool-indicator" />{item.name}<span className="tool-phase">{item.phase === "end" ? (item.isError ? "failed" : "done") : "running"}</span></summary>{item.detail && <pre>{item.detail}</pre>}</details>;
+          if (item.kind === "tool") return <details className={`tool-item ${item.isError ? "error" : ""}`} data-phase={item.phase} key={item.id} open={item.phase !== "end"}><summary><span className="tool-indicator" />{item.name}<span className="tool-phase">{item.phase === "end" ? (item.isError ? "failed" : "done") : "running"}</span></summary>{item.detail && <pre>{item.detail}</pre>}</details>;
           if (item.kind === "delegation") return <details className={`delegation-item ${item.status}`} key={item.id} open={item.status === "running" || item.status === "error"}>
             <summary><span className="delegation-glyph" aria-hidden="true">↳</span><span className="delegation-copy"><strong>{item.name}</strong><small>{item.task || "Delegated work"}</small></span><span className="delegation-status">{item.status}</span></summary>
             {item.detail && <div className="delegation-detail">{item.detail}</div>}
@@ -294,20 +354,22 @@ export function App() {
         })}
       </div>
 
-      <div className="composer-wrap">
+      <div className="composer-wrap" ref={composerWrapRef}>
         {!isStarting && <ComposerAutocomplete commands={commandMatches} activeIndex={commandIndex} onActiveIndexChange={setCommandIndex} onChoose={chooseCommand} />}
         {!isFollowing && <button type="button" className="jump-latest" onClick={() => followLatest(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}><span className="jump-live-dot" />Jump to latest</button>}
         {isStarting ? <StartupComposer stage={startupStage} /> : <form className="composer" onSubmit={submit}>
-          <textarea aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={isExecutionSwitching ? "Moving IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : state.detail} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
+          <textarea ref={composerTextareaRef} aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={isExecutionSwitching ? "Moving IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : "Prime Agent is offline. Reconnect to send a message."} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
           <div className="composer-footer">
-            <div className="usage"><span>{state.contextPercent}% context</span><span>·</span><span>{formatTokens(state.totalTokens)} tokens</span><span>·</span><span>{state.cost}</span></div>
+            <div className="usage"><span>{state.contextPercent}% context</span><span>·</span><span>{formatTokens(state.totalTokens)} {state.totalTokens === 1 ? "token" : "tokens"}</span><span>·</span><span>{state.cost}</span></div>
             {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready" || isExecutionSwitching}><Icon name="send" size={16} /></button>}
           </div>
         </form>}
         {composerError && <div className="composer-error" role="alert">{composerError}</div>}
       </div>
       </>}
+      </div>
     </main>
+    <div className="sr-only" aria-live="polite" aria-atomic="true"><span key={accessibilityStatus.sequence}>{accessibilityStatus.text}</span></div>
 
     <WorktreeManagerDialog
       open={worktreeManagerOpen}

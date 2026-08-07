@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { AgentEvent } from "../../shared/contract";
 import {
   makeAssistantStreamController,
@@ -15,6 +15,8 @@ const browserFrameScheduler: FrameScheduler = {
 /** Connects normalized agent events to the frame-coalesced transcript domain. */
 export function useTranscript() {
   const [items, dispatch] = useReducer(transcriptReducer, []);
+  const [announcement, setAnnouncement] = useState({ sequence: 0, text: "" });
+  const announce = (text: string) => setAnnouncement((current) => ({ sequence: current.sequence + 1, text }));
   const streamRef = useRef<AssistantStreamController | null>(null);
 
   if (streamRef.current === null) {
@@ -22,7 +24,10 @@ export function useTranscript() {
       makeId: () => crypto.randomUUID(),
       onStart: (id) => dispatch({ type: "start_assistant", id }),
       onAppend: (id, segments) => dispatch({ type: "append_assistant", id, segments }),
-      onFinish: (id, segments) => dispatch({ type: "finish_assistant", id, ...(segments ? { segments } : {}) }),
+      onFinish: (id, segments) => {
+        dispatch({ type: "finish_assistant", id, ...(segments ? { segments } : {}) });
+        announce("Response completed.");
+      },
     });
   }
 
@@ -43,11 +48,14 @@ export function useTranscript() {
     if (event.kind === "tool") {
       stream.finish();
       dispatch({ type: "tool", id: crypto.randomUUID(), event });
+      if (event.phase === "end") announce(`${event.name || "Tool"} ${event.isError ? "failed" : "completed"}.`);
       return;
     }
     if (event.kind === "delegation") {
       stream.finish();
       dispatch({ type: "delegation", id: crypto.randomUUID(), event });
+      if (event.status === "done") announce(`${event.name || "Delegated task"} completed.`);
+      else if (event.status === "error" || event.status === "cancelled") announce(`${event.name || "Delegated task"} ${event.status}.`);
       return;
     }
     if (event.kind === "lifecycle") {
@@ -69,7 +77,8 @@ export function useTranscript() {
   const reset = useCallback(() => {
     streamRef.current?.dispose();
     dispatch({ type: "reset" });
+    setAnnouncement((current) => ({ sequence: current.sequence + 1, text: "" }));
   }, []);
 
-  return { items, handleEvent, appendUser, finish, reset } as const;
+  return { items, announcement, handleEvent, appendUser, finish, reset } as const;
 }

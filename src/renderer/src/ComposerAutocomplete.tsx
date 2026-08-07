@@ -40,6 +40,7 @@ export function ComposerAutocomplete({ commands, activeIndex, onActiveIndexChang
         id={`command-option-${index}`}
         type="button"
         role="option"
+        tabIndex={-1}
         aria-selected={index === activeIndex}
         className={index === activeIndex ? "active" : ""}
         onMouseEnter={() => onActiveIndexChange(index)}

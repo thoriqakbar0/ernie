@@ -1,6 +1,8 @@
 # Ernie Dev
 
-Ernie Dev is an Electron workbench for Prime Agent. It runs the bundled Prime Agent runtime in `--mode rpc`, discovers Git worktrees, and renders root and read-only subagent sessions as live structured transcripts in React.
+Ernie Dev is a secure Electron foundation for a Prime Agent workbench. It runs the bundled Prime Agent runtime in `--mode rpc`, discovers Git worktrees, and can attach read-only to root and subagent sessions through the local daemon.
+
+The previous renderer interface has been intentionally removed. Development builds currently show an empty canvas with official Agentation available for shaping the replacement project-first chat experience; production builds show the empty canvas.
 
 There is no terminal scraping, Native SDK layer, or global Prime Agent dependency.
 
@@ -55,12 +57,8 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing only typed state, worktree/session streams, local-server actions, commands, and skills.
-- `src/renderer/src/App.tsx` — React workbench and conversation state.
-- `src/renderer/src/WorkspaceChrome.tsx` — worktree tabs, chooser, management surfaces, and read-only session views.
-- `src/renderer/src/VirtualAgentExplorer.tsx` / `VirtualTranscript.tsx` — measured TanStack virtualization for large agent trees and dynamic transcripts.
-- `src/renderer/src/workspaceTabs.ts` — view-only tab state; closing a tab never kills an agent.
-- `src/renderer/src/transcript.ts` — message-aware transcript, delegation, tool, and IPython Execution Trail reducer.
-- `src/renderer/src/DevServerPanel.tsx` — safe launcher for development servers attributed to the selected worktree; pages open only in the default browser.
+- `src/renderer/src/App.tsx` — intentionally empty renderer canvas with direct, development-only Agentation.
+- `src/renderer/src/workspaceTabs.ts`, `transcript.ts`, and `sessionTranscript.ts` — retained pure state modules for the replacement interface.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.
 

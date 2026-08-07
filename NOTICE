@@ -6,8 +6,8 @@ T3 Code
 
 Portions of this project are adapted from T3 Code, including the Electron
 runtime repair procedure in scripts/ensure-electron-runtime.mjs, desktop
-architecture and security patterns, and the project-grouped sidebar and compact
-chat-composer interaction patterns in ProjectSidebar.tsx and ChatComposer.tsx.
+architecture and security patterns, and the project-grouped sidebar interaction
+patterns in ProjectSidebar.tsx.
 
 Source: https://github.com/pingdotgg/t3code
 Reviewed revision: 6d70e6d77824eed51b1531a2f42b2ed5cdae8501

@@ -2,30 +2,24 @@
 
 ## Current state
 
-The renderer is intentionally reset to an empty near-black canvas. The previous worktree rail, global tabs, chat timeline, composer, dialogs, and decorative startup surfaces are no longer mounted.
+The renderer is intentionally a sidebar-only shell on an empty near-black canvas. Content, composer, transcript, tabs, dialogs, and startup decoration are not mounted while navigation is rebuilt independently.
 
-Official Agentation remains mounted directly in development builds so the replacement interface can be reviewed and annotated in place. Production builds keep the canvas empty while the new interface is under construction.
+The sidebar groups the local project’s worktrees and sessions. It has one active interaction: close the full sidebar. Closing removes it completely and reveals a small, fixed open-sidebar control in the same top-left region. Reopening restores the sidebar without changing workspace or agent state.
 
-## Replacement direction
+Official Agentation remains mounted directly in development builds. Production builds show the same sidebar-only shell without Agentation.
 
-The next interface will borrow heavily from T3 Code’s operating model while retaining Ernie’s Prime Agent domain and security boundaries:
+## Sidebar rules
 
-- project-first navigation;
-- projects grouping their worktrees and sessions;
-- one active chat surface rather than competing navigation layers;
-- inline draft/new-thread flow instead of a creation modal;
-- compact project/thread breadcrumbs;
-- right-aligned user messages and unboxed assistant responses;
-- collapsed work/tool activity and notebook-like IPython executions;
-- a composer integrated with the conversation timeline;
-- read-only selected root/subagent sessions presented through the same chat grammar.
-
-This is a UX reference, not permission to copy T3 Code’s unsafe webview architecture, thread semantics, branding, or runtime authority.
+- Project → Worktrees → Sessions is the sole hierarchy.
+- Session rows are informational until a real content destination is rebuilt; they must not look clickable.
+- No standalone runtime status, model label, `Ready` indicator, redundant brand badge, or footer chrome.
+- Close and open are explicit icon buttons with accessible names and visible focus.
+- Sidebar movement is brief, directional, and removed under reduced-motion preference.
+- The closed state is fully hidden rather than collapsed into a rail.
 
 ## Preserved constraints
 
 - Renderer sandboxing, CSP, context isolation, typed IPC, and navigation denial remain product guarantees.
 - Agentation copy uses a sender-validated, write-only, size-bounded clipboard IPC capability; the renderer cannot read clipboard contents.
-- Agentation is development-only and is used directly rather than reimplemented.
-- Main-process Prime Agent RPC, daemon attachment, workspace catalog, and browser authority remain intact behind the empty renderer.
-- Reduced-motion, forced-colors, keyboard, screen-reader, zoom, and minimum-window support must be rebuilt with the replacement interface.
+- Main-process Prime Agent RPC, daemon attachment, workspace catalog, and browser authority remain intact behind the renderer.
+- Forced-colors, keyboard, screen-reader, zoom, narrow-window, and minimum-window support remain required.

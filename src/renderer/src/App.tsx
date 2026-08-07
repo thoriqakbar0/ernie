@@ -21,8 +21,9 @@ const EMPTY_STATE: AgentState = {
   contextPercent: 0, totalTokens: 0, cost: "$0.0000",
 };
 
-function Icon({ name, size = 16 }: { readonly name: "plus" | "stop" | "send" | "spark"; readonly size?: number }) {
+function Icon({ name, size = 16 }: { readonly name: "menu" | "plus" | "stop" | "send" | "spark"; readonly size?: number }) {
   const paths: Record<typeof name, React.ReactNode> = {
+    menu: <><path d="M5 7h14M5 12h14M5 17h14" /></>,
     plus: <><path d="M12 5v14M5 12h14" /></>,
     stop: <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none" />,
     send: <><path d="m5 12 14-7-5 14-2.8-5.9z" /><path d="M11.2 13.1 19 5" /></>,
@@ -45,6 +46,7 @@ export function App() {
   const [workspaceTabs, dispatchWorkspaceTab] = useReducer(workspaceTabsReducer, undefined, () => initialWorkspaceTabs({ agentId: "current", worktreeId: "current", title: "ernie" }));
   const [tabChooserOpen, setTabChooserOpen] = useState(false);
   const [worktreeManagerOpen, setWorktreeManagerOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [availableCommands, setAvailableCommands] = useState<readonly AgentSlashCommand[]>([]);
   const [commandIndex, setCommandIndex] = useState(0);
@@ -55,6 +57,7 @@ export function App() {
   const [newThreadError, setNewThreadError] = useState("");
   const [accessibilityStatus, setAccessibilityStatus] = useState({ sequence: 0, text: "" });
   const appShellRef = useRef<HTMLDivElement>(null);
+  const railToggleRef = useRef<HTMLButtonElement>(null);
   const composerWrapRef = useRef<HTMLDivElement>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -147,6 +150,25 @@ export function App() {
     observer.observe(composer);
     return () => observer.disconnect();
   }, [isStarting]);
+
+  useEffect(() => {
+    if (!railOpen) return;
+    const keyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setRailOpen(false);
+      requestAnimationFrame(() => railToggleRef.current?.focus());
+    };
+    window.addEventListener("keydown", keyDown);
+    return () => window.removeEventListener("keydown", keyDown);
+  }, [railOpen]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 641px)");
+    const update = () => { if (media.matches) setRailOpen(false); };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const keyDown = (event: globalThis.KeyboardEvent) => {
@@ -288,14 +310,14 @@ export function App() {
 
   return <div className="app-shell" ref={appShellRef}>
     <a className="skip-link" href="#workspace-main">Skip to workspace</a>
-    <aside className={`project-rail ${isStarting ? "is-starting" : ""}`}>
+    <aside id="workspace-rail" className={`project-rail ${isStarting ? "is-starting" : ""} ${railOpen ? "is-open" : ""}`}>
       <div className="titlebar-drag" aria-hidden="true" />
       <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
       <WorkspaceTree
         snapshot={workspaceSnapshot}
         currentSessionId={state.sessionId}
         activeAgentId={activeAgentId}
-        onOpenAgent={(agent) => dispatchWorkspaceTab({ type: "open_agent", agent })}
+        onOpenAgent={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setRailOpen(false); }}
       />
       <div className="rail-runtime">
         <RemoteExecutionControl
@@ -306,14 +328,24 @@ export function App() {
         />
       </div>
       <div className="rail-spacer" />
-      <WorktreeManager active={worktreeManagerOpen} onOpen={() => setWorktreeManagerOpen(true)} />
+      <WorktreeManager active={worktreeManagerOpen} onOpen={() => { setWorktreeManagerOpen(true); setRailOpen(false); }} />
       {isStarting
         ? <StartupRail stage={startupStage} />
         : <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>}
     </aside>
+    {railOpen && <button type="button" className="rail-backdrop" aria-label="Close workspace navigation" onClick={() => { setRailOpen(false); railToggleRef.current?.focus(); }} />}
 
     <main className="workspace" id="workspace-main" tabIndex={-1}>
       <header className="workspace-toolbar titlebar-drag">
+        <button
+          ref={railToggleRef}
+          type="button"
+          className="rail-toggle no-drag"
+          aria-label="Toggle workspace navigation"
+          aria-controls="workspace-rail"
+          aria-expanded={railOpen}
+          onClick={() => setRailOpen((current) => !current)}
+        ><Icon name="menu" size={17} /></button>
         <WorkspaceTabStrip
           tabs={workspaceTabs.tabs}
           activeTabId={workspaceTabs.activeTabId}
@@ -358,7 +390,7 @@ export function App() {
         {!isStarting && <ComposerAutocomplete commands={commandMatches} activeIndex={commandIndex} onActiveIndexChange={setCommandIndex} onChoose={chooseCommand} />}
         {!isFollowing && <button type="button" className="jump-latest" onClick={() => followLatest(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}><span className="jump-live-dot" />Jump to latest</button>}
         {isStarting ? <StartupComposer stage={startupStage} /> : <form className="composer" onSubmit={submit}>
-          <textarea ref={composerTextareaRef} aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={isExecutionSwitching ? "Moving IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : "Prime Agent is offline. Reconnect to send a message."} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
+          <textarea ref={composerTextareaRef} aria-label="Message Prime Agent" role="combobox" aria-autocomplete="list" aria-expanded={commandMatches.length > 0} aria-controls={commandMatches.length > 0 ? "prime-command-menu" : undefined} aria-activedescendant={commandMatches.length > 0 ? `command-option-${commandIndex}` : undefined} placeholder={isExecutionSwitching ? "Switching IPython runtime…" : state.connection === "ready" ? "Message Prime Agent…" : "Prime Agent is offline. Reconnect to send a message."} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} rows={1} disabled={state.connection !== "ready" || isExecutionSwitching} />
           <div className="composer-footer">
             <div className="usage"><span>{state.contextPercent}% context</span><span>·</span><span>{formatTokens(state.totalTokens)} {state.totalTokens === 1 ? "token" : "tokens"}</span><span>·</span><span>{state.cost}</span></div>
             {state.isStreaming ? <button type="button" className="send-button stop" aria-label="Stop response" onClick={stop}><Icon name="stop" size={15} /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || state.connection !== "ready" || isExecutionSwitching}><Icon name="send" size={16} /></button>}

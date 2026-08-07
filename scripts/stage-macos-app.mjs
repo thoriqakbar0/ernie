@@ -9,5 +9,7 @@ if (!fs.existsSync(source)) throw new Error(`Missing packaged app: ${source}`);
 fs.rmSync(target, { recursive: true, force: true });
 fs.renameSync(source, target);
 fs.rmSync(path.dirname(source), { recursive: true, force: true });
+childProcess.execFileSync("/usr/bin/codesign", ["--force", "--deep", "--sign", "-", target], { stdio: "inherit" });
+childProcess.execFileSync("/usr/bin/codesign", ["--verify", "--deep", "--strict", target], { stdio: "inherit" });
 process.stdout.write(`${target}
 `);

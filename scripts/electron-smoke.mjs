@@ -44,7 +44,8 @@ try {
   assert.equal(await window.locator(".agent-overview").count(), 0);
   await window.getByRole("button", { name: "Open agent tab" }).click();
   assert.match((await window.getByRole("dialog", { name: "Open agent tab" }).textContent()) ?? "", /Root.*Child/s);
-  await window.getByRole("button", { name: "Close tab chooser" }).click();
+  await window.getByRole("dialog", { name: "Open agent tab" }).locator("button").filter({ hasText: "Child" }).click();
+  await window.getByRole("tabpanel").getByRole("heading", { name: "Child" }).waitFor();
   const managerTrigger = window.getByRole("button", { name: /Worktree manager/ });
   await managerTrigger.click();
   const managerDialog = window.getByRole("dialog", { name: "Worktree manager" });
@@ -56,6 +57,20 @@ try {
   await window.keyboard.press("Escape");
   await managerDialog.waitFor({ state: "hidden" });
   assert.equal(await managerTrigger.evaluate((element) => element === document.activeElement), true);
+  await window.evaluate(() => { document.documentElement.dir = "rtl"; });
+  await window.getByRole("tab", { selected: true }).focus();
+  await window.keyboard.press("ArrowLeft");
+  assert.equal(await window.getByRole("tab", { selected: true }).getAttribute("id"), "workspace-tab-root");
+  await window.evaluate(() => { document.documentElement.dir = "ltr"; });
+  for (let index = 1; index <= 8; index += 1) {
+    await window.getByRole("button", { name: "Open agent tab" }).click();
+    await window.getByRole("dialog", { name: "Open agent tab" }).getByRole("button", { name: new RegExp(`^Review agent ${index},`) }).click();
+  }
+  assert.equal(await window.locator(".workspace-tab-shell").count(), 10);
+  assert.equal(await window.locator(".workspace-tab-viewport").evaluate((element) => element.scrollWidth > element.clientWidth), true);
+  const addTabBox = await window.getByRole("button", { name: "Open agent tab" }).boundingBox();
+  assert.ok(addTabBox && addTabBox.x + addTabBox.width <= await window.evaluate(() => innerWidth));
+  await window.locator("#workspace-tab-root").click();
   assert.equal(await window.locator("[data-agentation-toolbar]").count(), 0);
   assert.deepEqual(await window.evaluate(() => ({ require: typeof globalThis.require, electron: typeof globalThis.process })), { require: "undefined", electron: "undefined" });
 
@@ -90,20 +105,86 @@ try {
   assert.match((await window.locator(".delegation-item").textContent()) ?? "", /api-reviewer.*Review the API.*done/);
   assert.match((await window.locator(".usage").textContent()) ?? "", /2k tokens/);
 
-  // 410 × 260 CSS pixels models the supported 820 × 520 window at 200% zoom.
-  await window.setViewportSize({ width: 410, height: 260 });
-  await window.waitForTimeout(150);
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const browserWindow = BrowserWindow.getAllWindows()[0];
+    browserWindow.setSize(820, 520);
+    browserWindow.webContents.setZoomFactor(2);
+  });
+  await window.waitForTimeout(200);
   const railToggle = window.getByRole("button", { name: "Toggle workspace navigation" });
   await railToggle.waitFor({ state: "visible" });
   assert.equal(await window.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   await railToggle.click();
   await window.locator(".project-rail.is-open").waitFor();
+  await window.waitForTimeout(50);
+  assert.equal(await window.evaluate(() => document.activeElement?.closest("#workspace-rail") !== null), true);
+  assert.equal(await window.locator("#workspace-main").evaluate((element) => element.inert), true);
+  for (let index = 0; index < 12; index += 1) {
+    await window.keyboard.press(index % 3 === 0 ? "Shift+Tab" : "Tab");
+    assert.equal(await window.evaluate(() => document.activeElement?.closest("#workspace-rail") !== null), true);
+  }
   await window.keyboard.press("Escape");
+  await window.waitForTimeout(50);
   assert.equal(await railToggle.evaluate((element) => element === document.activeElement), true);
   const targetBox = await window.getByLabel("Send message").boundingBox();
-  assert.ok(targetBox && targetBox.width >= 40 && targetBox.height >= 40);
+  const twoXViewport = await window.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  assert.ok(targetBox && targetBox.width >= 40 && targetBox.height >= 40 && targetBox.y < twoXViewport.height && targetBox.y + targetBox.height > 0);
+  const panelBox = await window.locator(".workspace-panel").boundingBox();
+  assert.ok(panelBox && panelBox.y + panelBox.height <= twoXViewport.height);
+
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(4));
+  await window.waitForTimeout(200);
+  assert.equal(await window.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  const fourXTarget = await window.getByLabel("Send message").boundingBox();
+  const fourXViewport = await window.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  assert.ok(fourXTarget && fourXTarget.y < fourXViewport.height && fourXTarget.y + fourXTarget.height > 0);
+  await railToggle.click();
+  await window.getByRole("button", { name: "New thread" }).click();
+  const compactDialog = window.getByRole("dialog", { name: "New thread" });
+  await compactDialog.waitFor();
+  const compactBox = await compactDialog.boundingBox();
+  assert.ok(compactBox && compactBox.width <= fourXViewport.width && compactBox.height <= fourXViewport.height);
+  assert.equal(await compactDialog.evaluate((element) => element.scrollHeight > element.clientHeight), true);
+  await window.keyboard.press("Escape");
+  await compactDialog.waitFor({ state: "hidden" });
+  await window.waitForTimeout(50);
+  assert.equal(await railToggle.evaluate((element) => element === document.activeElement), true);
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const browserWindow = BrowserWindow.getAllWindows()[0];
+    browserWindow.webContents.setZoomFactor(1);
+    browserWindow.setSize(1040, 720);
+  });
+  await window.waitForTimeout(200);
+  await window.setViewportSize({ width: 700, height: 700 });
+  await railToggle.click();
+  await window.locator(".project-rail.is-open").waitFor();
+  await window.setViewportSize({ width: 900, height: 700 });
+  await window.waitForTimeout(100);
+  assert.equal(await window.locator(".project-rail.is-open").count(), 0);
+  await window.setViewportSize({ width: 700, height: 700 });
+  assert.equal(await window.locator(".project-rail.is-open").count(), 0);
   await window.setViewportSize({ width: 1040, height: 720 });
-  await window.waitForTimeout(150);
+  await window.emulateMedia({ forcedColors: "active" });
+  assert.equal(await window.getByText("Ready", { exact: true }).isVisible(), true);
+  assert.equal(await window.getByLabel("Send message").isVisible(), true);
+  const forcedColorSignatures = await window.evaluate(() => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const signatures = ["idle", "working", "waiting", "completed", "failed"].map((status) => {
+      const indicator = document.createElement("span");
+      indicator.className = `tab-state ${status}`;
+      host.append(indicator);
+      const style = getComputedStyle(indicator);
+      const after = getComputedStyle(indicator, "::after");
+      const signature = [style.backgroundColor, style.borderWidth, style.borderRadius, style.transform, after.content, after.transform, after.borderWidth].join("|");
+      indicator.remove();
+      return signature;
+    });
+    host.remove();
+    return signatures;
+  });
+  assert.equal(new Set(forcedColorSignatures).size, forcedColorSignatures.length);
+  await window.emulateMedia({ forcedColors: "none" });
 
   await window.getByRole("button", { name: "New thread" }).click();
   await window.getByRole("dialog", { name: "New thread" }).waitFor({ timeout: 5_000 });

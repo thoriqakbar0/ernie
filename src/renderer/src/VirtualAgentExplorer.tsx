@@ -142,14 +142,20 @@ export function VirtualAgentExplorer({
     estimateSize: (index) => rows[index]?.kind === "worktree" ? 36 : 44,
     getItemKey: (index) => rows[index]?.key ?? index,
     overscan: 6,
+    rangeExtractor: ({ startIndex, endIndex, overscan, count }) => {
+      const first = Math.max(0, startIndex - overscan);
+      const last = Math.min(count - 1, endIndex + overscan);
+      const indexes = Array.from({ length: Math.max(0, last - first + 1) }, (_, index) => first + index);
+      if (focusRowIndex >= 0 && !indexes.includes(focusRowIndex)) indexes.push(focusRowIndex);
+      return indexes.sort((left, right) => left - right);
+    },
   });
   const virtualItems = virtualizer.getVirtualItems();
 
   useEffect(() => {
     const activeIndex = rows.findIndex((row) => row.kind === "agent" && row.agent.id === activeAgentId);
-    if (activeIndex >= 0) setFocusRowIndex(activeIndex);
-    else if (!agentRowIndexes.includes(focusRowIndex)) setFocusRowIndex(agentRowIndexes[0] ?? -1);
-  }, [activeAgentId, agentRowIndexes, focusRowIndex, rows]);
+    setFocusRowIndex(activeIndex >= 0 ? activeIndex : agentRowIndexes[0] ?? -1);
+  }, [activeAgentId, agentRowIndexes, rows]);
 
   useLayoutEffect(() => {
     const index = pendingFocusIndex.current;

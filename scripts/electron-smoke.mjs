@@ -121,9 +121,11 @@ try {
   const firstTreeItem = virtualExplorer.getByRole("button").first();
   await firstTreeItem.focus();
   await window.keyboard.press("End");
-  await window.locator(".agent-tree-row:focus").waitFor({ timeout: 2_000 });
+  const lastAgentIndex = await virtualExplorer.getAttribute("data-last-agent-index");
+  assert.ok(lastAgentIndex);
+  await window.locator(`.agent-tree-row[data-explorer-index="${lastAgentIndex}"]:focus`).waitFor({ timeout: 2_000 });
   assert.match((await window.evaluate(() => document.activeElement?.getAttribute("aria-keyshortcuts"))) ?? "", /ArrowDown/);
-  assert.equal(await window.evaluate(() => document.activeElement?.getAttribute("data-explorer-index")), await virtualExplorer.getAttribute("data-last-agent-index"));
+  assert.equal(await window.evaluate(() => document.activeElement?.getAttribute("data-explorer-index")), lastAgentIndex);
   assert.ok(await virtualExplorer.evaluate((element) => element.scrollTop > 0));
   await window.getByRole("button", { name: "Open worktree view" }).click();
   await window.getByRole("dialog", { name: "Open worktree view" }).getByRole("button", { name: /^Child,/ }).click();
@@ -244,7 +246,7 @@ try {
     assert.equal(await window.evaluate(() => document.activeElement?.closest("#workspace-rail") !== null), true);
   }
   await window.keyboard.press("Escape");
-  await window.waitForTimeout(50);
+  await window.waitForFunction(() => document.activeElement?.classList.contains("rail-toggle") === true);
   assert.equal(await railToggle.evaluate((element) => element === document.activeElement), true);
   for (const key of ["Shift+Tab", "Tab", "Tab", "Tab"]) {
     await window.keyboard.press(key);

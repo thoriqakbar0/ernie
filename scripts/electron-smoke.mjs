@@ -15,6 +15,9 @@ const electronApp = await electron.launch({
     ...process.env,
     ERNIE_PROJECT_PATH: root,
     ERNIE_AGENT_CLI_PATH: path.join(root, "tests/fake-prime-agent.mjs"),
+    ERNIE_CATALOG_CLI_PATH: path.join(root, "tests/fixtures/workspace-prime-agent.mjs"),
+    ERNIE_CATALOG_GIT_PATH: path.join(root, "tests/fixtures/workspace-git.mjs"),
+    ERNIE_FIXTURE_ROOT: root,
     ERNIE_FAKE_MODE: "lifecycle",
     ERNIE_FAKE_STARTUP_DELAY_MS: "700",
   },
@@ -28,6 +31,19 @@ try {
   assert.match((await startup.textContent()) ?? "", /Getting your workspace ready/);
   await window.getByText("Ready", { exact: true }).waitFor({ timeout: 15_000 });
   assert.equal(await window.getByText("Test Model", { exact: true }).first().textContent(), "Test Model");
+  await window.locator(".agent-tree-row").filter({ hasText: "Child" }).waitFor({ timeout: 10_000 });
+  await window.locator(".agent-tree-row").filter({ hasText: "Child" }).click();
+  await window.locator(".agent-overview").getByRole("heading", { name: "Child" }).waitFor();
+  assert.equal(await window.locator(".workspace-tab-shell").count(), 2);
+  await window.getByRole("button", { name: "Close Child" }).click();
+  assert.equal(await window.locator(".agent-overview").count(), 0);
+  await window.getByRole("button", { name: "Open agent tab" }).click();
+  assert.match((await window.locator(".tab-chooser").textContent()) ?? "", /Root.*Child/s);
+  await window.getByRole("button", { name: "Close tab chooser" }).click();
+  await window.getByRole("button", { name: /Worktree manager/ }).click();
+  await window.getByRole("dialog", { name: "Worktree manager" }).waitFor();
+  assert.match((await window.locator(".manager-footer").textContent()) ?? "", /require the daemon adapter/);
+  await window.getByRole("button", { name: "Close worktree manager" }).click();
   assert.equal(await window.locator("[data-agentation-toolbar]").count(), 0);
   assert.deepEqual(await window.evaluate(() => ({ require: typeof globalThis.require, electron: typeof globalThis.process })), { require: "undefined", electron: "undefined" });
 
@@ -58,6 +74,7 @@ try {
   await window.getByText("A".repeat(5_000), { exact: true }).waitFor({ timeout: 10_000 });
   await window.locator(".tool-item").waitFor({ state: "attached", timeout: 10_000 });
   assert.match((await window.locator(".tool-item").textContent()) ?? "", /readdone.*final output/);
+  assert.match((await window.locator(".delegation-item").textContent()) ?? "", /api-reviewer.*Review the API.*done/);
   assert.match((await window.locator(".usage").textContent()) ?? "", /2k tokens/);
 
   await window.getByRole("button", { name: "New thread" }).click();

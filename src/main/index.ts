@@ -12,9 +12,14 @@ import { join, resolve } from "node:path";
 import * as ErnieApp from "./ErnieApp";
 import * as ErnieWindow from "./ErnieWindow";
 import * as PrimeAgentRpc from "./PrimeAgentRpc";
+import * as WorkspaceCatalog from "./WorkspaceCatalog";
 
 const runtime = app.isPackaged ? join(process.resourcesPath, "runtime") : join(app.getAppPath(), "assets/runtime");
 const projectPath = resolve(process.env["ERNIE_PROJECT_PATH"] || "/Users/thor/work/ernie");
+const agentNodePath = process.env["ERNIE_AGENT_NODE_PATH"] || join(runtime, "node");
+const runtimeAgentCliPath = join(runtime, "prime-agent", "dist", "bundle", "cli.js");
+const rpcAgentCliPath = process.env["ERNIE_AGENT_CLI_PATH"] || runtimeAgentCliPath;
+const catalogAgentCliPath = process.env["ERNIE_CATALOG_CLI_PATH"] || runtimeAgentCliPath;
 const remoteExtensionPath = app.isPackaged
   ? join(process.resourcesPath, "remote")
   : join(app.getAppPath(), "resources", "remote");
@@ -24,11 +29,17 @@ const remoteUvPath = process.env["PRIME_AGENT_REMOTE_UV"] ?? (existsSync(default
 const applicationLayer = Layer.mergeAll(
   ErnieWindow.layer,
   PrimeAgentRpc.layer({
-    nodePath: process.env["ERNIE_AGENT_NODE_PATH"] || join(runtime, "node"),
-    cliPath: process.env["ERNIE_AGENT_CLI_PATH"] || join(runtime, "prime-agent", "dist", "bundle", "cli.js"),
+    nodePath: agentNodePath,
+    cliPath: rpcAgentCliPath,
     projectPath,
     remoteExtensionPath,
     ...(remoteUvPath === undefined ? {} : { remoteUvPath }),
+  }),
+  WorkspaceCatalog.layer({
+    repositoryPath: projectPath,
+    nodePath: agentNodePath,
+    primeAgentCliPath: catalogAgentCliPath,
+    ...(process.env["ERNIE_CATALOG_GIT_PATH"] ? { gitPath: process.env["ERNIE_CATALOG_GIT_PATH"] } : {}),
   }),
 );
 

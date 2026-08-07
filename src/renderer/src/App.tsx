@@ -1,13 +1,18 @@
 import { Agentation } from "agentation";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, WheelEvent } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, WheelEvent } from "react";
 import type { AgentSlashCommand } from "../../shared/commands";
 import type { AgentState } from "../../shared/contract";
+import type { WorkspaceSnapshot } from "../../shared/workspace";
 import { ComposerAutocomplete, matchingCommands } from "./ComposerAutocomplete";
 import { assistantText } from "./transcript";
 import { NewThreadLauncher } from "./NewThreadLauncher";
 import { RemoteExecutionControl } from "./RemoteExecutionControl";
 import { StartupComposer, StartupRail, useStartupStoryboard } from "./StartupExperience";
 import { useTranscript } from "./useTranscript";
+import { AgentOverview, AgentTabChooser, DetachedAgentOverview, WorkspaceTabStrip, WorkspaceTree, WorktreeManager, WorktreeManagerDialog } from "./WorkspaceChrome";
+import { initialWorkspaceTabs, resolveRootTabStatus, resolveWorkspaceTabSurface, workspaceTabsReducer } from "./workspaceTabs";
+
+const EMPTY_WORKSPACE: WorkspaceSnapshot = { worktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
 
 const EMPTY_STATE: AgentState = {
   connection: "starting", detail: "Launching Prime Agent RPC", sessionId: "", sessionName: "",
@@ -16,15 +21,12 @@ const EMPTY_STATE: AgentState = {
   contextPercent: 0, totalTokens: 0, cost: "$0.0000",
 };
 
-function Icon({ name, size = 16 }: { readonly name: "plus" | "code" | "chevron" | "stop" | "send" | "spark" | "refresh"; readonly size?: number }) {
+function Icon({ name, size = 16 }: { readonly name: "plus" | "stop" | "send" | "spark"; readonly size?: number }) {
   const paths: Record<typeof name, React.ReactNode> = {
     plus: <><path d="M12 5v14M5 12h14" /></>,
-    code: <><path d="m8 9-4 3 4 3m8-6 4 3-4 3m-2-10-4 14" /></>,
-    chevron: <path d="m9 18 6-6-6-6" />,
     stop: <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none" />,
     send: <><path d="m5 12 14-7-5 14-2.8-5.9z" /><path d="M11.2 13.1 19 5" /></>,
     spark: <><path d="m12 3 1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4z" /><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z" /></>,
-    refresh: <><path d="M20 7v5h-5" /><path d="M18.5 17a8 8 0 1 1 1.2-8L20 12" /></>,
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
@@ -39,6 +41,10 @@ export function App() {
   const [state, setState] = useState(EMPTY_STATE);
   const transcript = useTranscript();
   const { items } = transcript;
+  const [workspaceSnapshot, setWorkspaceSnapshot] = useState<WorkspaceSnapshot>(EMPTY_WORKSPACE);
+  const [workspaceTabs, dispatchWorkspaceTab] = useReducer(workspaceTabsReducer, undefined, () => initialWorkspaceTabs({ agentId: "current", worktreeId: "current", title: "ernie" }));
+  const [tabChooserOpen, setTabChooserOpen] = useState(false);
+  const [worktreeManagerOpen, setWorktreeManagerOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [availableCommands, setAvailableCommands] = useState<readonly AgentSlashCommand[]>([]);
   const [commandIndex, setCommandIndex] = useState(0);
@@ -57,8 +63,14 @@ export function App() {
   useEffect(() => {
     let active = true;
     void window.ernie.getState().then((snapshot) => { if (active && snapshot) setState(snapshot); });
+    void window.ernie.getWorkspace().then((snapshot) => { if (active) { setWorkspaceSnapshot(snapshot); dispatchWorkspaceTab({ type: "sync_agents", agents: snapshot.agents }); } });
     const unsubscribe = window.ernie.onAgentEvent((event) => {
       transcript.handleEvent(event);
+      if (event.kind === "workspace") {
+        setWorkspaceSnapshot(event.snapshot);
+        dispatchWorkspaceTab({ type: "sync_agents", agents: event.snapshot.agents });
+        return;
+      }
       if (event.kind === "state") {
         setState(event.state);
         if (!event.state.isStreaming) transcript.finish();
@@ -71,6 +83,18 @@ export function App() {
     });
     return () => { active = false; unsubscribe(); };
   }, [transcript.handleEvent, transcript.finish]);
+
+  useEffect(() => {
+    const rootAgent = workspaceSnapshot.agents.find((agent) => agent.sessionId === state.sessionId);
+    const fallbackWorktree = workspaceSnapshot.worktrees[0];
+    dispatchWorkspaceTab({
+      type: "sync_root",
+      agentId: rootAgent?.id ?? (state.sessionId || "current"),
+      worktreeId: rootAgent?.worktreeId ?? fallbackWorktree?.id ?? "current",
+      title: state.sessionName || rootAgent?.name || fallbackWorktree?.label || "Current agent",
+      status: resolveRootTabStatus(state.connection === "ready", state.isStreaming, rootAgent?.status),
+    });
+  }, [state.connection, state.isStreaming, state.sessionId, state.sessionName, workspaceSnapshot]);
 
   useEffect(() => {
     if (state.connection !== "ready") return;
@@ -204,14 +228,21 @@ export function App() {
   const executionControlDisabled = state.connection !== "ready" || state.isStreaming || state.isCompacting || isExecutionSwitching;
   const statusLabel = state.connection === "ready" ? (state.isStreaming ? "Working" : "Ready") : state.connection === "starting" ? "Connecting" : "Offline";
   const hasConversation = items.length > 0;
-  const projectLabel = useMemo(() => "ernie", []);
+  const activeSurface = resolveWorkspaceTabSurface(workspaceTabs, workspaceSnapshot.agents);
+  const activeTab = activeSurface.tab;
+  const selectedAgent = activeSurface.kind === "agent" ? activeSurface.agent : undefined;
+  const activeAgentId = selectedAgent?.id ?? activeTab.agentId;
 
   return <div className="app-shell">
     <aside className={`project-rail ${isStarting ? "is-starting" : ""}`}>
       <div className="titlebar-drag" aria-hidden="true" />
       <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
-      <div className="rail-section-label">Project</div>
-      <button className="project-row active"><Icon name="code" size={15} /><span>{projectLabel}</span><Icon name="chevron" size={13} /></button>
+      <WorkspaceTree
+        snapshot={workspaceSnapshot}
+        currentSessionId={state.sessionId}
+        activeAgentId={activeAgentId}
+        onOpenAgent={(agent) => dispatchWorkspaceTab({ type: "open_agent", agent })}
+      />
       <div className="rail-runtime">
         <RemoteExecutionControl
           executionTarget={state.executionTarget}
@@ -221,6 +252,7 @@ export function App() {
         />
       </div>
       <div className="rail-spacer" />
+      <WorktreeManager active={worktreeManagerOpen} onOpen={() => setWorktreeManagerOpen(true)} />
       {isStarting
         ? <StartupRail stage={startupStage} />
         : <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>}
@@ -228,12 +260,18 @@ export function App() {
 
     <main className="workspace">
       <header className="workspace-toolbar titlebar-drag">
-        <div className="toolbar-title no-drag"><span>{projectLabel}</span><span className="slash">/</span><span>{state.sessionName || "Current thread"}</span></div>
-        <div className="toolbar-actions no-drag">
-          <button className="icon-control" aria-label="Refresh session state" onClick={() => void window.ernie.command({ type: "refresh" })}><Icon name="refresh" size={14} /></button>
-        </div>
+        <WorkspaceTabStrip
+          tabs={workspaceTabs.tabs}
+          activeTabId={workspaceTabs.activeTabId}
+          onSelect={(tabId) => dispatchWorkspaceTab({ type: "select", tabId })}
+          onClose={(tabId) => dispatchWorkspaceTab({ type: "close", tabId })}
+          onAdd={() => setTabChooserOpen(true)}
+        />
       </header>
 
+      {activeSurface.kind === "agent" ? <AgentOverview agent={activeSurface.agent} onReturn={() => dispatchWorkspaceTab({ type: "select", tabId: "root" })} />
+      : activeSurface.kind === "detached" ? <DetachedAgentOverview tab={activeSurface.tab} onReturn={() => dispatchWorkspaceTab({ type: "select", tabId: "root" })} />
+      : <>
       <div className="transcript" ref={transcriptRef} onScroll={transcriptScroll} onWheel={transcriptWheel} role="log" aria-live="polite" aria-relevant="additions text" aria-busy={state.isStreaming}>
         {!hasConversation && <section className="welcome">
           <div className="welcome-mark"><Icon name="spark" size={23} /></div>
@@ -245,6 +283,10 @@ export function App() {
         </section>}
         {items.map((item) => {
           if (item.kind === "tool") return <details className={`tool-item ${item.isError ? "error" : ""}`} key={item.id} open={item.phase !== "end"}><summary><span className="tool-indicator" />{item.name}<span className="tool-phase">{item.phase === "end" ? (item.isError ? "failed" : "done") : "running"}</span></summary>{item.detail && <pre>{item.detail}</pre>}</details>;
+          if (item.kind === "delegation") return <details className={`delegation-item ${item.status}`} key={item.id} open={item.status === "running" || item.status === "error"}>
+            <summary><span className="delegation-glyph" aria-hidden="true">↳</span><span className="delegation-copy"><strong>{item.name}</strong><small>{item.task || "Delegated work"}</small></span><span className="delegation-status">{item.status}</span></summary>
+            {item.detail && <div className="delegation-detail">{item.detail}</div>}
+          </details>;
           if (item.kind === "notice") return <div className={`notice ${item.tone}`} key={item.id}>{item.text}</div>;
           if (item.kind === "user") return <article className="message user" key={item.id}><div className="message-role">You</div><div className="message-copy">{item.text}</div></article>;
           const text = assistantText(item);
@@ -264,8 +306,21 @@ export function App() {
         </form>}
         {composerError && <div className="composer-error" role="alert">{composerError}</div>}
       </div>
+      </>}
     </main>
 
+    <WorktreeManagerDialog
+      open={worktreeManagerOpen}
+      snapshot={workspaceSnapshot}
+      onClose={() => setWorktreeManagerOpen(false)}
+      onNewThread={() => { setWorktreeManagerOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}
+    />
+    <AgentTabChooser
+      open={tabChooserOpen}
+      snapshot={workspaceSnapshot}
+      onClose={() => setTabChooserOpen(false)}
+      onChoose={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setTabChooserOpen(false); }}
+    />
     <NewThreadLauncher
       open={newThreadOpen}
       busy={newThreadBusy}

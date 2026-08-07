@@ -60,6 +60,9 @@ describe("PrimeAgentRpc", () => {
     expect(result.events.findIndex((event) => event.kind === "assistant_message" && event.phase === "end" && event.messageId === "m:1"))
       .toBeLessThan(result.events.findIndex((event) => event.kind === "tool" && event.phase === "start"));
     expect(result.events.filter((event) => event.kind === "tool").map((event) => event.phase)).toEqual(["start", "update", "end"]);
+    expect(result.events.filter((event) => event.kind === "delegation").map((event) => [event.status, event.childId])).toEqual([
+      ["running", "sub-1"], ["done", "sub-1"],
+    ]);
     expect(result.events.filter((event) => event.kind === "lifecycle").map((event) => event.type)).toEqual(expect.arrayContaining(["agent_start", "agent_end"]));
     expect(result.state.isStreaming).toBe(false);
   });

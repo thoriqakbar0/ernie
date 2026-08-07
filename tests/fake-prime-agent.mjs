@@ -84,6 +84,7 @@ function handle(request) {
         type: "message_end",
         message: { role: "assistant", stopReason: "toolUse", content: [{ type: "text", text: "A".repeat(5000) }] },
       });
+      send({ type: "rlm_child_update", child: { id: "sub-1", activeSessionId: "child-active-1", sessionName: "api-reviewer", label: "Review the API", status: "running" } });
       send({
         type: "tool_execution_start",
         toolCallId: "call-1",
@@ -101,6 +102,7 @@ function handle(request) {
         result: { content: [{ type: "text", text: "final output" }] },
         isError: false,
       });
+      send({ type: "rlm_child_update", child: { id: "sub-1", activeSessionId: "child-active-1", sessionName: "api-reviewer", label: "Review the API", status: "done", answerPreview: "No blocking findings" } });
       send({ type: "message_start", message: { role: "toolResult", content: [] } });
       send({ type: "message_end", message: { role: "toolResult", content: [] } });
       send({ type: "turn_end", message: { role: "assistant" }, toolResults: [{}] });

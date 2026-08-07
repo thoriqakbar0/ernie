@@ -331,6 +331,26 @@ export const make = (options: Options) => Effect.gen(function* () {
       yield* Ref.set(activeAssistantMessage, Option.none());
       return;
     }
+    if (type === "rlm_child_update") {
+      const childUpdate = asRecord(event["child"]);
+      const childId = string(childUpdate["id"]);
+      const rawStatus = string(childUpdate["status"]);
+      const status = rawStatus === "queued" || rawStatus === "running" || rawStatus === "done" || rawStatus === "error" || rawStatus === "cancelled" ? rawStatus : "running";
+      if (!childId) {
+        yield* publish({ kind: "error", source: "protocol", message: "Subagent update is missing its child identity", detail: event });
+        return;
+      }
+      const activeSessionId = string(childUpdate["activeSessionId"]);
+      const task = string(childUpdate["label"]) || string(childUpdate["task"]);
+      const detail = string(childUpdate["answerPreview"]) || string(childUpdate["recap"]) || string(childUpdate["error"]);
+      yield* publish({
+        kind: "delegation", sequence, childId,
+        ...(activeSessionId ? { activeSessionId } : {}),
+        name: string(childUpdate["sessionName"]) || task || "Subagent",
+        task, status, detail,
+      });
+      return;
+    }
     if (type === "tool_execution_start" || type === "tool_execution_update" || type === "tool_execution_end") {
       const phase = type.endsWith("start") ? "start" as const : type.endsWith("update") ? "update" as const : "end" as const;
       const payload = phase === "start" ? event["args"] : phase === "update" ? event["partialResult"] : event["result"];

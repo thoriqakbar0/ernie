@@ -45,6 +45,11 @@ export function useTranscript() {
       dispatch({ type: "tool", id: crypto.randomUUID(), event });
       return;
     }
+    if (event.kind === "delegation") {
+      stream.finish();
+      dispatch({ type: "delegation", id: crypto.randomUUID(), event });
+      return;
+    }
     if (event.kind === "lifecycle") {
       if (event.type === "turn_end" || event.type === "agent_end") stream.finish();
       return;

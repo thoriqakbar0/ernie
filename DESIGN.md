@@ -2,7 +2,7 @@
 
 ## Direction
 
-Ernie Dev uses a compact developer-workbench composition: a 228 px project rail, a centered conversation, a quiet top toolbar, secondary tool traces, and a floating composer.
+Ernie Dev uses a compact, worktree-first developer-workbench composition: a 228 px workspace rail, global surface tabs, a centered conversation, structured activity blocks, and a floating composer.
 
 ## Visual System
 
@@ -14,10 +14,10 @@ Ernie Dev uses a compact developer-workbench composition: a 228 px project rail,
 
 ## Composition
 
-- The rail contains the real project, active thread, connection state, and model.
-- The toolbar exposes real model/thinking/refresh operations.
+- The rail contains repository worktrees, their root/child agents, execution target, connection state, and the persistent worktree-manager entry point.
+- Global tabs may open agents from different worktrees. Closing one detaches the view; it does not terminate work.
 - Conversation width is capped at 730 px for readable prose.
-- Tool calls are collapsible records with running/done/failed states.
+- Tool calls and delegations are collapsible records with explicit lifecycle states.
 - The composer floats within the transcript measure and swaps Send for Stop while streaming.
 
 ## Interaction

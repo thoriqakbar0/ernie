@@ -100,6 +100,15 @@ describe("transcript reducer", () => {
     }
   });
 
+  it("updates one delegation block in place as a subagent progresses", () => {
+    const running: TranscriptAction = { type: "delegation", id: "block-1", event: { kind: "delegation", sequence: 1, childId: "sub-1", activeSessionId: "active-1", name: "reviewer", task: "Review the API", status: "running", detail: "" } };
+    const done: TranscriptAction = { type: "delegation", id: "ignored", event: { kind: "delegation", sequence: 2, childId: "sub-1", activeSessionId: "active-1", name: "reviewer", task: "Review the API", status: "done", detail: "No findings" } };
+    const items = [running, done].reduce(transcriptReducer, []);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "delegation", id: "block-1", status: "done", detail: "No findings" });
+  });
+
   it("clears speculative text when the authoritative message has no text blocks", () => {
     const actions: readonly TranscriptAction[] = [
       { type: "start_assistant", id: "assistant-1" },

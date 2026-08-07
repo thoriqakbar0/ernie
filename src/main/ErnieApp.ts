@@ -6,14 +6,17 @@ import type { AgentCommand, CommandResult } from "../shared/contract";
 import { AgentCommandSchema } from "./IpcProtocol";
 import { ErnieWindow, hardenElectron } from "./ErnieWindow";
 import { PrimeAgentRpc } from "./PrimeAgentRpc";
+import { WorkspaceCatalog } from "./WorkspaceCatalog";
 
 export const program = Effect.scoped(Effect.gen(function* () {
   const rpc = yield* PrimeAgentRpc;
+  const catalog = yield* WorkspaceCatalog;
   const window = yield* ErnieWindow;
   yield* Effect.promise(() => app.whenReady());
   yield* hardenElectron;
   yield* window.create;
   yield* Effect.forkScoped(Stream.runForEach(rpc.events, window.send));
+  yield* Effect.forkScoped(Stream.runForEach(catalog.events, (event) => window.send({ kind: "workspace", snapshot: event.snapshot })));
 
   const runEffect = Effect.runPromise;
   const command = (input: AgentCommand) => rpc.command(input).pipe(
@@ -26,6 +29,10 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.handle("agent:get-state", (event) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         return yield* rpc.state;
+      })));
+      ipcMain.handle("workspace:get-snapshot", (event) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        return yield* catalog.current;
       })));
       ipcMain.handle("agent:get-commands", (event) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
@@ -41,12 +48,16 @@ export const program = Effect.scoped(Effect.gen(function* () {
     }),
     () => Effect.sync(() => {
       ipcMain.removeHandler("agent:get-state");
+      ipcMain.removeHandler("workspace:get-snapshot");
       ipcMain.removeHandler("agent:get-commands");
       ipcMain.removeHandler("agent:command");
     }),
   );
 
   yield* Effect.forkScoped(rpc.start);
+  yield* Effect.forkScoped(catalog.start.pipe(
+    Effect.catch((error) => window.send({ kind: "error", source: "workspace_catalog", message: error.message })),
+  ));
 
   let quitAllowed = false;
   yield* Effect.acquireRelease(

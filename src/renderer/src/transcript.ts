@@ -5,6 +5,7 @@ export type ThreadItem =
   | { readonly id: string; readonly kind: "user"; readonly text: string }
   | { readonly id: string; readonly kind: "assistant"; readonly segments: readonly string[]; readonly active: boolean }
   | { readonly id: string; readonly kind: "tool"; readonly callId: string; readonly name: string; readonly detail: string; readonly phase: "start" | "update" | "end"; readonly isError: boolean }
+  | { readonly id: string; readonly kind: "delegation"; readonly childId: string; readonly activeSessionId?: string; readonly name: string; readonly task: string; readonly status: "queued" | "running" | "done" | "error" | "cancelled"; readonly detail: string }
   | { readonly id: string; readonly kind: "notice"; readonly text: string; readonly tone: "neutral" | "error" };
 
 /** Closed set of legal transcript state transitions. */
@@ -14,6 +15,7 @@ export type TranscriptAction =
   | { readonly type: "append_assistant"; readonly id: string; readonly segments: ReadonlyArray<readonly [number, string]> }
   | { readonly type: "finish_assistant"; readonly id: string; readonly segments?: ReadonlyArray<readonly [number, string]> }
   | { readonly type: "tool"; readonly id: string; readonly event: Extract<AgentEvent, { readonly kind: "tool" }> }
+  | { readonly type: "delegation"; readonly id: string; readonly event: Extract<AgentEvent, { readonly kind: "delegation" }> }
   | { readonly type: "notice"; readonly id: string; readonly text: string; readonly tone: "neutral" | "error" }
   | { readonly type: "reset" };
 
@@ -60,6 +62,21 @@ export function transcriptReducer(items: readonly ThreadItem[], action: Transcri
         detail: action.event.detail,
         phase: action.event.phase,
         isError: action.event.isError,
+      };
+      return index < 0 ? [...items, next] : items.map((item, itemIndex) => itemIndex === index ? next : item);
+    }
+    case "delegation": {
+      const index = items.findIndex((item) => item.kind === "delegation" && item.childId === action.event.childId);
+      const previous = index >= 0 && items[index]?.kind === "delegation" ? items[index] : null;
+      const next: ThreadItem = {
+        id: previous?.id ?? action.id,
+        kind: "delegation",
+        childId: action.event.childId,
+        ...(action.event.activeSessionId ? { activeSessionId: action.event.activeSessionId } : previous?.activeSessionId ? { activeSessionId: previous.activeSessionId } : {}),
+        name: action.event.name || previous?.name || "Subagent",
+        task: action.event.task || previous?.task || "Delegated work",
+        status: action.event.status,
+        detail: action.event.detail || previous?.detail || "",
       };
       return index < 0 ? [...items, next] : items.map((item, itemIndex) => itemIndex === index ? next : item);
     }

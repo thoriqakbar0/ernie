@@ -7,12 +7,15 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import type { AgentEvent } from "../shared/contract";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function isTrustedRendererUrl(url: string): boolean {
-  return url.startsWith("file://") || url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:");
+function isConfiguredDevelopmentRendererUrl(url: string): boolean {
+  const configured = process.env["ELECTRON_RENDERER_URL"];
+  const expected = configured ? new URL(configured).href : pathToFileURL(join(__dirname, "../renderer/index.html")).href;
+  try { return new URL(url).href === expected; }
+  catch { return false; }
 }
 
 export class ErnieWindowError extends Schema.TaggedErrorClass<ErnieWindowError>()(
@@ -28,12 +31,15 @@ export class ErnieWindow extends Context.Service<ErnieWindow, {
 
 export const make = Effect.gen(function* () {
   const current = yield* Ref.make<Option.Option<BrowserWindow>>(Option.none());
+  const trustedDocumentUrl = yield* Ref.make<Option.Option<string>>(Option.none());
   const failure = (operation: string, message: string, cause?: unknown) => new ErnieWindowError({ operation, message, ...(cause === undefined ? {} : { cause }) });
 
   const trustedSender = Effect.fn("ErnieWindow.trustedSender")(function* (event: IpcMainInvokeEvent) {
     const active = yield* Ref.get(current);
-    if (Option.isNone(active) || event.sender.id !== active.value.webContents.id || event.senderFrame === null) return false;
-    return isTrustedRendererUrl(event.senderFrame.url);
+    const expectedUrl = yield* Ref.get(trustedDocumentUrl);
+    if (Option.isNone(active) || Option.isNone(expectedUrl) || event.sender.id !== active.value.webContents.id || event.senderFrame === null) return false;
+    if (event.senderFrame !== active.value.webContents.mainFrame) return false;
+    return new URL(event.senderFrame.url).href === expectedUrl.value;
   });
 
   const send = Effect.fn("ErnieWindow.send")(function* (event: AgentEvent) {
@@ -58,11 +64,17 @@ export const make = Effect.gen(function* () {
     yield* Ref.set(current, Option.some(window));
     yield* Effect.sync(() => {
       window.once("ready-to-show", () => window.show());
-      window.on("closed", () => { Effect.runFork(Ref.set(current, Option.none())); });
+      window.on("closed", () => {
+        Effect.runFork(Ref.set(current, Option.none()));
+        Effect.runFork(Ref.set(trustedDocumentUrl, Option.none()));
+      });
     });
     const rendererUrl = process.env["ELECTRON_RENDERER_URL"];
+    const rendererFile = join(__dirname, "../renderer/index.html");
+    const targetUrl = !app.isPackaged && rendererUrl ? new URL(rendererUrl).href : pathToFileURL(rendererFile).href;
+    yield* Ref.set(trustedDocumentUrl, Option.some(targetUrl));
     yield* Effect.tryPromise({
-      try: () => !app.isPackaged && rendererUrl ? window.loadURL(rendererUrl) : window.loadFile(join(__dirname, "../renderer/index.html")),
+      try: () => !app.isPackaged && rendererUrl ? window.loadURL(targetUrl) : window.loadFile(rendererFile),
       catch: (cause) => failure("load", "The Ernie renderer could not be loaded", cause),
     });
     return window;
@@ -78,8 +90,8 @@ export const hardenElectron = Effect.sync(() => {
     const allowClipboardWrite = !app.isPackaged
       && permission === "clipboard-sanitized-write"
       && details.isMainFrame
-      && isTrustedRendererUrl(details.requestingUrl)
-      && isTrustedRendererUrl(contents.getURL());
+      && isConfiguredDevelopmentRendererUrl(details.requestingUrl)
+      && isConfiguredDevelopmentRendererUrl(contents.getURL());
     callback(allowClipboardWrite);
   });
   session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
@@ -88,8 +100,8 @@ export const hardenElectron = Effect.sync(() => {
       && contents !== null
       && permission === "clipboard-sanitized-write"
       && details.isMainFrame
-      && isTrustedRendererUrl(requestingUrl)
-      && isTrustedRendererUrl(contents.getURL());
+      && isConfiguredDevelopmentRendererUrl(requestingUrl)
+      && isConfiguredDevelopmentRendererUrl(contents.getURL());
   });
   session.defaultSession.on("will-download", (event) => event.preventDefault());
   app.on("web-contents-created", (_event, contents) => {

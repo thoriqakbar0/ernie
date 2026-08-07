@@ -48,12 +48,15 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 ## Architecture
 
 - `src/main/PrimeAgentRpc.ts` — Effect service for the pinned RPC child, strict LF/UTF-8/JSON framing, request correlation, lifecycle, state, cleanup, and typed failures.
+- `src/main/WorkspaceCatalog.ts` — read-only Effect service joining Git worktrees with schema-decoded Prime Agent session metadata.
 - `src/main/ErnieWindow.ts` — Effect-owned Electron window and security boundary.
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing only state, commands, and event subscription.
 - `src/renderer/src/App.tsx` — React workbench and conversation state.
-- `src/renderer/src/transcript.ts` — message-aware transcript reducer and frame-coalesced stream controller.
+- `src/renderer/src/WorkspaceChrome.tsx` — worktree/agent tree, global tabs, tab chooser, and read-only child-agent overview.
+- `src/renderer/src/workspaceTabs.ts` — view-only tab state; closing a tab never kills an agent.
+- `src/renderer/src/transcript.ts` — message-aware transcript, delegation, and frame-coalesced stream reducer.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.
 

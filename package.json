@@ -58,6 +58,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/remote",
+        "to": "remote",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

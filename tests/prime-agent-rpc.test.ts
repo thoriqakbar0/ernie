@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { join, resolve } from "node:path";
 import type { AgentEvent } from "../src/shared/contract";
+import { AgentCommandSchema } from "../src/main/IpcProtocol";
 import { PrimeAgentRpc, layer } from "../src/main/PrimeAgentRpc";
 
 const root = resolve(import.meta.dirname, "..");
@@ -10,6 +14,7 @@ const options = (environment?: Readonly<Record<string, string>>) => ({
   nodePath: join(root, "assets/runtime/node"),
   cliPath: join(root, "tests/fake-prime-agent.mjs"),
   projectPath: root,
+  remoteExtensionPath: join(root, "resources", "remote"),
   ...(environment ? { environment } : {}),
 });
 
@@ -100,5 +105,38 @@ describe("PrimeAgentRpc", () => {
     })), { ERNIE_FAKE_MODE: "unterminated" }));
     expect(state.connection).toBe("failed");
     expect(state.detail).toMatch(/unterminated|exited/i);
+  });
+
+  it("decodes execution target commands and rejects unknown targets", () => {
+    expect(Schema.decodeUnknownSync(AgentCommandSchema)({ type: "set_execution_target", target: "modal" }))
+      .toEqual({ type: "set_execution_target", target: "modal" });
+    expect(() => Schema.decodeUnknownSync(AgentCommandSchema)({ type: "set_execution_target", target: "ssh" })).toThrow();
+  });
+
+  it("restores the active execution target from the project-scoped remote config", async () => {
+    const agentDirectory = await mkdtemp(join(tmpdir(), "ernie-prime-agent-"));
+    try {
+      await writeFile(join(agentDirectory, "remote.json"), JSON.stringify({
+        version: 1,
+        projects: {
+          [root]: {
+            provider: "modal",
+            runtimeId: "modal-runtime",
+            cwd: root,
+            createdAt: new Date(0).toISOString(),
+            active: true,
+          },
+        },
+      }));
+      const state = await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
+        const rpc = yield* PrimeAgentRpc;
+        yield* rpc.start;
+        return yield* rpc.state;
+      })), { PRIME_AGENT_DIR: agentDirectory }));
+      expect(state.executionTarget).toBe("modal");
+      expect(state.switchingExecutionTo).toBeUndefined();
+    } finally {
+      await rm(agentDirectory, { recursive: true, force: true });
+    }
   });
 });

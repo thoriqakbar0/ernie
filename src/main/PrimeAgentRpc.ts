@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { statSync } from "node:fs";
-import { realpath } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -11,12 +13,13 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import type { AgentCommand, AgentEvent, AgentState } from "../shared/contract";
+import type { AgentCommand, AgentEvent, AgentState, ExecutionTarget } from "../shared/contract";
 
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
 const MAX_STDERR_BYTES = 128 * 1024;
 const REQUEST_TIMEOUT = "30 seconds";
 const STARTUP_TIMEOUT = "45 seconds";
+const EXECUTION_TARGET_TIMEOUT = "10 minutes";
 
 export class PrimeAgentRpcError extends Schema.TaggedErrorClass<PrimeAgentRpcError>()(
   "PrimeAgentRpcError",
@@ -38,6 +41,8 @@ interface Options {
   readonly nodePath: string;
   readonly cliPath: string;
   readonly projectPath: string;
+  readonly remoteExtensionPath: string;
+  readonly remoteUvPath?: string;
   readonly extraArgs?: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
 }
@@ -55,11 +60,26 @@ interface FramingState { readonly carry: Buffer }
 interface FramingResult { readonly state: FramingState; readonly records: readonly Buffer[]; readonly fault: string | null }
 
 const initialState = (): AgentState => ({
-  connection: "starting", detail: "Launching Prime Agent RPC", sessionId: "", sessionName: "",
+  connection: "starting", detail: "Launching Prime Agent RPC", executionTarget: "local", sessionId: "", sessionName: "",
   provider: "", modelId: "", modelName: "Discovering model", thinkingLevel: "", isStreaming: false,
   isCompacting: false, messageCount: 0, queuedCount: 0, contextTokens: 0, contextWindow: 0,
   contextPercent: 0, totalTokens: 0, cost: "$0.0000",
 });
+
+async function readExecutionTarget(projectPath: string, environment: Readonly<Record<string, string>>): Promise<ExecutionTarget> {
+  const agentDirectory = environment["PRIME_AGENT_DIR"] ?? process.env["PRIME_AGENT_DIR"] ?? join(homedir(), ".prime", "agent");
+  try {
+    const decoded: unknown = JSON.parse(await readFile(join(agentDirectory, "remote.json"), "utf8"));
+    const root = asRecord(decoded);
+    if (root["version"] !== 1) return "local";
+    const runtime = asRecord(asRecord(root["projects"])[projectPath]);
+    return runtime["provider"] === "modal" && (runtime["active"] === undefined || runtime["active"] === true) && typeof runtime["runtimeId"] === "string"
+      ? "modal"
+      : "local";
+  } catch {
+    return "local";
+  }
+}
 
 function frameChunk(state: FramingState, chunk: Buffer): FramingResult {
   const combined = state.carry.length === 0 ? chunk : Buffer.concat([state.carry, chunk]);
@@ -133,6 +153,7 @@ export const make = (options: Options) => Effect.gen(function* () {
   const messages = yield* Queue.unbounded<ProcessMessage>();
   const framing = yield* Ref.make<FramingState>({ carry: Buffer.alloc(0) });
   const events = yield* PubSub.unbounded<AgentEvent>();
+  const executionTargetSwitch = yield* Ref.make<Option.Option<{ readonly target: ExecutionTarget; readonly deferred: Deferred.Deferred<void, PrimeAgentRpcError> }>>(Option.none());
 
   const publish = (event: AgentEvent) => PubSub.publish(events, event).pipe(Effect.asVoid);
   const snapshot = Ref.get(state).pipe(Effect.map((value) => ({ ...value })));
@@ -145,9 +166,27 @@ export const make = (options: Options) => Effect.gen(function* () {
 
   const rpcError = (operation: string, message: string, cause?: unknown) => new PrimeAgentRpcError({ operation, message, ...(cause === undefined ? {} : { cause }) });
 
+  const publishState = Effect.fn("PrimeAgentRpc.publishState")(function* (next: AgentState) {
+    yield* publish({ kind: "state", state: { ...next } });
+  });
+
+  const clearExecutionTargetSwitch = Effect.fn("PrimeAgentRpc.clearExecutionTargetSwitch")(function* () {
+    yield* Ref.set(executionTargetSwitch, Option.none());
+    const next = yield* Ref.updateAndGet(state, (current) => {
+      const { switchingExecutionTo: _, ...rest } = current;
+      return rest;
+    });
+    yield* publishState(next);
+  });
+
   const failAllPending = Effect.fn("PrimeAgentRpc.failAllPending")(function* (error: PrimeAgentRpcError) {
     const requests = yield* Ref.getAndSet(pending, new Map());
     yield* Effect.forEach(requests.values(), (request) => Deferred.fail(request.deferred, error), { discard: true });
+  });
+
+  const failExecutionTargetSwitch = Effect.fn("PrimeAgentRpc.failExecutionTargetSwitch")(function* (error: PrimeAgentRpcError) {
+    const activeSwitch = yield* Ref.get(executionTargetSwitch);
+    if (Option.isSome(activeSwitch)) yield* Deferred.fail(activeSwitch.value.deferred, error);
   });
 
   const write = Effect.fn("PrimeAgentRpc.write")(function* (record: string) {
@@ -304,8 +343,35 @@ export const make = (options: Options) => Effect.gen(function* () {
       return;
     }
     if (type === "extension_ui_request") {
-      yield* write(`${JSON.stringify({ type: "extension_ui_response", id: string(event["id"]), cancelled: true })}\n`).pipe(Effect.ignore);
-      yield* publish({ kind: "error", source: "extension_ui", message: "Unsupported extension dialog was cancelled", detail: event }); return;
+      const method = string(event["method"]);
+      const isPassive = method === "notify" || method === "setStatus";
+      yield* write(`${JSON.stringify({
+        type: "extension_ui_response",
+        id: string(event["id"]),
+        ...(isPassive ? { confirmed: false } : { cancelled: true }),
+      })}\n`).pipe(Effect.ignore);
+      if (!isPassive) return;
+
+      if (method === "notify") {
+        const activeSwitch = yield* Ref.get(executionTargetSwitch);
+        const message = string(event["message"]);
+        if (Option.isSome(activeSwitch)) {
+          const expected = activeSwitch.value.target === "modal"
+            ? "IPython is now running on Modal."
+            : "IPython is now running locally.";
+          if (event["notifyType"] === "error") {
+            yield* Deferred.fail(activeSwitch.value.deferred, rpcError("set_execution_target", message || "Execution target switch failed", event));
+          } else if (message === expected) {
+            const next = yield* Ref.updateAndGet(state, (current) => ({ ...current, executionTarget: activeSwitch.value.target }));
+            yield* publishState(next);
+            yield* Deferred.succeed(activeSwitch.value.deferred, undefined);
+          }
+        }
+        if (event["notifyType"] === "error") {
+          yield* publish({ kind: "error", source: "extension", message: message || "Extension error", detail: event });
+        }
+      }
+      return;
     }
     if (type === "extension_error") { yield* publish({ kind: "error", source: "extension", message: string(event["error"]) || "Extension error", detail: event }); return; }
     yield* publish({ kind: "raw", sequence, event });
@@ -331,7 +397,9 @@ export const make = (options: Options) => Effect.gen(function* () {
 
   const protocolFailure = Effect.fn("PrimeAgentRpc.protocolFailure")(function* (error: PrimeAgentRpcError) {
     yield* publish({ kind: "error", source: "protocol", message: error.message, detail: error });
-    yield* failAllPending(error); yield* setConnection("failed", error.message);
+    yield* failAllPending(error);
+    yield* failExecutionTargetSwitch(error);
+    yield* setConnection("failed", error.message);
     const current = yield* Ref.get(child); if (Option.isSome(current) && current.value.exitCode === null) current.value.kill("SIGTERM");
   });
 
@@ -351,19 +419,34 @@ export const make = (options: Options) => Effect.gen(function* () {
     if (Option.isNone(current)) return;
     current.value.stdin.end();
     if (current.value.exitCode === null) current.value.kill("SIGTERM");
-    yield* failAllPending(rpcError("stop", "Prime Agent stopped"));
+    const error = rpcError("stop", "Prime Agent stopped");
+    yield* failAllPending(error);
+    yield* failExecutionTargetSwitch(error);
     yield* setConnection("closed", "Prime Agent stopped");
   }).pipe(Effect.withSpan("PrimeAgentRpc.stop"));
 
   const start = Effect.gen(function* () {
     const projectPath = yield* Effect.tryPromise({ try: () => realpath(options.projectPath), catch: (cause) => rpcError("start", "Project path cannot be resolved", cause) });
+    const remoteExtensionPath = yield* Effect.tryPromise({ try: () => realpath(options.remoteExtensionPath), catch: (cause) => rpcError("start", "Remote extension path cannot be resolved", cause) });
     yield* Effect.try({
-      try: () => { if (!statSync(projectPath).isDirectory() || !statSync(options.nodePath).isFile() || !statSync(options.cliPath).isFile()) throw new Error("Runtime path is invalid"); },
+      try: () => {
+        if (!statSync(projectPath).isDirectory() || !statSync(options.nodePath).isFile() || !statSync(options.cliPath).isFile() || !statSync(remoteExtensionPath).isDirectory()) {
+          throw new Error("Runtime path is invalid");
+        }
+      },
       catch: (cause) => rpcError("start", "Prime Agent runtime is missing", cause),
     });
-    const env: NodeJS.ProcessEnv = { ...process.env, ...options.environment, NO_COLOR: process.env["NO_COLOR"] || "1" }; delete env["FORCE_COLOR"];
+    const executionTarget = yield* Effect.promise(() => readExecutionTarget(projectPath, options.environment ?? {}));
+    yield* Ref.update(state, (current) => ({ ...current, executionTarget }));
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...options.environment,
+      ...(options.remoteUvPath === undefined ? {} : { PRIME_AGENT_REMOTE_UV: options.remoteUvPath }),
+      NO_COLOR: process.env["NO_COLOR"] || "1",
+    };
+    delete env["FORCE_COLOR"];
     const agentProcess = yield* Effect.try({
-      try: () => spawn(options.nodePath, [options.cliPath, "--mode", "rpc", "--cwd", projectPath, "--thinking", "xhigh", ...(options.extraArgs ?? [])], { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }),
+      try: () => spawn(options.nodePath, [options.cliPath, "--mode", "rpc", "--cwd", projectPath, "--thinking", "xhigh", "-e", remoteExtensionPath, ...(options.extraArgs ?? [])], { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }),
       catch: (cause) => rpcError("start", "Prime Agent process could not be spawned", cause),
     });
     yield* Ref.set(child, Option.some(agentProcess));
@@ -396,7 +479,38 @@ export const make = (options: Options) => Effect.gen(function* () {
         if (input.behavior && input.behavior !== "now") payload["streamingBehavior"] = input.behavior;
         yield* request("prompt", payload); return {};
       }
-      case "abort": yield* request("abort", {}); return {};
+      case "set_execution_target": {
+        const current = yield* Ref.get(state);
+        if (current.connection !== "ready") return yield* rpcError("set_execution_target", "Prime Agent RPC is not ready");
+        if (current.isStreaming || current.isCompacting) return yield* rpcError("set_execution_target", "Execution target cannot change while the agent is busy");
+        if (current.switchingExecutionTo !== undefined) return yield* rpcError("set_execution_target", "An execution target switch is already in progress");
+        if (current.executionTarget === input.target) return {};
+
+        const deferred = yield* Deferred.make<void, PrimeAgentRpcError>();
+        const claimed = yield* Ref.modify(executionTargetSwitch, (activeSwitch) => Option.isSome(activeSwitch)
+          ? [false, activeSwitch] as const
+          : [true, Option.some({ target: input.target, deferred })] as const);
+        if (!claimed) return yield* rpcError("set_execution_target", "An execution target switch is already in progress");
+        const switching = yield* Ref.updateAndGet(state, (value) => ({ ...value, switchingExecutionTo: input.target }));
+        yield* publishState(switching);
+        const timeout = Effect.sleep(EXECUTION_TARGET_TIMEOUT).pipe(
+          Effect.andThen(Effect.fail(rpcError("set_execution_target", "Execution target switch timed out"))),
+        );
+        yield* Effect.gen(function* () {
+          yield* request("prompt", { message: `/remote ${input.target}` });
+          yield* Deferred.await(deferred).pipe(Effect.raceFirst(timeout));
+        }).pipe(
+          Effect.tapError(() => request("abort", {}).pipe(Effect.ignore)),
+          Effect.onInterrupt(() => request("abort", {}).pipe(Effect.ignore)),
+          Effect.ensuring(clearExecutionTargetSwitch()),
+        );
+        return {};
+      }
+      case "abort": {
+        yield* request("abort", {});
+        yield* failExecutionTargetSwitch(rpcError("set_execution_target", "Execution target switch was interrupted"));
+        return {};
+      }
       case "new_session": {
         const value = asRecord(yield* request("new_session", {}));
         if (value["cancelled"] === true) return { cancelled: true };

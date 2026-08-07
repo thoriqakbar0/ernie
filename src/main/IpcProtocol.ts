@@ -5,7 +5,11 @@ const PromptCommand = Schema.Struct({
   message: Schema.String,
   behavior: Schema.optionalKey(Schema.Literals(["now", "steer", "followUp"])),
 });
+const SetExecutionTargetCommand = Schema.Struct({
+  type: Schema.Literal("set_execution_target"),
+  target: Schema.Literals(["local", "modal"]),
+});
 const SimpleCommand = Schema.Struct({
   type: Schema.Literals(["abort", "new_session", "compact", "cycle_model", "cycle_thinking_level", "refresh"]),
 });
-export const AgentCommandSchema = Schema.Union([PromptCommand, SimpleCommand]);
+export const AgentCommandSchema = Schema.Union([PromptCommand, SetExecutionTargetCommand, SimpleCommand]);

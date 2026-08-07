@@ -1,0 +1,19 @@
+[project]
+name = "modal-provider-bridge"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "dill>=0.3.8,<1",
+    "ipykernel>=6.29,<7",
+    "jupyter-client>=8.6,<9",
+    "modal==1.5.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+    "ruff>=0.9",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

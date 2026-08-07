@@ -1,8 +1,11 @@
 export type ConnectionState = "starting" | "ready" | "failed" | "closed";
+export type ExecutionTarget = "local" | "modal";
 
 export interface AgentState {
   readonly connection: ConnectionState;
   readonly detail: string;
+  readonly executionTarget: ExecutionTarget;
+  readonly switchingExecutionTo?: ExecutionTarget;
   readonly sessionId: string;
   readonly sessionName: string;
   readonly provider: string;
@@ -22,6 +25,7 @@ export interface AgentState {
 
 export type AgentCommand =
   | { readonly type: "prompt"; readonly message: string; readonly behavior?: "now" | "steer" | "followUp" }
+  | { readonly type: "set_execution_target"; readonly target: ExecutionTarget }
   | { readonly type: "abort" }
   | { readonly type: "new_session" }
   | { readonly type: "compact" }

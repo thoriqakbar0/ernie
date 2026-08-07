@@ -124,7 +124,7 @@ export function App() {
       setComposerError(error instanceof Error ? error.message : "Could not switch the IPython runtime");
     }
   };
-  const isExecutionSwitching = state.switchingExecutionTarget !== undefined;
+  const isExecutionSwitching = state.switchingExecutionTo !== undefined;
   const executionControlDisabled = state.connection !== "ready" || state.isStreaming || state.isCompacting || isExecutionSwitching;
   const statusLabel = state.connection === "ready" ? (state.isStreaming ? "Working" : "Ready") : state.connection === "starting" ? "Connecting" : "Offline";
   const hasConversation = items.length > 0;
@@ -150,7 +150,7 @@ export function App() {
           <button className="text-control thinking" onClick={() => void window.ernie.command({ type: "cycle_thinking_level" })}>{state.thinkingLevel || "thinking"}</button>
           <RemoteExecutionControl
             executionTarget={state.executionTarget}
-            switchingExecutionTarget={state.switchingExecutionTarget}
+            switchingExecutionTo={state.switchingExecutionTo}
             disabled={executionControlDisabled}
             onSelect={changeExecutionTarget}
           />

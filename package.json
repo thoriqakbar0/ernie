@@ -78,5 +78,6 @@
   "engines": {
     "node": ">=24"
   },
-  "author": "Ernie Dev"
+  "author": "Ernie Dev",
+  "license": "MIT"
 }

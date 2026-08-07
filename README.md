@@ -69,3 +69,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.
 
 The renderer is sandboxed with context isolation enabled, Node integration disabled, no webview support, navigation/popups/permissions/downloads denied, schema-decoded IPC, and a restrictive CSP.
+
+## License
+
+Ernie Dev is available under the [MIT License](LICENSE). Portions are adapted from [T3 Code](https://github.com/pingdotgg/t3code); see [NOTICE](NOTICE) for attribution and license terms.

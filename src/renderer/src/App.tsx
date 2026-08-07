@@ -169,6 +169,6 @@ export function App() {
       </div>
     </main>
 
-    {import.meta.env.DEV && <Agentation copyToClipboard={false} onSubmit={(output) => void send(output)} />}
+    {import.meta.env.DEV && <Agentation onSubmit={(output) => void send(output)} />}
   </div>;
 }

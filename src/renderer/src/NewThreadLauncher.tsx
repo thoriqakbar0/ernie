@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 import { ModalDialog } from "./ModalDialog";
 
 interface NewThreadLauncherProps {
@@ -7,10 +7,11 @@ interface NewThreadLauncherProps {
   readonly error: string;
   readonly onClose: () => void;
   readonly onCreate: (prompt: string | undefined) => Promise<void>;
+  readonly returnFocusRef?: RefObject<HTMLElement | null> | undefined;
 }
 
 /** Command-palette-style launcher that creates a thread only after explicit confirmation. */
-export function NewThreadLauncher({ open, busy, error, onClose, onCreate }: NewThreadLauncherProps) {
+export function NewThreadLauncher({ open, busy, error, onClose, onCreate, returnFocusRef }: NewThreadLauncherProps) {
   const [prompt, setPrompt] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const titleId = useId();
@@ -32,6 +33,7 @@ export function NewThreadLauncher({ open, busy, error, onClose, onCreate }: NewT
     labelledBy={titleId}
     className="launcher-backdrop"
     initialFocusRef={inputRef}
+    returnFocusRef={returnFocusRef}
   >
     <form className="thread-launcher" onSubmit={(event) => void submit(event)}>
       <div className="thread-launcher-heading">
@@ -49,7 +51,7 @@ export function NewThreadLauncher({ open, busy, error, onClose, onCreate }: NewT
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
+            if (prompt.trim().length > 0) event.currentTarget.form?.requestSubmit();
           }
         }}
         rows={3}
@@ -59,7 +61,7 @@ export function NewThreadLauncher({ open, busy, error, onClose, onCreate }: NewT
       <div className="thread-launcher-footer">
         <span><kbd>↵</kbd> create <span>·</span> <kbd>⇧↵</kbd> new line</span>
         <button type="button" onClick={() => void onCreate(undefined)} disabled={busy}>Create blank thread</button>
-        <button type="submit" className="primary" disabled={busy}>{busy ? "Creating…" : "Create thread"}</button>
+        <button type="submit" className="primary" disabled={busy || prompt.trim().length === 0}>{busy ? "Creating…" : "Create thread and send message"}</button>
       </div>
     </form>
   </ModalDialog>;

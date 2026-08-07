@@ -54,11 +54,13 @@ export function App() {
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const [composerError, setComposerError] = useState("");
   const [newThreadOpen, setNewThreadOpen] = useState(false);
+  const [newThreadReturnsToRail, setNewThreadReturnsToRail] = useState(false);
   const [newThreadBusy, setNewThreadBusy] = useState(false);
   const [newThreadError, setNewThreadError] = useState("");
   const [accessibilityStatus, setAccessibilityStatus] = useState({ sequence: 0, text: "" });
   const appShellRef = useRef<HTMLDivElement>(null);
   const railToggleRef = useRef<HTMLButtonElement>(null);
+  const railRef = useRef<HTMLElement>(null);
   const composerWrapRef = useRef<HTMLDivElement>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -160,18 +162,37 @@ export function App() {
 
   useEffect(() => {
     if (!railOpen) return;
+    const rail = railRef.current;
+    const focusableSelector = "button:not(:disabled), [href], input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])";
+    const focusable = () => Array.from(rail?.querySelectorAll<HTMLElement>(focusableSelector) ?? []).filter((element) => element.getClientRects().length > 0);
+    requestAnimationFrame(() => focusable()[0]?.focus());
     const keyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setRailOpen(false);
-      requestAnimationFrame(() => railToggleRef.current?.focus());
+      if (document.querySelector("dialog[open]")) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setRailOpen(false);
+        requestAnimationFrame(() => railToggleRef.current?.focus());
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = focusable();
+      if (controls.length === 0) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !rail?.contains(document.activeElement))) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !rail?.contains(document.activeElement))) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
     window.addEventListener("keydown", keyDown);
     return () => window.removeEventListener("keydown", keyDown);
   }, [railOpen]);
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 641px)");
+    const media = window.matchMedia("(min-width: 841px)");
     const update = () => { if (media.matches) setRailOpen(false); };
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
@@ -182,6 +203,7 @@ export function App() {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "n") return;
       event.preventDefault();
       if (state.connection === "ready") {
+        setNewThreadReturnsToRail(false);
         setNewThreadError("");
         setNewThreadOpen(true);
       }
@@ -317,9 +339,9 @@ export function App() {
 
   return <div className="app-shell" ref={appShellRef}>
     <a className="skip-link" href="#workspace-main">Skip to workspace</a>
-    <aside id="workspace-rail" className={`project-rail ${isStarting ? "is-starting" : ""} ${railOpen ? "is-open" : ""}`}>
+    <aside ref={railRef} id="workspace-rail" className={`project-rail ${isStarting ? "is-starting" : ""} ${railOpen ? "is-open" : ""}`} role={railOpen ? "dialog" : undefined} aria-modal={railOpen || undefined} aria-label={railOpen ? "Workspace navigation" : undefined}>
       <div className="titlebar-drag" aria-hidden="true" />
-      <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
+      <button className="new-thread" disabled={state.connection !== "ready"} onClick={() => { setNewThreadReturnsToRail(railOpen); if (railOpen) setRailOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}><Icon name="plus" size={15} /><span>New thread</span><kbd>⌘N</kbd></button>
       <WorkspaceTree
         snapshot={workspaceSnapshot}
         currentSessionId={state.sessionId}
@@ -336,14 +358,14 @@ export function App() {
         />
       </div>
       <div className="rail-spacer" />
-      <WorktreeManager active={worktreeManagerOpen} onOpen={() => { setWorktreeManagerOpen(true); setRailOpen(false); }} />
+      <WorktreeManager active={worktreeManagerOpen} onOpen={() => { if (railOpen) railToggleRef.current?.focus(); setWorktreeManagerOpen(true); setRailOpen(false); }} />
       {isStarting
         ? <StartupRail stage={startupStage} />
         : <div className="rail-status"><span className={`status-dot ${state.connection}`} /><span>{statusLabel}</span><span className="rail-model">{state.modelName}</span></div>}
     </aside>
-    {railOpen && <button type="button" className="rail-backdrop" aria-label="Close workspace navigation" onClick={() => { setRailOpen(false); railToggleRef.current?.focus(); }} />}
+    {railOpen && <button type="button" className="rail-backdrop" tabIndex={-1} aria-label="Close workspace navigation" onClick={() => { setRailOpen(false); railToggleRef.current?.focus(); }} />}
 
-    <main className="workspace" id="workspace-main" tabIndex={-1}>
+    <main className="workspace" id="workspace-main" tabIndex={-1} inert={railOpen ? true : undefined}>
       <header className="workspace-toolbar titlebar-drag">
         <button
           ref={railToggleRef}
@@ -415,7 +437,7 @@ export function App() {
       open={worktreeManagerOpen}
       snapshot={workspaceSnapshot}
       onClose={() => setWorktreeManagerOpen(false)}
-      onNewThread={() => { setWorktreeManagerOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}
+      onNewThread={() => { setNewThreadReturnsToRail(false); setWorktreeManagerOpen(false); setNewThreadError(""); setNewThreadOpen(true); }}
       loadState={workspaceLoadState}
     />
     <AgentTabChooser
@@ -423,11 +445,13 @@ export function App() {
       snapshot={workspaceSnapshot}
       onClose={() => setTabChooserOpen(false)}
       onChoose={(agent) => { dispatchWorkspaceTab({ type: "open_agent", agent }); setTabChooserOpen(false); }}
+      loadState={workspaceLoadState}
     />
     <NewThreadLauncher
       open={newThreadOpen}
       busy={newThreadBusy}
       error={newThreadError}
+      returnFocusRef={newThreadReturnsToRail ? railToggleRef : undefined}
       onClose={() => { setNewThreadOpen(false); setNewThreadError(""); }}
       onCreate={createThread}
     />

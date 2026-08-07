@@ -16,7 +16,7 @@ function Icon({ name, ...props }: { readonly name: IconName } & SVGProps<SVGSVGE
     manager: <><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 9h8M8 13h5" /></>,
     subagent: <><path d="M6 5v8a4 4 0 0 0 4 4h8" /><path d="m15 14 3 3-3 3" /></>,
   };
-  return <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...props}>{paths[name]}</svg>;
+  return <svg data-directional-icon={name === "branch" || name === "subagent" ? "true" : undefined} viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...props}>{paths[name]}</svg>;
 }
 
 export type WorkspaceLoadState = "loading" | "ready" | "error";
@@ -29,8 +29,8 @@ interface WorkspaceTreeProps {
   readonly loadState: WorkspaceLoadState;
 }
 
-function statusLabel(agent: WorkspaceAgent): string {
-  switch (agent.status) {
+function statusText(status: WorkspaceAgent["status"]): string {
+  switch (status) {
     case "working": return "Working";
     case "waiting": return "Waiting";
     case "idle": return "Idle";
@@ -40,6 +40,8 @@ function statusLabel(agent: WorkspaceAgent): string {
     case "disconnected": return "Disconnected";
   }
 }
+
+function statusLabel(agent: WorkspaceAgent): string { return statusText(agent.status); }
 
 function countLabel(count: number, singular: string): string {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
@@ -100,6 +102,7 @@ export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpe
           <button
             type="button"
             aria-current={agent.id === activeAgentId ? "page" : undefined}
+            aria-label={`${displayName}, ${statusLabel(agent)}, ${summary}`}
             className={`agent-tree-row ${agent.id === activeAgentId ? "active" : ""}`}
             style={{ paddingInlineStart: `${10 + depth * 17}px` }}
             onClick={() => onOpenAgent(agent)}
@@ -123,7 +126,6 @@ export function WorkspaceTree({ snapshot, currentSessionId, activeAgentId, onOpe
       const agentCount = (agentsByWorktree.get(worktree.id) ?? []).length;
       return <li key={worktree.id} className="worktree-group">
         <div className="worktree-row" style={{ paddingInlineStart: `${7 + depth * 14}px` }} title={`${worktree.label} — ${worktree.path}`}>
-          <span className="worktree-disclosure"><Icon name="chevron" /></span>
           <span className="worktree-icon"><Icon name="branch" /></span>
           <span title={worktree.label}>{worktree.label}</span>
           <span className="worktree-count" aria-label={countLabel(agentCount, "agent")}>{agentCount}</span>
@@ -231,6 +233,7 @@ export function WorkspaceTabStrip({ tabs, activeTabId, onSelect, onClose, onAdd 
           type="button"
           role="tab"
           aria-selected={tab.id === activeTabId}
+          aria-label={`${tab.title}, ${statusText(tab.status)}`}
           aria-controls={`workspace-panel-${tab.id}`}
           tabIndex={tab.id === activeTabId ? 0 : -1}
           className="workspace-tab"
@@ -270,11 +273,12 @@ export function DetachedAgentOverview({ tab }: { readonly tab: WorkspaceTab }) {
 }
 
 /** Chooser used by the global plus button to open known agents as tabs. */
-export function AgentTabChooser({ open, snapshot, onClose, onChoose }: {
+export function AgentTabChooser({ open, snapshot, onClose, onChoose, loadState }: {
   readonly open: boolean;
   readonly snapshot: WorkspaceSnapshot;
   readonly onClose: () => void;
   readonly onChoose: (agent: WorkspaceAgent) => void;
+  readonly loadState: WorkspaceLoadState;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const worktreeById = new Map(snapshot.worktrees.map((worktree) => [worktree.id, worktree]));
@@ -284,12 +288,12 @@ export function AgentTabChooser({ open, snapshot, onClose, onChoose }: {
       {snapshot.agents.length > 0 ? snapshot.agents.map((agent) => {
         const worktreeLabel = worktreeById.get(agent.worktreeId)?.label ?? "Unknown worktree";
         const summary = agent.summary || statusLabel(agent);
-        return <button key={agent.id} type="button" onClick={() => onChoose(agent)} title={`${agent.name} — ${worktreeLabel} — ${summary}`}>
+        return <button key={agent.id} type="button" onClick={() => onChoose(agent)} aria-label={`${agent.name}, ${statusLabel(agent)}, ${worktreeLabel}, ${summary}`} title={`${agent.name} — ${worktreeLabel} — ${summary}`}>
           <span className={`agent-state ${agent.status}`} aria-hidden="true" />
           <span><strong title={agent.name}>{agent.name}</strong><small title={`${worktreeLabel} · ${summary}`}>{worktreeLabel} · {summary}</small></span>
           <span className="tab-chooser-open">Open</span>
         </button>;
-      }) : <div className="tab-chooser-empty">No agents are available.</div>}
+      }) : <div className="tab-chooser-empty">{loadState === "loading" ? "Loading agents…" : loadState === "error" ? "Unable to load agents. Check the workspace connection; Ernie will retry automatically." : "No agents yet. Start a new thread or delegate a task to create one."}</div>}
     </div>
   </ModalDialog>;
 }

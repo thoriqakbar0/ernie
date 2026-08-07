@@ -6,6 +6,7 @@ interface ModalDialogProps {
   readonly labelledBy: string;
   readonly className?: string;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
+  readonly returnFocusRef?: RefObject<HTMLElement | null> | undefined;
   readonly children: ReactNode;
 }
 
@@ -21,6 +22,7 @@ export function ModalDialog({
   labelledBy,
   className,
   initialFocusRef,
+  returnFocusRef,
   children,
 }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -35,15 +37,15 @@ export function ModalDialog({
       return;
     }
 
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+    previouslyFocusedRef.current = returnFocusRef?.current ?? (document.activeElement instanceof HTMLElement
       ? document.activeElement
-      : null;
+      : null);
     setIsExiting(false);
     dialog.showModal();
 
     const frame = requestAnimationFrame(() => initialFocusRef?.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [initialFocusRef, open]);
+  }, [initialFocusRef, open, returnFocusRef]);
 
   useEffect(() => {
     const dialog = dialogRef.current;

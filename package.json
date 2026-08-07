@@ -9,9 +9,12 @@
     "dev": "pnpm ensure:electron && electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "pnpm typecheck && pnpm build",
+    "test:unit": "vitest run",
+    "test": "pnpm typecheck && pnpm test:unit",
+    "check": "pnpm test && pnpm test:smoke",
     "package:mac": "pnpm ensure:electron && pnpm check && electron-builder --mac dir --arm64 && node scripts/stage-macos-app.mjs",
     "ensure:electron": "node scripts/ensure-electron-runtime.mjs",
+    "test:smoke": "pnpm build && node scripts/electron-smoke.mjs",
     "clean": "rm -rf out dist coverage",
     "runtime:vendor": "scripts/vendor-prime-agent-runtime.sh"
   },
@@ -30,8 +33,12 @@
     "electron": "41.5.0",
     "electron-builder": "26.15.6",
     "electron-vite": "5.0.0",
+    "jsdom": "27.4.0",
     "typescript": "6.0.3",
-    "vite": "6.4.3"
+    "vite": "6.4.3",
+    "vitest": "4.0.18",
+    "@effect/vitest": "4.0.0-beta.102",
+    "playwright-core": "1.60.0"
   },
   "build": {
     "appId": "dev.ernie.workbench",

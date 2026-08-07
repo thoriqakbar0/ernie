@@ -24,7 +24,7 @@ try {
   await window.waitForLoadState("domcontentloaded");
   await window.getByText("Ready", { exact: true }).waitFor({ timeout: 15_000 });
   assert.equal(await window.getByText("Test Model", { exact: true }).first().textContent(), "Test Model");
-  assert.equal(await window.locator("[data-agentation-toolbar]").count(), 1);
+  assert.equal(await window.locator("[data-agentation-toolbar]").count(), 0);
   assert.deepEqual(await window.evaluate(() => ({ require: typeof globalThis.require, electron: typeof globalThis.process })), { require: "undefined", electron: "undefined" });
 
   const composer = window.getByLabel("Message Prime Agent");

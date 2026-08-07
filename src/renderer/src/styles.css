@@ -104,5 +104,3 @@ button:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
 
-/* Keep the upstream Agentation control clear of Ernie's composer/send affordance. */
-.ernie-agentation { right: 16px !important; bottom: 112px !important; }

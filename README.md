@@ -1,8 +1,8 @@
 # Ernie Dev
 
-Ernie Dev is an Electron workbench for Prime Agent. It runs the bundled Prime Agent runtime in `--mode rpc`, renders structured text/tool/lifecycle events in React, and mounts the official [`agentation`](https://github.com/benjitaylor/agentation) component directly in the renderer.
+Ernie Dev is an Electron workbench for Prime Agent. It runs the bundled Prime Agent runtime in `--mode rpc` and renders structured text, tool, and lifecycle events in React.
 
-There is no terminal scraping, Native SDK layer, native annotation adapter, fabricated selector, or global Prime Agent dependency.
+There is no terminal scraping, Native SDK layer, or global Prime Agent dependency.
 
 ## Develop
 
@@ -28,18 +28,6 @@ The Electron binary installer can leave an incomplete macOS bundle under newer N
 pnpm ensure:electron
 ```
 
-## Agentation
-
-Ernie mounts the official `<Agentation />` component in its React tree. DOM selection, element paths, bounding boxes, comments, and the Agentation toolbar therefore come from the upstream package rather than Ernie-specific targeting code.
-
-Start the official sync server when shared/persisted sessions are wanted:
-
-```sh
-pnpm dlx agentation-mcp server
-```
-
-The renderer connects only to `http://127.0.0.1:4747`. **Send to Agent** passes Agentation's official Markdown output directly to the active Prime Agent session through the narrow preload API.
-
 ## Validate and package
 
 ```sh
@@ -49,10 +37,10 @@ pnpm check
 pnpm package:mac
 ```
 
-The unsigned local package is created at:
+The ad-hoc-signed local package is created at:
 
 ```text
-dist/mac-arm64/Ernie Dev.app
+dist/Ernie Dev.app
 ```
 
 Prime Agent credentials are never bundled. The app reuses the user's normal Prime Agent configuration.
@@ -64,7 +52,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing only state, commands, and event subscription.
-- `src/renderer/src/App.tsx` — React workbench plus official Agentation component.
+- `src/renderer/src/App.tsx` — React workbench and conversation state.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.
 

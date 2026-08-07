@@ -43,7 +43,6 @@ export function App() {
   const [state, setState] = useState(EMPTY_STATE);
   const [items, setItems] = useState<ThreadItem[]>([]);
   const [draft, setDraft] = useState("");
-  const [annotationSession, setAnnotationSession] = useState<string>();
   const [composerError, setComposerError] = useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shouldFollowRef = useRef(true);
@@ -168,6 +167,6 @@ export function App() {
       </div>
     </main>
 
-    <Agentation className="ernie-agentation" endpoint="http://127.0.0.1:4747" {...(annotationSession ? { sessionId: annotationSession } : {})} onSessionCreated={setAnnotationSession} copyToClipboard={false} onSubmit={(output) => void send(output)} />
+    {import.meta.env.DEV && <Agentation copyToClipboard={false} onSubmit={(output) => void send(output)} />}
   </div>;
 }

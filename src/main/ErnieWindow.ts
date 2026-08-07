@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, session, type IpcMainInvokeEvent } from "electron";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -75,10 +75,7 @@ export const hardenElectron = Effect.sync(() => {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.on("will-download", (event) => event.preventDefault());
   app.on("web-contents-created", (_event, contents) => {
-    contents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith("https://agentation.dev/") || url.startsWith("https://github.com/benjitaylor/agentation")) void shell.openExternal(url);
-      return { action: "deny" };
-    });
+    contents.setWindowOpenHandler(() => ({ action: "deny" }));
     contents.on("will-navigate", (event, url) => { if (url !== contents.getURL()) event.preventDefault(); });
   });
 });

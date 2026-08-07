@@ -2,13 +2,13 @@
 
 ## Direction
 
-Ernie Dev uses a compact developer-workbench composition: a 228 px project rail, a centered conversation, a quiet top toolbar, secondary tool traces, and a floating composer. The interface is authored as semantic React DOM so official Agentation can inspect real elements.
+Ernie Dev uses a compact developer-workbench composition: a 228 px project rail, a centered conversation, a quiet top toolbar, secondary tool traces, and a floating composer.
 
 ## Visual System
 
 - Near-black neutral surfaces with low-contrast structural borders.
 - Platform sans typography; monospace only for commands, diagnostics, and usage figures.
-- Restrained radii and shadows, reserved mainly for the composer and annotation popovers.
+- Restrained radii and shadows, reserved mainly for the composer and temporary overlays.
 - Muted status colors; errors and active work never rely on color alone.
 - No redundant E mark, DEV pill, or simulated native branding.
 
@@ -19,7 +19,6 @@ Ernie Dev uses a compact developer-workbench composition: a 228 px project rail,
 - Conversation width is capped at 730 px for readable prose.
 - Tool calls are collapsible records with running/done/failed states.
 - The composer floats within the transcript measure and swaps Send for Stop while streaming.
-- The official Agentation toolbar is upstream UI rendered in a portal above the application.
 
 ## Interaction
 
@@ -29,7 +28,6 @@ Ernie Dev uses a compact developer-workbench composition: a 228 px project rail,
 - Auto-follow occurs only while the reader remains near the bottom.
 - Reduced-motion preference removes decorative animation.
 - New thread clears the visible transcript only after an authoritative non-cancelled RPC response.
-- Agentation hover, selection, comment, drawing, and submission behavior belongs to the official package.
 
 ## Responsive and Accessibility Rules
 
@@ -40,4 +38,4 @@ Ernie Dev uses a compact developer-workbench composition: a 228 px project rail,
 
 ## Security-Shaped Design
 
-The renderer has no Node integration, generic IPC, webview, shell, or filesystem access. Content Security Policy permits the app itself and the fixed loopback Agentation endpoint only. Navigation, popups, permissions, and downloads are denied in main. These are product guarantees rather than invisible implementation details.
+The renderer has no Node integration, generic IPC, webview, shell, or filesystem access. Content Security Policy permits application resources only. Navigation, popups, permissions, and downloads are denied in main. These are product guarantees rather than invisible implementation details.

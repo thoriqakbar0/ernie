@@ -42,4 +42,5 @@ export type SessionTranscriptEvent =
   | { readonly kind: "assistant_end"; readonly activeSessionId: string; readonly messageId: string; readonly blocks: readonly SessionTranscriptTextBlock[] }
   | { readonly kind: "user_message"; readonly activeSessionId: string; readonly message: SessionTranscriptMessage }
   | ({ readonly activeSessionId: string } & SessionTranscriptTool)
+  | { readonly kind: "connection"; readonly activeSessionId: string; readonly state: "reconnecting" | "connected" }
   | { readonly kind: "closed"; readonly activeSessionId: string };

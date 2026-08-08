@@ -22,14 +22,15 @@ function formatTokens(value: number): string {
   return String(value);
 }
 
-function ChatComposer({ state, onAppendUser }: { readonly state: AgentState; readonly onAppendUser?: (text: string) => void }) {
+function ChatComposer({ state, connectionReady = true, onAppendUser }: { readonly state: AgentState; readonly connectionReady?: boolean; readonly onAppendUser?: (text: string) => void }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [commands, setCommands] = useState<readonly AgentSlashCommand[]>([]);
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const matches = useMemo(() => commandMenuDismissed ? [] : matchingCommands(commands, draft), [commands, commandMenuDismissed, draft]);
-  const disabled = state.connection !== "ready" || state.isCompacting || state.switchingExecutionTo !== undefined;
+  const runtimeUnavailable = state.connection === "failed" || state.connection === "closed";
+  const disabled = !connectionReady || state.connection !== "ready" || state.isCompacting || state.switchingExecutionTo !== undefined;
 
   useEffect(() => {
     if (state.connection !== "ready") return;
@@ -74,9 +75,15 @@ function ChatComposer({ state, onAppendUser }: { readonly state: AgentState; rea
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); }
   };
   const submit = (event: FormEvent) => { event.preventDefault(); void send(); };
-  const placeholder = disabled ? state.detail : state.isStreaming ? "Steer the current run…" : "Message Prime Agent…";
+  const placeholder = !connectionReady ? "Reconnecting to Prime Agent…"
+    : runtimeUnavailable ? "Prime Agent unavailable"
+    : state.isCompacting ? "Compacting conversation…"
+    : state.switchingExecutionTo !== undefined ? "Switching execution target…"
+    : state.isStreaming ? "Steer the current run…"
+    : "Message Prime Agent…";
 
   return <div className="chat-composer-wrap">
+    {runtimeUnavailable && state.detail && <div className="chat-runtime-error" role="alert"><strong>Prime Agent is unavailable</strong><p>{state.detail}</p></div>}
     <ComposerAutocomplete commands={matches} activeIndex={commandIndex} onActiveIndexChange={setCommandIndex} onChoose={chooseCommand} />
     <form className="chat-composer" onSubmit={submit}>
       <textarea
@@ -112,12 +119,14 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, proj
   readonly projectLabel: string;
   readonly worktreeLabel: string;
 }) {
+  const runtimeUnavailable = state.connection === "failed" || state.connection === "closed";
+  const viewState = runtimeUnavailable ? "unavailable" : state.connection === "starting" ? "loading" : "ready";
   return <SessionTranscriptView
     agent={agent}
     items={items}
-    state="ready"
-    interactive
-    headerContext={`${projectLabel} · ${worktreeLabel} · Interactive`}
+    state={viewState}
+    interactive={state.connection === "ready"}
+    headerContext={`${projectLabel} · ${worktreeLabel} · ${runtimeUnavailable ? "Unavailable" : state.connection === "ready" ? "Interactive" : "Connecting"}`}
     onRetry={() => {}}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
     footer={<ChatComposer state={state} onAppendUser={onAppendUser} />}
@@ -132,7 +141,7 @@ export function SessionChatSurface({ agent, state, interactive, projectLabel, wo
   readonly worktreeLabel: string;
 }) {
   const [items, dispatch] = useReducer(sessionTranscriptReducer, []);
-  const [streamState, setStreamState] = useState<"loading" | "ready" | "error">("loading");
+  const [streamState, setStreamState] = useState<"loading" | "reconnecting" | "ready" | "error">("loading");
   const [retrySequence, setRetrySequence] = useState(0);
   const activeSessionId = agent.activeSessionId ?? agent.id;
 
@@ -143,7 +152,9 @@ export function SessionChatSurface({ agent, state, interactive, projectLabel, wo
     const unsubscribe = window.ernie.onSessionTranscriptEvent((event: SessionTranscriptEvent) => {
       if (active && event.activeSessionId === activeSessionId) {
         dispatch(event);
-        setStreamState(event.kind === "closed" ? "error" : "ready");
+        if (event.kind === "closed") setStreamState("error");
+        else if (event.kind === "connection") setStreamState(event.state === "reconnecting" ? "reconnecting" : "ready");
+        else setStreamState("ready");
       }
     });
     void window.ernie.selectSessionTranscript(activeSessionId)
@@ -156,14 +167,16 @@ export function SessionChatSurface({ agent, state, interactive, projectLabel, wo
     };
   }, [activeSessionId, retrySequence]);
 
+  const runtimeUnavailable = interactive && (state.connection === "failed" || state.connection === "closed");
+  const surfaceState = runtimeUnavailable ? "unavailable" : streamState;
   return <SessionTranscriptView
     agent={agent}
     items={items}
-    state={streamState}
-    interactive={interactive}
-    headerContext={`${projectLabel} · ${worktreeLabel} · ${interactive ? "Interactive" : "Read only"}`}
+    state={surfaceState}
+    interactive={interactive && !runtimeUnavailable}
+    headerContext={`${projectLabel} · ${worktreeLabel} · ${runtimeUnavailable ? "Unavailable" : interactive ? "Interactive" : "Read only"}`}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
-    footer={interactive ? <ChatComposer state={state} /> : undefined}
+    footer={interactive ? <ChatComposer state={state} connectionReady={streamState === "ready"} /> : undefined}
   />;
 }

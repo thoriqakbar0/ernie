@@ -2,12 +2,14 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, UIEvent, WheelEvent } from "react";
 import type { WorkspaceAgent } from "../../shared/workspace";
 import type { ThreadItem } from "./transcript";
-import { VirtualTranscript } from "./VirtualTranscript";
 import { AccessibleTranscriptDialog } from "./AccessibleTranscriptDialog";
+import { VirtualTranscript } from "./VirtualTranscript";
 
 function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string {
   if (agent.status === "working") return "Working";
-  if (agent.status === "failed") return "Unavailable";
+  if (agent.status === "failed") return "Failed";
+  if (agent.status === "completed") return "Completed";
+  if (agent.status === "cancelled") return "Cancelled";
   if (agent.status === "disconnected") return "Disconnected";
   if (agent.status === "waiting") return "Waiting";
   return interactive ? "Ready" : "Read only";
@@ -17,7 +19,7 @@ function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string 
 export function SessionTranscriptView({ agent, items, state, onRetry, renderItem, interactive = false, footer, headerContext }: {
   readonly agent: WorkspaceAgent;
   readonly items: readonly ThreadItem[];
-  readonly state: "loading" | "ready" | "error";
+  readonly state: "loading" | "reconnecting" | "ready" | "error" | "unavailable";
   readonly onRetry: () => void;
   readonly renderItem: (item: ThreadItem) => ReactNode;
   readonly interactive?: boolean;
@@ -51,22 +53,39 @@ export function SessionTranscriptView({ agent, items, state, onRetry, renderItem
     const element = scrollRef.current;
     if (element) element.scrollTo({ top: element.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
-  const empty = <section className="session-transcript-empty" role={state === "error" ? "alert" : "status"}>
-    <strong>{state === "loading" ? "Loading session…" : state === "error" ? "Unable to attach to this live session" : "No messages yet"}</strong>
-    <p>{state === "error" ? "The session remains safe and unchanged." : interactive ? "Send a message to start working with Prime Agent." : "Messages will appear here as the session runs."}</p>
+  const terminal = agent.status === "completed" || agent.status === "cancelled" || agent.status === "failed" || agent.status === "disconnected";
+  const statusLabel = state === "loading" ? "Connecting"
+    : state === "reconnecting" ? "Reconnecting"
+    : state === "error" ? "Connection lost"
+    : state === "unavailable" ? "Unavailable"
+    : sessionStateLabel(agent, interactive);
+  const emptyTitle = state === "loading" ? "Connecting to Prime Agent…"
+    : state === "reconnecting" ? "Reconnecting to session…"
+    : state === "error" ? "Unable to attach to this live session"
+    : state === "unavailable" ? "Prime Agent is unavailable"
+    : "No messages yet";
+  const emptyCopy = state === "error" ? "The session remains safe and unchanged."
+    : state === "reconnecting" ? "Existing messages remain available while Ernie restores live updates."
+    : state === "unavailable" ? "Review the recovery details below, then retry when Prime Agent is available."
+    : interactive ? "Send a message to start working with Prime Agent."
+    : terminal ? "This session has no messages."
+    : "Messages will appear here as the session runs.";
+  const empty = <section className="session-transcript-empty" role={state === "error" ? "alert" : undefined}>
+    <strong>{emptyTitle}</strong><p>{emptyCopy}</p>
     {state === "error" && <button type="button" onClick={onRetry}>Retry connection</button>}
   </section>;
   return <section className="session-transcript-view" aria-labelledby="selected-session-title">
+    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{state === "error" ? "" : `Session status: ${statusLabel}`}</div>
     <header className="session-transcript-heading">
       <div><span>{headerContext ?? (agent.runtimeKind === "subagent" ? "Subagent session" : "Agent session")}</span><h1 id="selected-session-title">{agent.name}</h1></div>
-      <span className={`session-live-state ${state === "error" ? "failed" : agent.status}`}>{state === "loading" ? "Connecting" : state === "error" ? "Connection lost" : sessionStateLabel(agent, interactive)}</span>
+      <span aria-hidden="true" className={`session-live-state ${state === "error" || state === "unavailable" ? "failed" : state === "reconnecting" ? "reconnecting" : agent.status}`}>{statusLabel}</span>
     </header>
     <div className="session-transcript-body">
-      <AccessibleTranscriptDialog items={items} assistantLabel={agent.name} promptLabel="Prompt" />
       {state === "error" && items.length > 0 && <div className="session-stream-error" role="alert"><span>Live updates stopped.</span><button type="button" onClick={onRetry}>Retry connection</button></div>}
       <VirtualTranscript items={items} scrollRef={scrollRef} busy={state === "ready" && agent.status === "working"} onScroll={onScroll} onWheel={onWheel} renderItem={renderItem} empty={empty} />
       {!following && <button type="button" className="jump-latest session-jump-latest" onClick={followLatest}>Jump to latest</button>}
     </div>
+    <AccessibleTranscriptDialog items={items} assistantLabel="Prime Agent" promptLabel="You" visuallyHiddenTrigger />
     {footer ?? <footer className="session-transcript-footer">Read-only session stream</footer>}
   </section>;
 }

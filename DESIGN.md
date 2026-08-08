@@ -2,7 +2,7 @@
 
 Ernie is a quiet desktop workspace for developers who run several Prime Agent sessions across several local directories. Live work should be easy to locate without turning the interface into a process monitor. Product behavior and security constraints live in [PRODUCT.md](./PRODUCT.md); this document owns the interface model, visual language, and interaction rules.
 
-The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces above, global Agents and Priority views below, and session tabs across the main work surface.
+The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces and Agents as peer sidebar modes, Priority nested within Agents, and session tabs across the main work surface.
 
 ## Design principles
 
@@ -44,39 +44,43 @@ The window has two stable regions: the unified sidebar and the tabbed session wo
 
 ### Unified workspace sidebar
 
-The leading sidebar follows the Herdr structure without borrowing its terminal visual styling.
+The leading sidebar follows the Herdr structure without borrowing its terminal visual styling. Its top-level tabs switch between **Spaces** and **Agents**, giving either inventory the full sidebar height without changing the current session tab. The two choices share one quiet selection surface and an authored outline icon family; **Agents** is the default mode so active work remains immediately visible.
 
 #### Spaces
 
-The upper region answers, “Where can agents work?”
+The Spaces mode answers, “Where can agents work?”
 
 - Show every user-opened space as one compact disclosure row.
 - The selected space uses a quiet filled state; a semantic status mark indicates whether it contains live work.
 - Expanding a space reveals its worktrees, but not its agents.
-- **Open folder** is available beside the Spaces heading and as a persistent action at the bottom.
+- **Open folder** is a persistent, two-line footer action that pairs the command with its purpose, **Add a local space**. When there are no spaces, the same action moves into the empty-state card instead of appearing twice.
 - Reserve the macOS title-bar safe area above the Ernie title. The title surface is draggable; every control remains non-draggable.
 
 #### Agents and Priority
 
-The lower region is a two-view tab set.
+The Agents mode contains a nested, quieter two-view segmented control. Its lower visual weight makes **All agents** and **Priority** read as filters within Agents rather than another peer navigation level. Priority remains subordinate because it is a computed projection of agents, not a peer workspace object.
 
 - **Agents** is the default global inventory across every space. Preserve authoritative root/subagent nesting and integrate `Space · Worktree` into each row’s supporting copy.
 - **Priority** is a global attention queue ordered Failed → Waiting → Working → Idle. Completed, Cancelled, and Disconnected agents do not enter the queue.
 - Selecting an agent focuses its space, opens its session tab once, and makes that tab active.
-- A row shows the agent name, location or priority reason, a semantic state mark, and an indeterminate activity bar only while working.
+- A row shows the agent name, explicit textual status, location or priority reason, a redundant semantic state mark, and an indeterminate activity bar only while working. Root/subagent relationships use nested list semantics rather than indentation alone.
 - Missing or cyclic parent relationships fail open as top-level agents instead of hiding work.
 - A newly commandable RPC conversation may appear before it has a persisted catalog record; render it as **New conversation** and reconcile it when identity becomes available.
+- At narrow effective widths—including zoomed desktop windows—the sidebar becomes a modal off-canvas drawer. It traps focus while open, keeps the session inert, and closes from its internal close control, Escape, the pointer scrim, or agent selection before restoring focus to the title-bar navigation control.
 
 ### Session workspace
 
 The main column answers, “What am I working on now?”
 
-- Global session tabs occupy the title-bar row. Tab copy integrates space context: `Session name · Space`.
+- Global session tabs occupy the title-bar row. Tab copy integrates status and space context: `Session name · Space · Status`. Tab sets use one roving tab stop, wrapping arrow/Home/End navigation, Delete or Backspace to close the focused tab, a pointer close affordance, and deterministic focus restoration after close.
 - Clicking a session opens its tab once; later clicks focus the existing tab.
-- Closing the active tab selects the nearest remaining tab. Closing the final tab returns to the empty state.
-- The transcript heading integrates project, worktree, and authority (`Interactive` or `Read only`) as one supporting line. Do not repeat this provenance as a separate badge stack.
+- Closing the active tab selects the nearest remaining tab. Closing the final tab returns focus to the session workspace empty state.
+- The transcript heading integrates space, worktree, and authority (`Interactive` or `Read only`) as one supporting line. Do not repeat this provenance as a separate badge stack.
 - A detached tab explains that its session is unavailable and that closing the view will not delete saved work.
 - Until targeted daemon-backed commands exist, non-root session surfaces remain read-only.
+- A transient daemon disconnect keeps the transcript visible, marks and politely announces **Reconnecting**, disables the composer, and resumes from an authoritative snapshot. Only an exhausted reconnect or daemon `session_closed` event becomes a terminal connection loss.
+- A root-runtime failure never leaves contradictory interactive copy. Show one **Unavailable** state, a persistent selectable recovery explanation outside the composer, and a short disabled placeholder.
+- The visible transcript remains virtualized, while assistive technology can open a paged, nonvirtual semantic history through a focus-revealed control.
 
 ## Session states
 
@@ -132,7 +136,7 @@ Use the native system stack. Interface text is compact but not monospaced; reser
 
 ## Motion
 
-- Disclosure and selection transitions use brief exponential ease-out timing.
+- Disclosure and selection transitions use brief exponential ease-out timing. The Spaces/Agents selection surface shifts spatially, while the incoming panel uses one restrained fade-and-lift.
 - The activity bar is the only continuous animation.
 - Do not animate idle decoration.
 - `prefers-reduced-motion` removes spatial transitions and converts running activity to a static signal.
@@ -141,7 +145,7 @@ Use the native system stack. Interface text is compact but not monospaced; reser
 
 - Every control uses a semantic button with a specific accessible name.
 - Keyboard focus must remain visible against every surface.
-- Tabs follow expected tablist semantics; session selection and tab closing are separate controls.
+- Tabs follow expected tablist semantics. Only tabs enter the composite’s accessibility tree; Delete or Backspace closes the focused tab while a separate pointer affordance remains visible.
 - Project and worktree navigation remains usable at 200% zoom and the minimum window size.
 - Forced-color mode must retain selection, focus, hierarchy, and status meaning.
 - Errors name the problem and recovery. Empty states explain what the place is and provide one next action.

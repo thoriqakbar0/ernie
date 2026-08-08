@@ -46,6 +46,7 @@ export function sessionTranscriptReducer(items: readonly ThreadItem[], event: Se
     case "assistant_end": return transcriptReducer(items, { type: "finish_assistant", id: event.messageId, segments: event.blocks.map((block) => [block.contentIndex, block.text] as const) });
     case "user_message": return transcriptReducer(items, { type: "append_user", id: event.message.messageId, text: messageText(event.message) });
     case "tool": return transcriptReducer(items, { type: "tool", id: `tool:${event.callId}`, event: projectTool(event) });
+    case "connection": return items;
     case "closed": return [...items, { id: `closed:${event.activeSessionId}`, kind: "notice", text: "This session is no longer live.", tone: "neutral" }];
   }
 }

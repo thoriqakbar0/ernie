@@ -34,6 +34,9 @@ export interface SessionTranscriptStreamOptions {
   readonly maxLineBytes?: number;
   readonly maxHistoryItems?: number;
   readonly requestTimeoutMs?: number;
+  /** Deterministic reconnect backoff; exhaustion closes the selected stream. */
+  readonly reconnectDelaysMs?: readonly number[];
+  readonly maxBufferedEvents?: number;
 }
 
 /** Returns Prime Agent's per-user default daemon endpoint. */
@@ -64,6 +67,12 @@ function record(value: unknown): RecordValue | null {
 }
 function requiredString(value: unknown): string | null { return typeof value === "string" && value.length > 0 ? value : null; }
 function nonNegativeInteger(value: unknown): number | null { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null; }
+function eventCursor(value: unknown): { readonly generation: string; readonly sequence: number } | undefined {
+  const cursor = record(value);
+  const generation = requiredString(cursor?.["generation"]);
+  const sequence = nonNegativeInteger(cursor?.["sequence"]);
+  return generation && sequence !== null ? { generation, sequence } : undefined;
+}
 function safeToolName(value: unknown): string { return typeof value === "string" && /^[a-zA-Z0-9_.:-]{1,128}$/.test(value) ? value : "tool"; }
 function status(value: unknown, isError: boolean): SessionTranscriptTool["status"] {
   if (value === "aborted") return "aborted";
@@ -170,10 +179,22 @@ class Connection {
   private assistantSequence = 0;
   private attaching = false;
   private bufferedEvents: SessionTranscriptEvent[] = [];
+  private lastEventCursor: { readonly generation: string; readonly sequence: number } | undefined;
+  private selectionEpoch = 0;
+  private reconnectScheduledEpoch: number | undefined;
+  private closing = false;
 
-  constructor(private readonly options: Required<SessionTranscriptStreamOptions>, eventsQueue: Queue.Queue<SessionTranscriptEvent>) { this.eventsQueue = eventsQueue; }
+  constructor(
+    private readonly options: Required<SessionTranscriptStreamOptions>,
+    eventsQueue: Queue.Queue<SessionTranscriptEvent>,
+    readonly reconnectSignals: Queue.Queue<void>,
+  ) { this.eventsQueue = eventsQueue; }
 
   connect(): Promise<void> {
+    const supersededHandshake = this.helloReject;
+    this.helloResolve = undefined;
+    this.helloReject = undefined;
+    supersededHandshake?.(this.error("connect", "Daemon handshake superseded by a newer connection"));
     this.socket?.destroy();
     this.socket = undefined;
     this.hello = false;
@@ -182,11 +203,11 @@ class Connection {
       this.helloReject = reject;
       const socket = createConnection(this.options.socketPath);
       this.socket = socket;
-      const timeout = setTimeout(() => this.fail("handshake", "Prime Agent daemon handshake timed out"), this.options.requestTimeoutMs);
+      const timeout = setTimeout(() => this.onTransportFailure("handshake", "Prime Agent daemon handshake timed out"), this.options.requestTimeoutMs);
       const finish = () => clearTimeout(timeout);
       socket.on("data", (chunk: Buffer) => { if (this.socket === socket) this.onChunk(chunk); });
-      socket.once("error", () => { if (this.socket === socket) this.fail("connect", "Unable to connect to the Prime Agent daemon"); });
-      socket.once("close", () => { if (this.socket === socket) this.fail("connection", "Prime Agent daemon connection closed"); });
+      socket.once("error", () => { if (this.socket === socket) this.onTransportFailure("connect", "Unable to connect to the Prime Agent daemon"); });
+      socket.once("close", () => { if (this.socket === socket) this.onTransportFailure("connection", "Prime Agent daemon connection closed"); });
       const originalResolve = this.helloResolve;
       this.helloResolve = () => { finish(); originalResolve?.(); };
       const originalReject = this.helloReject;
@@ -196,44 +217,65 @@ class Connection {
 
   async select(activeSessionId: string): Promise<SessionTranscriptSnapshot> {
     if (!activeSessionId || activeSessionId.length > 256) throw this.error("select", "Invalid session identity");
+    this.cancelReconnect();
     if (!this.hello) await this.connect();
     if (this.selected && this.selected !== activeSessionId) await this.request("detach", { activeSessionId: this.selected });
     this.selected = activeSessionId;
+    this.lastEventCursor = undefined;
+    return this.attachSelected(false);
+  }
+
+  private async attachSelected(reconnecting: boolean, expectedEpoch?: number): Promise<SessionTranscriptSnapshot> {
+    const activeSessionId = this.selected;
+    if (!activeSessionId) throw this.error("attach", "No session is selected");
     this.attaching = true;
     this.bufferedEvents = [];
-    this.activeAssistantId = undefined;
-    this.toolNames.clear();
-    this.ipythonExecutions.clear();
+    if (!reconnecting) {
+      this.activeAssistantId = undefined;
+      this.toolNames.clear();
+      this.ipythonExecutions.clear();
+    }
     let data: unknown;
     let attachAccepted = false;
     try {
       data = await this.request("attach", {
-      activeSessionId,
-      clientId: this.clientId,
-      capabilities: ["attach_snapshot", "event_sequence", "slim_attach"],
-      supportsExtensionUi: false,
+        activeSessionId,
+        clientId: this.clientId,
+        capabilities: ["attach_snapshot", "event_sequence", "slim_attach"],
+        supportsExtensionUi: false,
+        ...(this.lastEventCursor ? { resumeCursor: { activeSessionId, ...this.lastEventCursor } } : {}),
       });
       attachAccepted = true;
+      if (this.selected !== activeSessionId || (expectedEpoch !== undefined && this.selectionEpoch !== expectedEpoch)) {
+        attachAccepted = false;
+        throw this.error("attach", "Session selection changed while attaching");
+      }
       const snapshot = projectSnapshot(activeSessionId, data, this.options.maxHistoryItems);
+      const response = record(data);
+      const observedCursor = eventCursor(response?.["lastEventCursor"])
+        ?? eventCursor(record(response?.["snapshot"])?.["lastEventCursor"]);
+      if (observedCursor) this.observeCursor(observedCursor);
       Queue.offerUnsafe(this.eventsQueue, snapshot);
       this.attaching = false;
       for (const event of this.bufferedEvents) Queue.offerUnsafe(this.eventsQueue, event);
       this.bufferedEvents = [];
       return snapshot;
     } catch (cause) {
-      if (attachAccepted) this.fail("attach", "Malformed attach snapshot");
-      else {
-        this.selected = undefined;
+      const ownsAttachment = expectedEpoch === undefined || this.selectionEpoch === expectedEpoch;
+      if (ownsAttachment) {
         this.attaching = false;
         this.bufferedEvents = [];
       }
+      if (attachAccepted && ownsAttachment) this.terminalFailure("attach", "Malformed attach snapshot");
       throw cause;
     }
   }
 
   async detach(): Promise<void> {
+    this.cancelReconnect();
     const selected = this.selected;
     this.selected = undefined;
+    this.lastEventCursor = undefined;
     this.activeAssistantId = undefined;
     this.toolNames.clear();
     this.ipythonExecutions.clear();
@@ -241,6 +283,8 @@ class Connection {
   }
 
   async close(): Promise<void> {
+    this.closing = true;
+    this.cancelReconnect();
     try { await this.detach(); } catch { /* The socket may already be gone; destroying it still owns cleanup. */ }
     this.socket?.destroy();
     this.socket = undefined;
@@ -250,7 +294,7 @@ class Connection {
     return new SessionTranscriptStreamError({ operation, message, ...(cause === undefined ? {} : { cause }) });
   }
 
-  private fail(operation: string, message: string): void {
+  private resetTransport(operation: string, message: string): SessionTranscriptStreamError {
     this.hello = false;
     const socket = this.socket;
     this.socket = undefined;
@@ -258,18 +302,82 @@ class Connection {
     this.carry = Buffer.alloc(0);
     this.attaching = false;
     this.bufferedEvents = [];
-    this.activeAssistantId = undefined;
-    this.toolNames.clear();
-    this.ipythonExecutions.clear();
-    const selected = this.selected;
-    this.selected = undefined;
-    if (selected) this.publish({ kind: "closed", activeSessionId: selected });
     const error = this.error(operation, message);
     this.helloReject?.(error);
     this.helloReject = undefined;
     this.helloResolve = undefined;
     for (const pending of this.pending.values()) { clearTimeout(pending.timeout); pending.reject(error); }
     this.pending.clear();
+    return error;
+  }
+
+  private onTransportFailure(operation: string, message: string): void {
+    this.resetTransport(operation, message);
+    if (this.selected && !this.closing) this.scheduleReconnect();
+  }
+
+  private terminalFailure(operation: string, message: string): void {
+    this.resetTransport(operation, message);
+    this.cancelReconnect();
+    const selected = this.selected;
+    this.selected = undefined;
+    this.lastEventCursor = undefined;
+    this.activeAssistantId = undefined;
+    this.toolNames.clear();
+    this.ipythonExecutions.clear();
+    if (selected) this.publish({ kind: "closed", activeSessionId: selected });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectScheduledEpoch !== undefined || !this.selected || this.closing) return;
+    this.reconnectScheduledEpoch = this.selectionEpoch;
+    this.publish({ kind: "connection", activeSessionId: this.selected, state: "reconnecting" });
+    Queue.offerUnsafe(this.reconnectSignals, undefined);
+  }
+
+  private cancelReconnect(): void {
+    this.selectionEpoch += 1;
+    this.reconnectScheduledEpoch = undefined;
+  }
+
+  reconnect(): Effect.Effect<void> {
+    const connection = this;
+    return Effect.gen(function* () {
+      const epoch = connection.reconnectScheduledEpoch;
+      const selected = connection.selected;
+      if (epoch === undefined || !selected || connection.closing || connection.selectionEpoch !== epoch) {
+        if (connection.reconnectScheduledEpoch === epoch) connection.reconnectScheduledEpoch = undefined;
+        return;
+      }
+      for (const delayMs of connection.options.reconnectDelaysMs) {
+        yield* Effect.sleep(Math.max(0, delayMs));
+        if (connection.closing || connection.selected !== selected || connection.selectionEpoch !== epoch) {
+          if (connection.reconnectScheduledEpoch === epoch) connection.reconnectScheduledEpoch = undefined;
+          return;
+        }
+        const recovered = yield* Effect.tryPromise({
+          try: () => connection.connect().then(async () => {
+            if (connection.closing || connection.selected !== selected || connection.selectionEpoch !== epoch) return false;
+            await connection.attachSelected(true, epoch);
+            return true;
+          }),
+          catch: (cause) => connection.error("reconnect", "Daemon reconnect attempt failed", cause),
+        }).pipe(Effect.catch(() => Effect.succeed(false)));
+        if (!recovered) continue;
+        if (connection.reconnectScheduledEpoch === epoch) connection.reconnectScheduledEpoch = undefined;
+        connection.publish({ kind: "connection", activeSessionId: selected, state: "connected" });
+        return;
+      }
+      if (!connection.closing && connection.selected === selected && connection.selectionEpoch === epoch) {
+        connection.terminalFailure("reconnect", "Unable to reconnect to the Prime Agent daemon");
+      }
+      if (connection.reconnectScheduledEpoch === epoch) connection.reconnectScheduledEpoch = undefined;
+    });
+  }
+
+  private observeCursor(cursor: { readonly generation: string; readonly sequence: number }): void {
+    const current = this.lastEventCursor;
+    if (!current || current.generation !== cursor.generation || cursor.sequence > current.sequence) this.lastEventCursor = cursor;
   }
 
   private request(command: "attach" | "detach", body: RecordValue): Promise<unknown> {
@@ -280,7 +388,7 @@ class Connection {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.pending.has(id)) return;
-        this.fail(command, `${command} timed out`);
+        this.onTransportFailure(command, `${command} timed out`);
       }, this.options.requestTimeoutMs);
       this.pending.set(id, { command, resolve, reject, timeout });
       this.socket?.write(`${JSON.stringify(envelope)}\n`, "utf8", (cause) => {
@@ -293,19 +401,26 @@ class Connection {
   }
 
   private publish(event: SessionTranscriptEvent): void {
-    if (this.attaching && event.kind !== "snapshot") this.bufferedEvents.push(event);
-    else Queue.offerUnsafe(this.eventsQueue, event);
+    if (this.attaching && event.kind !== "snapshot") {
+      if (this.bufferedEvents.length >= this.options.maxBufferedEvents) {
+        this.onTransportFailure("buffer", "Daemon event buffer exceeded the safe limit");
+        return;
+      }
+      this.bufferedEvents.push(event);
+      return;
+    }
+    Queue.offerUnsafe(this.eventsQueue, event);
   }
 
   private onChunk(chunk: Buffer): void {
     const combined = this.carry.length === 0 ? chunk : Buffer.concat([this.carry, chunk]);
-    if (combined.length > this.options.maxLineBytes && !combined.includes(0x0a)) { this.socket?.destroy(); this.fail("framing", "Daemon record exceeded the safe size limit"); return; }
+    if (combined.length > this.options.maxLineBytes && !combined.includes(0x0a)) { this.terminalFailure("framing", "Daemon record exceeded the safe size limit"); return; }
     let offset = 0;
     while (offset < combined.length) {
       const newline = combined.indexOf(0x0a, offset);
       if (newline < 0) break;
       const line = combined.subarray(offset, newline); offset = newline + 1;
-      if (line.length > this.options.maxLineBytes) { this.socket?.destroy(); this.fail("framing", "Daemon record exceeded the safe size limit"); return; }
+      if (line.length > this.options.maxLineBytes) { this.terminalFailure("framing", "Daemon record exceeded the safe size limit"); return; }
       if (line.length > 0) this.onLine(line);
     }
     this.carry = Buffer.from(combined.subarray(offset));
@@ -314,27 +429,33 @@ class Connection {
   private onLine(line: Buffer): void {
     let unknown: unknown;
     try { unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(line)) as unknown; }
-    catch { this.socket?.destroy(); this.fail("parse", "Daemon sent an invalid record"); return; }
+    catch { this.terminalFailure("parse", "Daemon sent an invalid record"); return; }
     const message = record(unknown);
-    if (!message) { this.socket?.destroy(); this.fail("parse", "Daemon sent an invalid envelope"); return; }
+    if (!message) { this.terminalFailure("parse", "Daemon sent an invalid envelope"); return; }
     const type = requiredString(message["type"]);
     if (!this.hello) {
       const protocol = record(message["protocol"]);
       const capabilities = message["serverCapabilities"];
       if (type !== "daemon_hello" || protocol?.["name"] !== PROTOCOL.name || protocol["version"] !== PROTOCOL.version || !Array.isArray(capabilities) || !capabilities.includes("attach_snapshot") || !capabilities.includes("event_sequence")) {
-        this.socket?.destroy(); this.fail("handshake", "Unsupported Prime Agent daemon protocol"); return;
+        this.terminalFailure("handshake", "Unsupported Prime Agent daemon protocol"); return;
       }
       this.hello = true; this.helloResolve?.(); this.helloResolve = undefined; this.helloReject = undefined; return;
     }
     if (type === "response") { this.onResponse(message); return; }
     if (type === "session_event") this.onSessionEvent(message);
-    else if (type === "session_closed" && requiredString(message["activeSessionId"]) === this.selected) this.publish({ kind: "closed", activeSessionId: this.selected });
+    else if (type === "session_closed" && requiredString(message["activeSessionId"]) === this.selected) {
+      const selected = this.selected;
+      this.cancelReconnect();
+      this.selected = undefined;
+      this.lastEventCursor = undefined;
+      this.publish({ kind: "closed", activeSessionId: selected });
+    }
   }
 
   private onResponse(message: RecordValue): void {
     const id = requiredString(message["id"]); if (!id) return;
     const pending = this.pending.get(id); if (!pending) return;
-    if (message["command"] !== pending.command || typeof message["success"] !== "boolean") { this.fail(pending.command, "Malformed daemon response"); return; }
+    if (message["command"] !== pending.command || typeof message["success"] !== "boolean") { this.terminalFailure(pending.command, "Malformed daemon response"); return; }
     clearTimeout(pending.timeout); this.pending.delete(id);
     if (!message["success"]) { pending.reject(this.error(pending.command, `Daemon rejected ${pending.command}`)); return; }
     pending.resolve(message["data"]);
@@ -343,6 +464,16 @@ class Connection {
   private onSessionEvent(message: RecordValue): void {
     const activeSessionId = requiredString(message["activeSessionId"]) ?? requiredString(record(message["meta"])?.["activeSessionId"]);
     if (!activeSessionId || activeSessionId !== this.selected) return;
+    const cursor = eventCursor(record(message["meta"])?.["cursor"]) ?? eventCursor(message["cursor"]);
+    const current = this.lastEventCursor;
+    if (cursor && current && !this.attaching) {
+      if (cursor.generation !== current.generation || cursor.sequence > current.sequence + 1) {
+        this.onTransportFailure("cursor", "Daemon event cursor changed unexpectedly");
+        return;
+      }
+      if (cursor.sequence <= current.sequence) return;
+    }
+    if (cursor) this.observeCursor(cursor);
     const event = record(message["event"]); if (!event) return;
     const type = requiredString(event["type"]);
     if (type === "message_start") {
@@ -407,16 +538,26 @@ class Connection {
 export const make = (options: SessionTranscriptStreamOptions = {}) => Effect.acquireRelease(
   Effect.gen(function* () {
     const eventsQueue = yield* Queue.unbounded<SessionTranscriptEvent>();
+    const reconnectSignals = yield* Queue.bounded<void>(1);
+    const configuredDelays = options.reconnectDelaysMs?.filter((delay) => Number.isSafeInteger(delay) && delay >= 0).slice(0, 16);
     const connection = new Connection({
       socketPath: options.socketPath ?? defaultSessionTranscriptSocketPath(),
       maxLineBytes: options.maxLineBytes ?? DEFAULT_MAX_LINE_BYTES,
       maxHistoryItems: options.maxHistoryItems ?? DEFAULT_MAX_HISTORY_ITEMS,
       requestTimeoutMs: options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
-    }, eventsQueue);
+      reconnectDelaysMs: configuredDelays ?? [100, 250, 500, 1_000, 2_000, 5_000],
+      maxBufferedEvents: options.maxBufferedEvents && Number.isSafeInteger(options.maxBufferedEvents)
+        ? Math.max(1, Math.min(options.maxBufferedEvents, 16_384))
+        : 2_048,
+    }, eventsQueue, reconnectSignals);
     return connection;
   }),
   (connection) => Effect.promise(() => connection.close()),
 ).pipe(Effect.flatMap((connection) => Effect.gen(function* () {
+  yield* Stream.fromQueue(connection.reconnectSignals).pipe(
+    Stream.runForEach(() => connection.reconnect()),
+    Effect.forkScoped,
+  );
   const selectionLock = yield* Semaphore.make(1);
   const select = (activeSessionId: string) => selectionLock.withPermits(1)(Effect.tryPromise({
     try: () => connection.select(activeSessionId),

@@ -19,6 +19,7 @@ A successful session lets a developer send or steer work, watch assistant text, 
 - Strict LF framing, fatal UTF-8 decoding, bounded records/stderr, correlated requests, timeouts, and fail-closed child lifecycle.
 - Incremental assistant text, tool and delegation lifecycles, session state, token/context usage, cost, abort, new session, compaction, and preserved Prime Agent model/thinking RPC fidelity.
 - Persisted multi-project directory catalog, read-only worktree/session mapping, root/subagent hierarchy, global session tabs, and observable child-agent summaries.
+- Resumable daemon transcript attachment with monotonic event cursors, authoritative snapshot replacement, bounded reconnect backoff, and scope-owned cleanup.
 - Sandboxed preload with a narrow, typed command/event contract; renderer receives no process, shell, or filesystem capability.
 
 ## Product Constraints

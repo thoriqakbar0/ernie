@@ -69,7 +69,7 @@ function WorktreeSessions({ worktree, agents, activeAgentId, onOpen }: {
   const rows = useMemo(() => flattenAgentHierarchy(agents), [agents]);
   return <section className="focused-worktree">
     <button type="button" className="focused-worktree-heading" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
-      <span className={`focused-chevron ${expanded ? "expanded" : ""}`}>›</span><Icon name="branch" /><strong>{worktree.label}</strong><small>{agents.length}</small>
+      <span className={`focused-chevron ${expanded ? "expanded" : ""}`}>›</span><Icon name="branch" /><strong>{worktree.label}</strong><small>{agents.length} {agents.length === 1 ? "session" : "sessions"}</small>
     </button>
     {expanded && <ul>{rows.map(({ agent, depth }) => <SessionRow key={agent.id} agent={agent} depth={depth} active={agent.id === activeAgentId} onOpen={onOpen} />)}</ul>}
   </section>;
@@ -114,25 +114,33 @@ function SessionTabs({ snapshot, openAgentIds, activeAgentId, onSelect, onClose 
   </div>;
 }
 
-function SessionSurface({ snapshot, agentId }: { readonly snapshot: WorkspaceSnapshot; readonly agentId: string | undefined }) {
+function SessionSurface({ snapshot, agentId, loading, activeProject }: {
+  readonly snapshot: WorkspaceSnapshot;
+  readonly agentId: string | undefined;
+  readonly loading: boolean;
+  readonly activeProject: WorkspaceProject | undefined;
+}) {
   const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
-  if (agentId === undefined) return <main className="focused-surface empty"><div><Icon name="folder" /><h1>Choose a session</h1><p>Select a session from the focused project navigator.</p></div></main>;
-  if (!agent) return <main className="focused-surface empty"><div><h1>Session unavailable</h1><p>This tab is detached. Closing it will not stop or delete the saved session.</p></div></main>;
+  if (loading) return <main className="focused-surface empty"><div><h1>Loading workspace…</h1><p>Finding your projects and Prime Agent sessions.</p></div></main>;
+  if (agentId === undefined) return <main className="focused-surface empty"><div><Icon name="folder" /><h1>No session open</h1><p>{activeProject ? `Select a session in ${activeProject.label} to open it in a tab.` : "Open a folder to add your first project."}</p></div></main>;
+  if (!agent) return <main className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its project. Closing this tab won’t delete saved work.</p></div></main>;
   const project = projectForAgent(snapshot, agent);
   const worktree = snapshot.worktrees.find((candidate) => candidate.id === agent.worktreeId);
+  const stateLabel = agent.status === "working" ? "Prime Agent is working" : statusText(agent.status);
   return <main className="focused-surface">
     <div className="focused-breadcrumb"><span>{project?.label ?? "Project"}</span><span>›</span><span>{worktree?.label ?? "Directory"}</span><span>›</span><strong>{agent.name}</strong></div>
     <section className="focused-session-overview">
       <h1>{agent.name}</h1>
-      <p>{agent.summary || "No task summary is available for this session."}</p>
-      <div className={`focused-run-state ${agent.status}`}><strong>{statusText(agent.status)}</strong>{agent.status === "working" && <ActivityBar />}</div>
+      <p>{agent.summary || "Prime Agent hasn’t added a task summary for this session."}</p>
+      <div className={`focused-run-state ${agent.status}`}><strong>{stateLabel}</strong>{agent.status === "working" && <ActivityBar />}</div>
     </section>
   </main>;
 }
 
-export function FocusedWorkspace({ snapshot, failed, onSnapshot }: {
+export function FocusedWorkspace({ snapshot, failed, loading, onSnapshot }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly failed: boolean;
+  readonly loading: boolean;
   readonly onSnapshot: (snapshot: WorkspaceSnapshot) => void;
 }) {
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(snapshot.projects[0]?.id);
@@ -191,17 +199,18 @@ export function FocusedWorkspace({ snapshot, failed, onSnapshot }: {
     <aside className="focused-project-panel" aria-label={activeProject ? `${activeProject.label} sessions` : "Project sessions"}>
       <header><h2>{activeProject?.label ?? "Projects"}</h2><p title={activeProject?.path}>{activeProject?.path ?? "Open a folder to begin."}</p></header>
       <div className="focused-project-content">
-        {failed && <p className="focused-message">Unable to refresh projects. Ernie will retry automatically.</p>}
+        {failed && <p className="focused-message">Unable to refresh projects. Ernie will try again automatically.</p>}
         {openError && <p className="focused-message error">{openError}</p>}
-        {!failed && activeProject && projectWorktrees.length === 0 && <p className="focused-message">No worktrees are available in this directory.</p>}
-        {!activeProject && <button type="button" className="open-first-project" onClick={() => { void openDirectory(); }}>Open folder…</button>}
+        {!failed && activeProject && projectWorktrees.length === 0 && <p className="focused-message">No worktrees or sessions were found in this project.</p>}
+        {loading && !activeProject && <p className="focused-message">Loading projects…</p>}
+        {!loading && !activeProject && <div className="focused-first-project"><p>Open a folder to add your first project.</p><button type="button" className="open-first-project" onClick={() => { void openDirectory(); }}>Open folder…</button></div>}
         {projectWorktrees.map((worktree) => <WorktreeSessions key={worktree.id} worktree={worktree} agents={snapshot.agents.filter((agent) => agent.worktreeId === worktree.id)} activeAgentId={activeAgentId} onOpen={openAgent} />)}
       </div>
     </aside>
     <section className="focused-main-column">
       <div className="focused-titlebar-drag" aria-hidden="true" />
       <SessionTabs snapshot={snapshot} openAgentIds={openAgentIds} activeAgentId={activeAgentId} onSelect={setActiveAgentId} onClose={closeAgent} />
-      <SessionSurface snapshot={snapshot} agentId={activeAgentId} />
+      <SessionSurface snapshot={snapshot} agentId={activeAgentId} loading={loading} activeProject={activeProject} />
     </section>
   </div>;
 }

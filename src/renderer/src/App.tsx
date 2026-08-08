@@ -9,25 +9,27 @@ const EMPTY_WORKSPACE: WorkspaceSnapshot = { projects: [], worktrees: [], agents
 export function App() {
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot>(EMPTY_WORKSPACE);
   const [workspaceFailed, setWorkspaceFailed] = useState(false);
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     void window.ernie.getWorkspace().then((snapshot) => {
-      if (active) setWorkspace(snapshot);
+      if (active) { setWorkspace(snapshot); setWorkspaceLoading(false); }
     }).catch(() => {
-      if (active) setWorkspaceFailed(true);
+      if (active) { setWorkspaceFailed(true); setWorkspaceLoading(false); }
     });
     const unsubscribe = window.ernie.onAgentEvent((event) => {
       if (event.kind === "workspace") {
         setWorkspace(event.snapshot);
         setWorkspaceFailed(false);
+        setWorkspaceLoading(false);
       }
     });
     return () => { active = false; unsubscribe(); };
   }, []);
 
   return <main className="agentation-canvas" aria-label="Ernie workspace">
-    <FocusedWorkspace snapshot={workspace} failed={workspaceFailed} onSnapshot={setWorkspace} />
+    <FocusedWorkspace snapshot={workspace} failed={workspaceFailed} loading={workspaceLoading} onSnapshot={setWorkspace} />
     {import.meta.env.DEV && <Agentation
       endpoint="/__agentation"
       copyToClipboard={false}

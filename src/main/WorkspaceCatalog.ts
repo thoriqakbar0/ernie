@@ -352,11 +352,11 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
         if (!statSync(candidate).isDirectory()) throw new Error("Selected path is not a directory");
         return candidate;
       },
-      catch: (cause) => projectError("add-project", "The selected directory is unavailable", cause),
+      catch: (cause) => projectError("add-project", "Unable to open this folder. Choose a directory that exists and you can access.", cause),
     });
     const currentPaths = yield* Ref.get(projectPaths);
     if (currentPaths.includes(normalized)) return yield* refresh;
-    if (currentPaths.length >= MAX_PROJECTS) return yield* projectError("add-project", `A workspace can contain at most ${MAX_PROJECTS} projects`);
+    if (currentPaths.length >= MAX_PROJECTS) return yield* projectError("add-project", `Unable to open another folder. A workspace can contain at most ${MAX_PROJECTS} projects.`);
     const next = [...currentPaths, normalized];
     yield* persistProjects(next);
     yield* Ref.set(projectPaths, next);

@@ -16,11 +16,12 @@ function SubagentMark({ agentId, depth }: { readonly agentId: string; readonly d
   return <span className="focused-session-kind" title={`Subagent, depth ${depth}`}><Icon name={icon} /><span className="focused-session-depth" aria-hidden="true">{depth}</span></span>;
 }
 
-function SessionRow({ agent, active, context, depth = 0, onOpen }: {
+function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOpen }: {
   readonly agent: WorkspaceAgent;
   readonly active: boolean;
   readonly context: string;
   readonly depth?: number;
+  readonly entranceOrder?: number;
   readonly onOpen: (agent: WorkspaceAgent) => void;
 }) {
   const status = statusText(agent.status);
@@ -34,6 +35,7 @@ function SessionRow({ agent, active, context, depth = 0, onOpen }: {
     aria-current={active ? "page" : undefined}
     aria-label={fullLabel}
     title={fullLabel}
+    style={{ animationDelay: `calc(${entranceOrder} * var(--agent-row-stagger))` }}
     onClick={() => onOpen(agent)}
   >
     <span className="focused-session-copy">
@@ -142,14 +144,16 @@ interface AgentTreeNode {
   readonly agent: WorkspaceAgent;
   readonly context: string;
   readonly depth: number;
+  readonly entranceOrder: number;
   readonly children: AgentTreeNode[];
 }
 
 function agentTree(agents: readonly WorkspaceAgent[], contextForAgent: (agent: WorkspaceAgent) => string): readonly AgentTreeNode[] {
   const roots: AgentTreeNode[] = [];
   const stack: AgentTreeNode[] = [];
-  for (const { agent, depth } of flattenAgentHierarchy(agents)) {
-    const node: AgentTreeNode = { agent, context: contextForAgent(agent), depth, children: [] };
+  const flattened = flattenAgentHierarchy(agents);
+  for (const { agent, depth } of flattened) {
+    const node: AgentTreeNode = { agent, context: contextForAgent(agent), depth, entranceOrder: 0, children: [] };
     if (depth === 0) roots.push(node);
     else stack[depth - 1]?.children.push(node);
     stack.length = depth;
@@ -158,13 +162,25 @@ function agentTree(agents: readonly WorkspaceAgent[], contextForAgent: (agent: W
   return roots;
 }
 
+function orderAgentTreeEntrances(trees: readonly AgentTreeNode[]): readonly AgentTreeNode[] {
+  const count = (nodes: readonly AgentTreeNode[]): number => nodes.reduce((total, node) => total + 1 + count(node.children), 0);
+  const total = count(trees);
+  let displayIndex = 0;
+  const assign = (node: AgentTreeNode): AgentTreeNode => {
+    const entranceOrder = total - displayIndex - 1;
+    displayIndex += 1;
+    return { ...node, entranceOrder, children: node.children.map(assign) };
+  };
+  return trees.map(assign);
+}
+
 function AgentTreeRow({ node, activeAgentId, onOpenAgent }: {
   readonly node: AgentTreeNode;
   readonly activeAgentId: string | undefined;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   return <li>
-    <SessionRow agent={node.agent} context={node.context} depth={node.depth} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
+    <SessionRow agent={node.agent} context={node.context} depth={node.depth} entranceOrder={node.entranceOrder} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
       {node.children.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}
     </ul>}
@@ -180,14 +196,14 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
   if (view === "priority") {
     const agents = prioritizeRootAgents(snapshot.agents);
     if (agents.length === 0) return <p className="focused-message">Nothing needs attention right now.</p>;
-    return <ul className="workspace-agent-list">{agents.map((agent) => <li key={agent.id}>
-      <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={0} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
+    return <ul className="workspace-agent-list">{agents.map((agent, index) => <li key={agent.id}>
+      <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={0} entranceOrder={agents.length - index - 1} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
     </li>)}</ul>;
   }
-  const trees = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
+  const trees = orderAgentTreeEntrances(snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
     const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
     return worktree ? agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId), () => `${project.label} · ${worktree.label}`) : [];
-  }));
+  })));
   if (trees.length === 0) return <p className="focused-message">No agents are available yet.</p>;
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }

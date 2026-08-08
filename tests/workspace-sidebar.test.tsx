@@ -9,9 +9,19 @@ import type { WorkspaceSnapshot } from "../src/shared/workspace";
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 
 const snapshot = {
-  projects: [],
-  worktrees: [],
-  agents: [],
+  projects: [
+    { id: "/repo", path: "/repo", label: "repo", worktreeIds: ["/repo"] },
+    { id: "/other", path: "/other", label: "other", worktreeIds: ["/other"] },
+  ],
+  worktrees: [
+    { id: "/repo", path: "/repo", label: "main" },
+    { id: "/other", path: "/other", label: "main" },
+  ],
+  agents: [
+    { id: "root", sessionId: "root-session", worktreeId: "/repo", name: "Root", summary: "", status: "idle", runtimeKind: "root" },
+    { id: "child", sessionId: "child-session", worktreeId: "/repo", parentAgentId: "root", name: "Child", summary: "", status: "idle", runtimeKind: "subagent" },
+    { id: "other", sessionId: "other-session", worktreeId: "/other", name: "Other", summary: "", status: "idle", runtimeKind: "root" },
+  ],
   updatedAt: "2026-08-08T00:00:00.000Z",
 } satisfies WorkspaceSnapshot;
 
@@ -43,6 +53,11 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     const disclosure = container.querySelector<HTMLButtonElement>(".workspace-agents-disclosure");
     expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
     expect(container.querySelector("#agent-list-panel")).not.toBeNull();
+    const rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .focused-session-row");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.style.animationDelay).toBe("calc(2 * var(--agent-row-stagger))");
+    expect(rows[1]?.style.animationDelay).toBe("calc(1 * var(--agent-row-stagger))");
+    expect(rows[2]?.style.animationDelay).toBe("calc(0 * var(--agent-row-stagger))");
 
     await act(async () => disclosure?.click());
     expect(disclosure?.getAttribute("aria-expanded")).toBe("false");

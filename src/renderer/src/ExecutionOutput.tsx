@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { HighlightedCode } from "./HighlightedCode";
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   bash: "Shell", c: "C", cc: "C++", cpp: "C++", css: "CSS", ex: "Elixir", exs: "Elixir",
@@ -57,7 +58,7 @@ export function ExecutionOutput({ detail, language }: { readonly detail: string;
           const fileLabelId = `${labelId}-${index}`;
           return <section className="execution-file" aria-labelledby={fileLabelId} key={`${file.name}-${index}`}>
             <header><strong id={fileLabelId}>{file.name}</strong><span>{file.language}</span></header>
-            <pre tabIndex={0}><code>{file.content}</code></pre>
+            <pre tabIndex={0}><HighlightedCode code={file.content} language={file.language} /></pre>
           </section>;
         })}
       </div>}

@@ -25,7 +25,7 @@ function projectSnapshot(event: Extract<SessionTranscriptEvent, { readonly kind:
   let items: readonly ThreadItem[] = [];
   for (const item of event.items) {
     if (item.kind === "message") {
-      if (item.role === "user") items = transcriptReducer(items, { type: "append_user", id: item.messageId, text: messageText(item) });
+      if (item.role === "user") items = transcriptReducer(items, { type: "append_user", id: item.messageId, text: messageText(item), steered: item.steered });
       else {
         items = transcriptReducer(items, { type: "start_assistant", id: item.messageId });
         items = transcriptReducer(items, { type: "finish_assistant", id: item.messageId, segments: item.blocks.map((block) => [block.contentIndex, block.text] as const) });
@@ -44,7 +44,7 @@ export function sessionTranscriptReducer(items: readonly ThreadItem[], event: Se
     case "assistant_start": return transcriptReducer(items, { type: "start_assistant", id: event.messageId });
     case "assistant_delta": return transcriptReducer(items, { type: "append_assistant", id: event.messageId, segments: [[event.contentIndex, event.delta]] });
     case "assistant_end": return transcriptReducer(items, { type: "finish_assistant", id: event.messageId, segments: event.blocks.map((block) => [block.contentIndex, block.text] as const) });
-    case "user_message": return transcriptReducer(items, { type: "append_user", id: event.message.messageId, text: messageText(event.message) });
+    case "user_message": return transcriptReducer(items, { type: "append_user", id: event.message.messageId, text: messageText(event.message), steered: event.message.steered });
     case "tool": return transcriptReducer(items, { type: "tool", id: `tool:${event.callId}`, event: projectTool(event) });
     case "connection": return items;
     case "closed": return [...items, { id: `closed:${event.activeSessionId}`, kind: "notice", text: "This session is no longer live.", tone: "neutral" }];

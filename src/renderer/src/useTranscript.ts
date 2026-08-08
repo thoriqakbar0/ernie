@@ -82,7 +82,7 @@ export function useTranscript() {
 
   const appendUser = useCallback((text: string) => {
     streamRef.current?.finish();
-    dispatch({ type: "append_user", id: crypto.randomUUID(), text });
+    dispatch({ type: "append_user", id: crypto.randomUUID(), text, steered: false });
   }, []);
 
   const finish = useCallback(() => streamRef.current?.finish(), []);

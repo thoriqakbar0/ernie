@@ -28,6 +28,7 @@ function SessionRow({ agent, active, context, depth = 0, onOpen }: {
   const subagentDepth = isSubagent ? Math.max(1, depth) : 0;
   const fullLabel = [agent.name, isSubagent ? `Subagent, depth ${subagentDepth}` : undefined, status, context].filter(Boolean).join(" — ");
   return <button
+    id={`workspace-agent-${encodeURIComponent(agent.id)}`}
     type="button"
     className={`focused-session-row ${isSubagent ? "subagent" : "root-agent"} ${active ? "active" : ""}`}
     aria-current={active ? "page" : undefined}
@@ -190,7 +191,7 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
-export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, failed, opening, openError, compact, open, onClose, onSelectProject, onOpenAgent, onOpenDirectory }: {
+export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, failed, opening, openError, compact, open, revealAgent, onClose, onSelectProject, onOpenAgent, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly activeProjectId: string | undefined;
   readonly activeAgentId: string | undefined;
@@ -200,6 +201,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   readonly openError: string | undefined;
   readonly compact: boolean;
   readonly open: boolean;
+  readonly revealAgent: { readonly agentId: string; readonly requestId: number } | undefined;
   readonly onClose: () => void;
   readonly onSelectProject: (projectId: string) => void;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
@@ -212,7 +214,17 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
     const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [compact, open]);
-  const activeProject = snapshot.projects.find((project) => project.id === activeProjectId);
+  useLayoutEffect(() => {
+    if (!open || revealAgent === undefined) return;
+    if (agentView !== "agents") { setAgentView("agents"); return; }
+    const frame = requestAnimationFrame(() => {
+      const row = document.getElementById(`workspace-agent-${encodeURIComponent(revealAgent.agentId)}`);
+      if (!(row instanceof HTMLButtonElement)) return;
+      row.focus({ preventScroll: true });
+      row.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [agentView, open, revealAgent]);
   const priorityCount = prioritizeRootAgents(snapshot.agents).length;
   const workingWorktreeIds = new Set<string>();
   for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
@@ -229,7 +241,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
     onKeyDown={compact && open ? trapDrawerFocus : undefined}
   >
     <header className="workspace-sidebar-title">
-      <strong id="workspace-navigation-title">Ernie Dev</strong><span>{activeProject?.path ?? "Local agent workspace"}</span>
+      <strong id="workspace-navigation-title">ernie</strong>
       <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" onClick={onClose}><Icon name="close" /></button>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">Workspace status: {loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}</div>

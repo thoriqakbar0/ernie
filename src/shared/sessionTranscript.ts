@@ -7,12 +7,21 @@ export interface SessionTranscriptTextBlock {
 }
 
 /** A renderer-safe persisted chat message. Non-text provider content is omitted. */
-export interface SessionTranscriptMessage {
-  readonly kind: "message";
-  readonly messageId: string;
-  readonly role: "user" | "assistant";
-  readonly blocks: readonly SessionTranscriptTextBlock[];
-}
+export type SessionTranscriptMessage =
+  | {
+    readonly kind: "message";
+    readonly messageId: string;
+    readonly role: "user";
+    /** Admission behavior is only known for renderer-owned live sends. */
+    readonly steered: boolean;
+    readonly blocks: readonly SessionTranscriptTextBlock[];
+  }
+  | {
+    readonly kind: "message";
+    readonly messageId: string;
+    readonly role: "assistant";
+    readonly blocks: readonly SessionTranscriptTextBlock[];
+  };
 
 /** The visible lifecycle of a tool call, without arguments, paths, or raw results. */
 export interface SessionTranscriptTool {
@@ -40,7 +49,7 @@ export type SessionTranscriptEvent =
   | { readonly kind: "assistant_start"; readonly activeSessionId: string; readonly messageId: string }
   | { readonly kind: "assistant_delta"; readonly activeSessionId: string; readonly messageId: string; readonly contentIndex: number; readonly delta: string }
   | { readonly kind: "assistant_end"; readonly activeSessionId: string; readonly messageId: string; readonly blocks: readonly SessionTranscriptTextBlock[] }
-  | { readonly kind: "user_message"; readonly activeSessionId: string; readonly message: SessionTranscriptMessage }
+  | { readonly kind: "user_message"; readonly activeSessionId: string; readonly message: Extract<SessionTranscriptMessage, { readonly role: "user" }> }
   | ({ readonly activeSessionId: string } & SessionTranscriptTool)
   | { readonly kind: "connection"; readonly activeSessionId: string; readonly state: "reconnecting" | "connected" }
   | { readonly kind: "closed"; readonly activeSessionId: string };

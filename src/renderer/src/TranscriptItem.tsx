@@ -3,12 +3,23 @@ import { IPythonExecutionCard } from "./IPythonExecutionCard";
 import { MarkdownContent } from "./MarkdownContent";
 
 /** Shared transcript projection for interactive and read-only session chat surfaces. */
-export function TranscriptItem({ item, assistantLabel }: { readonly item: ThreadItem; readonly assistantLabel: string }) {
+export function TranscriptItem({ item, assistantLabel, assistantSubagentCount = 0, onShowAssistantHierarchy }: {
+  readonly item: ThreadItem;
+  readonly assistantLabel: string;
+  readonly assistantSubagentCount?: number;
+  readonly onShowAssistantHierarchy?: () => void;
+}) {
   switch (item.kind) {
     case "user":
-      return <article className="chat-message user"><div className="chat-message-role">You</div><div className="chat-message-copy"><MarkdownContent source={item.text} /></div></article>;
-    case "assistant":
-      return <article className="chat-message assistant"><div className="chat-message-role">{assistantLabel}</div><div className="chat-message-copy"><MarkdownContent source={assistantText(item)} trailing={item.active ? <span className="chat-stream-cursor" aria-label="Streaming" /> : undefined} /></div></article>;
+      return <article className="chat-message user"><div className="chat-message-role">{item.steered ? "You steered" : "You"}</div><div className="chat-message-copy"><MarkdownContent source={item.text} /></div></article>;
+    case "assistant": {
+      const subagentLabel = `${assistantSubagentCount} ${assistantSubagentCount === 1 ? "subagent" : "subagents"}`;
+      return <article className="chat-message assistant"><div className="chat-message-role">
+        {assistantSubagentCount > 0 && onShowAssistantHierarchy
+          ? <button type="button" className="chat-message-attribution" aria-label={`Show ${assistantLabel} with ${subagentLabel} in Grouped Agents`} onClick={onShowAssistantHierarchy}>{assistantLabel} <span>with {subagentLabel}</span></button>
+          : assistantLabel}
+      </div><div className="chat-message-copy"><MarkdownContent source={assistantText(item)} trailing={item.active ? <span className="chat-stream-cursor" aria-label="Streaming" /> : undefined} /></div></article>;
+    }
     case "ipython_execution":
       return <IPythonExecutionCard execution={item} />;
     case "tool":

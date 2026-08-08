@@ -133,7 +133,11 @@ function projectSnapshot(activeSessionId: string, value: unknown, maxHistoryItem
     if (!message) return;
     const role = message["role"];
     if (role === "user" || role === "assistant") {
-      items.push({ kind: "message", messageId: messageId(message, `snapshot:${rawMessages.length - selected.length + index}`), role, blocks: textBlocks(message) });
+      const projectedMessageId = messageId(message, `snapshot:${rawMessages.length - selected.length + index}`);
+      const blocks = textBlocks(message);
+      items.push(role === "user"
+        ? { kind: "message", messageId: projectedMessageId, role, steered: false, blocks }
+        : { kind: "message", messageId: projectedMessageId, role, blocks });
       if (role === "assistant" && Array.isArray(message["content"])) {
         for (const value of message["content"]) {
           const block = record(value);
@@ -498,7 +502,7 @@ class Connection {
         const id = this.activeAssistantId ?? messageId(msg, `live:${++this.assistantSequence}`);
         this.publish({ kind: "assistant_end", activeSessionId, messageId: id, blocks: textBlocks(msg) }); this.activeAssistantId = undefined;
       } else if (msg["role"] === "user") {
-        this.publish({ kind: "user_message", activeSessionId, message: { kind: "message", messageId: messageId(msg, `live:${++this.assistantSequence}`), role: "user", blocks: textBlocks(msg) } });
+        this.publish({ kind: "user_message", activeSessionId, message: { kind: "message", messageId: messageId(msg, `live:${++this.assistantSequence}`), role: "user", steered: false, blocks: textBlocks(msg) } });
       }
       return;
     }

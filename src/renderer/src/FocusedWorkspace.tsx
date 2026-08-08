@@ -7,7 +7,7 @@ import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface
 import { SpaceLaunchpad } from "./SpaceLaunchpad";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { Icon } from "./WorkspaceIcon";
-import { projectForAgent, statusText } from "./workspaceAgentPresentation";
+import { countAgentDescendants, projectForAgent, statusText } from "./workspaceAgentPresentation";
 import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./spaceLaunchPreferences";
 import type { ThreadItem } from "./transcript";
 import { horizontalTabStep } from "./tabKeyboardNavigation";
@@ -204,16 +204,17 @@ function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onSta
   />;
 }
 
-function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, onAppendLiveUser, onRuntimeState, onStarted }: {
+function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly agentId: string | undefined;
   readonly loading: boolean;
   readonly activeProject: WorkspaceProject | undefined;
   readonly runtimeState: SpaceRuntimeState | undefined;
   readonly liveItems: readonly ThreadItem[];
-  readonly onAppendLiveUser: (spaceId: string, text: string) => void;
+  readonly onAppendLiveUser: (spaceId: string, text: string, steered: boolean) => void;
   readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly onStarted: (agentId: string, prompt: string) => void;
+  readonly onShowAgentHierarchy: (agentId: string) => void;
 }) {
   const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
   if (loading) return <section className="focused-surface empty"><div><h1>Loading workspace…</h1><p>Finding your spaces and Prime Agent sessions.</p></div></section>;
@@ -231,10 +232,11 @@ function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeStat
   if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No spaces yet</h1><p>Open a folder to add your first space.</p></div></section>;
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
+  const assistantSubagentCount = countAgentDescendants(snapshot.agents, agent.id);
   const state = runtimeState?.agent;
-  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text)} spaceId={project?.id ?? activeProject?.id ?? ""} />;
+  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text, steered)} spaceId={project?.id ?? activeProject?.id ?? ""} assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
   const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);
-  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} />;
+  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
 }
 
 function useMediaQuery(query: string): boolean {
@@ -253,7 +255,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   readonly snapshot: WorkspaceSnapshot;
   readonly runtimeStates: ReadonlyMap<string, SpaceRuntimeState>;
   readonly liveItemsBySpace: ReadonlyMap<string, readonly ThreadItem[]>;
-  readonly onAppendLiveUser: (spaceId: string, text: string) => void;
+  readonly onAppendLiveUser: (spaceId: string, text: string, steered: boolean) => void;
   readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly failed: boolean;
   readonly loading: boolean;
@@ -296,6 +298,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   const [openError, setOpenError] = useState<string | undefined>();
   const compactNavigation = useMediaQuery("(max-width: 700px)");
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [agentRevealRequest, setAgentRevealRequest] = useState<{ readonly agentId: string; readonly requestId: number }>();
   const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const emptySessionFocusRef = useRef<HTMLElement>(null);
   const initialized = useRef(false);
@@ -377,7 +380,11 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   const started = (agentId: string, prompt: string) => {
     if (!activeProjectId) return;
     setSpaceTabs((state) => openSpaceSessionTab(state, activeProjectId, agentId));
-    onAppendLiveUser(activeProjectId, prompt);
+    onAppendLiveUser(activeProjectId, prompt, false);
+  };
+  const showAgentHierarchy = (agentId: string) => {
+    setAgentRevealRequest((current) => ({ agentId, requestId: (current?.requestId ?? 0) + 1 }));
+    if (compactNavigation) setNavigationOpen(true);
   };
   const openDirectory = async () => {
     setOpening(true); setOpenError(undefined);
@@ -389,13 +396,13 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   };
 
   return <div className="focused-workspace">
-    <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={!compactNavigation || navigationOpen} onClose={closeNavigation} onSelectProject={selectProject} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
+    <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={!compactNavigation || navigationOpen} revealAgent={agentRevealRequest} onClose={closeNavigation} onSelectProject={selectProject} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
     {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
     <section className="focused-main-column" aria-hidden={compactNavigation && navigationOpen} inert={compactNavigation && navigationOpen ? true : undefined}>
       <div className="focused-titlebar-drag" aria-hidden="true" />
       <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
       <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
-        <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} />
+        <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} />
       </section>
     </section>
   </div>;

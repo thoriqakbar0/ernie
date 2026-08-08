@@ -85,7 +85,7 @@ describe("assistant stream controller", () => {
 describe("transcript reducer", () => {
   it("updates one assistant identity without disturbing surrounding items", () => {
     const actions: readonly TranscriptAction[] = [
-      { type: "append_user", id: "user-1", text: "Question" },
+      { type: "append_user", id: "user-1", text: "Question", steered: false },
       { type: "start_assistant", id: "assistant-1" },
       { type: "append_assistant", id: "assistant-1", segments: [[0, "Answer"], [1, " continued"]] },
       { type: "finish_assistant", id: "assistant-1", segments: [[0, "Final"], [1, " answer"]] },
@@ -96,7 +96,7 @@ describe("transcript reducer", () => {
     const assistant = items.find((item) => item.kind === "assistant");
 
     expect(items).toHaveLength(2);
-    expect(items[0]).toMatchObject({ kind: "user", text: "Question" });
+    expect(items[0]).toMatchObject({ kind: "user", text: "Question", steered: false });
     expect(assistant?.kind).toBe("assistant");
     if (assistant?.kind === "assistant") {
       expect(assistantText(assistant)).toBe("Final answer");

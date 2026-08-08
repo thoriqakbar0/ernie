@@ -7,7 +7,7 @@ describe("selected session transcript projection", () => {
   it("renders a bounded snapshot with user, assistant, generic tool, and IPython execution rows", () => {
     const event: SessionTranscriptEvent = {
       kind: "snapshot", activeSessionId: "child-active", historyTruncated: true, items: [
-        { kind: "message", messageId: "u1", role: "user", blocks: [{ contentIndex: 0, text: "Review this" }] },
+        { kind: "message", messageId: "u1", role: "user", steered: false, blocks: [{ contentIndex: 0, text: "Review this" }] },
         { kind: "message", messageId: "a1", role: "assistant", blocks: [{ contentIndex: 0, text: "Working" }] },
         { kind: "tool", callId: "read-1", name: "read", phase: "end", status: "succeeded", detail: "done", ipython: false },
         { kind: "tool", callId: "ipy-1", name: "ipython", phase: "end", status: "succeeded", detail: "1", ipython: true,
@@ -31,5 +31,14 @@ describe("selected session transcript projection", () => {
     const item = items[0];
     expect(item?.kind === "assistant" ? assistantText(item) : null).toBe("Hello");
     expect(item?.kind === "assistant" ? item.active : null).toBe(false);
+  });
+
+  it("preserves a renderer-known steer admission on a live user message", () => {
+    const items = sessionTranscriptReducer([], {
+      kind: "user_message",
+      activeSessionId: "owned-session",
+      message: { kind: "message", messageId: "u-steer", role: "user", steered: true, blocks: [{ contentIndex: 0, text: "Change direction" }] },
+    });
+    expect(items).toEqual([{ id: "u-steer", kind: "user", text: "Change direction", steered: true }]);
   });
 });

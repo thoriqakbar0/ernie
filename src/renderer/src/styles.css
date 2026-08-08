@@ -130,6 +130,11 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .virtual-transcript-row.compact-execution-gap{padding-block-end:12px}
 .chat-message{width:min(68ch,100%);margin-inline:auto}
 .chat-message-role{margin-block-end:8px;color:var(--tertiary);font-size:12px;font-weight:620}
+.chat-message-attribution{position:relative;display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;color:var(--secondary);font-weight:620;text-align:start}
+.chat-message-attribution::before{content:"";position:absolute;inset:-11px -8px}
+.chat-message-attribution span{color:var(--tertiary);font-weight:500}
+.chat-message-attribution:hover{color:var(--text)}
+.chat-message-attribution:hover span{text-decoration:underline;text-decoration-color:rgba(255,255,255,.32);text-underline-offset:3px}
 .chat-message-copy{color:#d4d5d2;overflow-wrap:anywhere;font-size:16px;line-height:1.6}
 .chat-message.user .chat-message-copy{color:var(--text)}
 .markdown-content{min-width:0}
@@ -224,7 +229,8 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .ipython-execution-source>summary::after{content:"";position:absolute;inset-inline-end:7px;width:6px;height:6px;border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform 120ms ease}
 .ipython-execution-source[open]>summary::after{transform:rotate(225deg) translate(-1px,-1px)}
 .ipython-execution-heading-copy{min-width:0;display:flex;align-items:baseline;gap:9px}
-.ipython-execution-language{flex:0 0 auto;color:var(--secondary);font-size:11.5px;font-weight:620;letter-spacing:-.005em}
+.ipython-execution-language{width:20px;height:20px;flex:0 0 auto;display:grid;place-items:center;border-radius:5px;color:var(--secondary)}
+.ipython-execution-language svg{width:14px;height:14px;fill:currentColor;stroke:none}
 .ipython-execution-meta{min-width:0;display:flex;align-items:center;gap:0;color:var(--tertiary);font-size:9.5px;font-variant-numeric:tabular-nums}
 .ipython-execution-meta>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ipython-execution-meta>*+*::before{content:"·";margin-inline:5px;color:rgba(255,255,255,.3)}
@@ -268,8 +274,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-sidebar{min-width:0;min-height:0;display:grid;grid-template-rows:100px minmax(0,1fr);border-inline-end:1px solid var(--line);background:var(--panel)}
 .workspace-sidebar-title{position:relative;min-width:0;display:flex;flex-direction:column;justify-content:end;padding:var(--titlebar-safe-height) 14px 8px;border-block-end:1px solid var(--line);-webkit-app-region:drag}
 .workspace-sidebar-title strong{color:var(--text);font-size:15px;font-weight:680;letter-spacing:-.018em}
-.workspace-sidebar-title strong,.workspace-sidebar-title span{flex:0 0 auto;-webkit-app-region:no-drag}
-.workspace-sidebar-title span{overflow:hidden;margin-block-start:4px;color:var(--tertiary);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.workspace-sidebar-title strong{flex:0 0 auto;-webkit-app-region:no-drag}
 .workspace-sidebar-body{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(124px,42%) 1px minmax(160px,1fr);overflow:hidden}
 .workspace-projects,.workspace-sessions{min-width:0;min-height:0;display:grid;grid-template-rows:40px minmax(0,1fr);overflow:hidden}
 .workspace-section-heading{height:40px;display:flex;align-items:center;gap:8px;padding-inline:10px 6px;border-block-end:1px solid rgba(255,255,255,.045)}

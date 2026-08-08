@@ -86,9 +86,9 @@ export function useSpaceTranscripts() {
     handleAgentEvent(envelope.spaceId, envelope.event);
   }, [handleAgentEvent]);
 
-  const appendUser = useCallback((spaceId: string, text: string) => {
+  const appendUser = useCallback((spaceId: string, text: string, steered: boolean) => {
     streamFor(spaceId).finish();
-    dispatch({ spaceId, action: { type: "append_user", id: crypto.randomUUID(), text } });
+    dispatch({ spaceId, action: { type: "append_user", id: crypto.randomUUID(), text, steered } });
   }, [streamFor]);
 
   return { itemsBySpace, handleEvent, appendUser } as const;

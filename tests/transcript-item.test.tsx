@@ -1,0 +1,36 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { TranscriptItem } from "../src/renderer/src/TranscriptItem";
+
+describe("TranscriptItem assistant attribution", () => {
+  it("integrates a clickable session-level subagent count into the role label", () => {
+    const html = renderToStaticMarkup(<TranscriptItem
+      item={{ id: "answer", kind: "assistant", segments: ["Done."], active: false }}
+      assistantLabel="Prime Agent"
+      assistantSubagentCount={3}
+      onShowAssistantHierarchy={() => {}}
+    />);
+
+    expect(html).toContain("Prime Agent <span>with 3 subagents</span>");
+    expect(html).toContain("Show Prime Agent with 3 subagents in Grouped Agents");
+  });
+
+  it("keeps the role label inert when the session has no subagents", () => {
+    const html = renderToStaticMarkup(<TranscriptItem
+      item={{ id: "answer", kind: "assistant", segments: ["Done."], active: false }}
+      assistantLabel="Prime Agent"
+    />);
+
+    expect(html).toContain('<div class="chat-message-role">Prime Agent</div>');
+    expect(html).not.toContain("chat-message-attribution");
+  });
+
+  it("labels locally detected steer admissions", () => {
+    const html = renderToStaticMarkup(<TranscriptItem
+      item={{ id: "steer", kind: "user", text: "Change direction", steered: true }}
+      assistantLabel="Prime Agent"
+    />);
+
+    expect(html).toContain('<div class="chat-message-role">You steered</div>');
+  });
+});

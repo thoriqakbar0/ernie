@@ -1,5 +1,6 @@
-import { createElement, Fragment } from "react";
+import { createElement, Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
+import { HighlightedCode } from "./HighlightedCode";
 
 interface MarkdownListItem {
   readonly content: string;
@@ -255,7 +256,7 @@ function renderBlocks(blocks: readonly MarkdownBlock[], keyPrefix: string): read
       case "blockquote": return <blockquote key={key}>{renderBlocks(block.blocks, key)}</blockquote>;
       case "code": return <figure className="markdown-code" key={key}>
         {block.language && <figcaption>{languageLabel(block.language)}</figcaption>}
-        <pre tabIndex={0}><code>{block.code}</code></pre>
+        <pre tabIndex={0}><HighlightedCode code={block.code} language={block.language} /></pre>
       </figure>;
       case "heading": return createElement(`h${block.level}`, { key }, renderInline(block.content, key));
       case "list": {
@@ -277,5 +278,6 @@ function renderBlocks(blocks: readonly MarkdownBlock[], keyPrefix: string): read
 
 /** Renders semantic, dependency-free Markdown while treating raw HTML and unsafe links as inert text. */
 export function MarkdownContent({ source, trailing }: { readonly source: string; readonly trailing?: ReactNode }) {
-  return <div className={`markdown-content ${trailing ? "streaming" : ""}`}>{renderBlocks(parseMarkdown(source), "markdown")}{trailing}</div>;
+  const content = useMemo(() => renderBlocks(parseMarkdown(source), "markdown"), [source]);
+  return <div className={`markdown-content ${trailing ? "streaming" : ""}`}>{content}{trailing}</div>;
 }

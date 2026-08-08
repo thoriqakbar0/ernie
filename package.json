@@ -22,6 +22,10 @@
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.102",
+    "@shikijs/core": "4.4.2",
+    "@shikijs/engine-javascript": "4.4.2",
+    "@shikijs/langs": "4.4.2",
+    "@shikijs/themes": "4.4.2",
     "@tanstack/react-virtual": "^3.14.9",
     "effect": "4.0.0-beta.102",
     "react": "19.2.6",

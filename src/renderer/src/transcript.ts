@@ -2,7 +2,7 @@ import type { AgentEvent } from "../../shared/contract";
 
 /** One ordered, renderer-owned transcript record. */
 export type ThreadItem =
-  | { readonly id: string; readonly kind: "user"; readonly text: string }
+  | { readonly id: string; readonly kind: "user"; readonly text: string; readonly steered: boolean }
   | { readonly id: string; readonly kind: "assistant"; readonly segments: readonly string[]; readonly active: boolean }
   | { readonly id: string; readonly kind: "tool"; readonly callId: string; readonly name: string; readonly detail: string; readonly phase: "start" | "update" | "end"; readonly isError: boolean }
   | { readonly id: string; readonly kind: "ipython_execution"; readonly callId: string; readonly executionTarget: "local" | "modal" | "unknown"; readonly status: "running" | "succeeded" | "failed" | "aborted"; readonly code: string; readonly detail: string; readonly startedAt: number | null; readonly durationMs: number | null }
@@ -11,7 +11,7 @@ export type ThreadItem =
 
 /** Closed set of legal transcript state transitions. */
 export type TranscriptAction =
-  | { readonly type: "append_user"; readonly id: string; readonly text: string }
+  | { readonly type: "append_user"; readonly id: string; readonly text: string; readonly steered: boolean }
   | { readonly type: "start_assistant"; readonly id: string }
   | { readonly type: "append_assistant"; readonly id: string; readonly segments: ReadonlyArray<readonly [number, string]> }
   | { readonly type: "finish_assistant"; readonly id: string; readonly segments?: ReadonlyArray<readonly [number, string]> }
@@ -29,7 +29,7 @@ export function assistantText(item: Extract<ThreadItem, { readonly kind: "assist
 export function transcriptReducer(items: readonly ThreadItem[], action: TranscriptAction): readonly ThreadItem[] {
   switch (action.type) {
     case "append_user":
-      return [...items, { id: action.id, kind: "user", text: action.text }];
+      return [...items, { id: action.id, kind: "user", text: action.text, steered: action.steered }];
     case "start_assistant": {
       const existing = items.findIndex((item) => item.kind === "assistant" && item.id === action.id);
       if (existing >= 0) return items.map((item, index) => index === existing && item.kind === "assistant" ? { ...item, active: true } : item);

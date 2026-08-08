@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import type { AgentSlashCommand } from "../../shared/commands";
 import type { AgentState } from "../../shared/contract";
@@ -22,7 +22,19 @@ function formatTokens(value: number): string {
   return String(value);
 }
 
-function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser }: { readonly spaceId: string; readonly state: AgentState; readonly connectionReady?: boolean; readonly onAppendUser?: (text: string) => void }) {
+function transcriptMessageText(event: Extract<SessionTranscriptEvent, { readonly kind: "user_message" }>): string {
+  const segments: string[] = [];
+  for (const block of event.message.blocks) segments[block.contentIndex] = block.text;
+  return segments.join("");
+}
+
+function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser, onAdmissionHint }: {
+  readonly spaceId: string;
+  readonly state: AgentState;
+  readonly connectionReady?: boolean;
+  readonly onAppendUser?: (text: string, steered: boolean) => void;
+  readonly onAdmissionHint?: (text: string, steered: boolean) => () => void;
+}) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [commands, setCommands] = useState<readonly AgentSlashCommand[]>([]);
@@ -45,12 +57,21 @@ function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser }: 
     const message = draft.trim();
     if (!message || disabled) return;
     setError("");
-    const result = await window.ernie.spaceCommand(spaceId, { type: "prompt", message, behavior: state.isStreaming ? "steer" : "now" });
-    if (result.ok) {
-      onAppendUser?.(message);
-      setDraft("");
+    const steered = state.isStreaming;
+    const removeAdmissionHint = onAdmissionHint?.(message, steered);
+    try {
+      const result = await window.ernie.spaceCommand(spaceId, { type: "prompt", message, behavior: steered ? "steer" : "now" });
+      if (result.ok) {
+        onAppendUser?.(message, steered);
+        setDraft("");
+      } else {
+        removeAdmissionHint?.();
+        setError(result.error ?? "Unable to send this message. Try again.");
+      }
+    } catch {
+      removeAdmissionHint?.();
+      setError("Unable to send this message. Try again.");
     }
-    else setError(result.error ?? "Unable to send this message. Try again.");
   };
   const chooseCommand = (command: AgentSlashCommand) => {
     setDraft(`/${command.name} `);
@@ -111,12 +132,14 @@ function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser }: 
   </div>;
 }
 
-export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId }: {
+export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId, assistantSubagentCount, onShowAssistantHierarchy }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState;
   readonly items: readonly ThreadItem[];
-  readonly onAppendUser: (text: string) => void;
+  readonly onAppendUser: (text: string, steered: boolean) => void;
   readonly spaceId: string;
+  readonly assistantSubagentCount: number;
+  readonly onShowAssistantHierarchy: () => void;
 }) {
   const runtimeUnavailable = state.connection === "failed" || state.connection === "closed";
   const viewState = runtimeUnavailable ? "unavailable" : state.connection === "starting" ? "loading" : "ready";
@@ -126,29 +149,42 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spac
     state={viewState}
     interactive={state.connection === "ready"}
     onRetry={() => {}}
-    renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
+    renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
     footer={<ChatComposer spaceId={spaceId} state={state} onAppendUser={onAppendUser} />}
   />;
 }
 
-export function SessionChatSurface({ agent, state, interactive, spaceId }: {
+export function SessionChatSurface({ agent, state, interactive, spaceId, assistantSubagentCount, onShowAssistantHierarchy }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState | undefined;
   readonly interactive: boolean;
   readonly spaceId: string | undefined;
+  readonly assistantSubagentCount: number;
+  readonly onShowAssistantHierarchy: () => void;
 }) {
   const [items, dispatch] = useReducer(sessionTranscriptReducer, []);
   const [streamState, setStreamState] = useState<"loading" | "reconnecting" | "ready" | "error">("loading");
   const [retrySequence, setRetrySequence] = useState(0);
+  const pendingUserAdmissions = useRef<Array<{ readonly text: string; readonly steered: boolean; readonly expiresAt: number }>>([]);
   const activeSessionId = agent.activeSessionId ?? agent.id;
 
   useEffect(() => {
     let active = true;
+    pendingUserAdmissions.current = [];
     dispatch({ kind: "snapshot", activeSessionId, items: [], historyTruncated: false });
     setStreamState("loading");
     const unsubscribe = window.ernie.onSessionTranscriptEvent((event: SessionTranscriptEvent) => {
       if (active && event.activeSessionId === activeSessionId) {
-        dispatch(event);
+        let projectedEvent = event;
+        if (event.kind === "user_message") {
+          const now = Date.now();
+          pendingUserAdmissions.current = pendingUserAdmissions.current.filter((candidate) => candidate.expiresAt > now);
+          const messageText = transcriptMessageText(event);
+          const hintIndex = pendingUserAdmissions.current.findIndex((candidate) => candidate.text === messageText);
+          const hint = hintIndex < 0 ? undefined : pendingUserAdmissions.current.splice(hintIndex, 1)[0];
+          if (hint) projectedEvent = { ...event, message: { ...event.message, steered: hint.steered } };
+        }
+        dispatch(projectedEvent);
         if (event.kind === "closed") setStreamState("error");
         else if (event.kind === "connection") setStreamState(event.state === "reconnecting" ? "reconnecting" : "ready");
         else setStreamState("ready");
@@ -172,7 +208,11 @@ export function SessionChatSurface({ agent, state, interactive, spaceId }: {
     state={surfaceState}
     interactive={interactive && !runtimeUnavailable}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
-    renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
-    footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} /> : undefined}
+    renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
+    footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} onAdmissionHint={(text, steered) => {
+      const hint = { text, steered, expiresAt: Date.now() + 30_000 };
+      pendingUserAdmissions.current = [...pendingUserAdmissions.current.slice(-7), hint];
+      return () => { pendingUserAdmissions.current = pendingUserAdmissions.current.filter((candidate) => candidate !== hint); };
+    }} /> : undefined}
   />;
 }

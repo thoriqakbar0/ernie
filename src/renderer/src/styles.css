@@ -257,9 +257,9 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .execution-output-fold-content{position:relative}
 .execution-output-fold[data-expanded="true"] .execution-output-fold-content,.execution-output-fold[data-expanded="true"] .execution-output-fold-content>pre{max-height:none}
 .execution-output-fold[data-foldable="true"][data-expanded="false"] .execution-output-fold-content::after{content:"";position:absolute;inset:auto 0 0;height:var(--execution-output-fade-height);pointer-events:none;background:linear-gradient(transparent,var(--execution-output-fade))}
-.execution-output-fold-toggle{position:relative;display:block;min-height:32px;margin:5px auto 0;padding-inline:11px;border:1px solid var(--line);border-radius:999px;background:var(--raised);color:var(--secondary);font-size:10px;font-weight:600}
+.execution-output-fold-toggle{position:relative;display:block;min-height:32px;margin:5px auto 0;padding-inline:11px;border:1px solid transparent;border-radius:999px;background:transparent;color:var(--secondary);font-size:10px;font-weight:600}
 .execution-output-fold-toggle::before{content:"";position:absolute;inset:-4px}
-.execution-output-fold-toggle:hover{border-color:var(--line-strong);color:var(--text)}
+.execution-output-fold-toggle:hover{background:var(--hover);color:var(--text)}
 .execution-file-output{display:grid;gap:10px}
 .execution-output-preamble{padding:0 2px}
 .execution-file{--execution-output-fold-height:240px;--execution-output-fade-height:54px;--execution-output-fade:#0e0f0e;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#0e0f0e}

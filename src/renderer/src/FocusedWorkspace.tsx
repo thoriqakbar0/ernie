@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import type { AgentState } from "../../shared/contract";
 import type { AgentModelOption, SpaceRuntimeState } from "../../shared/spaceRuntime";
@@ -18,9 +18,10 @@ import {
   tabsForSpace,
 } from "./spaceSessionTabs";
 
-type IconName = "close" | "folder-add" | "sidebar" | "subagent-fork" | "subagent-network" | "subagent-waypoints" | "subagent-workflow";
+type IconName = "chevron" | "close" | "folder-add" | "sidebar" | "subagent-fork" | "subagent-network" | "subagent-waypoints" | "subagent-workflow";
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
+  chevron: <path d="m9 18 6-6-6-6" />,
   close: <path d="m6 6 8 8m0-8-8 8" />,
   "folder-add": <path d="M12 10v6m-3-3h6m5 7a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />,
   sidebar: <><rect x="2.5" y="2.5" width="15" height="15" rx="2" /><path d="M7.5 2.5v15m4-10 3 2.5-3 2.5" /></>,
@@ -104,16 +105,35 @@ function SpaceRow({ project, worktrees, active, hasWorkingAgent, onSelect }: {
   readonly hasWorkingAgent: boolean;
   readonly onSelect: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const worktreeListId = useId();
   const worktreeContext = worktrees.length === 1
     ? worktrees[0]?.label ?? "Local directory"
     : `${worktrees.length} worktrees`;
   const label = `${project.label}, ${worktreeContext}${hasWorkingAgent ? ", working" : ""}`;
   return <li className="workspace-project-node">
-    <button type="button" className={`workspace-project-row ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} aria-label={label} title={project.path} onClick={onSelect}>
-      <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
-      <strong>{project.label}</strong>
-      <small>{worktreeContext}</small>
-    </button>
+    <div className={`workspace-project-control ${active ? "active" : ""}`}>
+      <button type="button" className="workspace-project-row" aria-current={active ? "page" : undefined} aria-label={label} title={project.path} onClick={onSelect}>
+        <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
+        <strong>{project.label}</strong>
+        <small>{worktreeContext}</small>
+      </button>
+      {worktrees.length > 0 && <button
+        type="button"
+        className={`workspace-project-disclosure ${expanded ? "expanded" : ""}`}
+        aria-expanded={expanded}
+        aria-controls={worktreeListId}
+        aria-label={`${expanded ? "Hide" : "Show"} worktrees for ${project.label}`}
+        title={`${expanded ? "Hide" : "Show"} worktrees`}
+        onClick={() => setExpanded((current) => !current)}
+      ><Icon name="chevron" /></button>}
+    </div>
+    {expanded && worktrees.length > 0 && <ul id={worktreeListId} className="workspace-worktree-list" aria-label={`Worktrees for ${project.label}`}>
+      {worktrees.map((worktree) => <li key={worktree.id} className="workspace-worktree-row" title={worktree.path}>
+        <strong>{worktree.label}</strong>
+        <small>{worktree.path}</small>
+      </li>)}
+    </ul>}
   </li>;
 }
 

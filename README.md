@@ -2,7 +2,7 @@
 
 Ernie Dev is a secure, multi-directory Electron workbench for Prime Agent. It presents independent **Spaces** and **Agents** inventories, preserves Space-local session tabs, and combines interactive owned runtimes with read-only attachment to discovered root and subagent sessions.
 
-An empty Space opens a functional start surface with a first prompt, provider-qualified model selection, and an RLM max-depth selector. Depth defaults to `0` (root only); custom non-negative depths are supported. Development builds also include React Grab for source-aware interface feedback.
+An empty Space opens a functional start surface with a first prompt, provider-qualified model selection, and an RLM max-depth selector. Depth defaults to `0` (root only); custom non-negative depths are supported. Development builds include React Grab and Agentation for source-aware and persistent visual feedback.
 
 There is no terminal scraping, Native SDK layer, or global Prime Agent dependency.
 
@@ -24,11 +24,13 @@ ERNIE_RENDERER_PORT=5174 pnpm dev
 
 The runtime binaries are generated rather than stored in Git: the pinned Node executable is larger than GitHub's per-file limit, and the dereferenced Prime Agent package is several hundred megabytes. `pnpm runtime:vendor` copies the active Node and Prime Agent installations into `assets/runtime/` and records their versions in `assets/runtime/VERSIONS`.
 
-### React Grab
+### Interface feedback tools
 
-Development builds load [`react-grab`](https://react-grab.com) from the local dependency. Hover an element in Ernie, press **⌘C** (or **Ctrl+C**), then paste the copied component/source context into your coding agent. React Grab is excluded from production builds by the `import.meta.env.DEV` guard in `src/renderer/src/main.tsx`.
+Development builds load [`react-grab`](https://react-grab.com) from the local dependency. Hover an element in Ernie, press **⌘C** (or **Ctrl+C**), then paste the copied component/source context into your coding agent. Its project-local skill lives at `.prime/agent/skills/react-grab/SKILL.md`.
 
-The project-local React Grab agent skill lives at `.prime/agent/skills/react-grab/SKILL.md`. No feedback server, proxy, MCP service, or dedicated port is required.
+Agentation is also available for persistent visual annotations. `pnpm dev` starts an isolated in-memory Agentation service on `127.0.0.1:4748`, exposes it to the renderer through the same-origin `/__agentation` proxy, and cleans up only the service process it owns. MCP-aware clients discover the connection through `.mcp.json`; Prime Agent can read it through `.prime/agent/skills/agentation-dev`. Check the integration with `pnpm agentation:doctor`.
+
+Both renderer tools are guarded by `import.meta.env.DEV` and excluded from production builds.
 
 The app targets `/Users/thor/work/ernie` by default. Override it without exposing filesystem authority to the renderer:
 
@@ -79,7 +81,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing Space-addressed state, commands, model/start operations, workspace/session streams, local-server actions, and bounded clipboard writes.
-- `src/renderer/src/App.tsx` / `FocusedWorkspace.tsx` — independent Spaces/Agents navigation, Space-local tabs, keyed live runtime state, and development-only React Grab.
+- `src/renderer/src/App.tsx` / `FocusedWorkspace.tsx` — independent Spaces/Agents navigation, Space-local tabs, keyed live runtime state, and development-only React Grab plus Agentation.
 - `src/renderer/src/SpaceLaunchpad.tsx` — accessible T3-style first-thread form with functional model and RLM-depth configuration.
 - `src/renderer/src/spaceSessionTabs.ts`, `transcript.ts`, `sessionTranscript.ts`, and `spaceLaunchPreferences.ts` — pure Space-local navigation, transcript, and bounded preference state.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.

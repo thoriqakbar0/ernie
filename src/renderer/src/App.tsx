@@ -1,3 +1,4 @@
+import { Agentation } from "agentation";
 import { useCallback, useEffect, useState } from "react";
 import type { AgentState } from "../../shared/contract";
 import type { SpaceRuntimeState } from "../../shared/spaceRuntime";
@@ -71,5 +72,10 @@ export function App() {
       loading={workspaceLoading}
       onSnapshot={setWorkspace}
     />
+    {import.meta.env.DEV && <Agentation
+      endpoint="/__agentation"
+      copyToClipboard={false}
+      onCopy={(output) => { void window.ernie.copyText(output); }}
+    />}
   </main>;
 }

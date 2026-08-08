@@ -34,11 +34,11 @@ function Icon({ name }: { readonly name: IconName }) {
 
 const SUBAGENT_ICONS = ["subagent-fork", "subagent-workflow", "subagent-network", "subagent-waypoints"] as const;
 
-function SubagentMark({ agentId }: { readonly agentId: string }) {
+function SubagentMark({ agentId, depth }: { readonly agentId: string; readonly depth: number }) {
   let hash = 0;
   for (const character of agentId) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   const icon = SUBAGENT_ICONS[hash % SUBAGENT_ICONS.length] ?? "subagent-fork";
-  return <span className="focused-session-kind" title="Subagent"><Icon name={icon} /></span>;
+  return <span className="focused-session-kind" title={`Subagent, depth ${depth}`}><Icon name={icon} /><span className="focused-session-depth" aria-hidden="true">{depth}</span></span>;
 }
 
 function projectForAgent(snapshot: WorkspaceSnapshot, agent: WorkspaceAgent): WorkspaceProject | undefined {
@@ -66,15 +66,17 @@ function statusText(status: WorkspaceAgent["status"]): string {
   }
 }
 
-function SessionRow({ agent, active, context, onOpen }: {
+function SessionRow({ agent, active, context, depth = 0, onOpen }: {
   readonly agent: WorkspaceAgent;
   readonly active: boolean;
   readonly context: string;
+  readonly depth?: number;
   readonly onOpen: (agent: WorkspaceAgent) => void;
 }) {
   const status = statusText(agent.status);
   const isSubagent = agent.runtimeKind === "subagent";
-  const fullLabel = [agent.name, isSubagent ? "Subagent" : undefined, status, context].filter(Boolean).join(" — ");
+  const subagentDepth = isSubagent ? Math.max(1, depth) : 0;
+  const fullLabel = [agent.name, isSubagent ? `Subagent, depth ${subagentDepth}` : undefined, status, context].filter(Boolean).join(" — ");
   return <button
     type="button"
     className={`focused-session-row ${isSubagent ? "subagent" : "root-agent"} ${active ? "active" : ""}`}
@@ -85,7 +87,7 @@ function SessionRow({ agent, active, context, onOpen }: {
   >
     <span className={`focused-status ${agent.status}`} aria-hidden="true" />
     <span className="focused-session-copy">
-      <span className="focused-session-title"><strong>{agent.name}</strong>{isSubagent && <SubagentMark agentId={agent.id} />}</span>
+      <span className="focused-session-title"><strong>{agent.name}</strong>{isSubagent && <SubagentMark agentId={agent.id} depth={subagentDepth} />}</span>
       <small className="focused-session-meta"><span>{status}</span><span>{context}</span></small>
     </span>
     {agent.status === "working" && <ActivityBar />}
@@ -175,6 +177,7 @@ function agentContext(snapshot: WorkspaceSnapshot, agent: WorkspaceAgent): strin
 interface AgentTreeNode {
   readonly agent: WorkspaceAgent;
   readonly context: string;
+  readonly depth: number;
   readonly children: AgentTreeNode[];
 }
 
@@ -182,7 +185,7 @@ function agentTree(agents: readonly WorkspaceAgent[], contextForAgent: (agent: W
   const roots: AgentTreeNode[] = [];
   const stack: AgentTreeNode[] = [];
   for (const { agent, depth } of flattenAgentHierarchy(agents)) {
-    const node: AgentTreeNode = { agent, context: contextForAgent(agent), children: [] };
+    const node: AgentTreeNode = { agent, context: contextForAgent(agent), depth, children: [] };
     if (depth === 0) roots.push(node);
     else stack[depth - 1]?.children.push(node);
     stack.length = depth;
@@ -197,7 +200,7 @@ function AgentTreeRow({ node, activeAgentId, onOpenAgent }: {
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   return <li>
-    <SessionRow agent={node.agent} context={node.context} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
+    <SessionRow agent={node.agent} context={node.context} depth={node.depth} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
       {node.children.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}
     </ul>}
@@ -212,9 +215,10 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
 }) {
   if (view === "priority") {
     const agents = prioritizeAgents(snapshot.agents);
+    const depthByAgentId = new Map(flattenAgentHierarchy(snapshot.agents).map(({ agent, depth }) => [agent.id, depth]));
     if (agents.length === 0) return <p className="focused-message">Nothing needs attention right now.</p>;
     return <ul className="workspace-agent-list">{agents.map((agent) => <li key={agent.id}>
-      <SessionRow agent={agent} context={agentContext(snapshot, agent)} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
+      <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={depthByAgentId.get(agent.id) ?? 0} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
     </li>)}</ul>;
   }
   const trees = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {

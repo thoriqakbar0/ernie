@@ -81,8 +81,9 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .focused-session-copy small{margin-block-start:4px;color:var(--tertiary);font-size:12px}
 .focused-session-title{min-width:0;display:flex;align-items:center;gap:6px}
 .focused-session-title strong{min-width:0;flex:1}
-.focused-session-kind{flex:0 0 auto;display:grid;width:18px;height:18px;place-items:center;border-radius:5px;background:rgba(255,255,255,.055);color:var(--tertiary)}
+.focused-session-kind{position:relative;flex:0 0 auto;display:grid;width:18px;height:18px;place-items:center;border-radius:5px;background:rgba(255,255,255,.055);color:var(--tertiary)}
 .focused-session-kind svg{width:12px;height:12px;stroke-width:1.8}
+.focused-session-depth{position:absolute;inset-block-end:-4px;inset-inline-end:-5px;display:grid;min-width:12px;height:12px;padding-inline:2px;place-items:center;border:1px solid var(--line-strong);border-radius:999px;background:var(--panel);color:var(--secondary);font-size:8px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .focused-session-meta{min-width:0;display:flex!important;align-items:center;gap:0}
 .focused-session-meta>span{flex:0 0 auto}
 .focused-session-meta>span+span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

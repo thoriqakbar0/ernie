@@ -40,6 +40,7 @@
     "@vitejs/plugin-react": "5.1.4",
     "agentation": "3.0.2",
     "agentation-mcp": "1.2.0",
+    "dialkit": "1.4.3",
     "electron": "41.5.0",
     "electron-builder": "26.15.6",
     "electron-vite": "5.0.0",

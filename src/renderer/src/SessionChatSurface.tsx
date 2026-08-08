@@ -16,6 +16,10 @@ function SendIcon({ stop = false }: { readonly stop?: boolean }) {
     : <><path d="m3.5 10 13-6-4.6 12-2.1-4.2z" /><path d="m9.8 11.8 6.7-7.8" /></>}</svg>;
 }
 
+function assistantSourceLabel(agent: WorkspaceAgent): string {
+  return agent.runtimeKind === "subagent" ? `${agent.name} · Subagent` : "Prime Agent";
+}
+
 function formatTokens(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
   if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
@@ -132,13 +136,14 @@ function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser, on
   </div>;
 }
 
-export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId, assistantSubagentCount, onShowAssistantHierarchy }: {
+export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState;
   readonly items: readonly ThreadItem[];
   readonly onAppendUser: (text: string, steered: boolean) => void;
   readonly spaceId: string;
   readonly assistantSubagentCount: number;
+  readonly assistantRunningSubagentCount: number;
   readonly onShowAssistantHierarchy: () => void;
 }) {
   const runtimeUnavailable = state.connection === "failed" || state.connection === "closed";
@@ -149,17 +154,18 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spac
     state={viewState}
     interactive={state.connection === "ready"}
     onRetry={() => {}}
-    renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
+    renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
     footer={<ChatComposer spaceId={spaceId} state={state} onAppendUser={onAppendUser} />}
   />;
 }
 
-export function SessionChatSurface({ agent, state, interactive, spaceId, assistantSubagentCount, onShowAssistantHierarchy }: {
+export function SessionChatSurface({ agent, state, interactive, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState | undefined;
   readonly interactive: boolean;
   readonly spaceId: string | undefined;
   readonly assistantSubagentCount: number;
+  readonly assistantRunningSubagentCount: number;
   readonly onShowAssistantHierarchy: () => void;
 }) {
   const [items, dispatch] = useReducer(sessionTranscriptReducer, []);
@@ -208,7 +214,7 @@ export function SessionChatSurface({ agent, state, interactive, spaceId, assista
     state={surfaceState}
     interactive={interactive && !runtimeUnavailable}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
-    renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
+    renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
     footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} onAdmissionHint={(text, steered) => {
       const hint = { text, steered, expiresAt: Date.now() + 30_000 };
       pendingUserAdmissions.current = [...pendingUserAdmissions.current.slice(-7), hint];

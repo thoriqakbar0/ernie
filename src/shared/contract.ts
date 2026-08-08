@@ -2,6 +2,7 @@ import type { AgentSlashCommand } from "./commands";
 import type { WorkspaceSnapshot } from "./workspace";
 import type { DevServerSnapshot } from "./devServer";
 import type { SessionTranscriptEvent, SessionTranscriptSnapshot } from "./sessionTranscript";
+import type { RendererPerformanceSample } from "./performance";
 import type { AgentModelOption, SpaceAgentEvent, SpaceRuntimeState, StartSpaceInput } from "./spaceRuntime";
 
 export type ConnectionState = "starting" | "ready" | "failed" | "closed";
@@ -96,6 +97,8 @@ export interface ErnieApi {
   refreshDevServers(worktreeId: string): Promise<DevServerSnapshot>;
   openDevServer(worktreeId: string, port: number, url: string): Promise<CommandResult>;
   copyText(text: string): Promise<CommandResult>;
+  /** Read a rate-limited CPU and working-set sample for this renderer only. */
+  getRendererPerformance(): Promise<RendererPerformanceSample | null>;
   selectSessionTranscript(activeSessionId: string): Promise<SessionTranscriptSnapshot>;
   detachSessionTranscript(): Promise<void>;
   onSessionTranscriptEvent(listener: (event: SessionTranscriptEvent) => void): () => void;

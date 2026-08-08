@@ -8,11 +8,25 @@ describe("TranscriptItem assistant attribution", () => {
       item={{ id: "answer", kind: "assistant", segments: ["Done."], active: false }}
       assistantLabel="Prime Agent"
       assistantSubagentCount={3}
+      assistantRunningSubagentCount={2}
       onShowAssistantHierarchy={() => {}}
     />);
 
     expect(html).toContain("Prime Agent <span>with 3 subagents</span>");
-    expect(html).toContain("Show Prime Agent with 3 subagents in Grouped Agents");
+    expect(html).toContain("Show Prime Agent with 3 subagents, 2 running in Grouped Agents");
+    expect(html).toContain("chat-message-attribution running-subagents");
+  });
+
+  it("keeps waiting subagent attribution visible without the running shimmer", () => {
+    const html = renderToStaticMarkup(<TranscriptItem
+      item={{ id: "answer", kind: "assistant", segments: ["Waiting."], active: false }}
+      assistantLabel="Prime Agent"
+      assistantSubagentCount={1}
+      onShowAssistantHierarchy={() => {}}
+    />);
+
+    expect(html).toContain("Prime Agent <span>with 1 subagent</span>");
+    expect(html).not.toContain("running-subagents");
   });
 
   it("keeps the role label inert when the session has no subagents", () => {

@@ -6,8 +6,9 @@ import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot } from "../../
 import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface";
 import { SpaceLaunchpad } from "./SpaceLaunchpad";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
+import { PerformanceHud, PerformanceProfiler } from "./PerformanceHud";
 import { Icon } from "./WorkspaceIcon";
-import { countEngagedAgentDescendants, projectForAgent, statusText } from "./workspaceAgentPresentation";
+import { summarizeAgentDescendantActivity, projectForAgent, statusText } from "./workspaceAgentPresentation";
 import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./spaceLaunchPreferences";
 import type { ThreadItem } from "./transcript";
 import { horizontalTabStep } from "./tabKeyboardNavigation";
@@ -232,11 +233,13 @@ function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeStat
   if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No spaces yet</h1><p>Open a folder to add your first space.</p></div></section>;
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
-  const assistantSubagentCount = countEngagedAgentDescendants(snapshot.agents, agent.id);
+  const assistantSubagents = summarizeAgentDescendantActivity(snapshot.agents, agent.id);
+  const assistantSubagentCount = assistantSubagents.engaged;
+  const assistantRunningSubagentCount = assistantSubagents.working;
   const state = runtimeState?.agent;
-  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text, steered)} spaceId={project?.id ?? activeProject?.id ?? ""} assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
+  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text, steered)} spaceId={project?.id ?? activeProject?.id ?? ""} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
   const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);
-  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
+  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
 }
 
 function useMediaQuery(query: string): boolean {
@@ -298,10 +301,14 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   const [openError, setOpenError] = useState<string | undefined>();
   const compactNavigation = useMediaQuery("(max-width: 700px)");
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [performanceEnabled, setPerformanceEnabled] = useState(false);
   const [agentRevealRequest, setAgentRevealRequest] = useState<{ readonly agentId: string; readonly requestId: number }>();
   const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const emptySessionFocusRef = useRef<HTMLElement>(null);
   const initialized = useRef(false);
+  useEffect(() => {
+    if (compactNavigation) setPerformanceEnabled(false);
+  }, [compactNavigation]);
   const closeNavigation = () => setNavigationOpen(false);
   const activeSpaceTabs = tabsForSpace(spaceTabs, activeProjectId);
   const openAgentIds = activeSpaceTabs.agentIds;
@@ -395,15 +402,21 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
     } finally { setOpening(false); }
   };
 
-  return <div className="focused-workspace">
-    <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={!compactNavigation || navigationOpen} revealAgent={agentRevealRequest} onClose={closeNavigation} onSelectProject={selectProject} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
-    {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
-    <section className="focused-main-column" aria-hidden={compactNavigation && navigationOpen} inert={compactNavigation && navigationOpen ? true : undefined}>
-      <div className="focused-titlebar-drag" aria-hidden="true" />
-      <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
-      <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
-        <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} />
-      </section>
-    </section>
-  </div>;
+  return <PerformanceHud enabled={import.meta.env.DEV && performanceEnabled}>
+    <div className="focused-workspace">
+      <PerformanceProfiler area="sidebar">
+        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={!compactNavigation || navigationOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
+      </PerformanceProfiler>
+      {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
+      <PerformanceProfiler area="main">
+        <section className="focused-main-column" aria-hidden={compactNavigation && navigationOpen} inert={compactNavigation && navigationOpen ? true : undefined}>
+          <div className="focused-titlebar-drag" aria-hidden="true" />
+          <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
+          <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
+            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} />
+          </section>
+        </section>
+      </PerformanceProfiler>
+    </div>
+  </PerformanceHud>;
 }

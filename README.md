@@ -32,6 +32,10 @@ Agentation is also available for persistent visual annotations. `pnpm dev` start
 
 Both renderer tools are guarded by `import.meta.env.DEV` and excluded from production builds.
 
+Development builds also mount [DialKit](https://dialkit.dev) in the bottom-right corner. Open its **Transcript reading** panel to tune Markdown/transcript text from 13–22 px (16 px by default). The control writes only the development CSS custom property used by transcript copy; it does not tune production motion. DialKit preferences persist locally under `ernie-reading-dials`.
+
+Development builds expose a sidebar performance switch for an opt-in diagnostics HUD. FPS, renderer CPU, and renderer working-set memory are process-wide. Sidebar and Main ratings are separate rolling React render measurements: after ten samples, p95 render duration maps from 10/10 at 4 ms or less to 1/10 at 50 ms or more. Turning the HUD off—or entering compact navigation—stops its animation-frame loop and one-second resource sampler and clears the rolling measurements.
+
 The app targets `/Users/thor/work/ernie` by default. Override it without exposing filesystem authority to the renderer:
 
 ```sh
@@ -76,6 +80,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/SpaceRuntimeRegistry.ts` — catalog-authorized per-Space ownership, a three-client idle-LRU resource limit, Space-tagged events, and atomic depth/model/first-prompt sequencing.
 - `src/main/WorkspaceCatalog.ts` — read-only Effect service joining Git worktrees with schema-decoded Prime Agent session metadata.
 - `src/main/SessionTranscriptStream.ts` — read-only daemon protocol-v7 attachment for bounded selected-session snapshots and live message/tool streams.
+- `src/main/RendererPerformanceSampler.ts` — trusted, rate-limited projection of renderer CPU and working-set metrics for the opt-in diagnostics HUD.
 - `src/main/DevServerCatalog.ts` — serialized, worktree-scoped discovery of allowlisted local development-server listeners.
 - `src/main/ErnieWindow.ts` — Effect-owned Electron window and security boundary.
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.

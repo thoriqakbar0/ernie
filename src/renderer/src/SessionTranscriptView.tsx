@@ -73,14 +73,22 @@ export function SessionTranscriptView({ agent, items, state, onRetry, renderItem
     <strong>{emptyTitle}</strong><p>{emptyCopy}</p>
     {state === "error" && <button type="button" onClick={onRetry}>Retry connection</button>}
   </section>;
-  return <section className="session-transcript-view" aria-label={`${agent.name} transcript`}>
+  const isSubagentSource = agent.runtimeKind === "subagent";
+  const sourceDescriptionId = `transcript-source-${encodeURIComponent(agent.id)}`;
+  return <section
+    className={`session-transcript-view ${isSubagentSource ? "subagent-source" : "root-source"}`}
+    aria-label={`${agent.name} transcript`}
+    aria-describedby={isSubagentSource ? sourceDescriptionId : undefined}
+    data-transcript-source={agent.runtimeKind}
+  >
+    {isSubagentSource && <p id={sourceDescriptionId} className="sr-only">Source: {agent.name}, subagent session.</p>}
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{state === "error" ? "" : `Session status: ${statusLabel}`}</div>
     <div className="session-transcript-body">
       {state === "error" && items.length > 0 && <div className="session-stream-error" role="alert"><span>Live updates stopped.</span><button type="button" onClick={onRetry}>Retry connection</button></div>}
       <VirtualTranscript items={items} scrollRef={scrollRef} busy={state === "ready" && agent.status === "working"} onScroll={onScroll} onWheel={onWheel} renderItem={renderItem} empty={empty} />
       {!following && <button type="button" className="jump-latest session-jump-latest" onClick={followLatest}>Jump to latest</button>}
     </div>
-    <AccessibleTranscriptDialog items={items} assistantLabel="Prime Agent" promptLabel="You" visuallyHiddenTrigger />
+    <AccessibleTranscriptDialog items={items} assistantLabel={isSubagentSource ? `${agent.name} · Subagent` : "Prime Agent"} promptLabel="You" visuallyHiddenTrigger />
     {footer}
   </section>;
 }

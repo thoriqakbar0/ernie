@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
@@ -11,4 +11,18 @@ if (import.meta.env.DEV) {
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Ernie renderer root is missing");
-createRoot(rootElement).render(<StrictMode><App /></StrictMode>);
+const root = createRoot(rootElement);
+
+function renderApp(developmentTools?: ReactNode): void {
+  root.render(<StrictMode><App />{developmentTools}</StrictMode>);
+}
+
+renderApp();
+if (import.meta.env.DEV) {
+  void import("./DevelopmentDialKitTools").then(({ DevelopmentDialKitTools }) => {
+    // App remains the first child, so adding tools preserves its mounted state.
+    renderApp(<DevelopmentDialKitTools />);
+  }).catch((error: unknown) => {
+    console.error("DialKit could not start", error);
+  });
+}

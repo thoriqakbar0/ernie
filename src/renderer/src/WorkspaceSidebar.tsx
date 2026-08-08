@@ -114,7 +114,8 @@ function AgentViewTabs({ value, priorityCount, onChange }: {
     onChange(next);
     (next === "agents" ? allRef : priorityRef).current?.focus();
   };
-  return <div className="workspace-agent-tabs" role="tablist" aria-label="Agent views">
+  return <div className="workspace-agent-tabs" role="tablist" aria-label="Agent views" data-view={value}>
+    <span className="workspace-agent-tab-indicator" aria-hidden="true" />
     <button ref={allRef} id="all-agents-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "agents"} className={value === "agents" ? "active" : ""} tabIndex={value === "agents" ? 0 : -1} onClick={() => onChange("agents")} onKeyDown={moveFocus}>Grouped</button>
     <button ref={priorityRef} id="priority-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "priority"} aria-label={`Priority, ${priorityCount} agents`} className={value === "priority" ? "active" : ""} tabIndex={value === "priority" ? 0 : -1} onClick={() => onChange("priority")} onKeyDown={moveFocus}>Priority <span aria-hidden="true">{priorityCount}</span></button>
   </div>;
@@ -191,7 +192,7 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
-export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, failed, opening, openError, compact, open, revealAgent, onClose, onSelectProject, onOpenAgent, onOpenDirectory }: {
+export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, failed, opening, openError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onOpenAgent, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly activeProjectId: string | undefined;
   readonly activeAgentId: string | undefined;
@@ -202,12 +203,20 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   readonly compact: boolean;
   readonly open: boolean;
   readonly revealAgent: { readonly agentId: string; readonly requestId: number } | undefined;
+  readonly performanceEnabled: boolean;
+  readonly onTogglePerformance: () => void;
   readonly onClose: () => void;
   readonly onSelectProject: (projectId: string) => void;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
   readonly onOpenDirectory: () => void;
 }) {
   const [agentView, setAgentView] = useState<AgentView>("agents");
+  const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
+  const changeAgentView = (next: AgentView) => {
+    if (next === agentView) return;
+    setAgentViewDirection(next === "priority" ? "forward" : "backward");
+    setAgentView(next);
+  };
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
     if (!compact || !open) return;
@@ -216,7 +225,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   }, [compact, open]);
   useLayoutEffect(() => {
     if (!open || revealAgent === undefined) return;
-    if (agentView !== "agents") { setAgentView("agents"); return; }
+    if (agentView !== "agents") { changeAgentView("agents"); return; }
     const frame = requestAnimationFrame(() => {
       const row = document.getElementById(`workspace-agent-${encodeURIComponent(revealAgent.agentId)}`);
       if (!(row instanceof HTMLButtonElement)) return;
@@ -242,6 +251,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   >
     <header className="workspace-sidebar-title">
       <strong id="workspace-navigation-title">ernie</strong>
+      {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
       <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" onClick={onClose}><Icon name="close" /></button>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">Workspace status: {loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}</div>
@@ -265,8 +275,12 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
       </section>
       <div className="workspace-section-divider" aria-hidden="true" />
       <section id="agents-panel" className="workspace-sessions" aria-labelledby="agents-heading">
-        <header className="workspace-section-heading agent-heading"><h2 id="agents-heading">Agents</h2><AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={setAgentView} /></header>
-        <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}><AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} /></div>
+        <header className="workspace-section-heading agent-heading"><h2 id="agents-heading">Agents</h2><AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={changeAgentView} /></header>
+        <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
+          <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection}>
+            <AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />
+          </div>
+        </div>
       </section>
     </div>
   </aside>;

@@ -1,0 +1,32 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import type { WorkspaceAgent } from "../src/shared/workspace";
+import { SessionTranscriptView } from "../src/renderer/src/SessionTranscriptView";
+
+const subagent: WorkspaceAgent = {
+  id: "child/1",
+  sessionId: "session-child",
+  worktreeId: "worktree",
+  parentAgentId: "root",
+  name: "Researcher",
+  summary: "Checks primary sources",
+  status: "working",
+  runtimeKind: "subagent",
+};
+
+describe("SessionTranscriptView source context", () => {
+  it("identifies a selected subagent transcript semantically", () => {
+    const html = renderToStaticMarkup(<SessionTranscriptView
+      agent={subagent}
+      items={[]}
+      state="ready"
+      onRetry={() => {}}
+      renderItem={() => null}
+    />);
+
+    expect(html).toContain('class="session-transcript-view subagent-source"');
+    expect(html).toContain('data-transcript-source="subagent"');
+    expect(html).toContain('aria-describedby="transcript-source-child%2F1"');
+    expect(html).toContain("Source: Researcher, subagent session.");
+  });
+});

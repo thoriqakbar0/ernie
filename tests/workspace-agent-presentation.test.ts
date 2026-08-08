@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceAgent } from "../src/shared/workspace";
-import { countAgentDescendants, countEngagedAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
+import { countAgentDescendants, countEngagedAgentDescendants, countWorkingAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
 
 function agent(id: string, parentAgentId?: string, status: WorkspaceAgent["status"] = "idle"): WorkspaceAgent {
   return {
@@ -41,5 +41,13 @@ describe("countEngagedAgentDescendants", () => {
       agent("completed", "root", "completed"),
       agent("nested-working", "idle", "working"),
     ], "root")).toBe(3);
+  });
+});
+
+describe("countWorkingAgentDescendants", () => {
+  it("separates working descendants from waiting descendants", () => {
+    const agents = [agent("root"), agent("working", "root", "working"), agent("waiting", "root", "waiting")];
+    expect(countEngagedAgentDescendants(agents, "root")).toBe(2);
+    expect(countWorkingAgentDescendants(agents, "root")).toBe(1);
   });
 });

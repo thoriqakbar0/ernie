@@ -37,12 +37,31 @@ export function countAgentDescendants(agents: readonly WorkspaceAgent[], rootAge
   return descendantAgentIds(agents, rootAgentId).size;
 }
 
+/** The visible and animated descendant counts for one root Agent. */
+export interface AgentDescendantActivity {
+  readonly engaged: number;
+  readonly working: number;
+}
+
+/** Summarizes descendant activity in one hierarchy traversal. */
+export function summarizeAgentDescendantActivity(agents: readonly WorkspaceAgent[], rootAgentId: string): AgentDescendantActivity {
+  const descendants = descendantAgentIds(agents, rootAgentId);
+  let engaged = 0;
+  let working = 0;
+  for (const agent of agents) {
+    if (!descendants.has(agent.id)) continue;
+    if (agent.status === "working") { engaged += 1; working += 1; }
+    else if (agent.status === "waiting") engaged += 1;
+  }
+  return { engaged, working };
+}
+
 /** Counts descendants that are working or waiting, excluding idle and terminal sessions. */
 export function countEngagedAgentDescendants(agents: readonly WorkspaceAgent[], rootAgentId: string): number {
-  const descendants = descendantAgentIds(agents, rootAgentId);
-  let count = 0;
-  for (const agent of agents) {
-    if (descendants.has(agent.id) && (agent.status === "working" || agent.status === "waiting")) count += 1;
-  }
-  return count;
+  return summarizeAgentDescendantActivity(agents, rootAgentId).engaged;
+}
+
+/** Counts working descendants so active delegation can receive motion without styling waiting sessions. */
+export function countWorkingAgentDescendants(agents: readonly WorkspaceAgent[], rootAgentId: string): number {
+  return summarizeAgentDescendantActivity(agents, rootAgentId).working;
 }

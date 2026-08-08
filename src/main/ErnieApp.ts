@@ -10,6 +10,7 @@ import { WorkspaceCatalog } from "./WorkspaceCatalog";
 import { DevServerCatalog } from "./DevServerCatalog";
 import { SessionTranscriptStream } from "./SessionTranscriptStream";
 import { ClipboardWriter } from "./ClipboardWriter";
+import { RendererPerformanceSampler } from "./RendererPerformanceSampler";
 
 const DevServerPortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65_535 }));
 const DevServerOpenSchema = Schema.Struct({ worktreeId: Schema.String, port: DevServerPortSchema, url: Schema.String });
@@ -21,6 +22,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
   const sessionTranscripts = yield* SessionTranscriptStream;
   const clipboard = yield* ClipboardWriter;
   const window = yield* ErnieWindow;
+  const rendererPerformance = new RendererPerformanceSampler({ read: () => app.getAppMetrics() });
   yield* Effect.promise(() => app.whenReady());
   yield* hardenElectron;
   yield* window.create;
@@ -110,6 +112,10 @@ export const program = Effect.scoped(Effect.gen(function* () {
         yield* Effect.tryPromise(() => shell.openExternal(server.url));
         return { ok: true } satisfies CommandResult;
       }).pipe(Effect.catch(() => Effect.succeed({ ok: false, error: "Unable to open the local development server." } satisfies CommandResult)))));
+      ipcMain.handle("performance:renderer-sample", (event) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        return rendererPerformance.sample(event.sender.getOSProcessId());
+      })));
       ipcMain.handle("clipboard:write-text", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         const text = yield* Schema.decodeUnknownEffect(Schema.String)(input);
@@ -131,6 +137,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.removeHandler("session-transcript:detach");
       ipcMain.removeHandler("dev-server:refresh");
       ipcMain.removeHandler("dev-server:open");
+      ipcMain.removeHandler("performance:renderer-sample");
       ipcMain.removeHandler("clipboard:write-text");
     }),
   );

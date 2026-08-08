@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { AgentSlashCommand } from "../shared/commands";
 import type { WorkspaceSnapshot } from "../shared/workspace";
 import type { DevServerSnapshot } from "../shared/devServer";
+import type { RendererPerformanceSample } from "../shared/performance";
 import type { SessionTranscriptEvent, SessionTranscriptSnapshot } from "../shared/sessionTranscript";
 import type { AgentCommand, CommandResult, ErnieApi, OpenProjectResult, WorkspaceEvent } from "../shared/contract";
 import type { AgentModelOption, SpaceAgentEvent, SpaceRuntimeState, StartSpaceInput } from "../shared/spaceRuntime";
@@ -24,6 +25,7 @@ const api: ErnieApi = Object.freeze({
   refreshDevServers: (worktreeId: string) => ipcRenderer.invoke("dev-server:refresh", worktreeId) as Promise<DevServerSnapshot>,
   openDevServer: (worktreeId: string, port: number, url: string) => ipcRenderer.invoke("dev-server:open", { worktreeId, port, url }) as Promise<CommandResult>,
   copyText: (text: string) => ipcRenderer.invoke("clipboard:write-text", text) as Promise<CommandResult>,
+  getRendererPerformance: () => ipcRenderer.invoke("performance:renderer-sample") as Promise<RendererPerformanceSample | null>,
   selectSessionTranscript: (activeSessionId: string) => ipcRenderer.invoke("session-transcript:select", activeSessionId) as Promise<SessionTranscriptSnapshot>,
   detachSessionTranscript: () => ipcRenderer.invoke("session-transcript:detach") as Promise<void>,
   onWorkspaceEvent: (listener: (event: WorkspaceEvent) => void) => {

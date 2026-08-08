@@ -108,8 +108,10 @@ function SpaceRow({ project, worktrees, active, hasWorkingAgent, onSelect }: {
   return <li className="workspace-project-node">
     <div className={`workspace-project-control ${active ? "active" : ""}`}>
       <button type="button" className="workspace-project-row" aria-current={active ? "page" : undefined} aria-label={label} title={project.path} onClick={onSelect}>
-        <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
-        <strong>{project.label}</strong>
+        <span className="workspace-project-title">
+          <strong>{project.label}</strong>
+          <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
+        </span>
         <small>{worktreeContext}</small>
       </button>
       {worktrees.length > 0 && <button

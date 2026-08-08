@@ -53,7 +53,14 @@ try {
     return rect.x === 0 && rect.y === 0 && rect.width === innerWidth && rect.height === innerHeight;
   }), true);
   const sidebarBox = await sidebar.boundingBox();
-  assert.ok(sidebarBox && Math.abs(sidebarBox.x - 13) <= 1 && Math.abs(sidebarBox.y - 18) <= 1 && Math.abs(sidebarBox.width - 271) <= 1 && Math.abs(sidebarBox.height - 887) <= 1);
+  assert.ok(sidebarBox && Math.abs(sidebarBox.x) <= 1 && Math.abs(sidebarBox.y) <= 1 && Math.abs(sidebarBox.width - 272) <= 1 && Math.abs(sidebarBox.height - 923) <= 1);
+  const worktree = window.getByRole("button", { name: /feat\/worktree-workspace/u });
+  await worktree.waitFor({ state: "visible" });
+  assert.equal(await worktree.getAttribute("aria-expanded"), "true");
+  await worktree.click();
+  assert.equal(await worktree.getAttribute("aria-expanded"), "false");
+  await worktree.click();
+  assert.equal(await worktree.getAttribute("aria-expanded"), "true");
 
   await window.getByRole("button", { name: "Close sidebar" }).click();
   await sidebar.waitFor({ state: "hidden" });

@@ -18,6 +18,14 @@ pnpm dev
 
 The runtime binaries are generated rather than stored in Git: the pinned Node executable is larger than GitHub's per-file limit, and the dereferenced Prime Agent package is several hundred megabytes. `pnpm runtime:vendor` copies the active Node and Prime Agent installations into `assets/runtime/` and records their versions in `assets/runtime/VERSIONS`.
 
+### Agentation MCP
+
+`agentation-mcp` is installed locally as a development dependency. MCP-aware clients can discover the project connection from `.mcp.json`; its stdio transport attaches to the Agentation HTTP service on `127.0.0.1:4748` without trying to own a second port.
+
+`pnpm dev` starts an isolated, in-memory Agentation HTTP service for Ernie automatically and cleans it up with the Electron development process. If the renderer is launched through another workflow, start the service explicitly with `pnpm agentation:server`.
+
+The development toolbar syncs through Vite's same-origin `/__agentation` proxy to that service. The same orchestrator exposes Ernie's development Electron renderer to `agent-browser` over loopback-only CDP on port `9223`; packaged builds do not enable CDP. MCP clients use the stdio bridge; Prime Agent's project-local `agentation-dev` Python skill uses the same service's loopback HTTP API because Prime Agent does not currently load local stdio MCP servers directly. The production renderer contains neither the toolbar nor the proxy. Check the installation with `pnpm agentation:doctor`.
+
 The app targets `/Users/thor/work/ernie` by default. Override it without exposing filesystem authority to the renderer:
 
 ```sh

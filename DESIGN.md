@@ -6,7 +6,7 @@ The renderer is intentionally a sidebar-only shell on an empty near-black canvas
 
 The sidebar groups the local project’s worktrees and sessions. It has one active interaction: close the full sidebar. Closing removes it completely and reveals a small, fixed open-sidebar control in the same top-left region. Reopening restores the sidebar without changing workspace or agent state.
 
-Official Agentation remains mounted directly in development builds. Production builds show the same sidebar-only shell without Agentation.
+Official Agentation remains mounted directly in development builds and syncs to the project-local Agentation MCP server through a same-origin Vite proxy. Production builds show the same sidebar-only shell without Agentation or the proxy.
 
 ## Sidebar rules
 

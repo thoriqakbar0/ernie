@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
 import { VirtualAgentExplorer, flattenVirtualAgentExplorer } from "../src/renderer/src/VirtualAgentExplorer";
+import { flattenAgentHierarchy } from "../src/renderer/src/ProjectSidebar";
 
 const snapshot: WorkspaceSnapshot = {
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -46,6 +47,23 @@ describe("virtual agent explorer", () => {
     const rows = flattenVirtualAgentExplorer(malformed);
     expect(rows.filter(({ kind }) => kind === "worktree")).toHaveLength(2);
     expect(rows.some((row) => row.kind === "agent" && row.agent.id === "orphan")).toBe(true);
+  });
+
+
+  it("renders only explicit agent ancestry and promotes malformed parents", () => {
+    const agents = [
+      ...snapshot.agents.slice(0, 2),
+      { id: "orphan", sessionId: "orphan", worktreeId: "/repo", parentAgentId: "missing", name: "Orphan", summary: "", status: "idle" as const, runtimeKind: "subagent" as const },
+      { id: "cycle-a", sessionId: "cycle-a", worktreeId: "/repo", parentAgentId: "cycle-b", name: "Cycle A", summary: "", status: "idle" as const, runtimeKind: "subagent" as const },
+      { id: "cycle-b", sessionId: "cycle-b", worktreeId: "/repo", parentAgentId: "cycle-a", name: "Cycle B", summary: "", status: "idle" as const, runtimeKind: "subagent" as const },
+    ];
+    expect(flattenAgentHierarchy(agents).map(({ agent, depth }) => [agent.id, depth])).toEqual([
+      ["root", 0],
+      ["child", 1],
+      ["orphan", 0],
+      ["cycle-a", 0],
+      ["cycle-b", 1],
+    ]);
   });
 
   it.each([

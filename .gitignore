@@ -9,3 +9,6 @@ assets/runtime/prime-agent/
 
 resources/remote/**/__pycache__/
 resources/remote/providers/modal/.venv/
+
+.prime/agent/skills/**/__pycache__/
+.prime/agent/skills/**/.venv/

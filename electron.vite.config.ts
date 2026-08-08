@@ -20,6 +20,14 @@ export default defineConfig({
   renderer: {
     root: resolve("src/renderer"),
     build: { rollupOptions: { input: resolve("src/renderer/index.html") } },
+    server: {
+      proxy: {
+        "/__agentation": {
+          target: "http://127.0.0.1:4748",
+          rewrite: (path) => path.replace(/^\/__agentation/u, ""),
+        },
+      },
+    },
     plugins: [react(), tailwindcss()],
   },
 });

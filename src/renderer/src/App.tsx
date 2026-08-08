@@ -59,6 +59,7 @@ export function App() {
     ><OpenSidebarIcon /></button>
     <div className="empty-workbench" aria-hidden="true" />
     {import.meta.env.DEV && <Agentation
+      endpoint="/__agentation"
       copyToClipboard={false}
       onCopy={(output) => { void window.ernie.copyText(output); }}
       onSubmit={(output) => { void window.ernie.command({ type: "prompt", message: output, behavior: "now" }); }}

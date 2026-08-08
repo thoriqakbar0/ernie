@@ -17,6 +17,11 @@ import * as DevServerCatalog from "./DevServerCatalog";
 import * as SessionTranscriptStream from "./SessionTranscriptStream";
 import * as ClipboardWriter from "./ClipboardWriter";
 
+if (!app.isPackaged && process.env["ERNIE_ENABLE_CDP"] === "1") {
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  app.commandLine.appendSwitch("remote-debugging-port", "9223");
+}
+
 const runtime = app.isPackaged ? join(process.resourcesPath, "runtime") : join(app.getAppPath(), "assets/runtime");
 const projectPath = resolve(process.env["ERNIE_PROJECT_PATH"] || "/Users/thor/work/ernie");
 const agentNodePath = process.env["ERNIE_AGENT_NODE_PATH"] || join(runtime, "node");

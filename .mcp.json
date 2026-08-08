@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "agentation": {
+      "command": "pnpm",
+      "args": [
+        "exec",
+        "agentation-mcp",
+        "server",
+        "--mcp-only",
+        "--http-url",
+        "http://127.0.0.1:4748"
+      ]
+    }
+  }
+}

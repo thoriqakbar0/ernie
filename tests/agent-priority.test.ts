@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStatus, WorkspaceAgent } from "../src/shared/workspace";
-import { prioritizeAgents } from "../src/renderer/src/agentPriority";
+import { prioritizeAgents, prioritizeRootAgents } from "../src/renderer/src/agentPriority";
 
 function agent(id: string, status: AgentStatus, lastActivityAt?: string): WorkspaceAgent {
   return {
@@ -37,5 +37,12 @@ describe("prioritizeAgents", () => {
     ]);
 
     expect(result.map(({ id }) => id)).toEqual(["newer", "older"]);
+  });
+
+  it("keeps subagents out of the Priority projection", () => {
+    const root = agent("root", "waiting");
+    const subagent = { ...agent("child", "failed"), runtimeKind: "subagent" as const, parentAgentId: root.id };
+
+    expect(prioritizeRootAgents([subagent, root]).map(({ id }) => id)).toEqual(["root"]);
   });
 });

@@ -8,7 +8,7 @@ import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface
 import { SpaceLaunchpad } from "./SpaceLaunchpad";
 import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./spaceLaunchPreferences";
 import type { ThreadItem } from "./transcript";
-import { prioritizeAgents } from "./agentPriority";
+import { prioritizeRootAgents } from "./agentPriority";
 import {
   closeSpaceSessionTab,
   emptySpaceSessionTabs,
@@ -54,10 +54,6 @@ function isCommandableAgent(agent: WorkspaceAgent, sessionId: string): boolean {
     && (agent.sessionId === sessionId || agent.id === sessionId || agent.activeSessionId === sessionId);
 }
 
-function ActivityBar() {
-  return <span className="running-track" aria-label="Running"><i /></span>;
-}
-
 function statusText(status: WorkspaceAgent["status"]): string {
   switch (status) {
     case "working": return "Working";
@@ -93,7 +89,6 @@ function SessionRow({ agent, active, context, depth = 0, onOpen }: {
       <span className="focused-session-title"><strong>{agent.name}</strong>{isSubagent && <SubagentMark agentId={agent.id} depth={subagentDepth} />}</span>
       <small className="focused-session-meta"><span>{status}</span><span>{context}</span></small>
     </span>
-    {agent.status === "working" && <ActivityBar />}
   </button>;
 }
 
@@ -236,11 +231,10 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   if (view === "priority") {
-    const agents = prioritizeAgents(snapshot.agents);
-    const depthByAgentId = new Map(flattenAgentHierarchy(snapshot.agents).map(({ agent, depth }) => [agent.id, depth]));
+    const agents = prioritizeRootAgents(snapshot.agents);
     if (agents.length === 0) return <p className="focused-message">Nothing needs attention right now.</p>;
     return <ul className="workspace-agent-list">{agents.map((agent) => <li key={agent.id}>
-      <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={depthByAgentId.get(agent.id) ?? 0} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
+      <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={0} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
     </li>)}</ul>;
   }
   const trees = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
@@ -274,7 +268,7 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
     return () => cancelAnimationFrame(frame);
   }, [compact, open]);
   const activeProject = snapshot.projects.find((project) => project.id === activeProjectId);
-  const priorityCount = prioritizeAgents(snapshot.agents).length;
+  const priorityCount = prioritizeRootAgents(snapshot.agents).length;
   const workingWorktreeIds = new Set<string>();
   for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
   return <aside

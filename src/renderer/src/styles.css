@@ -103,10 +103,11 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .focused-main-column{position:relative;min-width:0;min-height:0;display:grid;grid-template-rows:44px minmax(0,1fr);background:var(--canvas)}
 .focused-titlebar-drag{position:absolute;z-index:0;inset:0 0 auto;height:44px;-webkit-app-region:drag}
 .focused-tabstrip{position:relative;z-index:1;min-width:0;height:44px;display:flex;align-items:end;gap:2px;overflow-x:auto;border-block-end:1px solid var(--line);scrollbar-width:none}
-.focused-tab-shell{height:40px;min-width:150px;max-width:280px;display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center;border-radius:8px 8px 0 0;color:var(--tertiary)}
+.focused-tab-shell{position:relative;height:40px;min-width:150px;max-width:280px;display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center;border-radius:8px 8px 0 0;color:var(--tertiary)}
 .focused-tab-shell.active{background:var(--raised);color:var(--text)}
-.focused-tab{min-width:0;height:100%;display:grid;grid-template-columns:7px minmax(0,1fr);align-items:center;gap:8px;padding-block:0;padding-inline:12px 4px;border:0;background:transparent;text-align:start}
-.focused-tab span:last-child{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.focused-tab{min-width:0;height:100%;display:flex;align-items:center;padding-block:0;padding-inline:12px;border:0;background:transparent;text-align:start}
+.focused-tab-close>.focused-status{position:absolute;z-index:2;inset-block-start:-2px;inset-inline-end:-2px;pointer-events:none}
+.focused-tab span:last-child{min-width:0;overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
 .focused-tab-close{position:relative;width:28px;height:28px;display:grid;place-self:center;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--tertiary);font-size:12px;opacity:0}
 .focused-tab-close::before{content:"";position:absolute;inset:-6px}
 .focused-tab-close svg{transition:transform 140ms cubic-bezier(.16,1,.3,1)}

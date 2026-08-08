@@ -85,10 +85,9 @@ function SessionTabs({ snapshot, spaceLabel, openAgentIds, activeAgentId, naviga
             else moveTabFocus(event, agentId);
           }}
         >
-          <span className={`focused-status ${agent?.status ?? "disconnected"}`} aria-hidden="true" />
           <span>{title}</span>
         </button>
-        <button type="button" tabIndex={-1} aria-label={`Close ${title}`} title={`Close ${title}`} className="focused-tab-close" onClick={() => closeTab(agentId)}><Icon name="close" /></button>
+        <button type="button" tabIndex={-1} aria-label={`Close ${title}`} title={`Close ${title}`} className="focused-tab-close" onClick={() => closeTab(agentId)}><span className={`focused-status ${agent?.status ?? "disconnected"}`} aria-hidden="true" /><Icon name="close" /></button>
       </div>;
     })}
     </div>

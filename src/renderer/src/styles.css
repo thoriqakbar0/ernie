@@ -245,7 +245,6 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .ipython-execution-meta>*+*::before{content:"·";margin-inline:5px;color:rgba(255,255,255,.3)}
 .ipython-execution-status{flex:0 0 auto;margin-inline-start:auto;color:var(--tertiary);font-size:9px;font-weight:620;line-height:1.35}
 .ipython-execution-card.running .ipython-execution-status{color:#a7c8ae}
-.ipython-execution-card.succeeded .ipython-execution-status{color:var(--secondary)}
 .ipython-execution-card.failed .ipython-execution-status{color:#e59a9a}
 .ipython-execution-code{margin-block:2px 8px;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:#0e0f0e}
 .ipython-execution-code pre{max-height:210px;overflow:auto;margin:0;padding:9px 10px;color:var(--tertiary);white-space:pre-wrap;overflow-wrap:anywhere;font:10.5px/1.6 ui-monospace,"SFMono-Regular",monospace}

@@ -75,7 +75,9 @@ export function IPythonExecutionCard({ execution }: { readonly execution: IPytho
             {execution.durationMs !== null && <span>{formatDuration(execution.durationMs)}</span>}
           </span>}
         </span>
-        <span className="ipython-execution-status" aria-label={`Status: ${statusLabel}`}>{statusLabel}</span>
+        {execution.status === "succeeded"
+          ? <span className="sr-only">Status: {statusLabel}</span>
+          : <span className="ipython-execution-status" aria-label={`Status: ${statusLabel}`}>{statusLabel}</span>}
       </summary>
       <section className="ipython-execution-code" aria-label={`Executed ${language} input`}>
         <pre tabIndex={0}><HighlightedCode code={execution.code} language={language} /></pre>

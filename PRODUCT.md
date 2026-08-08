@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Ernie Dev is a focused desktop workspace for developers running Prime Agent in a local repository. It exposes Prime Agent's authoritative RPC session as a quiet conversation UI rather than wrapping a terminal.
+Ernie Dev is a focused desktop workspace for developers running Prime Agent across local project directories. It exposes Prime Agent's authoritative RPC session as a quiet conversation UI rather than wrapping a terminal.
 
 A successful session lets a developer send or steer work, watch assistant text, tools, and delegation activity arrive live, stop a turn, start a clean thread, inspect usage, and observe related agents across repository worktrees.
 
@@ -18,7 +18,7 @@ A successful session lets a developer send or steer work, watch assistant text, 
 - Direct Prime Agent JSONL RPC; terminal output is never scraped.
 - Strict LF framing, fatal UTF-8 decoding, bounded records/stderr, correlated requests, timeouts, and fail-closed child lifecycle.
 - Incremental assistant text, tool and delegation lifecycles, session state, token/context usage, cost, abort, new session, compaction, and preserved Prime Agent model/thinking RPC fidelity.
-- Read-only worktree/session catalog, root/subagent hierarchy, global agent tabs, and observable child-agent summaries.
+- Persisted multi-project directory catalog, read-only worktree/session mapping, root/subagent hierarchy, global session tabs, and observable child-agent summaries.
 - Sandboxed preload with a narrow, typed command/event contract; renderer receives no process, shell, or filesystem capability.
 
 ## Product Constraints
@@ -26,7 +26,6 @@ A successful session lets a developer send or steer work, watch assistant text, 
 - Minimum window size is 820×520.
 - Credentials and provider secrets are never bundled or sent to the renderer.
 - Child tabs are intentionally read-only until daemon-backed per-session attachment provides a real targeted command surface.
-- Arbitrary project selection remains future work until backed by an explicit trusted main-process source.
 - The package is currently an ad-hoc-signed local Apple-silicon build.
 
 ## Principles

@@ -21,8 +21,14 @@ function stopChild(child, signal = "SIGTERM") {
 function stopAll(signal = "SIGTERM") {
   if (stopping) return;
   stopping = true;
+  const groupPids = [...children].flatMap((child) => child.pid === undefined ? [] : [child.pid]);
   for (const child of children) stopChild(child, signal);
-  setTimeout(() => { for (const child of children) stopChild(child, "SIGKILL"); }, 1_500).unref();
+  setTimeout(() => {
+    for (const pid of groupPids) {
+      try { process.kill(-pid, "SIGKILL"); }
+      catch (error) { if (error?.code !== "ESRCH") throw error; }
+    }
+  }, 1_500);
 }
 
 async function isAgentationHealthy() {

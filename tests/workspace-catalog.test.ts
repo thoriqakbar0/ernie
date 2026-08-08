@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -36,6 +36,9 @@ describe("WorkspaceCatalog", () => {
     }))));
 
     expect(result.refreshed).toEqual(result.current);
+    expect(result.refreshed.projects).toEqual([{
+      id: root, path: root, label: "ernie", worktreeIds: [root, "/tmp/ernie-feature"],
+    }]);
     expect(result.refreshed.worktrees).toEqual([
       { id: root, path: root, label: "feat/worktree-workspace" },
       { id: "/tmp/ernie-feature", path: "/tmp/ernie-feature", label: "feature/child", parentWorktreeId: root },
@@ -51,6 +54,35 @@ describe("WorkspaceCatalog", () => {
     });
     expect(result.events).toEqual([{ kind: "snapshot", snapshot: result.refreshed }]);
     expect(JSON.stringify(result.refreshed)).not.toMatch(/sessionFile|workerPid|spawnCode/u);
+  });
+
+  it("adds and restores user-opened project directories", async () => {
+    const temporary = mkdtempSync(join(tmpdir(), "ernie-projects-"));
+    const selected = join(temporary, "second-project");
+    const store = join(temporary, "projects.json");
+    mkdirSync(selected);
+    const normalizedSelected = realpathSync(selected);
+    const catalogLayer = () => layer({
+      repositoryPath: root, gitPath, nodePath: process.execPath, primeAgentCliPath,
+      projectStorePath: store, refreshIntervalMs: false,
+      environment: { ERNIE_FIXTURE_ROOT: root },
+    });
+    try {
+      const added = await Effect.runPromise(Effect.gen(function* () {
+        const catalog = yield* WorkspaceCatalog;
+        return yield* catalog.addProject(selected);
+      }).pipe(Effect.provide(catalogLayer())));
+      expect(added.projects.map((project) => project.path)).toEqual([root, normalizedSelected]);
+      expect(readFileSync(store, "utf8")).toBe(JSON.stringify({ version: 1, paths: [root, normalizedSelected] }, null, 2));
+
+      const restored = await Effect.runPromise(Effect.gen(function* () {
+        const catalog = yield* WorkspaceCatalog;
+        return yield* catalog.refresh;
+      }).pipe(Effect.provide(catalogLayer())));
+      expect(restored.projects.map((project) => project.path)).toEqual([root, normalizedSelected]);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   });
 
   it("starts with one refresh when polling is disabled", async () => {

@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import type { AgentCommand, CommandResult } from "../shared/contract";
+import type { AgentCommand, CommandResult, OpenProjectResult } from "../shared/contract";
 import { AgentCommandSchema } from "./IpcProtocol";
 import { ErnieWindow, hardenElectron } from "./ErnieWindow";
 import { PrimeAgentRpc } from "./PrimeAgentRpc";
@@ -45,6 +45,16 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.handle("workspace:get-snapshot", (event) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         return yield* catalog.current;
+      })));
+      ipcMain.handle("workspace:open-project", (event) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const selection = yield* Effect.promise(() => dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] }));
+        const selected = selection.filePaths[0];
+        if (selection.canceled || selected === undefined) return { ok: true, cancelled: true } satisfies OpenProjectResult;
+        return yield* catalog.addProject(selected).pipe(
+          Effect.map((snapshot) => ({ ok: true, cancelled: false, snapshot } satisfies OpenProjectResult)),
+          Effect.catch((error) => Effect.succeed({ ok: false, error: error.message } satisfies OpenProjectResult)),
+        );
       })));
       ipcMain.handle("agent:get-commands", (event) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
@@ -100,6 +110,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
     () => Effect.sync(() => {
       ipcMain.removeHandler("agent:get-state");
       ipcMain.removeHandler("workspace:get-snapshot");
+      ipcMain.removeHandler("workspace:open-project");
       ipcMain.removeHandler("agent:get-commands");
       ipcMain.removeHandler("session-transcript:select");
       ipcMain.removeHandler("session-transcript:detach");

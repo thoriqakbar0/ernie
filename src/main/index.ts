@@ -50,6 +50,7 @@ const applicationLayer = Layer.mergeAll(
     repositoryPath: projectPath,
     nodePath: agentNodePath,
     primeAgentCliPath: catalogAgentCliPath,
+    projectStorePath: join(app.getPath("userData"), "projects.json"),
     ...(process.env["ERNIE_CATALOG_GIT_PATH"] ? { gitPath: process.env["ERNIE_CATALOG_GIT_PATH"] } : {}),
   }),
 );

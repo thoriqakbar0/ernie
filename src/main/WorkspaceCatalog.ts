@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { statSync } from "node:fs";
+import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -7,7 +9,7 @@ import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import type { AgentStatus, WorkspaceAgent, WorkspaceCatalogEvent, WorkspaceSnapshot, WorkspaceWorktree } from "../shared/workspace";
+import type { AgentStatus, WorkspaceAgent, WorkspaceCatalogEvent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../shared/workspace";
 
 const DiagnosticSchema = Schema.Struct({
   type: Schema.optionalKey(Schema.String),
@@ -44,6 +46,8 @@ type PrimeSession = typeof PrimeSessionSchema.Type;
 
 const PrimeListSchema = Schema.Struct({ sessions: Schema.Array(PrimeSessionSchema) });
 const PrimeListJsonSchema = Schema.fromJsonString(PrimeListSchema);
+const ProjectStoreSchema = Schema.Struct({ version: Schema.Literal(1), paths: Schema.Array(Schema.String) });
+const ProjectStoreJsonSchema = Schema.fromJsonString(ProjectStoreSchema);
 
 interface GitWorktreeRecord {
   readonly path: string;
@@ -67,6 +71,8 @@ export interface WorkspaceCatalogOptions {
   readonly refreshIntervalMs?: number | false;
   /** Environment additions passed to both read-only commands. */
   readonly environment?: Readonly<Record<string, string>>;
+  /** Optional JSON file used to restore user-opened project directories. */
+  readonly projectStorePath?: string;
 }
 
 /** Failure to execute one of the catalog's read-only external commands. */
@@ -81,8 +87,14 @@ export class WorkspaceCatalogParseError extends Schema.TaggedErrorClass<Workspac
   { source: Schema.Literals(["git", "prime-agent"]), message: Schema.String, cause: Schema.optionalKey(Schema.Defect()) },
 ) {}
 
+/** Failure to add or persist a user-selected project directory. */
+export class WorkspaceCatalogProjectError extends Schema.TaggedErrorClass<WorkspaceCatalogProjectError>()(
+  "WorkspaceCatalogProjectError",
+  { operation: Schema.String, message: Schema.String, cause: Schema.optionalKey(Schema.Defect()) },
+) {}
+
 /** Expected failures exposed by catalog refresh and start. */
-export type WorkspaceCatalogError = WorkspaceCatalogCommandError | WorkspaceCatalogParseError;
+export type WorkspaceCatalogError = WorkspaceCatalogCommandError | WorkspaceCatalogParseError | WorkspaceCatalogProjectError;
 
 /** Stateful read-only catalog of repository worktrees and Prime Agent sessions. */
 export class WorkspaceCatalog extends Context.Service<WorkspaceCatalog, {
@@ -94,6 +106,8 @@ export class WorkspaceCatalog extends Context.Service<WorkspaceCatalog, {
   readonly start: Effect.Effect<void, WorkspaceCatalogError>;
   /** Atomically read both external catalogs and publish their joined projection. */
   readonly refresh: Effect.Effect<WorkspaceSnapshot, WorkspaceCatalogError>;
+  /** Add one normalized directory, persist it, and publish the refreshed workspace. */
+  readonly addProject: (path: string) => Effect.Effect<WorkspaceSnapshot, WorkspaceCatalogError>;
 }>()("@ernie/main/WorkspaceCatalog") {}
 
 function bounded(value: string, limit: number): string {
@@ -180,11 +194,27 @@ function agentStatus(session: PrimeSession): AgentStatus {
   return "disconnected";
 }
 
+interface ProjectWorktrees {
+  readonly projectPath: string;
+  readonly records: readonly GitWorktreeRecord[];
+}
+
 function makeSnapshot(
-  repositoryPath: string,
-  records: readonly GitWorktreeRecord[],
+  discovered: readonly ProjectWorktrees[],
   sessions: readonly PrimeSession[],
 ): WorkspaceSnapshot {
+  const claimedWorktreeIds = new Set<string>();
+  const records: GitWorktreeRecord[] = [];
+  const projects: WorkspaceProject[] = discovered.map(({ projectPath, records: projectRecords }) => {
+    const worktreeIds: string[] = [];
+    for (const record of projectRecords) {
+      if (claimedWorktreeIds.has(record.path)) continue;
+      claimedWorktreeIds.add(record.path);
+      records.push(record);
+      worktreeIds.push(record.path);
+    }
+    return { id: projectPath, path: projectPath, label: basename(projectPath), worktreeIds };
+  });
   const byLongestPath = [...records].sort((left, right) => right.path.length - left.path.length);
   const located = sessions.flatMap((session) => {
     const cwd = resolve(session.cwd);
@@ -228,7 +258,13 @@ function makeSnapshot(
       ...(parentWorktreeId === undefined ? {} : { parentWorktreeId }),
     };
   });
-  return { worktrees, agents, updatedAt: new Date().toISOString() };
+  return { projects, worktrees, agents, updatedAt: new Date().toISOString() };
+}
+
+const MAX_PROJECTS = 32;
+
+function projectError(operation: string, message: string, cause?: unknown): WorkspaceCatalogProjectError {
+  return new WorkspaceCatalogProjectError({ operation, message, ...(cause === undefined ? {} : { cause }) });
 }
 
 /** Construct a catalog implementation using Git and the vendored Prime Agent CLI. */
@@ -238,25 +274,94 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
   const nodePath = options.nodePath ?? resolve(repositoryPath, "assets/runtime/node");
   const primeAgentCliPath = options.primeAgentCliPath ?? resolve(repositoryPath, "assets/runtime/prime-agent/dist/bundle/cli.js");
   const environment = options.environment ?? {};
-  const state = yield* Ref.make<WorkspaceSnapshot>({ worktrees: [], agents: [], updatedAt: new Date(0).toISOString() });
+  const projectStorePath = options.projectStorePath;
+
+  const storedPaths = projectStorePath === undefined
+    ? []
+    : yield* Effect.tryPromise({
+      try: () => readFile(projectStorePath, "utf8"),
+      catch: (cause) => projectError("load-projects", "Could not read saved projects", cause),
+    }).pipe(
+      Effect.flatMap(Schema.decodeUnknownEffect(ProjectStoreJsonSchema)),
+      Effect.map((store) => [...store.paths]),
+      Effect.catch((error) => {
+        const missing = error instanceof WorkspaceCatalogProjectError
+          && error.cause instanceof Error
+          && "code" in error.cause
+          && error.cause.code === "ENOENT";
+        return missing
+          ? Effect.succeed(Array<string>())
+          : Effect.logWarning(`Ignoring saved project catalog: ${error}`).pipe(Effect.as(Array<string>()));
+      }),
+    );
+  const initialPaths = [repositoryPath, ...storedPaths]
+    .map((path) => resolve(path))
+    .filter((path, index, paths) => paths.indexOf(path) === index)
+    .filter((path) => {
+      try { return statSync(path).isDirectory(); }
+      catch { return false; }
+    })
+    .slice(0, MAX_PROJECTS);
+  const projectPaths = yield* Ref.make<readonly string[]>(initialPaths.length > 0 ? initialPaths : [repositoryPath]);
+  const state = yield* Ref.make<WorkspaceSnapshot>({ projects: [], worktrees: [], agents: [], updatedAt: new Date(0).toISOString() });
   const notifications = yield* PubSub.unbounded<WorkspaceCatalogEvent>();
   const current = Ref.get(state);
   const events = Stream.fromPubSub(notifications);
 
+  const discoverWorktrees = (projectPath: string): Effect.Effect<ProjectWorktrees, WorkspaceCatalogCommandError | WorkspaceCatalogParseError> =>
+    runCommand(gitPath, ["worktree", "list", "--porcelain", "-z"], projectPath, environment, "git-worktree-list").pipe(
+      Effect.flatMap(parseGitWorktrees),
+      Effect.map((records) => ({ projectPath, records })),
+      Effect.catch((error) => error instanceof WorkspaceCatalogCommandError && /not a git repository/iu.test(error.message)
+        ? Effect.succeed({ projectPath, records: [{ path: projectPath, head: "", branch: null, detached: false, locked: false }] })
+        : Effect.fail(error)),
+    );
+
   const refresh = Effect.fn("WorkspaceCatalog.refresh")(function* () {
-    const [gitOutput, primeOutput] = yield* Effect.all([
-      runCommand(gitPath, ["worktree", "list", "--porcelain", "-z"], repositoryPath, environment, "git-worktree-list"),
-      runCommand(nodePath, [primeAgentCliPath, "list", "--json"], repositoryPath, environment, "prime-agent-list"),
-    ], { concurrency: "unbounded" });
-    const records = yield* parseGitWorktrees(gitOutput);
+    const paths = yield* Ref.get(projectPaths);
+    const [primeOutput, discovered] = yield* Effect.all([
+      runCommand(nodePath, [primeAgentCliPath, "list", "--json"], paths[0] ?? repositoryPath, environment, "prime-agent-list"),
+      Effect.forEach(paths, discoverWorktrees, { concurrency: 1 }),
+    ], { concurrency: 2 });
     const decoded = yield* Schema.decodeUnknownEffect(PrimeListJsonSchema)(primeOutput).pipe(
       Effect.mapError((cause) => parseError("prime-agent", "Could not decode prime-agent list JSON", cause)),
     );
-    const snapshot = makeSnapshot(repositoryPath, records, decoded.sessions);
+    const snapshot = makeSnapshot(discovered, decoded.sessions);
     yield* Ref.set(state, snapshot);
     yield* PubSub.publish(notifications, { kind: "snapshot", snapshot } satisfies WorkspaceCatalogEvent).pipe(Effect.asVoid);
     return snapshot;
   })();
+
+  const persistProjects = (paths: readonly string[]) => projectStorePath === undefined
+    ? Effect.void
+    : Effect.tryPromise({
+      try: async () => {
+        const target = projectStorePath;
+        const temporary = `${target}.${process.pid}.tmp`;
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(temporary, JSON.stringify({ version: 1, paths }, null, 2), "utf8");
+        await rename(temporary, target);
+      },
+      catch: (cause) => projectError("save-projects", "Could not save project directories", cause),
+    });
+
+  const addProject = Effect.fn("WorkspaceCatalog.addProject")(function* (path: string) {
+    const normalized = yield* Effect.tryPromise({
+      try: async () => {
+        const candidate = await realpath(path);
+        if (!statSync(candidate).isDirectory()) throw new Error("Selected path is not a directory");
+        return candidate;
+      },
+      catch: (cause) => projectError("add-project", "The selected directory is unavailable", cause),
+    });
+    const currentPaths = yield* Ref.get(projectPaths);
+    if (currentPaths.includes(normalized)) return yield* refresh;
+    if (currentPaths.length >= MAX_PROJECTS) return yield* projectError("add-project", `A workspace can contain at most ${MAX_PROJECTS} projects`);
+    const next = [...currentPaths, normalized];
+    yield* persistProjects(next);
+    yield* Ref.set(projectPaths, next);
+    return yield* refresh;
+  });
 
   const interval = options.refreshIntervalMs ?? 2_000;
   const start = interval === false
@@ -273,7 +378,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
       ),
     );
 
-  return WorkspaceCatalog.of({ current, events, start, refresh });
+  return WorkspaceCatalog.of({ current, events, start, refresh, addProject });
 });
 
 /** Dependency-preserving WorkspaceCatalog layer. */

@@ -19,7 +19,7 @@ const child: WorkspaceAgent = {
 const sibling: WorkspaceAgent = { ...child, id: "sibling", sessionId: "sibling-session", name: "tester", status: "idle" };
 
 function snapshot(worktrees: readonly WorkspaceWorktree[], agents: readonly WorkspaceAgent[]): WorkspaceSnapshot {
-  return { worktrees, agents, updatedAt: "2026-01-01T00:00:00.000Z" };
+  return { projects: [], worktrees, agents, updatedAt: "2026-01-01T00:00:00.000Z" };
 }
 
 function initial() {

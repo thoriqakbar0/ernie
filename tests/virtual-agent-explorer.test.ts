@@ -8,6 +8,7 @@ import { flattenAgentHierarchy } from "../src/renderer/src/ProjectSidebar";
 
 const snapshot: WorkspaceSnapshot = {
   updatedAt: "2026-01-01T00:00:00.000Z",
+  projects: [],
   worktrees: [
     { id: "/repo", path: "/repo", label: "main" },
     { id: "/repo/feature", path: "/repo/feature", label: "feature", parentWorktreeId: "/repo" },
@@ -36,6 +37,7 @@ describe("virtual agent explorer", () => {
   it("promotes cyclic and missing parent relationships instead of dropping rows", () => {
     const malformed: WorkspaceSnapshot = {
       updatedAt: snapshot.updatedAt,
+      projects: [],
       worktrees: [
         { id: "a", path: "/a", label: "a", parentWorktreeId: "b" },
         { id: "b", path: "/b", label: "b", parentWorktreeId: "a" },
@@ -72,7 +74,7 @@ describe("virtual agent explorer", () => {
     ["error", "Unable to load worktrees.", "alert"],
   ] as const)("renders the %s empty state accessibly", (loadState, message, role) => {
     const html = renderToStaticMarkup(createElement(VirtualAgentExplorer, {
-      snapshot: { updatedAt: snapshot.updatedAt, worktrees: [], agents: [] },
+      snapshot: { updatedAt: snapshot.updatedAt, projects: [], worktrees: [], agents: [] },
       currentSessionId: "",
       activeAgentId: "",
       onOpenAgent: () => undefined,

@@ -71,10 +71,16 @@ export interface CommandResult {
   readonly error?: string;
 }
 
+export type OpenProjectResult =
+  | { readonly ok: true; readonly cancelled: true }
+  | { readonly ok: true; readonly cancelled: false; readonly snapshot: WorkspaceSnapshot }
+  | { readonly ok: false; readonly error: string };
+
 export interface ErnieApi {
   getState(): Promise<AgentState>;
   getCommands(): Promise<readonly AgentSlashCommand[]>;
   getWorkspace(): Promise<WorkspaceSnapshot>;
+  openProjectDirectory(): Promise<OpenProjectResult>;
   refreshDevServers(worktreeId: string): Promise<DevServerSnapshot>;
   openDevServer(worktreeId: string, port: number, url: string): Promise<CommandResult>;
   copyText(text: string): Promise<CommandResult>;

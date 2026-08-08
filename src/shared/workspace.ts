@@ -31,6 +31,18 @@ export interface WorkspaceAgent {
   readonly answerPreview?: string;
 }
 
+/** A user-opened directory that owns one focused project space. */
+export interface WorkspaceProject {
+  /** Stable project identifier; its normalized absolute path. */
+  readonly id: string;
+  /** Absolute directory selected by the user. */
+  readonly path: string;
+  /** Directory-oriented display label. */
+  readonly label: string;
+  /** Worktrees presented inside this project. */
+  readonly worktreeIds: readonly string[];
+}
+
 /** A Git checkout belonging to the repository. */
 export interface WorkspaceWorktree {
   /** Stable worktree identifier; its normalized absolute path. */
@@ -45,6 +57,8 @@ export interface WorkspaceWorktree {
 
 /** One immutable, renderer-safe view of repository worktrees and sessions. */
 export interface WorkspaceSnapshot {
+  /** User-opened directories in stable display order. */
+  readonly projects: readonly WorkspaceProject[];
   /** Git-authoritative worktrees, including worktrees without sessions. */
   readonly worktrees: readonly WorkspaceWorktree[];
   /** Repository sessions mapped to one of the listed worktrees. */

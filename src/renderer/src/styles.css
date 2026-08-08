@@ -215,6 +215,13 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .ipython-execution-detail{margin-block:3px 14px;padding-inline:2px}
 .ipython-execution-detail pre{max-height:320px;overflow:auto;margin:0;color:var(--secondary);white-space:pre-wrap;overflow-wrap:anywhere;font:11.5px/1.65 ui-monospace,"SFMono-Regular",monospace}
 .ipython-execution-card.failed .ipython-execution-detail pre{color:#e4a2a2}
+.execution-file-output{display:grid;gap:10px}
+.execution-output-preamble{padding:0 2px}
+.execution-file{min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#0e0f0e}
+.execution-file>header{min-height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 10px;border-block-end:1px solid var(--line);background:rgba(255,255,255,.018)}
+.execution-file>header strong{min-width:0;overflow:hidden;color:var(--secondary);text-overflow:ellipsis;white-space:nowrap;font:10.5px ui-monospace,"SFMono-Regular",monospace;font-weight:600}
+.execution-file>header span{flex:0 0 auto;color:var(--tertiary);font-size:9px;font-weight:560}
+.ipython-execution-detail .execution-file pre{max-height:240px;padding:10px;white-space:pre;overflow-wrap:normal;font-size:10.5px;line-height:1.6}
 .ipython-execution-pending{margin:3px 2px 14px;color:var(--tertiary);font-size:11px;line-height:1.5}
 .modal-dialog:not([open]){display:none}
 .modal-dialog{width:min(650px,calc(100vw - 48px));max-height:min(76vh,680px);margin:auto;padding:0;overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:14px;background:#171719;color:var(--text);box-shadow:0 30px 90px rgba(0,0,0,.6)}
@@ -295,7 +302,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-sidebar .focused-session-row{border-radius:7px}
 @media(max-width:900px){.focused-workspace{grid-template-columns:248px minmax(0,1fr)}}
 @media(max-height:560px){.workspace-sidebar-body{grid-template-rows:minmax(96px,36%) 1px minmax(132px,1fr)}.workspace-sidebar-title{padding-block-end:8px}.workspace-agent-list .focused-session-row{min-height:41px}}
-@media(forced-colors:active){.ipython-execution-source>summary{border:1px solid CanvasText}.workspace-sidebar{background:Canvas;color:CanvasText}.workspace-project-control.active,.workspace-agent-tabs>button.active{border:2px solid Highlight;background:Canvas;color:CanvasText}.workspace-project-mark{background:CanvasText}.workspace-section-divider{background:CanvasText}}
+@media(forced-colors:active){.ipython-execution-source>summary,.execution-file{border:1px solid CanvasText}.workspace-sidebar{background:Canvas;color:CanvasText}.workspace-project-control.active,.workspace-agent-tabs>button.active{border:2px solid Highlight;background:Canvas;color:CanvasText}.workspace-project-mark{background:CanvasText}.workspace-section-divider{background:CanvasText}}
 
 .sr-only:not(:focus):not(:active){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .selected-session-panel{min-width:0;min-height:0;display:grid;overflow:hidden}

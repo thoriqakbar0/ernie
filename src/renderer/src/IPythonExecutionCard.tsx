@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { ThreadItem } from "./transcript";
+import { ExecutionOutput } from "./ExecutionOutput";
 
 type IPythonExecutionItem = Extract<ThreadItem, { readonly kind: "ipython_execution" }>;
 
@@ -54,7 +55,7 @@ export function IPythonExecutionCard({ execution }: { readonly execution: IPytho
       </section>
     </details>
     {execution.detail
-      ? <section className="ipython-execution-detail" aria-label={`${language} output`}><pre tabIndex={0}>{execution.detail}</pre></section>
+      ? <ExecutionOutput detail={execution.detail} language={language} />
       : execution.status === "running" && <p className="ipython-execution-pending" role="status">Waiting for output…</p>}
   </section>;
 }

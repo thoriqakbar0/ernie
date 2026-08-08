@@ -250,7 +250,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
     onKeyDown={compact && open ? trapDrawerFocus : undefined}
   >
     <header className="workspace-sidebar-title">
-      <strong id="workspace-navigation-title">ernie</strong>
+      <strong id="workspace-navigation-title">ernie <span className="workspace-product-stage">beta</span></strong>
       {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
       <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" onClick={onClose}><Icon name="close" /></button>
     </header>

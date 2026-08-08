@@ -16,7 +16,7 @@ function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string 
 }
 
 /** Live transcript surface with an optional interactive composer for the commandable root session. */
-export function SessionTranscriptView({ agent, items, state, onRetry, renderItem, interactive = false, footer, headerContext }: {
+export function SessionTranscriptView({ agent, items, state, onRetry, renderItem, interactive = false, footer }: {
   readonly agent: WorkspaceAgent;
   readonly items: readonly ThreadItem[];
   readonly state: "loading" | "reconnecting" | "ready" | "error" | "unavailable";
@@ -24,7 +24,6 @@ export function SessionTranscriptView({ agent, items, state, onRetry, renderItem
   readonly renderItem: (item: ThreadItem) => ReactNode;
   readonly interactive?: boolean;
   readonly footer?: ReactNode;
-  readonly headerContext?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const followingRef = useRef(true);
@@ -74,12 +73,8 @@ export function SessionTranscriptView({ agent, items, state, onRetry, renderItem
     <strong>{emptyTitle}</strong><p>{emptyCopy}</p>
     {state === "error" && <button type="button" onClick={onRetry}>Retry connection</button>}
   </section>;
-  return <section className="session-transcript-view" aria-labelledby="selected-session-title">
+  return <section className="session-transcript-view" aria-label={`${agent.name} transcript`}>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{state === "error" ? "" : `Session status: ${statusLabel}`}</div>
-    <header className="session-transcript-heading">
-      <div><span>{headerContext ?? (agent.runtimeKind === "subagent" ? "Subagent session" : "Agent session")}</span><h1 id="selected-session-title">{agent.name}</h1></div>
-      <span aria-hidden="true" className={`session-live-state ${state === "error" || state === "unavailable" ? "failed" : state === "reconnecting" ? "reconnecting" : agent.status}`}>{statusLabel}</span>
-    </header>
     <div className="session-transcript-body">
       {state === "error" && items.length > 0 && <div className="session-stream-error" role="alert"><span>Live updates stopped.</span><button type="button" onClick={onRetry}>Retry connection</button></div>}
       <VirtualTranscript items={items} scrollRef={scrollRef} busy={state === "ready" && agent.status === "working"} onScroll={onScroll} onWheel={onWheel} renderItem={renderItem} empty={empty} />

@@ -111,14 +111,12 @@ function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser }: 
   </div>;
 }
 
-export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId, projectLabel, worktreeLabel }: {
+export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState;
   readonly items: readonly ThreadItem[];
   readonly onAppendUser: (text: string) => void;
   readonly spaceId: string;
-  readonly projectLabel: string;
-  readonly worktreeLabel: string;
 }) {
   const runtimeUnavailable = state.connection === "failed" || state.connection === "closed";
   const viewState = runtimeUnavailable ? "unavailable" : state.connection === "starting" ? "loading" : "ready";
@@ -127,20 +125,17 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spac
     items={items}
     state={viewState}
     interactive={state.connection === "ready"}
-    headerContext={`${projectLabel} · ${worktreeLabel} · ${runtimeUnavailable ? "Unavailable" : state.connection === "ready" ? "Interactive" : "Connecting"}`}
     onRetry={() => {}}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
     footer={<ChatComposer spaceId={spaceId} state={state} onAppendUser={onAppendUser} />}
   />;
 }
 
-export function SessionChatSurface({ agent, state, interactive, spaceId, projectLabel, worktreeLabel }: {
+export function SessionChatSurface({ agent, state, interactive, spaceId }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState | undefined;
   readonly interactive: boolean;
   readonly spaceId: string | undefined;
-  readonly projectLabel: string;
-  readonly worktreeLabel: string;
 }) {
   const [items, dispatch] = useReducer(sessionTranscriptReducer, []);
   const [streamState, setStreamState] = useState<"loading" | "reconnecting" | "ready" | "error">("loading");
@@ -176,7 +171,6 @@ export function SessionChatSurface({ agent, state, interactive, spaceId, project
     items={items}
     state={surfaceState}
     interactive={interactive && !runtimeUnavailable}
-    headerContext={`${projectLabel} · ${worktreeLabel} · ${runtimeUnavailable ? "Unavailable" : interactive ? "Interactive" : "Read only"}`}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
     footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} /> : undefined}

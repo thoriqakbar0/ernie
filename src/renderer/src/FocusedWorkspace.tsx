@@ -232,11 +232,10 @@ function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeStat
   if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No spaces yet</h1><p>Open a folder to add your first space.</p></div></section>;
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
-  const worktree = snapshot.worktrees.find((candidate) => candidate.id === agent.worktreeId);
   const state = runtimeState?.agent;
-  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text)} spaceId={project?.id ?? activeProject?.id ?? ""} projectLabel={project?.label ?? "Space"} worktreeLabel={worktree?.label ?? "Worktree"} />;
+  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text)} spaceId={project?.id ?? activeProject?.id ?? ""} />;
   const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);
-  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} projectLabel={project?.label ?? "Space"} worktreeLabel={worktree?.label ?? "Worktree"} />;
+  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} />;
 }
 
 function useMediaQuery(query: string): boolean {

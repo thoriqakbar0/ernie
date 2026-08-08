@@ -43,16 +43,15 @@ The window has two stable regions: the unified sidebar and the tabbed session wo
 
 ### Unified workspace sidebar
 
-The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section, so location and live work remain visible together. Selecting a Space restores that Space’s own tabs and active session. A single hairline separates the independently scrolling sections; compact headings replace large mode controls.
+The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section as independent inventories, so neither is nested inside or used as a display mode for the other. Selecting a Space restores that Space’s own tabs and active session. A single hairline separates the independently scrolling sections; compact headings replace large mode controls.
 
 #### Spaces
 
 The Spaces mode answers, “Where can agents work?”
 
-- Show every user-opened space as one compact disclosure row.
-- The selected space uses a quiet filled state; its count reports contained agents, and a semantic status mark indicates whether it contains live work.
-- Expanding a space reveals its agents directly. Each agent integrates `Status · Worktree` as supporting copy, so worktrees remain legible provenance without becoming a second inventory hierarchy.
-- Preserve root/subagent nesting inside the space; do not flatten away authoritative parent relationships.
+- Show every user-opened Space as one compact identity row; Spaces do not disclose or duplicate the Agents inventory.
+- The selected Space uses a quiet filled state. Its supporting line identifies the worktree context, while an aggregate semantic status mark indicates live work without embedding agent rows.
+- Selecting a Space changes only the active Space and restores its local tabs. Agent discovery and root/subagent hierarchy remain exclusively in the independent Agents section.
 - **Open folder** is a compact action in the Spaces heading. When there are no spaces, the same action is also explained by one focused empty-state card.
 - Reserve the macOS title-bar safe area above the Ernie title. The title surface is draggable; every control remains non-draggable.
 

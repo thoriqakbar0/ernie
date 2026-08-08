@@ -32,12 +32,6 @@ function projectForAgent(snapshot: WorkspaceSnapshot, agent: WorkspaceAgent): Wo
   return snapshot.projects.find((project) => project.worktreeIds.includes(agent.worktreeId));
 }
 
-/** Preserves catalog order while projecting every agent contained by a space. */
-export function agentsForProject(project: WorkspaceProject, agents: readonly WorkspaceAgent[]): readonly WorkspaceAgent[] {
-  const worktreeIds = new Set(project.worktreeIds);
-  return agents.filter((agent) => worktreeIds.has(agent.worktreeId));
-}
-
 function isCommandableAgent(agent: WorkspaceAgent, sessionId: string): boolean {
   return sessionId.length > 0
     && (agent.sessionId === sessionId || agent.id === sessionId || agent.activeSessionId === sessionId);
@@ -85,31 +79,23 @@ function SessionRow({ agent, active, context, onOpen }: {
   </button>;
 }
 
-function ProjectNode({ project, worktrees, agents, active, activeAgentId, onSelect, onOpenAgent }: {
+function SpaceRow({ project, worktrees, active, hasWorkingAgent, onSelect }: {
   readonly project: WorkspaceProject;
   readonly worktrees: readonly WorkspaceWorktree[];
-  readonly agents: readonly WorkspaceAgent[];
   readonly active: boolean;
-  readonly activeAgentId: string | undefined;
+  readonly hasWorkingAgent: boolean;
   readonly onSelect: () => void;
-  readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
-  const [expanded, setExpanded] = useState(active);
-  useEffect(() => { if (active) setExpanded(true); }, [active]);
-  const worktreeLabels = new Map(worktrees.map((worktree) => [worktree.id, worktree.label]));
-  const trees = agentTree(agents, (agent) => worktreeLabels.get(agent.worktreeId) ?? "Detached worktree");
-  const hasWorkingAgent = agents.some((agent) => agent.status === "working");
-  const agentCount = `${agents.length} ${agents.length === 1 ? "agent" : "agents"}`;
+  const worktreeContext = worktrees.length === 1
+    ? worktrees[0]?.label ?? "Local directory"
+    : `${worktrees.length} worktrees`;
+  const label = `${project.label}, ${worktreeContext}${hasWorkingAgent ? ", working" : ""}`;
   return <li className="workspace-project-node">
-    <button type="button" className={`workspace-project-row ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} aria-expanded={expanded} title={project.path} onClick={() => { onSelect(); setExpanded((value) => active ? !value : true); }}>
-      <span className={`focused-chevron ${expanded ? "expanded" : ""}`} aria-hidden="true">›</span>
+    <button type="button" className={`workspace-project-row ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} aria-label={label} title={project.path} onClick={onSelect}>
       <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
       <strong>{project.label}</strong>
-      <small>{agentCount}{hasWorkingAgent ? " · Working" : ""}</small>
+      <small>{worktreeContext}</small>
     </button>
-    {expanded && (trees.length > 0
-      ? <ul className="workspace-space-agent-list" aria-label={`Agents in ${project.label}`}>{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>
-      : <p className="workspace-space-empty">No agents in this space.</p>)}
   </li>;
 }
 
@@ -250,6 +236,8 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
   }, [compact, open]);
   const activeProject = snapshot.projects.find((project) => project.id === activeProjectId);
   const priorityCount = prioritizeAgents(snapshot.agents).length;
+  const workingWorktreeIds = new Set<string>();
+  for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
   return <aside
     id="workspace-navigation"
     className="workspace-sidebar"
@@ -280,8 +268,8 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
           {!loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
           <ul className="workspace-project-list">{snapshot.projects.map((project) => {
             const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
-            const agents = agentsForProject(project, snapshot.agents);
-            return <ProjectNode key={project.id} project={project} worktrees={worktrees} agents={agents} active={project.id === activeProjectId} activeAgentId={activeAgentId} onSelect={() => onSelectProject(project.id)} onOpenAgent={onOpenAgent} />;
+            const hasWorkingAgent = project.worktreeIds.some((worktreeId) => workingWorktreeIds.has(worktreeId));
+            return <SpaceRow key={project.id} project={project} worktrees={worktrees} active={project.id === activeProjectId} hasWorkingAgent={hasWorkingAgent} onSelect={() => onSelectProject(project.id)} />;
           })}</ul>
         </div>
       </section>

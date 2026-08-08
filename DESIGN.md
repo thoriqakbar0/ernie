@@ -2,13 +2,13 @@
 
 Ernie is a quiet desktop workspace for developers who run several Prime Agent sessions across several local directories. Live work should be easy to locate without turning the interface into a process monitor. Product behavior and security constraints live in [PRODUCT.md](./PRODUCT.md); this document owns the interface model, visual language, and interaction rules.
 
-The focused-project layout originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. Production code is a deliberate rewrite rather than promoted prototype code.
+The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces above, global Agents and Priority views below, and session tabs across the main work surface.
 
 ## Design principles
 
-1. **Focus before inventory.** Show one project’s session tree at a time. Other projects remain one selection away instead of competing for attention.
-2. **Live work is primary.** Session names, current activity, and required input outrank Git and runtime metadata.
-3. **Location stays legible.** Every session has a visible path through project and worktree, but location appears as supporting context rather than repeated badges.
+1. **Orientation before detail.** Keep Spaces compact, make every active agent globally reachable, and reserve the main surface for one conversation.
+2. **Live work is primary.** Agent names, current activity, required input, and failure outrank Git and runtime metadata.
+3. **Location stays legible.** Every agent has a visible path through space and worktree, but location appears as supporting context within the row.
 4. **Views are not processes.** Opening or closing a tab changes only the view. Starting, stopping, deleting, and archiving sessions require separate explicit actions.
 5. **Motion carries state.** Animate only real ongoing activity or a spatial transition. Never imply measurable progress when Ernie has no percentage.
 6. **Native authority stays visible.** Trusted operating-system actions, such as choosing a directory, use native controls rather than simulated web UI.
@@ -17,56 +17,64 @@ The focused-project layout originated in Variant B of the session-mapping protot
 
 ```text
 Workspace
-└── Project directory
-    └── Worktree
-        └── Session
-            └── Subagent
+├── Space
+│   └── Worktree
+│       └── Agent
+│           ├── Session
+│           └── Subagent
+└── Priority queue ──projects attention from──> Agent status
 
-Open session ──opens or focuses──> Tab
+Open agent session ──opens or focuses──> Tab
 ```
 
 - A **workspace** is the complete Ernie window.
-- A **project** is a user-opened local directory. Projects persist across launches.
-- A **worktree** is a Git checkout within a project. A non-Git project behaves as a single directory-backed worktree.
-- A **session** is a Prime Agent session mapped to the directory where it runs.
-- A **subagent** is a session with an explicit parent-session relationship.
-- A **tab** is an open view of one session. It does not own the session lifecycle.
+- A **space** is a user-opened local project directory. Spaces persist across launches.
+- A **worktree** is a Git checkout within a space. A non-Git space behaves as a single directory-backed worktree.
+- An **agent** is a root Prime Agent or subagent operating in one worktree and represented by its session.
+- A **session** is the persisted conversation and activity history belonging to an agent.
+- A **subagent** is an agent with an explicit parent-agent relationship.
+- **Priority** is a computed view, not a stored attribute or object. It orders agents by attention: Failed, Waiting, Working, then Idle.
+- A **tab** is an open view of one agent session. It does not own the agent or session lifecycle.
 
-Use these terms consistently in UI copy, code, and documentation. Do not use “repository,” “folder,” and “project” interchangeably: **Open folder** is the native action; **project** is the object created in Ernie.
+Use these terms consistently in UI copy. **Open folder** is the trusted native action that creates a **space** in Ernie.
 
 ## Workspace anatomy
 
-The window has three stable regions.
+The window has two stable regions: the unified sidebar and the tabbed session workspace.
 
-### Project rail
+### Unified workspace sidebar
 
-The narrow leading rail answers, “Which project am I looking at?”
+The leading sidebar follows the Herdr structure without borrowing its terminal visual styling.
 
-- One compact button per open project, using directory-derived initials.
-- Full project name and path remain available through accessible names and tooltips.
-- The active project uses a quiet filled selection state.
-- **Open folder** stays at the bottom as a distinct dashed control.
-- The title-bar area and unused rail surface are safe drag regions. Project controls remain non-draggable.
+#### Spaces
 
-### Focused project navigator
+The upper region answers, “Where can agents work?”
 
-The middle panel answers, “What is happening in this project?”
+- Show every user-opened space as one compact disclosure row.
+- The selected space uses a quiet filled state; a semantic status mark indicates whether it contains live work.
+- Expanding a space reveals its worktrees, but not its agents.
+- **Open folder** is available beside the Spaces heading and as a persistent action at the bottom.
+- Reserve the macOS title-bar safe area above the Ernie title. The title surface is draggable; every control remains non-draggable.
 
-- Reserve the native macOS title-bar safe area before project name and path. The project rail and navigator use the same `--titlebar-safe-height` token.
-- Project name is primary; its absolute path is secondary and truncates without wrapping.
-- Worktrees are disclosure groups with session counts.
-- Sessions nest only through authoritative parent relationships. Missing or cyclic relationships fail open as top-level rows instead of hiding work.
-- A session row shows its name, summary or status, and a state mark. A running session also receives the indeterminate activity bar.
-- Switching projects does not close tabs or stop sessions.
+#### Agents and Priority
+
+The lower region is a two-view tab set.
+
+- **Agents** is the default global inventory across every space. Preserve authoritative root/subagent nesting and integrate `Space · Worktree` into each row’s supporting copy.
+- **Priority** is a global attention queue ordered Failed → Waiting → Working → Idle. Completed, Cancelled, and Disconnected agents do not enter the queue.
+- Selecting an agent focuses its space, opens its session tab once, and makes that tab active.
+- A row shows the agent name, location or priority reason, a semantic state mark, and an indeterminate activity bar only while working.
+- Missing or cyclic parent relationships fail open as top-level agents instead of hiding work.
+- A newly commandable RPC conversation may appear before it has a persisted catalog record; render it as **New conversation** and reconcile it when identity becomes available.
 
 ### Session workspace
 
 The main column answers, “What am I working on now?”
 
-- Global session tabs occupy the title-bar row. Tab copy integrates project context: `Session name · Project`.
+- Global session tabs occupy the title-bar row. Tab copy integrates space context: `Session name · Space`.
 - Clicking a session opens its tab once; later clicks focus the existing tab.
 - Closing the active tab selects the nearest remaining tab. Closing the final tab returns to the empty state.
-- The breadcrumb shows project, worktree, and session once. Do not repeat this provenance as a separate badge stack.
+- The transcript heading integrates project, worktree, and authority (`Interactive` or `Read only`) as one supporting line. Do not repeat this provenance as a separate badge stack.
 - A detached tab explains that its session is unavailable and that closing the view will not delete saved work.
 - Until targeted daemon-backed commands exist, non-root session surfaces remain read-only.
 
@@ -91,10 +99,10 @@ The activity bar communicates liveness, not completion. Under reduced motion it 
 Ernie uses near-black layered surfaces with low-contrast separators. Color is reserved for selection, status, and recovery.
 
 - `--canvas`: primary work surface.
-- `--rail`: deepest navigation surface.
-- `--panel`: focused navigation surface.
+- `--rail`: reserved deepest navigation surface.
+- `--panel`: unified workspace sidebar.
 - `--raised`: tabs and compact state surfaces.
-- `--accent`: focus and selected-project emphasis.
+- `--accent`: focus, selected-space emphasis, and the active Agents/Priority view.
 - `--success`, `--warning`, and `--danger`: semantic states only.
 
 Do not use gradients for text, decorative glows, or color as the only state signal. Preserve contrast in default and forced-color modes.
@@ -144,10 +152,12 @@ Use the native system stack. Interface text is compact but not monospaced; reser
 | Use | Avoid |
 | --- | --- |
 | Open folder | Add repo, Import workspace |
-| Project | Folder, Repo, Workspace project |
+| Space | Folder, Repo, Project in user-facing copy |
 | Worktree | Branch folder |
-| Session | Chat, Run, Thread when referring to the session object |
-| Subagent | Child bot, Worker |
+| Agent | Bot, Worker |
+| Session | Chat, Run, Thread when referring to the persisted conversation |
+| Subagent | Child bot |
+| Priority | Score, Rank |
 | Close tab | Stop session |
 | Waiting for input | Paused, Stuck |
 
@@ -166,9 +176,10 @@ Use **thread** only for the explicit “new thread” product action, not as a s
 
 Before merging interface changes, verify:
 
-- The focused project remains obvious within seconds.
-- Project switching preserves open tabs and running sessions.
-- Session location is visible without duplicated metadata.
+- Spaces, Agents, Priority, and session tabs are findable within seconds.
+- Space switching preserves open tabs and running agents.
+- Agent location is visible without duplicated metadata.
+- Priority order follows Failed → Waiting → Working → Idle without manual or invented scores.
 - Working, waiting, failed, empty, and detached states are distinguishable.
 - Closing a tab cannot stop or delete work.
 - Native title-bar safe regions remain draggable without capturing controls.

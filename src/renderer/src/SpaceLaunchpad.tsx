@@ -37,7 +37,7 @@ function greetingForHour(hour: number): string {
   return "Good evening";
 }
 
-const DELEGATION_LABELS = ["Root only", "Light", "Medium", "High", "Custom"] as const;
+const DELEGATION_LABELS = ["Light", "Medium", "High", "Custom"] as const;
 
 /** Quiet first-thread composer for an empty Space. */
 export function SpaceLaunchpad({
@@ -58,10 +58,12 @@ export function SpaceLaunchpad({
   onSubmit,
 }: SpaceLaunchpadProps) {
   const [greeting] = useState(() => greetingForHour(new Date().getHours()));
-  const [intensity, setIntensity] = useState(() => Math.min(rlmMaxDepth, 4));
+  const [delegationEnabled, setDelegationEnabled] = useState(() => rlmMaxDepth > 0);
+  const [intensity, setIntensity] = useState(() => Math.min(Math.max(rlmMaxDepth, 1), 4));
   const [customDepth, setCustomDepth] = useState(() => String(rlmMaxDepth > 3 ? rlmMaxDepth : 4));
   const promptId = useId();
   const modelId = useId();
+  const delegationId = useId();
   const depthId = useId();
   const customDepthId = useId();
   const errorId = useId();
@@ -72,9 +74,10 @@ export function SpaceLaunchpad({
   const hasSelectedModel = selectedModel !== undefined;
   const customDepthNumber = Number(customDepth);
   const customDepthIsValid = customDepth !== "" && Number.isSafeInteger(customDepthNumber) && customDepthNumber >= 0;
-  const depthNumber = intensity === 4 ? customDepthNumber : intensity;
-  const depthIsValid = intensity !== 4 || customDepthIsValid;
-  const intensityLabel = DELEGATION_LABELS[intensity] ?? "Custom";
+  const enabledDepthNumber = intensity === 4 ? customDepthNumber : intensity;
+  const depthNumber = delegationEnabled ? enabledDepthNumber : 0;
+  const depthIsValid = !delegationEnabled || intensity !== 4 || customDepthIsValid;
+  const intensityLabel = DELEGATION_LABELS[intensity - 1] ?? "Custom";
   const canSubmit = promptDraft.trim().length > 0
     && hasSelectedModel
     && !modelsLoading
@@ -136,12 +139,32 @@ export function SpaceLaunchpad({
               </select>
               {selectedModel?.provider && <p id={modelProviderId} className="sr-only">Selected provider: {selectedModel.provider}</p>}
 
-              <div className="space-launchpad-intensity-control">
-                <label htmlFor={depthId}><span>Delegation</span><output htmlFor={depthId}>{intensityLabel}</output></label>
-                <input
+              <div className="space-launchpad-intensity-control" data-enabled={delegationEnabled}>
+                <div className="space-launchpad-delegation-heading">
+                  <label htmlFor={delegationId}>Delegation</label>
+                  <input
+                    id={delegationId}
+                    className="space-launchpad-delegation-toggle"
+                    type="checkbox"
+                    checked={delegationEnabled}
+                    disabled={busy}
+                    aria-label="Enable delegation"
+                    onChange={(event) => {
+                      const enabled = event.currentTarget.checked;
+                      setDelegationEnabled(enabled);
+                      if (!enabled) onRlmMaxDepthChange(0);
+                      else if (intensity === 4 && !customDepthIsValid) {
+                        setCustomDepth("4");
+                        onRlmMaxDepthChange(4);
+                      } else onRlmMaxDepthChange(enabledDepthNumber);
+                    }}
+                  />
+                  <output htmlFor={delegationId}>{delegationEnabled ? `On · ${intensityLabel}` : "Off"}</output>
+                </div>
+                {delegationEnabled && <input
                   id={depthId}
                   type="range"
-                  min="0"
+                  min="1"
                   max="4"
                   step="1"
                   value={intensity}
@@ -154,9 +177,9 @@ export function SpaceLaunchpad({
                     if (next < 4) onRlmMaxDepthChange(next);
                     else if (customDepthIsValid) onRlmMaxDepthChange(customDepthNumber);
                   }}
-                />
+                />}
               </div>
-              {intensity === 4 && <>
+              {delegationEnabled && intensity === 4 && <>
                 <label className="sr-only" htmlFor={customDepthId}>Custom RLM max depth</label>
                 <input
                   className="space-launchpad-custom-depth"

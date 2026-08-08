@@ -1,13 +1,14 @@
 import { assistantText, type ThreadItem } from "./transcript";
 import { IPythonExecutionCard } from "./IPythonExecutionCard";
+import { MarkdownContent } from "./MarkdownContent";
 
 /** Shared transcript projection for interactive and read-only session chat surfaces. */
 export function TranscriptItem({ item, assistantLabel }: { readonly item: ThreadItem; readonly assistantLabel: string }) {
   switch (item.kind) {
     case "user":
-      return <article className="chat-message user"><div className="chat-message-role">You</div><div className="chat-message-copy">{item.text}</div></article>;
+      return <article className="chat-message user"><div className="chat-message-role">You</div><div className="chat-message-copy"><MarkdownContent source={item.text} /></div></article>;
     case "assistant":
-      return <article className="chat-message assistant"><div className="chat-message-role">{assistantLabel}</div><div className="chat-message-copy">{assistantText(item)}{item.active && <span className="chat-stream-cursor" aria-label="Streaming" />}</div></article>;
+      return <article className="chat-message assistant"><div className="chat-message-role">{assistantLabel}</div><div className="chat-message-copy"><MarkdownContent source={assistantText(item)} trailing={item.active ? <span className="chat-stream-cursor" aria-label="Streaming" /> : undefined} /></div></article>;
     case "ipython_execution":
       return <IPythonExecutionCard execution={item} />;
     case "tool":

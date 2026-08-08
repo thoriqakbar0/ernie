@@ -66,7 +66,6 @@ function SessionTabs({ snapshot, spaceLabel, openAgentIds, activeAgentId, naviga
       const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
       const title = agent?.name ?? "Detached session";
       const status = agent ? statusText(agent.status) : "Disconnected";
-      const visibleTitle = `${title} · ${status}`;
       return <div key={agentId} role="presentation" className={`focused-tab-shell ${agentId === activeAgentId ? "active" : ""}`}>
         <button
           ref={(element) => { if (element) tabRefs.current.set(agentId, element); else tabRefs.current.delete(agentId); }}
@@ -75,8 +74,8 @@ function SessionTabs({ snapshot, spaceLabel, openAgentIds, activeAgentId, naviga
           role="tab"
           aria-controls="selected-session-panel"
           aria-selected={agentId === activeAgentId}
-          aria-label={`${visibleTitle}${spaceLabel ? ` in ${spaceLabel}` : ""}. Press Delete to close.`}
-          title={visibleTitle}
+          aria-label={`${title}, ${status}${spaceLabel ? ` in ${spaceLabel}` : ""}. Press Delete to close.`}
+          title={title}
           tabIndex={agentId === activeAgentId ? 0 : -1}
           className="focused-tab"
           onClick={() => onSelect(agentId)}
@@ -86,9 +85,9 @@ function SessionTabs({ snapshot, spaceLabel, openAgentIds, activeAgentId, naviga
           }}
         >
           <span className={`focused-status ${agent?.status ?? "disconnected"}`} aria-hidden="true" />
-          <span>{visibleTitle}</span>
+          <span>{title}</span>
         </button>
-        <button type="button" tabIndex={-1} aria-hidden="true" className="focused-tab-close" onClick={() => closeTab(agentId)}><Icon name="close" /></button>
+        <button type="button" tabIndex={-1} aria-label={`Close ${title}`} title={`Close ${title}`} className="focused-tab-close" onClick={() => closeTab(agentId)}><Icon name="close" /></button>
       </div>;
     })}
     </div>

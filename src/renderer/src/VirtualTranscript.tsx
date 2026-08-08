@@ -52,7 +52,7 @@ export function VirtualTranscript({ items, scrollRef, busy, empty, renderItem, o
           key={item.id}
           ref={virtualizer.measureElement}
           data-index={virtualItem.index}
-          className="virtual-transcript-row"
+          className={`virtual-transcript-row ${(item.kind === "ipython_execution" || items[virtualItem.index + 1]?.kind === "ipython_execution") ? "compact-execution-gap" : ""}`}
           style={{ transform: `translateY(${virtualItem.start}px)` }}
         >{renderItem(item)}</div>;
       })}

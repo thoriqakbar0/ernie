@@ -204,17 +204,20 @@ function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onSta
   />;
 }
 
-function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy }: {
+export function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, opening, openError, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly agentId: string | undefined;
   readonly loading: boolean;
   readonly activeProject: WorkspaceProject | undefined;
   readonly runtimeState: SpaceRuntimeState | undefined;
   readonly liveItems: readonly ThreadItem[];
+  readonly opening: boolean;
+  readonly openError: string | undefined;
   readonly onAppendLiveUser: (spaceId: string, text: string, steered: boolean) => void;
   readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly onStarted: (agentId: string, prompt: string) => void;
   readonly onShowAgentHierarchy: (agentId: string) => void;
+  readonly onOpenDirectory: () => void;
 }) {
   const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
   if (loading) return <section className="focused-surface empty"><div><h1>Loading workspace…</h1><p>Finding your spaces and Prime Agent sessions.</p></div></section>;
@@ -229,7 +232,16 @@ function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeStat
       onStarted={onStarted}
     />;
   }
-  if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No spaces yet</h1><p>Open a folder to add your first space.</p></div></section>;
+  if (agentId === undefined) return <section className="focused-surface empty">
+    <div className="focused-empty-hero">
+      <header>
+        <h1>What should we work on?</h1>
+        <p>Open a folder to add your first space.</p>
+        <button type="button" disabled={opening} onClick={onOpenDirectory}><Icon name="folder-add" /><span>{opening ? "Opening folder…" : "Open folder"}</span></button>
+        {openError && <p className="focused-empty-error" role="alert">{openError}</p>}
+      </header>
+    </div>
+  </section>;
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
   const assistantSubagents = summarizeAgentDescendantActivity(snapshot.agents, agent.id);
@@ -412,7 +424,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
           <div className="focused-titlebar-drag" aria-hidden="true" />
           <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
           <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
-            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} />
+            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} opening={opening} openError={openError} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} onOpenDirectory={() => { void openDirectory(); }} />
           </section>
         </section>
       </PerformanceProfiler>

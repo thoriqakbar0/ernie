@@ -129,6 +129,18 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .focused-surface.empty svg{font-size:22px}
 .focused-surface.empty h1{margin:12px 0 7px;color:var(--secondary);font-size:17px;letter-spacing:-.015em}
 .focused-surface.empty p{margin:0;font-size:12px;line-height:1.5}
+.focused-surface.empty>.focused-empty-hero{width:min(512px,100%);padding:48px 32px;color:var(--tertiary);text-align:center}
+.focused-empty-hero header{display:flex;flex-direction:column;align-items:center}
+.focused-surface.empty .focused-empty-hero h1{margin:0;color:var(--text);font-size:clamp(24px,3vw,30px);font-weight:650;letter-spacing:-.03em;line-height:1.2}
+.focused-surface.empty .focused-empty-hero p{margin-block-start:8px;color:var(--tertiary);font-size:14px;line-height:1.5}
+.focused-empty-hero button{min-width:40px;min-height:40px;margin-block-start:24px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding-inline:13px;border:1px solid #d9d0ef;border-radius:8px;background:#e5ddf8;color:#1b1429;font-size:12px;font-weight:680}
+.focused-empty-hero button:hover:not(:disabled){background:#eee9fb}
+.focused-empty-hero button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.focused-empty-hero button:disabled{border-color:var(--line);background:var(--raised);color:var(--tertiary);opacity:.65}
+.focused-empty-hero button svg{width:16px;height:16px;font-size:inherit}
+.focused-surface.empty .focused-empty-hero .focused-empty-error{max-width:48ch;margin-block-start:12px;color:#e59a9a;font-size:11.5px;overflow-wrap:anywhere}
+@media(max-width:620px){.focused-surface.empty>.focused-empty-hero{padding:36px 24px}}
+@media(forced-colors:active){.focused-empty-hero button{border:1px solid ButtonText;background:ButtonFace;color:ButtonText}.focused-empty-hero button:focus-visible{outline-color:Highlight}}
 @media(max-width:900px){.focused-workspace{grid-template-columns:58px 250px minmax(0,1fr)}.project-rail-button{width:39px;height:39px}.focused-session-overview{width:80%}}
 @media(max-height:560px){.focused-project-panel>header{height:calc(var(--titlebar-safe-height) + 46px);padding-block-end:7px}.focused-session-row{min-height:40px}.focused-session-overview{padding-block-start:24vh}}
 @media(prefers-reduced-motion:reduce){.focused-chevron,.project-rail-button{transition:none}}

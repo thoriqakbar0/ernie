@@ -37,6 +37,8 @@ function greetingForHour(hour: number): string {
   return "Good evening";
 }
 
+const DELEGATION_LABELS = ["Root only", "Light", "Medium", "High", "Custom"] as const;
+
 /** Quiet first-thread composer for an empty Space. */
 export function SpaceLaunchpad({
   spaceLabel,
@@ -56,18 +58,23 @@ export function SpaceLaunchpad({
   onSubmit,
 }: SpaceLaunchpadProps) {
   const [greeting] = useState(() => greetingForHour(new Date().getHours()));
-  const [depthValue, setDepthValue] = useState(() => String(rlmMaxDepth));
+  const [intensity, setIntensity] = useState(() => Math.min(rlmMaxDepth, 4));
+  const [customDepth, setCustomDepth] = useState(() => String(rlmMaxDepth > 3 ? rlmMaxDepth : 4));
   const promptId = useId();
   const modelId = useId();
   const depthId = useId();
+  const customDepthId = useId();
   const errorId = useId();
   const modelStatusId = useId();
   const modelProviderId = useId();
 
   const selectedModel = models.find((model) => model.id === selectedModelId);
   const hasSelectedModel = selectedModel !== undefined;
-  const depthNumber = Number(depthValue);
-  const depthIsValid = depthValue !== "" && Number.isSafeInteger(depthNumber) && depthNumber >= 0;
+  const customDepthNumber = Number(customDepth);
+  const customDepthIsValid = customDepth !== "" && Number.isSafeInteger(customDepthNumber) && customDepthNumber >= 0;
+  const depthNumber = intensity === 4 ? customDepthNumber : intensity;
+  const depthIsValid = intensity !== 4 || customDepthIsValid;
+  const intensityLabel = DELEGATION_LABELS[intensity] ?? "Custom";
   const canSubmit = promptDraft.trim().length > 0
     && hasSelectedModel
     && !modelsLoading
@@ -129,32 +136,52 @@ export function SpaceLaunchpad({
               </select>
               {selectedModel?.provider && <p id={modelProviderId} className="sr-only">Selected provider: {selectedModel.provider}</p>}
 
-              <label className="space-launchpad-depth-control" htmlFor={depthId} title="RLM max depth">
-                <span>Depth</span>
+              <div className="space-launchpad-intensity-control">
+                <label htmlFor={depthId}><span>Delegation</span><output htmlFor={depthId}>{intensityLabel}</output></label>
                 <input
                   id={depthId}
+                  type="range"
+                  min="0"
+                  max="4"
+                  step="1"
+                  value={intensity}
+                  disabled={busy}
+                  aria-label="Delegation intensity"
+                  aria-valuetext={intensityLabel}
+                  onChange={(event) => {
+                    const next = Number(event.currentTarget.value);
+                    setIntensity(next);
+                    if (next < 4) onRlmMaxDepthChange(next);
+                    else if (customDepthIsValid) onRlmMaxDepthChange(customDepthNumber);
+                  }}
+                />
+              </div>
+              {intensity === 4 && <>
+                <label className="sr-only" htmlFor={customDepthId}>Custom RLM max depth</label>
+                <input
+                  className="space-launchpad-custom-depth"
+                  id={customDepthId}
                   type="number"
                   inputMode="numeric"
                   min="0"
                   step="1"
-                  value={depthValue}
+                  value={customDepth}
                   disabled={busy}
-                  aria-label="RLM max depth"
-                  aria-invalid={!depthIsValid}
+                  aria-invalid={!customDepthIsValid}
                   onChange={(event) => {
                     const value = event.currentTarget.value;
-                    setDepthValue(value);
+                    setCustomDepth(value);
                     const next = Number(value);
                     if (value !== "" && Number.isSafeInteger(next) && next >= 0) onRlmMaxDepthChange(next);
                   }}
                 />
-              </label>
+              </>}
             </div>
             <button className="space-launchpad-submit" type="submit" disabled={!canSubmit}>Start thread</button>
           </footer>
         </div>
 
-        {!depthIsValid && <span className="space-launchpad-field-error">Depth must be a whole number of 0 or more.</span>}
+        {!depthIsValid && <span className="space-launchpad-field-error">Custom depth must be a whole number of 0 or more.</span>}
         {(modelsLoading || modelsError || models.length === 0) && <div className="space-launchpad-model-status" id={modelStatusId} aria-live="polite">
           {modelsLoading ? <span>Loading models…</span> : modelsError ? <>
             <span>{modelsError}</span>

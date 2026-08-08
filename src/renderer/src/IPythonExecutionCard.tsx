@@ -27,21 +27,25 @@ export function IPythonExecutionCard({ execution }: { readonly execution: IPytho
   const startedAt = execution.startedAt === null ? null : new Date(execution.startedAt);
   const statusLabel = STATUS_LABELS[execution.status];
   const language = executionLanguage(execution.code);
+  const targetLabel = execution.executionTarget === "local"
+    ? "Local"
+    : execution.executionTarget === "modal" ? "Remote (legacy)" : null;
+  const hasMetadata = targetLabel !== null || startedAt !== null || execution.durationMs !== null;
 
   return <section
     className={`ipython-execution-card ${execution.status}`}
     aria-labelledby={titleId}
-    aria-describedby={metadataId}
+    aria-describedby={hasMetadata ? metadataId : undefined}
   >
     <details className="ipython-execution-source">
       <summary>
         <span className="ipython-execution-heading-copy">
           <span id={titleId} className="ipython-execution-language">{language}</span>
-          <span id={metadataId} className="ipython-execution-meta">
-            <span>{execution.executionTarget === "local" ? "Local" : execution.executionTarget === "modal" ? "Remote (legacy)" : "Runtime unavailable"}</span>
+          {hasMetadata && <span id={metadataId} className="ipython-execution-meta">
+            {targetLabel && <span>{targetLabel}</span>}
             {startedAt && <time dateTime={startedAt.toISOString()}>{startedAt.toLocaleTimeString()}</time>}
             {execution.durationMs !== null && <span>{formatDuration(execution.durationMs)}</span>}
-          </span>
+          </span>}
         </span>
         <span className="ipython-execution-status" aria-label={`Status: ${statusLabel}`}>{statusLabel}</span>
       </summary>

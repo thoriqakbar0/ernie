@@ -186,7 +186,8 @@ describe("IPython execution card", () => {
       id: "execution-2", kind: "ipython_execution", callId: "call-2", executionTarget: "unknown",
       status: "succeeded", code: "print(2)", detail: "2", startedAt: null, durationMs: null,
     } }));
-    expect(markup).toContain("Runtime unavailable");
+    expect(markup).not.toContain("Runtime unavailable");
+    expect(markup).not.toContain("aria-describedby");
     expect(markup).not.toContain("Started");
     expect(markup).not.toContain("1970");
   });

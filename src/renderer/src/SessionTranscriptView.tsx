@@ -86,6 +86,6 @@ export function SessionTranscriptView({ agent, items, state, onRetry, renderItem
       {!following && <button type="button" className="jump-latest session-jump-latest" onClick={followLatest}>Jump to latest</button>}
     </div>
     <AccessibleTranscriptDialog items={items} assistantLabel="Prime Agent" promptLabel="You" visuallyHiddenTrigger />
-    {footer ?? <footer className="session-transcript-footer">Read-only session stream</footer>}
+    {footer}
   </section>;
 }

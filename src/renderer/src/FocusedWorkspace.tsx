@@ -7,24 +7,27 @@ import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface
 import type { ThreadItem } from "./transcript";
 import { prioritizeAgents } from "./agentPriority";
 
-type IconName = "agents" | "branch" | "close" | "folder-add" | "sidebar" | "spaces";
+type IconName = "close" | "folder-add" | "sidebar";
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
-  agents: <><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2m16 0h2m-7-1v2m-6-2v2" /></>,
-  branch: <><circle cx="6" cy="5" r="1.5" /><circle cx="14" cy="15" r="1.5" /><path d="M6 6.5v3.7a4.8 4.8 0 0 0 4.8 4.8h1.7M14 13.5V5" /></>,
   close: <path d="m6 6 8 8m0-8-8 8" />,
   "folder-add": <path d="M12 10v6m-3-3h6m5 7a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />,
   sidebar: <><rect x="2.5" y="2.5" width="15" height="15" rx="2" /><path d="M7.5 2.5v15m4-10 3 2.5-3 2.5" /></>,
-  spaces: <><path d="M20 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5a1.5 1.5 0 0 1 1.2.6l.6.8a1.5 1.5 0 0 0 1.2.6z" /><path d="M3 8.27a2 2 0 0 0-1 1.74V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.73-1" /></>,
 };
 
 function Icon({ name }: { readonly name: IconName }) {
-  const usesLucideGrid = name === "agents" || name === "folder-add" || name === "spaces";
+  const usesLucideGrid = name === "folder-add";
   return <svg viewBox={usesLucideGrid ? "0 0 24 24" : "0 0 20 20"} aria-hidden="true">{ICON_PATHS[name]}</svg>;
 }
 
 function projectForAgent(snapshot: WorkspaceSnapshot, agent: WorkspaceAgent): WorkspaceProject | undefined {
   return snapshot.projects.find((project) => project.worktreeIds.includes(agent.worktreeId));
+}
+
+/** Preserves catalog order while projecting every agent contained by a space. */
+export function agentsForProject(project: WorkspaceProject, agents: readonly WorkspaceAgent[]): readonly WorkspaceAgent[] {
+  const worktreeIds = new Set(project.worktreeIds);
+  return agents.filter((agent) => worktreeIds.has(agent.worktreeId));
 }
 
 function isCommandableAgent(agent: WorkspaceAgent, sessionId: string): boolean {
@@ -54,43 +57,55 @@ function SessionRow({ agent, active, context, onOpen }: {
   readonly context: string;
   readonly onOpen: (agent: WorkspaceAgent) => void;
 }) {
-  const fullLabel = `${agent.name} — ${context}`;
+  const status = statusText(agent.status);
+  const isSubagent = agent.runtimeKind === "subagent";
+  const fullLabel = [agent.name, isSubagent ? "Subagent" : undefined, status, context].filter(Boolean).join(" — ");
   return <button
     type="button"
-    className={`focused-session-row ${active ? "active" : ""}`}
+    className={`focused-session-row ${isSubagent ? "subagent" : "root-agent"} ${active ? "active" : ""}`}
     aria-current={active ? "page" : undefined}
     aria-label={fullLabel}
     title={fullLabel}
     onClick={() => onOpen(agent)}
   >
     <span className={`focused-status ${agent.status}`} aria-hidden="true" />
-    <span className="focused-session-copy"><strong>{agent.name}</strong><small>{context}</small></span>
+    <span className="focused-session-copy">
+      <span className="focused-session-title"><strong>{agent.name}</strong>{isSubagent && <span className="focused-session-kind">Subagent</span>}</span>
+      <small className="focused-session-meta"><span>{status}</span><span>{context}</span></small>
+    </span>
     {agent.status === "working" && <ActivityBar />}
   </button>;
 }
 
-function ProjectNode({ project, worktrees, active, hasWorkingSession, onSelect }: {
+function ProjectNode({ project, worktrees, agents, active, activeAgentId, onSelect, onOpenAgent }: {
   readonly project: WorkspaceProject;
   readonly worktrees: readonly WorkspaceWorktree[];
+  readonly agents: readonly WorkspaceAgent[];
   readonly active: boolean;
-  readonly hasWorkingSession: boolean;
+  readonly activeAgentId: string | undefined;
   readonly onSelect: () => void;
+  readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   const [expanded, setExpanded] = useState(active);
   useEffect(() => { if (active) setExpanded(true); }, [active]);
+  const worktreeLabels = new Map(worktrees.map((worktree) => [worktree.id, worktree.label]));
+  const trees = agentTree(agents, (agent) => worktreeLabels.get(agent.worktreeId) ?? "Detached worktree");
+  const hasWorkingAgent = agents.some((agent) => agent.status === "working");
+  const agentCount = `${agents.length} ${agents.length === 1 ? "agent" : "agents"}`;
   return <li className="workspace-project-node">
     <button type="button" className={`workspace-project-row ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} aria-expanded={expanded} title={project.path} onClick={() => { onSelect(); setExpanded((value) => active ? !value : true); }}>
       <span className={`focused-chevron ${expanded ? "expanded" : ""}`} aria-hidden="true">›</span>
-      <span className={`workspace-project-mark ${hasWorkingSession ? "working" : ""}`} aria-hidden="true" />
+      <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
       <strong>{project.label}</strong>
-      <small>{worktrees.length}{hasWorkingSession ? " · Working" : ""}</small>
+      <small>{agentCount}{hasWorkingAgent ? " · Working" : ""}</small>
     </button>
-    {expanded && <ul className="workspace-worktree-list">{worktrees.map((worktree) => <li key={worktree.id}><Icon name="branch" /><span>{worktree.label}</span></li>)}</ul>}
+    {expanded && (trees.length > 0
+      ? <ul className="workspace-space-agent-list" aria-label={`Agents in ${project.label}`}>{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>
+      : <p className="workspace-space-empty">No agents in this space.</p>)}
   </li>;
 }
 
 type AgentView = "agents" | "priority";
-type SidebarView = "spaces" | "agents";
 
 function horizontalTabStep(event: KeyboardEvent<HTMLButtonElement>): -1 | 1 | undefined {
   const rtl = window.getComputedStyle(event.currentTarget).direction === "rtl";
@@ -107,29 +122,6 @@ function trapDrawerFocus(event: KeyboardEvent<HTMLElement>): void {
   if (!first || !last) return;
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-}
-
-function WorkspaceModeTabs({ value, onChange }: {
-  readonly value: SidebarView;
-  readonly onChange: (view: SidebarView) => void;
-}) {
-  const spacesRef = useRef<HTMLButtonElement>(null);
-  const agentsRef = useRef<HTMLButtonElement>(null);
-  const moveFocus = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const step = horizontalTabStep(event);
-    const next = event.key === "Home" ? "spaces"
-      : event.key === "End" ? "agents"
-      : step !== undefined ? value === "spaces" ? "agents" : "spaces"
-      : undefined;
-    if (!next) return;
-    event.preventDefault();
-    onChange(next);
-    (next === "spaces" ? spacesRef : agentsRef).current?.focus();
-  };
-  return <div className="workspace-sidebar-tabs" role="tablist" aria-label="Workspace views" data-active={value}>
-    <button ref={spacesRef} id="spaces-tab" type="button" role="tab" aria-controls="spaces-panel" aria-selected={value === "spaces"} tabIndex={value === "spaces" ? 0 : -1} onClick={() => onChange("spaces")} onKeyDown={moveFocus}><Icon name="spaces" /><span>Spaces</span></button>
-    <button ref={agentsRef} id="agents-tab" type="button" role="tab" aria-controls="agents-panel" aria-selected={value === "agents"} tabIndex={value === "agents" ? 0 : -1} onClick={() => onChange("agents")} onKeyDown={moveFocus}><Icon name="agents" /><span>Agents</span></button>
-  </div>;
 }
 
 function AgentViewTabs({ value, priorityCount, onChange }: {
@@ -151,19 +143,9 @@ function AgentViewTabs({ value, priorityCount, onChange }: {
     (next === "agents" ? allRef : priorityRef).current?.focus();
   };
   return <div className="workspace-agent-tabs" role="tablist" aria-label="Agent views">
-    <button ref={allRef} id="all-agents-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "agents"} className={value === "agents" ? "active" : ""} tabIndex={value === "agents" ? 0 : -1} onClick={() => onChange("agents")} onKeyDown={moveFocus}>All agents</button>
+    <button ref={allRef} id="all-agents-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "agents"} className={value === "agents" ? "active" : ""} tabIndex={value === "agents" ? 0 : -1} onClick={() => onChange("agents")} onKeyDown={moveFocus}>Grouped</button>
     <button ref={priorityRef} id="priority-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "priority"} aria-label={`Priority, ${priorityCount} agents`} className={value === "priority" ? "active" : ""} tabIndex={value === "priority" ? 0 : -1} onClick={() => onChange("priority")} onKeyDown={moveFocus}>Priority <span aria-hidden="true">{priorityCount}</span></button>
   </div>;
-}
-
-function OpenFolderAction({ opening, onOpen }: {
-  readonly opening: boolean;
-  readonly onOpen: () => void;
-}) {
-  return <button type="button" disabled={opening} onClick={onOpen}>
-    <span className="workspace-folder-action-icon"><Icon name="folder-add" /></span>
-    <span className="workspace-folder-action-copy"><strong>{opening ? "Opening folder…" : "Open folder"}</strong><small>Add a local space</small></span>
-  </button>;
 }
 
 function FirstSpacePrompt({ opening, onOpen }: {
@@ -189,11 +171,11 @@ interface AgentTreeNode {
   readonly children: AgentTreeNode[];
 }
 
-function agentTree(agents: readonly WorkspaceAgent[], context: string): readonly AgentTreeNode[] {
+function agentTree(agents: readonly WorkspaceAgent[], contextForAgent: (agent: WorkspaceAgent) => string): readonly AgentTreeNode[] {
   const roots: AgentTreeNode[] = [];
   const stack: AgentTreeNode[] = [];
   for (const { agent, depth } of flattenAgentHierarchy(agents)) {
-    const node: AgentTreeNode = { agent, context, children: [] };
+    const node: AgentTreeNode = { agent, context: contextForAgent(agent), children: [] };
     if (depth === 0) roots.push(node);
     else stack[depth - 1]?.children.push(node);
     stack.length = depth;
@@ -208,7 +190,7 @@ function AgentTreeRow({ node, activeAgentId, onOpenAgent }: {
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   return <li>
-    <SessionRow agent={node.agent} context={`${statusText(node.agent.status)} · ${node.context}`} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
+    <SessionRow agent={node.agent} context={node.context} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
       {node.children.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}
     </ul>}
@@ -225,12 +207,12 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
     const agents = prioritizeAgents(snapshot.agents);
     if (agents.length === 0) return <p className="focused-message">Nothing needs attention right now.</p>;
     return <ul className="workspace-agent-list">{agents.map((agent) => <li key={agent.id}>
-      <SessionRow agent={agent} context={`${statusText(agent.status)} · ${agentContext(snapshot, agent)}`} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
+      <SessionRow agent={agent} context={agentContext(snapshot, agent)} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
     </li>)}</ul>;
   }
   const trees = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
     const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
-    return worktree ? agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId), `${project.label} · ${worktree.label}`) : [];
+    return worktree ? agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId), () => `${project.label} · ${worktree.label}`) : [];
   }));
   if (trees.length === 0) return <p className="focused-message">No agents are available yet.</p>;
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
@@ -251,7 +233,6 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
   readonly onOpenDirectory: () => void;
 }) {
-  const [sidebarView, setSidebarView] = useState<SidebarView>("agents");
   const [agentView, setAgentView] = useState<AgentView>("agents");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
@@ -261,7 +242,6 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
   }, [compact, open]);
   const activeProject = snapshot.projects.find((project) => project.id === activeProjectId);
   const priorityCount = prioritizeAgents(snapshot.agents).length;
-  const showFooter = sidebarView !== "spaces" || loading || snapshot.projects.length > 0;
   return <aside
     id="workspace-navigation"
     className="workspace-sidebar"
@@ -272,7 +252,6 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
     aria-hidden={compact && !open}
     inert={compact && !open ? true : undefined}
     data-open={open}
-    data-footer={showFooter}
     onKeyDown={compact && open ? trapDrawerFocus : undefined}
   >
     <header className="workspace-sidebar-title">
@@ -280,25 +259,30 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
       <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" onClick={onClose}><Icon name="close" /></button>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">Workspace status: {loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}</div>
-    {sidebarView === "agents" && openError && <div className="sr-only" role="alert">{openError}</div>}
-    <WorkspaceModeTabs value={sidebarView} onChange={setSidebarView} />
-    {sidebarView === "spaces" ? <section id="spaces-panel" className="workspace-projects" role="tabpanel" aria-labelledby="spaces-tab">
-      <div className="workspace-project-scroll">
-        {failed && <p className="focused-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
-        {openError && <p className="focused-message error" role="alert">{openError}</p>}
-        {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
-        {!loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
-        <ul className="workspace-project-list">{snapshot.projects.map((project) => {
-          const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
-          const hasWorkingSession = snapshot.agents.some((agent) => worktrees.some((worktree) => worktree.id === agent.worktreeId) && agent.status === "working");
-          return <ProjectNode key={project.id} project={project} worktrees={worktrees} active={project.id === activeProjectId} hasWorkingSession={hasWorkingSession} onSelect={() => onSelectProject(project.id)} />;
-        })}</ul>
-      </div>
-    </section> : <section id="agents-panel" className="workspace-sessions" role="tabpanel" aria-labelledby="agents-tab">
-      <AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={setAgentView} />
-      <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}><AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} /></div>
-    </section>}
-    {showFooter && <footer className="workspace-sidebar-footer"><OpenFolderAction opening={opening} onOpen={onOpenDirectory} /></footer>}
+    <div className="workspace-sidebar-body">
+      <section id="spaces-panel" className="workspace-projects" aria-labelledby="spaces-heading">
+        <header className="workspace-section-heading">
+          <h2 id="spaces-heading">Spaces</h2>
+          <button type="button" aria-label="Open folder" title="Open folder" disabled={opening} onClick={onOpenDirectory}><Icon name="folder-add" /></button>
+        </header>
+        <div className="workspace-project-scroll">
+          {failed && <p className="focused-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
+          {openError && <p className="focused-message error" role="alert">{openError}</p>}
+          {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
+          {!loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
+          <ul className="workspace-project-list">{snapshot.projects.map((project) => {
+            const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
+            const agents = agentsForProject(project, snapshot.agents);
+            return <ProjectNode key={project.id} project={project} worktrees={worktrees} agents={agents} active={project.id === activeProjectId} activeAgentId={activeAgentId} onSelect={() => onSelectProject(project.id)} onOpenAgent={onOpenAgent} />;
+          })}</ul>
+        </div>
+      </section>
+      <div className="workspace-section-divider" aria-hidden="true" />
+      <section id="agents-panel" className="workspace-sessions" aria-labelledby="agents-heading">
+        <header className="workspace-section-heading agent-heading"><h2 id="agents-heading">Agents</h2><AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={setAgentView} /></header>
+        <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}><AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} /></div>
+      </section>
+    </div>
   </aside>;
 }
 

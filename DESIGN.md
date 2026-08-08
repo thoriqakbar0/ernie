@@ -2,7 +2,7 @@
 
 Ernie is a quiet desktop workspace for developers who run several Prime Agent sessions across several local directories. Live work should be easy to locate without turning the interface into a process monitor. Product behavior and security constraints live in [PRODUCT.md](./PRODUCT.md); this document owns the interface model, visual language, and interaction rules.
 
-The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces and Agents as peer sidebar modes, Priority nested within Agents, and session tabs across the main work surface.
+The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces and Agents remain simultaneously visible in a divided sidebar, Priority is a view within Agents, and session tabs span the main work surface.
 
 ## Design principles
 
@@ -44,23 +44,24 @@ The window has two stable regions: the unified sidebar and the tabbed session wo
 
 ### Unified workspace sidebar
 
-The leading sidebar follows the Herdr structure without borrowing its terminal visual styling. Its top-level tabs switch between **Spaces** and **Agents**, giving either inventory the full sidebar height without changing the current session tab. The two choices share one quiet selection surface and an authored outline icon family; **Agents** is the default mode so active work remains immediately visible.
+The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section, so location and live work remain visible together without changing the current session tab. A single hairline separates the independently scrolling sections; compact headings replace large mode controls.
 
 #### Spaces
 
 The Spaces mode answers, “Where can agents work?”
 
 - Show every user-opened space as one compact disclosure row.
-- The selected space uses a quiet filled state; a semantic status mark indicates whether it contains live work.
-- Expanding a space reveals its worktrees, but not its agents.
-- **Open folder** is a persistent, two-line footer action that pairs the command with its purpose, **Add a local space**. When there are no spaces, the same action moves into the empty-state card instead of appearing twice.
+- The selected space uses a quiet filled state; its count reports contained agents, and a semantic status mark indicates whether it contains live work.
+- Expanding a space reveals its agents directly. Each agent integrates `Status · Worktree` as supporting copy, so worktrees remain legible provenance without becoming a second inventory hierarchy.
+- Preserve root/subagent nesting inside the space; do not flatten away authoritative parent relationships.
+- **Open folder** is a compact action in the Spaces heading. When there are no spaces, the same action is also explained by one focused empty-state card.
 - Reserve the macOS title-bar safe area above the Ernie title. The title surface is draggable; every control remains non-draggable.
 
 #### Agents and Priority
 
-The Agents mode contains a nested, quieter two-view segmented control. Its lower visual weight makes **All agents** and **Priority** read as filters within Agents rather than another peer navigation level. Priority remains subordinate because it is a computed projection of agents, not a peer workspace object.
+The Agents section contains a compact **Grouped** / **Priority** switch in its heading. Its low visual weight keeps these as views of the same agent inventory rather than peer workspace objects. Priority remains subordinate because it is a computed projection, not a stored object.
 
-- **Agents** is the default global inventory across every space. Preserve authoritative root/subagent nesting and integrate `Space · Worktree` into each row’s supporting copy.
+- **Grouped** is the default global inventory across every space. Preserve authoritative root/subagent nesting and integrate `Space · Worktree` into each row’s supporting copy.
 - **Priority** is a global attention queue ordered Failed → Waiting → Working → Idle. Completed, Cancelled, and Disconnected agents do not enter the queue.
 - Selecting an agent focuses its space, opens its session tab once, and makes that tab active.
 - A row shows the agent name, explicit textual status, location or priority reason, a redundant semantic state mark, and an indeterminate activity bar only while working. Root/subagent relationships use nested list semantics rather than indentation alone.
@@ -130,13 +131,15 @@ Use the native system stack. Interface text is compact but not monospaced; reser
 ### Spacing
 
 - Align text and controls to shared leading edges.
+- Keep sidebar chrome compact in two persistent sections—Spaces above Agents—with 40px headings and readable status copy.
+- Use one-pixel rhythm and a quiet branch rule to clarify root/subagent nesting instead of adding more cards or labels.
 - Keep worktree-to-session indentation consistent and use logical properties for directionality.
 - Separate groups with at least twice their internal gap.
 - Respect the title-bar safe area and minimum 820×520 window without clipping critical actions.
 
 ## Motion
 
-- Disclosure and selection transitions use brief exponential ease-out timing. The Spaces/Agents selection surface shifts spatially, while the incoming panel uses one restrained fade-and-lift.
+- Disclosure and drawer transitions use brief exponential ease-out timing. Switching agent views does not move the surrounding layout.
 - The activity bar is the only continuous animation.
 - Do not animate idle decoration.
 - `prefers-reduced-motion` removes spatial transitions and converts running activity to a static signal.
@@ -169,7 +172,7 @@ Use **thread** only for the explicit “new thread” product action, not as a s
 
 ## Non-goals
 
-- A dashboard that shows every project and every session simultaneously.
+- An exhaustive process dashboard or worktree inventory that competes with active agents.
 - Process-manager density, CPU graphs, or terminal-like chrome.
 - Fake progress percentages.
 - Closing a view as an implicit destructive action.

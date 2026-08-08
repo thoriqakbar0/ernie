@@ -89,7 +89,6 @@ function SessionRow({ agent, active, context, depth = 0, onOpen }: {
     title={fullLabel}
     onClick={() => onOpen(agent)}
   >
-    <span className={`focused-status ${agent.status}`} aria-hidden="true" />
     <span className="focused-session-copy">
       <span className="focused-session-title"><strong>{agent.name}</strong>{isSubagent && <SubagentMark agentId={agent.id} depth={subagentDepth} />}</span>
       <small className="focused-session-meta"><span>{status}</span><span>{context}</span></small>

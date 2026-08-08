@@ -28,18 +28,22 @@ export function IPythonExecutionCard({ execution }: { readonly execution: IPytho
     aria-describedby={metadataId}
   >
     <header className="ipython-execution-heading">
-      <h3 id={titleId}>IPython execution</h3>
-      <span className="ipython-execution-target">{execution.executionTarget === "local" ? "Local" : execution.executionTarget === "modal" ? "Remote (legacy)" : "Runtime unavailable"}</span>
+      <div className="ipython-execution-heading-copy">
+        <h3 id={titleId}>IPython</h3>
+        <p id={metadataId} className="ipython-execution-meta">
+          <span>{execution.executionTarget === "local" ? "Local" : execution.executionTarget === "modal" ? "Remote (legacy)" : "Runtime unavailable"}</span>
+          {startedAt && <time dateTime={startedAt.toISOString()}>{startedAt.toLocaleTimeString()}</time>}
+          {execution.durationMs !== null && <span>{formatDuration(execution.durationMs)}</span>}
+        </p>
+      </div>
       <span className="ipython-execution-status" aria-label={`Status: ${statusLabel}`}>{statusLabel}</span>
     </header>
-    <p id={metadataId} className="ipython-execution-meta">
-      {startedAt && <time dateTime={startedAt.toISOString()}>Started {startedAt.toLocaleTimeString()}</time>}
-      {execution.durationMs !== null && <span>Duration {formatDuration(execution.durationMs)}</span>}
-    </p>
     <section className="ipython-execution-code" aria-label="Executed code">
+      <span className="ipython-execution-label" aria-hidden="true">Input</span>
       <pre tabIndex={0}><code>{execution.code}</code></pre>
     </section>
     {execution.detail && <section className="ipython-execution-detail" aria-label="Execution output">
+      <span className="ipython-execution-label" aria-hidden="true">Output</span>
       <pre tabIndex={0}>{execution.detail}</pre>
     </section>}
   </section>;

@@ -47,7 +47,7 @@ export function parseNamedFileOutput(output: string): NamedFileOutput | null {
 
 function FoldableOutput({ children, content, className }: { readonly children: ReactNode; readonly content: string; readonly className?: string }) {
   const contentId = useId();
-  const contentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLPreElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [foldable, setFoldable] = useState(false);
 
@@ -67,8 +67,8 @@ function FoldableOutput({ children, content, className }: { readonly children: R
   }, [content, expanded]);
 
   return <div className="execution-output-fold" data-foldable={foldable} data-expanded={expanded}>
-    <div ref={contentRef} className="execution-output-fold-content" id={contentId}>
-      <pre className={className} tabIndex={0}>{children}</pre>
+    <div className="execution-output-fold-content" id={contentId}>
+      <pre ref={contentRef} className={className} tabIndex={0}>{children}</pre>
     </div>
     {foldable && <button type="button" className="execution-output-fold-toggle" aria-controls={contentId} aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? "Collapse output" : "Show all output"}</button>}
   </div>;

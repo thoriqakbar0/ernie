@@ -249,19 +249,20 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .ipython-execution-card.failed .ipython-execution-status{color:#e59a9a}
 .ipython-execution-code{margin-block:2px 8px;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:#0e0f0e}
 .ipython-execution-code pre{max-height:210px;overflow:auto;margin:0;padding:9px 10px;color:var(--tertiary);white-space:pre-wrap;overflow-wrap:anywhere;font:10.5px/1.6 ui-monospace,"SFMono-Regular",monospace}
-.ipython-execution-detail{--execution-output-fold-height:280px;--execution-output-fade:var(--canvas);margin-block:2px 4px;padding-inline:2px}
+.ipython-execution-detail{--execution-output-fold-height:69px;--execution-output-fade-height:36px;--execution-output-fade:var(--canvas);margin-block:2px 4px;padding-inline:2px}
 .ipython-execution-detail pre{margin:0;color:var(--secondary);white-space:pre-wrap;overflow-wrap:anywhere;font:11.5px/1.65 ui-monospace,"SFMono-Regular",monospace}
 .ipython-execution-card.failed .ipython-execution-detail pre{color:#e4a2a2}
 .execution-output-fold{min-width:0}
-.execution-output-fold-content{position:relative;max-height:var(--execution-output-fold-height);overflow:hidden}
-.execution-output-fold[data-expanded="true"] .execution-output-fold-content{max-height:none}
-.execution-output-fold[data-foldable="true"][data-expanded="false"] .execution-output-fold-content::after{content:"";position:absolute;inset:auto 0 0;height:54px;pointer-events:none;background:linear-gradient(transparent,var(--execution-output-fade))}
+.execution-output-fold-content,.execution-output-fold-content>pre{max-height:var(--execution-output-fold-height);overflow:hidden}
+.execution-output-fold-content{position:relative}
+.execution-output-fold[data-expanded="true"] .execution-output-fold-content,.execution-output-fold[data-expanded="true"] .execution-output-fold-content>pre{max-height:none}
+.execution-output-fold[data-foldable="true"][data-expanded="false"] .execution-output-fold-content::after{content:"";position:absolute;inset:auto 0 0;height:var(--execution-output-fade-height);pointer-events:none;background:linear-gradient(transparent,var(--execution-output-fade))}
 .execution-output-fold-toggle{position:relative;display:block;min-height:32px;margin:5px auto 0;padding-inline:11px;border:1px solid var(--line);border-radius:999px;background:var(--raised);color:var(--secondary);font-size:10px;font-weight:600}
 .execution-output-fold-toggle::before{content:"";position:absolute;inset:-4px}
 .execution-output-fold-toggle:hover{border-color:var(--line-strong);color:var(--text)}
 .execution-file-output{display:grid;gap:10px}
 .execution-output-preamble{padding:0 2px}
-.execution-file{--execution-output-fold-height:240px;--execution-output-fade:#0e0f0e;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#0e0f0e}
+.execution-file{--execution-output-fold-height:240px;--execution-output-fade-height:54px;--execution-output-fade:#0e0f0e;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#0e0f0e}
 .execution-file>header{min-height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 10px;border-block-end:1px solid var(--line);background:rgba(255,255,255,.018)}
 .execution-file>header strong{min-width:0;overflow:hidden;color:var(--secondary);text-overflow:ellipsis;white-space:nowrap;font:10.5px ui-monospace,"SFMono-Regular",monospace;font-weight:600}
 .execution-file>header span{flex:0 0 auto;color:var(--tertiary);font-size:9px;font-weight:560}

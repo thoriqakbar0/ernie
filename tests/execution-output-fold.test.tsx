@@ -13,11 +13,11 @@ const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototy
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
     configurable: true,
-    get() { return this.classList.contains("execution-output-fold-content") && (this.textContent?.length ?? 0) > 100 ? 400 : 100; },
+    get() { return this.matches(".execution-output-fold-content > pre") && (this.textContent?.length ?? 0) > 100 ? 400 : 69; },
   });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", {
     configurable: true,
-    get() { return this.classList.contains("execution-output-fold-content") ? 280 : 100; },
+    get() { return this.matches(".execution-output-fold-content > pre") ? 69 : 100; },
   });
 });
 

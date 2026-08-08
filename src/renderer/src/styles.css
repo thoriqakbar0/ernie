@@ -197,13 +197,12 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .chat-delegation summary>span:last-child{text-transform:capitalize}
 .chat-delegation-detail{padding:10px 11px;border-block-start:1px solid var(--line);color:var(--secondary);font-size:11px;line-height:1.5;white-space:pre-wrap}
 .chat-notice{width:min(68ch,100%);margin-inline:auto;padding:5px 10px;border-inline-start:2px solid var(--tertiary);color:var(--secondary);font-size:11.5px;line-height:1.5}
+.chat-notice.neutral{width:fit-content;padding:2px 6px;border:0;color:var(--tertiary);font-size:10px;opacity:.62;text-align:center}
 .chat-notice.error{border-color:var(--danger);color:#e59a9a}
 .session-transcript-empty{width:min(56ch,calc(100% - 48px));margin:auto;color:var(--tertiary);text-align:center}
 .session-transcript-empty strong{display:block;margin-block-end:6px;color:var(--secondary);font-size:15px}
 .session-transcript-empty p{margin:0;font-size:12px;line-height:1.5}
-.session-transcript-empty button,.session-stream-error button{min-height:34px;margin-block-start:12px;padding-inline:11px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--secondary);font-size:11px}
-.session-stream-error{z-index:2;grid-row:1;display:flex;align-items:center;justify-content:center;gap:10px;margin:10px auto;padding:7px 10px;border:1px solid rgba(248,113,113,.25);border-radius:8px;background:var(--raised);color:var(--secondary);font-size:11px}
-.session-stream-error button{margin:0}
+.session-transcript-empty button{min-height:34px;margin-block-start:12px;padding-inline:11px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--secondary);font-size:11px}
 .session-transcript-footer{min-height:38px;display:flex;align-items:center;justify-content:center;border-block-start:1px solid var(--line);color:var(--tertiary);font-size:10.5px}
 .session-jump-latest{position:absolute;z-index:3;inset:auto 50% 62px auto;transform:translateX(50%);min-height:32px;padding-inline:11px;border:1px solid var(--line);border-radius:999px;background:var(--raised);color:var(--secondary);box-shadow:0 8px 24px rgba(0,0,0,.32);font-size:10.5px}
 .accessible-transcript-trigger{position:absolute;z-index:3;inset:8px max(24px,calc((100% - 680px)/2)) auto auto;min-height:30px;padding-inline:9px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--tertiary);font-size:10px}
@@ -352,7 +351,8 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
  *  26ms   each preceding row follows (bottom → top)
  * 220ms   each row reaches its resting position
  * ───────────────────────────────────────────────────────── */
-.workspace-agent-list .focused-session-row{min-height:44px;padding-block:5px;border-radius:7px;animation:agent-row-enter var(--agent-row-duration) cubic-bezier(.16,1,.3,1) both}
+.workspace-agent-list .focused-session-row{min-height:44px;padding-block:5px;border-radius:7px}
+.workspace-agent-pane[data-motion="vertical"] .workspace-agent-list .focused-session-row{animation:agent-row-enter var(--agent-row-duration) cubic-bezier(.16,1,.3,1) both}
 .workspace-agent-list .focused-session-row.subagent{min-height:41px;padding-block:4px}
 .workspace-sidebar .focused-message{margin:4px;padding:7px;font-size:10.5px}
 .workspace-sidebar .focused-first-project{margin:4px 0;padding:13px 12px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.018);color:var(--tertiary)}
@@ -393,14 +393,15 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 
 
 /* Agent pane + transcript motion storyboard
- *   0ms   selected agent pane enters from the navigation direction
- * 180ms   pane settles at x 0 and full opacity
- * 1900ms  restrained running-subagent sheen completes one left-to-right pass
+ *   Tab switch: pane enters horizontally from the selected navigation direction.
+ *   Agents disclosure: rows rise bottom-to-top without horizontal movement.
+ *   Running-subagent attribution: restrained sheen completes one pass.
  */
-.workspace-agent-pane{min-width:0;animation:agent-pane-forward var(--agent-pane-duration) cubic-bezier(.16,1,.3,1) both}
-.workspace-agent-pane[data-direction="backward"]{animation-name:agent-pane-backward}
-.workspace-agent-pane:dir(rtl){animation-name:agent-pane-backward}
-.workspace-agent-pane:dir(rtl)[data-direction="backward"]{animation-name:agent-pane-forward}
+.workspace-agent-pane{min-width:0}
+.workspace-agent-pane[data-motion="horizontal"]{animation:agent-pane-forward var(--agent-pane-duration) cubic-bezier(.16,1,.3,1) both}
+.workspace-agent-pane[data-motion="horizontal"][data-direction="backward"]{animation-name:agent-pane-backward}
+.workspace-agent-pane[data-motion="horizontal"]:dir(rtl){animation-name:agent-pane-backward}
+.workspace-agent-pane[data-motion="horizontal"]:dir(rtl)[data-direction="backward"]{animation-name:agent-pane-forward}
 @keyframes agent-pane-forward{from{opacity:.12;transform:translateX(var(--agent-pane-offset))}to{opacity:1;transform:translateX(0)}}
 @keyframes agent-pane-backward{from{opacity:.12;transform:translateX(calc(var(--agent-pane-offset) * -1))}to{opacity:1;transform:translateX(0)}}
 @keyframes agent-row-enter{from{opacity:0;transform:translateY(var(--agent-row-offset))}to{opacity:1;transform:translateY(0)}}

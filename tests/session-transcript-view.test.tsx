@@ -29,4 +29,19 @@ describe("SessionTranscriptView source context", () => {
     expect(html).toContain('aria-describedby="transcript-source-child%2F1"');
     expect(html).toContain("Source: Researcher, subagent session.");
   });
+
+  it("does not overlay an error banner on a preserved transcript", () => {
+    const html = renderToStaticMarkup(<SessionTranscriptView
+      agent={subagent}
+      items={[{ id: "message", kind: "notice", text: "Existing transcript", tone: "neutral" }]}
+      state="error"
+      onRetry={() => {}}
+      renderItem={() => <div>Existing transcript</div>}
+    />);
+
+    expect(html).not.toContain("Live updates stopped");
+    expect(html).not.toContain("session-stream-error");
+    expect(html).toContain("Existing transcript");
+  });
+
 });

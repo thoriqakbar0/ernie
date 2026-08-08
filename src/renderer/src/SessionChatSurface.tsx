@@ -10,6 +10,9 @@ import { sessionTranscriptReducer } from "./sessionTranscript";
 import { SessionTranscriptView } from "./SessionTranscriptView";
 import { TranscriptItem } from "./TranscriptItem";
 
+/** Quiet period that absorbs transient daemon attachment failures. */
+export const DAEMON_ERROR_GRACE_MS = 3_000;
+
 function SendIcon({ stop = false }: { readonly stop?: boolean }) {
   return <svg viewBox="0 0 20 20" aria-hidden="true">{stop
     ? <rect x="6" y="6" width="8" height="8" rx="1" fill="currentColor" stroke="none" />
@@ -176,31 +179,55 @@ export function SessionChatSurface({ agent, state, interactive, spaceId, assista
 
   useEffect(() => {
     let active = true;
+    let failureTimer: number | undefined;
+    const cancelDelayedFailure = () => {
+      if (failureTimer === undefined) return;
+      window.clearTimeout(failureTimer);
+      failureTimer = undefined;
+    };
+    const delayFailure = (closedEvent?: Extract<SessionTranscriptEvent, { readonly kind: "closed" }>) => {
+      cancelDelayedFailure();
+      setStreamState("reconnecting");
+      failureTimer = window.setTimeout(() => {
+        failureTimer = undefined;
+        if (!active) return;
+        if (closedEvent) dispatch(closedEvent);
+        setStreamState("error");
+      }, DAEMON_ERROR_GRACE_MS);
+    };
     pendingUserAdmissions.current = [];
     dispatch({ kind: "snapshot", activeSessionId, items: [], historyTruncated: false });
     setStreamState("loading");
     const unsubscribe = window.ernie.onSessionTranscriptEvent((event: SessionTranscriptEvent) => {
-      if (active && event.activeSessionId === activeSessionId) {
-        let projectedEvent = event;
-        if (event.kind === "user_message") {
-          const now = Date.now();
-          pendingUserAdmissions.current = pendingUserAdmissions.current.filter((candidate) => candidate.expiresAt > now);
-          const messageText = transcriptMessageText(event);
-          const hintIndex = pendingUserAdmissions.current.findIndex((candidate) => candidate.text === messageText);
-          const hint = hintIndex < 0 ? undefined : pendingUserAdmissions.current.splice(hintIndex, 1)[0];
-          if (hint) projectedEvent = { ...event, message: { ...event.message, steered: hint.steered } };
-        }
-        dispatch(projectedEvent);
-        if (event.kind === "closed") setStreamState("error");
-        else if (event.kind === "connection") setStreamState(event.state === "reconnecting" ? "reconnecting" : "ready");
-        else setStreamState("ready");
+      if (!active || event.activeSessionId !== activeSessionId) return;
+      if (event.kind === "closed") { delayFailure(event); return; }
+      let projectedEvent = event;
+      if (event.kind === "user_message") {
+        const now = Date.now();
+        pendingUserAdmissions.current = pendingUserAdmissions.current.filter((candidate) => candidate.expiresAt > now);
+        const messageText = transcriptMessageText(event);
+        const hintIndex = pendingUserAdmissions.current.findIndex((candidate) => candidate.text === messageText);
+        const hint = hintIndex < 0 ? undefined : pendingUserAdmissions.current.splice(hintIndex, 1)[0];
+        if (hint) projectedEvent = { ...event, message: { ...event.message, steered: hint.steered } };
+      }
+      dispatch(projectedEvent);
+      if (event.kind === "connection" && event.state === "reconnecting") setStreamState("reconnecting");
+      else {
+        cancelDelayedFailure();
+        setStreamState("ready");
       }
     });
     void window.ernie.selectSessionTranscript(activeSessionId)
-      .then((snapshot) => { if (active) { dispatch(snapshot); setStreamState("ready"); } })
-      .catch(() => { if (active) setStreamState("error"); });
+      .then((snapshot) => {
+        if (!active) return;
+        cancelDelayedFailure();
+        dispatch(snapshot);
+        setStreamState("ready");
+      })
+      .catch(() => { if (active) delayFailure(); });
     return () => {
       active = false;
+      cancelDelayedFailure();
       unsubscribe();
       void window.ernie.detachSessionTranscript();
     };

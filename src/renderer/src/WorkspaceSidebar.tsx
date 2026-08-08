@@ -229,10 +229,16 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   const [agentView, setAgentView] = useState<AgentView>("agents");
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
+  const [agentPaneMotion, setAgentPaneMotion] = useState<"horizontal" | "vertical">("vertical");
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
+    setAgentPaneMotion("horizontal");
     setAgentViewDirection(next === "priority" ? "forward" : "backward");
     setAgentView(next);
+  };
+  const toggleAgentsExpanded = () => {
+    if (!agentsExpanded) setAgentPaneMotion("vertical");
+    setAgentsExpanded((current) => !current);
   };
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const handledRevealRequestRef = useRef<number | undefined>(undefined);
@@ -243,7 +249,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   }, [compact, open]);
   useLayoutEffect(() => {
     if (!open || revealAgent === undefined || handledRevealRequestRef.current === revealAgent.requestId) return;
-    if (!agentsExpanded) { setAgentsExpanded(true); return; }
+    if (!agentsExpanded) { setAgentPaneMotion("vertical"); setAgentsExpanded(true); return; }
     if (agentView !== "agents") { changeAgentView("agents"); return; }
     handledRevealRequestRef.current = revealAgent.requestId;
     const frame = requestAnimationFrame(() => {
@@ -296,11 +302,11 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
       <div className="workspace-section-divider" aria-hidden="true" />
       <section id="agents-panel" className="workspace-sessions" aria-labelledby="agents-heading">
         <header className="workspace-section-heading agent-heading">
-          <h2 id="agents-heading"><button type="button" className="workspace-agents-disclosure" aria-expanded={agentsExpanded} aria-controls="agent-list-panel" onClick={() => setAgentsExpanded((current) => !current)}>Agents <Icon name="chevron" /></button></h2>
+          <h2 id="agents-heading"><button type="button" className="workspace-agents-disclosure" aria-expanded={agentsExpanded} aria-controls="agent-list-panel" onClick={toggleAgentsExpanded}>Agents <Icon name="chevron" /></button></h2>
           {agentsExpanded && <AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={changeAgentView} />}
         </header>
         {agentsExpanded && <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
-          <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection}>
+          <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
             <AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />
           </div>
         </div>}

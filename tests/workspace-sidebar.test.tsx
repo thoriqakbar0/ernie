@@ -58,10 +58,19 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     expect(rows[0]?.style.animationDelay).toBe("calc(2 * var(--agent-row-stagger))");
     expect(rows[1]?.style.animationDelay).toBe("calc(1 * var(--agent-row-stagger))");
     expect(rows[2]?.style.animationDelay).toBe("calc(0 * var(--agent-row-stagger))");
+    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("vertical");
+
+    const priority = container.querySelector<HTMLButtonElement>("#priority-tab");
+    await act(async () => priority?.click());
+    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("horizontal");
+    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("forward");
 
     await act(async () => disclosure?.click());
     expect(disclosure?.getAttribute("aria-expanded")).toBe("false");
     expect(container.querySelector("#agent-list-panel")).toBeNull();
+    await act(async () => disclosure?.click());
+    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("vertical");
+    await act(async () => disclosure?.click());
     expect(container.querySelector(".workspace-sidebar-body")?.getAttribute("data-agents-expanded")).toBe("false");
     await act(async () => root.unmount());
     vi.unstubAllGlobals();

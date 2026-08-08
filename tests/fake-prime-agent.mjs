@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 import process from "node:process";
+import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+
+if (process.env.ERNIE_FAKE_DESCENDANT_PID_FILE) {
+  const descendant = spawn(process.execPath, ["-e", "setInterval(() => {}, 1_000)"], { stdio: "ignore" });
+  if (descendant.pid === undefined) throw new Error("Fake descendant has no PID");
+  writeFileSync(process.env.ERNIE_FAKE_DESCENDANT_PID_FILE, String(descendant.pid));
+}
 
 let carry = "";
 let startupDelayUsed = false;

@@ -21,6 +21,8 @@ export default defineConfig({
     root: resolve("src/renderer"),
     build: { rollupOptions: { input: resolve("src/renderer/index.html") } },
     server: {
+      port: 5_173,
+      strictPort: true,
       proxy: {
         "/__agentation": {
           target: "http://127.0.0.1:4748",

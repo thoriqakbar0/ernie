@@ -11,7 +11,7 @@
     "agentation:doctor": "node scripts/agentation-doctor.mjs",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --maxWorkers=2",
     "test": "pnpm typecheck && pnpm test:unit",
     "check": "pnpm test && pnpm test:smoke",
     "package:mac": "pnpm ensure:electron && pnpm check && electron-builder --mac dir --arm64 && node scripts/stage-macos-app.mjs",

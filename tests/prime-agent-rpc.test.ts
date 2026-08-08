@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -41,6 +41,30 @@ describe("PrimeAgentRpc", () => {
     expect(result.contextWindow).toBe(200_000);
     expect(result.totalTokens).toBe(2_345);
     expect(result.cost).toBe("$0.0123");
+  });
+
+  it("stops the entire RPC process group so agent descendants cannot leak", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ernie-process-tree-"));
+    const pidFile = join(directory, "descendant.pid");
+    let descendantPid: number | undefined;
+    try {
+      await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
+        const rpc = yield* PrimeAgentRpc;
+        yield* rpc.start;
+        const pid = Number.parseInt(yield* Effect.promise(() => readFile(pidFile, "utf8")), 10);
+        descendantPid = pid;
+        process.kill(pid, 0);
+        yield* rpc.stop;
+        yield* Effect.sleep("100 millis");
+        expect(() => process.kill(pid, 0)).toThrow();
+      })), { ERNIE_FAKE_DESCENDANT_PID_FILE: pidFile }));
+    } finally {
+      if (descendantPid !== undefined) {
+        try { process.kill(descendantPid, "SIGKILL"); }
+        catch (cause) { if (!(cause instanceof Error && "code" in cause && cause.code === "ESRCH")) throw cause; }
+      }
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("preserves event order, streaming behavior, text, tools, and lifecycle state", async () => {

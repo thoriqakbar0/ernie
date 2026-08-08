@@ -22,6 +22,19 @@ const REQUEST_TIMEOUT = "30 seconds";
 const STARTUP_TIMEOUT = "45 seconds";
 const EXECUTION_TARGET_TIMEOUT = "10 minutes";
 
+function signalProcessTree(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) throw new Error("Prime Agent child has no process ID");
+  try {
+    if (process.platform === "win32") {
+      if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+      return;
+    }
+    process.kill(-child.pid, signal);
+  } catch (cause) {
+    if (!(cause instanceof Error && "code" in cause && cause.code === "ESRCH")) throw cause;
+  }
+}
+
 export class PrimeAgentRpcError extends Schema.TaggedErrorClass<PrimeAgentRpcError>()(
   "PrimeAgentRpcError",
   { operation: Schema.String, message: Schema.String, cause: Schema.optionalKey(Schema.Defect()) },
@@ -519,7 +532,7 @@ export const make = (options: Options) => Effect.gen(function* () {
     yield* failAllPending(error);
     yield* failExecutionTargetSwitch(error);
     yield* setConnection("failed", error.message);
-    const current = yield* Ref.get(child); if (Option.isSome(current) && current.value.exitCode === null) current.value.kill("SIGTERM");
+    const current = yield* Ref.get(child); if (Option.isSome(current)) signalProcessTree(current.value, "SIGTERM");
   });
 
   const consume = Stream.fromQueue(messages).pipe(Stream.runForEach((message) => Effect.gen(function* () {
@@ -537,7 +550,7 @@ export const make = (options: Options) => Effect.gen(function* () {
     const current = yield* Ref.getAndSet(child, Option.none());
     if (Option.isNone(current)) return;
     current.value.stdin.end();
-    if (current.value.exitCode === null) current.value.kill("SIGTERM");
+    signalProcessTree(current.value, "SIGTERM");
     const error = rpcError("stop", "Prime Agent stopped");
     yield* failAllPending(error);
     yield* failExecutionTargetSwitch(error);
@@ -565,7 +578,7 @@ export const make = (options: Options) => Effect.gen(function* () {
     };
     delete env["FORCE_COLOR"];
     const agentProcess = yield* Effect.try({
-      try: () => spawn(options.nodePath, [options.cliPath, "--mode", "rpc", "--cwd", projectPath, "--thinking", "xhigh", "-e", remoteExtensionPath, ...(options.extraArgs ?? [])], { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }),
+      try: () => spawn(options.nodePath, [options.cliPath, "--mode", "rpc", "--cwd", projectPath, "--thinking", "xhigh", "-e", remoteExtensionPath, ...(options.extraArgs ?? [])], { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" }),
       catch: (cause) => rpcError("start", "Prime Agent process could not be spawned", cause),
     });
     yield* Ref.set(child, Option.some(agentProcess));

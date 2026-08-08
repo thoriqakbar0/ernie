@@ -7,7 +7,7 @@ import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface
 import { SpaceLaunchpad } from "./SpaceLaunchpad";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { Icon } from "./WorkspaceIcon";
-import { countAgentDescendants, projectForAgent, statusText } from "./workspaceAgentPresentation";
+import { countEngagedAgentDescendants, projectForAgent, statusText } from "./workspaceAgentPresentation";
 import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./spaceLaunchPreferences";
 import type { ThreadItem } from "./transcript";
 import { horizontalTabStep } from "./tabKeyboardNavigation";
@@ -232,7 +232,7 @@ function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeStat
   if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No spaces yet</h1><p>Open a folder to add your first space.</p></div></section>;
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
-  const assistantSubagentCount = countAgentDescendants(snapshot.agents, agent.id);
+  const assistantSubagentCount = countEngagedAgentDescendants(snapshot.agents, agent.id);
   const state = runtimeState?.agent;
   if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text, steered)} spaceId={project?.id ?? activeProject?.id ?? ""} assistantSubagentCount={assistantSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
   const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);

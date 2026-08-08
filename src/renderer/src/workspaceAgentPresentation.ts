@@ -16,8 +16,7 @@ export function statusText(status: WorkspaceAgent["status"]): string {
   }
 }
 
-/** Counts transitive subagents connected to a root without trusting input ordering. */
-export function countAgentDescendants(agents: readonly WorkspaceAgent[], rootAgentId: string): number {
+function descendantAgentIds(agents: readonly WorkspaceAgent[], rootAgentId: string): ReadonlySet<string> {
   const descendants = new Set([rootAgentId]);
   for (let pass = 0; pass < agents.length; pass += 1) {
     let changed = false;
@@ -29,5 +28,21 @@ export function countAgentDescendants(agents: readonly WorkspaceAgent[], rootAge
     }
     if (!changed) break;
   }
-  return descendants.size - 1;
+  descendants.delete(rootAgentId);
+  return descendants;
+}
+
+/** Counts transitive subagents connected to a root without trusting input ordering. */
+export function countAgentDescendants(agents: readonly WorkspaceAgent[], rootAgentId: string): number {
+  return descendantAgentIds(agents, rootAgentId).size;
+}
+
+/** Counts descendants that are working or waiting, excluding idle and terminal sessions. */
+export function countEngagedAgentDescendants(agents: readonly WorkspaceAgent[], rootAgentId: string): number {
+  const descendants = descendantAgentIds(agents, rootAgentId);
+  let count = 0;
+  for (const agent of agents) {
+    if (descendants.has(agent.id) && (agent.status === "working" || agent.status === "waiting")) count += 1;
+  }
+  return count;
 }

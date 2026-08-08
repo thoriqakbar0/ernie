@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceAgent } from "../src/shared/workspace";
-import { countAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
+import { countAgentDescendants, countEngagedAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
 
-function agent(id: string, parentAgentId?: string): WorkspaceAgent {
+function agent(id: string, parentAgentId?: string, status: WorkspaceAgent["status"] = "idle"): WorkspaceAgent {
   return {
     id,
     sessionId: id,
@@ -10,7 +10,7 @@ function agent(id: string, parentAgentId?: string): WorkspaceAgent {
     ...(parentAgentId ? { parentAgentId } : {}),
     name: id,
     summary: "",
-    status: "idle",
+    status,
     runtimeKind: parentAgentId ? "subagent" : "root",
   };
 }
@@ -28,5 +28,18 @@ describe("countAgentDescendants", () => {
 
   it("does not admit disconnected parent cycles", () => {
     expect(countAgentDescendants([agent("root"), agent("a", "b"), agent("b", "a")], "root")).toBe(0);
+  });
+});
+
+describe("countEngagedAgentDescendants", () => {
+  it("counts working and waiting descendants while hiding idle and terminal sessions", () => {
+    expect(countEngagedAgentDescendants([
+      agent("root"),
+      agent("working", "root", "working"),
+      agent("waiting", "root", "waiting"),
+      agent("idle", "root", "idle"),
+      agent("completed", "root", "completed"),
+      agent("nested-working", "idle", "working"),
+    ], "root")).toBe(3);
   });
 });

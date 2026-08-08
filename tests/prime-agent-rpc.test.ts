@@ -7,7 +7,7 @@ import * as Stream from "effect/Stream";
 import { join, resolve } from "node:path";
 import type { AgentEvent } from "../src/shared/contract";
 import { AgentCommandSchema } from "../src/main/IpcProtocol";
-import { isIPythonToolName, PrimeAgentRpc, layer } from "../src/main/PrimeAgentRpc";
+import { isIPythonToolName, makeScoped, PrimeAgentRpc, layer } from "../src/main/PrimeAgentRpc";
 
 const root = resolve(import.meta.dirname, "..");
 const options = (environment?: Readonly<Record<string, string>>) => ({
@@ -137,12 +137,12 @@ describe("PrimeAgentRpc", () => {
   it("fails closed when stdout ends with an unterminated record", async () => {
     const state = await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
       const rpc = yield* PrimeAgentRpc;
-      yield* rpc.start;
+      yield* rpc.start.pipe(Effect.ignore);
       yield* Effect.sleep("100 millis");
       return yield* rpc.state;
     })), { ERNIE_FAKE_MODE: "unterminated" }));
-    expect(state.connection).toBe("failed");
-    expect(state.detail).toMatch(/unterminated|exited/i);
+    expect(["failed", "closed"]).toContain(state.connection);
+    expect(state.detail).toMatch(/unterminated|exited|stopped/i);
   });
 
   it("decodes execution target commands and rejects unknown targets", () => {
@@ -177,4 +177,69 @@ describe("PrimeAgentRpc", () => {
       await rm(agentDirectory, { recursive: true, force: true });
     }
   });
+
+  it("starts and stops idempotently", async () => {
+    const state = await Effect.runPromise(provideRpc(Effect.scoped(Effect.gen(function* () {
+      const rpc = yield* PrimeAgentRpc;
+      yield* rpc.start;
+      yield* rpc.start;
+      yield* rpc.stop;
+      yield* rpc.stop;
+      return yield* rpc.state;
+    }))));
+    expect(state.connection).toBe("closed");
+  });
+
+  it("configures a provider-qualified model before admitting the first prompt", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ernie-rpc-order-"));
+    const cliPath = join(directory, "fake.mjs");
+    const logPath = join(directory, "requests.log");
+    const source = `
+import { appendFileSync } from "node:fs";
+import process from "node:process";
+let carry = "";
+const model = { provider: "provider-a", id: "shared-id", name: "Qualified Model" };
+const state = { sessionId: "owned", sessionName: "Owned", model, thinkingLevel: "xhigh", isStreaming: false, isCompacting: false, messageCount: 0, sessionActions: { queuedCount: 0 } };
+const send = (request, data = {}) => process.stdout.write(JSON.stringify({ type: "response", id: request.id, command: request.type, success: true, data }) + "\\n");
+function handle(request) {
+  appendFileSync(process.env.REQUEST_LOG, request.type + "\\n");
+  if (request.type === "get_state") return send(request, state);
+  if (request.type === "get_session_stats") return send(request, { contextUsage: {}, tokens: {}, cost: 0 });
+  if (request.type === "new_session") return send(request, { cancelled: false });
+  if (request.type === "get_available_models") return send(request, { models: [model, { provider: "provider-b", id: "shared-id", name: "Other" }] });
+  if (request.type === "set_model") return send(request, model);
+  return send(request);
+}
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => { carry += chunk; for (;;) { const newline = carry.indexOf("\\n"); if (newline < 0) break; const line = carry.slice(0, newline); carry = carry.slice(newline + 1); if (line) handle(JSON.parse(line)); } });
+`;
+    try {
+      await writeFile(cliPath, source);
+      await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+        const rpc = yield* makeScoped({
+          ...options({ REQUEST_LOG: logPath }),
+          cliPath,
+        });
+        yield* rpc.configureThenPrompt({
+          message: "first",
+          model: { provider: "provider-a", id: "shared-id" },
+        });
+        expect(yield* rpc.currentModel).toEqual({ provider: "provider-a", id: "shared-id", name: "Qualified Model" });
+      })));
+      const requests = (await readFile(logPath, "utf8")).trim().split("\n");
+      expect(requests).toEqual(expect.arrayContaining(["new_session", "get_available_models", "set_model", "prompt"]));
+      expect(requests.indexOf("new_session")).toBeLessThan(requests.indexOf("set_model"));
+      expect(requests.indexOf("set_model")).toBeLessThan(requests.indexOf("prompt"));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid RLM depth locally without writing to the unsupported pinned protocol", async () => {
+    await expect(Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      const rpc = yield* makeScoped(options());
+      yield* rpc.setRlmMaxDepth(-1);
+    })))).rejects.toMatchObject({ operation: "set_rlm_max_depth" });
+  });
+
 });

@@ -52,25 +52,28 @@ export function closeSpaceSessionTab(state: SpaceSessionTabsState, spaceId: stri
   return next;
 }
 
-/** Replaces provisional live-RPC identity in place without merging different Spaces' tab sets. */
-export function reconcileProvisionalSessionTabs(state: SpaceSessionTabsState, stableAgentId: string): SpaceSessionTabsState {
+/** Replaces provisional live-RPC identity only inside its owning Space. */
+export function reconcileProvisionalSessionTab(
+  state: SpaceSessionTabsState,
+  spaceId: string,
+  stableAgentId: string,
+): SpaceSessionTabsState {
+  const tabs = state.get(spaceId);
+  if (!tabs) return state;
   let changed = false;
-  const next = new Map<string, SpaceSessionTabs>();
-  for (const [spaceId, tabs] of state) {
-    let entryChanged = false;
-    const agentIds: string[] = [];
-    const seenAgentIds = new Set<string>();
-    for (const id of tabs.agentIds) {
-      const reconciled = id.startsWith("rpc:") ? stableAgentId : id;
-      entryChanged ||= reconciled !== id;
-      if (seenAgentIds.has(reconciled)) continue;
-      seenAgentIds.add(reconciled);
-      agentIds.push(reconciled);
-    }
-    const activeAgentId = tabs.activeAgentId?.startsWith("rpc:") ? stableAgentId : tabs.activeAgentId;
-    entryChanged ||= activeAgentId !== tabs.activeAgentId;
-    changed ||= entryChanged;
-    next.set(spaceId, entryChanged ? { agentIds, activeAgentId } : tabs);
+  const agentIds: string[] = [];
+  const seenAgentIds = new Set<string>();
+  for (const id of tabs.agentIds) {
+    const reconciled = id.startsWith("rpc:") ? stableAgentId : id;
+    changed ||= reconciled !== id;
+    if (seenAgentIds.has(reconciled)) continue;
+    seenAgentIds.add(reconciled);
+    agentIds.push(reconciled);
   }
-  return changed ? next : state;
+  const activeAgentId = tabs.activeAgentId?.startsWith("rpc:") ? stableAgentId : tabs.activeAgentId;
+  changed ||= activeAgentId !== tabs.activeAgentId;
+  if (!changed) return state;
+  const next = new Map(state);
+  next.set(spaceId, { agentIds, activeAgentId });
+  return next;
 }

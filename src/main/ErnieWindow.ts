@@ -5,7 +5,8 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
-import type { AgentEvent } from "../shared/contract";
+import type { WorkspaceEvent } from "../shared/contract";
+import type { SpaceAgentEvent } from "../shared/spaceRuntime";
 import type { SessionTranscriptEvent } from "../shared/sessionTranscript";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -26,7 +27,8 @@ export class ErnieWindowError extends Schema.TaggedErrorClass<ErnieWindowError>(
 
 export class ErnieWindow extends Context.Service<ErnieWindow, {
   readonly create: Effect.Effect<BrowserWindow, ErnieWindowError>;
-  readonly send: (event: AgentEvent) => Effect.Effect<void>;
+  readonly sendWorkspace: (event: WorkspaceEvent) => Effect.Effect<void>;
+  readonly sendSpace: (event: SpaceAgentEvent) => Effect.Effect<void>;
   readonly sendSessionTranscript: (event: SessionTranscriptEvent) => Effect.Effect<void>;
   readonly trustedSender: (event: IpcMainInvokeEvent) => Effect.Effect<boolean>;
 }>()("@ernie/main/ErnieWindow") {}
@@ -44,9 +46,14 @@ export const make = Effect.gen(function* () {
     return new URL(event.senderFrame.url).href === expectedUrl.value;
   });
 
-  const send = Effect.fn("ErnieWindow.send")(function* (event: AgentEvent) {
+  const sendWorkspace = Effect.fn("ErnieWindow.sendWorkspace")(function* (event: WorkspaceEvent) {
     const active = yield* Ref.get(current);
-    if (Option.isSome(active) && !active.value.isDestroyed()) active.value.webContents.send("agent:event", event);
+    if (Option.isSome(active) && !active.value.isDestroyed()) active.value.webContents.send("workspace:event", event);
+  });
+
+  const sendSpace = Effect.fn("ErnieWindow.sendSpace")(function* (event: SpaceAgentEvent) {
+    const active = yield* Ref.get(current);
+    if (Option.isSome(active) && !active.value.isDestroyed()) active.value.webContents.send("space:event", event);
   });
 
   const sendSessionTranscript = Effect.fn("ErnieWindow.sendSessionTranscript")(function* (event: SessionTranscriptEvent) {
@@ -87,7 +94,7 @@ export const make = Effect.gen(function* () {
     return window;
   }).pipe(Effect.withSpan("ErnieWindow.create"));
 
-  return ErnieWindow.of({ create, send, sendSessionTranscript, trustedSender });
+  return ErnieWindow.of({ create, sendWorkspace, sendSpace, sendSessionTranscript, trustedSender });
 });
 
 export const layer = Layer.effect(ErnieWindow, make);

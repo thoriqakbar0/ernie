@@ -1,9 +1,9 @@
-import { Agentation } from "agentation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AgentState } from "../../shared/contract";
+import type { SpaceRuntimeState } from "../../shared/spaceRuntime";
 import type { WorkspaceSnapshot } from "../../shared/workspace";
 import { FocusedWorkspace } from "./FocusedWorkspace";
-import { useTranscript } from "./useTranscript";
+import { useSpaceTranscripts } from "./useSpaceTranscripts";
 
 const EMPTY_WORKSPACE: WorkspaceSnapshot = { projects: [], worktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
 const EMPTY_AGENT_STATE: AgentState = {
@@ -13,45 +13,63 @@ const EMPTY_AGENT_STATE: AgentState = {
   totalTokens: 0, cost: "$0.0000",
 };
 
-/** Multi-project workspace with focused session navigation and hybrid chat surfaces. */
+/** Multi-project workspace with independently owned Space runtimes. */
 export function App() {
-  const transcript = useTranscript();
+  const transcripts = useSpaceTranscripts();
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot>(EMPTY_WORKSPACE);
-  const [agentState, setAgentState] = useState<AgentState>(EMPTY_AGENT_STATE);
+  const [runtimeStates, setRuntimeStates] = useState<ReadonlyMap<string, SpaceRuntimeState>>(new Map());
   const [workspaceFailed, setWorkspaceFailed] = useState(false);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    void Promise.all([window.ernie.getWorkspace(), window.ernie.getState()]).then(([snapshot, state]) => {
+    void window.ernie.getWorkspace().then((snapshot) => {
       if (!active) return;
       setWorkspace(snapshot);
-      setAgentState(state);
       setWorkspaceLoading(false);
     }).catch(() => {
       if (!active) return;
       setWorkspaceFailed(true);
       setWorkspaceLoading(false);
     });
-    const unsubscribe = window.ernie.onAgentEvent((event) => {
-      transcript.handleEvent(event);
+    const unsubscribeWorkspace = window.ernie.onWorkspaceEvent((event) => {
       if (event.kind === "workspace") {
         setWorkspace(event.snapshot);
         setWorkspaceFailed(false);
         setWorkspaceLoading(false);
-      } else if (event.kind === "state") setAgentState(event.state);
-      else if (event.kind === "connection") setAgentState((current) => ({ ...current, connection: event.state, detail: event.detail }));
+      }
     });
-    return () => { active = false; unsubscribe(); };
-  }, [transcript.handleEvent]);
+    const unsubscribeRuntime = window.ernie.onSpaceEvent((envelope) => {
+      transcripts.handleEvent(envelope);
+      const event = envelope.event;
+      if (event.kind !== "state" && event.kind !== "connection") return;
+      setRuntimeStates((current) => {
+        const previous = current.get(envelope.spaceId);
+        const agent = event.kind === "state"
+          ? event.state
+          : { ...(previous?.agent ?? EMPTY_AGENT_STATE), connection: event.state, detail: event.detail };
+        const next = new Map(current);
+        next.set(envelope.spaceId, { spaceId: envelope.spaceId, agent, rlmMaxDepth: previous?.rlmMaxDepth ?? 0 });
+        return next;
+      });
+    });
+    return () => { active = false; unsubscribeWorkspace(); unsubscribeRuntime(); };
+  }, [transcripts.handleEvent]);
 
-  return <main className="agentation-canvas" aria-label="Ernie workspace">
-    <FocusedWorkspace snapshot={workspace} agentState={agentState} liveItems={transcript.items} onAppendLiveUser={transcript.appendUser} failed={workspaceFailed} loading={workspaceLoading} onSnapshot={setWorkspace} />
-    {import.meta.env.DEV && <Agentation
-      endpoint="/__agentation"
-      copyToClipboard={false}
-      onCopy={(output) => { void window.ernie.copyText(output); }}
-      onSubmit={(output) => { void window.ernie.command({ type: "prompt", message: output, behavior: "now" }); }}
-    />}
+  const rememberRuntime = useCallback((state: SpaceRuntimeState) => {
+    setRuntimeStates((current) => new Map(current).set(state.spaceId, state));
+  }, []);
+
+  return <main className="ernie-canvas" aria-label="Ernie workspace">
+    <FocusedWorkspace
+      snapshot={workspace}
+      runtimeStates={runtimeStates}
+      liveItemsBySpace={transcripts.itemsBySpace}
+      onAppendLiveUser={transcripts.appendUser}
+      onRuntimeState={rememberRuntime}
+      failed={workspaceFailed}
+      loading={workspaceLoading}
+      onSnapshot={setWorkspace}
+    />
   </main>;
 }

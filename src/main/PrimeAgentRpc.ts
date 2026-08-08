@@ -12,6 +12,7 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import type { AgentSlashCommand } from "../shared/commands";
 import type { AgentCommand, AgentEvent, AgentState, ExecutionTarget, IPythonExecution, IPythonExecutionStatus } from "../shared/contract";
@@ -51,6 +52,17 @@ const RpcResponse = Schema.Struct({
 });
 type RpcResponse = typeof RpcResponse.Type;
 
+const RpcModel = Schema.Struct({
+  provider: Schema.String,
+  id: Schema.String,
+  name: Schema.optionalKey(Schema.String),
+});
+const RpcAvailableModelsResponse = Schema.Struct({ models: Schema.Array(RpcModel) });
+const RpcRlmMaxDepthStatus = Schema.Struct({
+  maxDepth: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  source: Schema.Literals(["default", "env", "global", "inherited", "chat"]),
+});
+
 const RpcSlashCommandResponse = Schema.Struct({
   commands: Schema.Array(Schema.Struct({
     name: Schema.String,
@@ -59,7 +71,8 @@ const RpcSlashCommandResponse = Schema.Struct({
   })),
 });
 
-interface Options {
+/** Process and project paths used to create one isolated Prime Agent RPC instance. */
+export interface Options {
   readonly nodePath: string;
   readonly cliPath: string;
   readonly projectPath: string;
@@ -67,6 +80,48 @@ interface Options {
   readonly remoteUvPath?: string;
   readonly extraArgs?: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
+}
+
+/** The stable model identity and presentation fields exposed by the RPC model catalog. */
+export interface PrimeAgentModel {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+}
+
+/** Provider-qualified identity used to select one model without catalog ambiguity. */
+export interface PrimeAgentModelIdentity {
+  readonly provider: string;
+  readonly id: string;
+}
+
+/** Effective recursive-agent depth and the configuration source that selected it. */
+export interface RlmMaxDepthStatus {
+  readonly maxDepth: number;
+  readonly source: "default" | "env" | "global" | "inherited" | "chat";
+}
+
+/** Configuration applied, in order, before the first prompt is admitted. */
+export interface ConfigureFirstPrompt {
+  readonly message: string;
+  readonly behavior?: "steer" | "followUp" | "now";
+  readonly model?: PrimeAgentModelIdentity;
+}
+
+/** A scope-owned, single-process Prime Agent RPC adapter instance. */
+export interface PrimeAgentRpcInstance {
+  readonly start: Effect.Effect<void, PrimeAgentRpcError>;
+  readonly stop: Effect.Effect<void, PrimeAgentRpcError>;
+  readonly state: Effect.Effect<AgentState>;
+  readonly events: Stream.Stream<AgentEvent>;
+  readonly availableCommands: Effect.Effect<readonly AgentSlashCommand[], PrimeAgentRpcError>;
+  readonly availableModels: Effect.Effect<readonly PrimeAgentModel[], PrimeAgentRpcError>;
+  readonly currentModel: Effect.Effect<PrimeAgentModel, PrimeAgentRpcError>;
+  readonly setModel: (model: PrimeAgentModelIdentity) => Effect.Effect<PrimeAgentModel, PrimeAgentRpcError>;
+  readonly getRlmMaxDepthStatus: Effect.Effect<RlmMaxDepthStatus, PrimeAgentRpcError>;
+  readonly setRlmMaxDepth: (maxDepth: number) => Effect.Effect<RlmMaxDepthStatus, PrimeAgentRpcError>;
+  readonly configureThenPrompt: (configuration: ConfigureFirstPrompt) => Effect.Effect<void, PrimeAgentRpcError>;
+  readonly command: (command: AgentCommand) => Effect.Effect<{ readonly cancelled?: boolean }, PrimeAgentRpcError>;
 }
 
 interface PendingRequest {
@@ -192,33 +247,29 @@ function ipythonDetail(payload: unknown): string {
   return "";
 }
 
-export class PrimeAgentRpc extends Context.Service<
-  PrimeAgentRpc,
-  {
-    readonly start: Effect.Effect<void>;
-    readonly stop: Effect.Effect<void>;
-    readonly state: Effect.Effect<AgentState>;
-    readonly events: Stream.Stream<AgentEvent>;
-    readonly availableCommands: Effect.Effect<readonly AgentSlashCommand[], PrimeAgentRpcError>;
-    readonly command: (command: AgentCommand) => Effect.Effect<{ readonly cancelled?: boolean }, PrimeAgentRpcError>;
-  }
->()("@ernie/main/PrimeAgentRpc") {}
+export class PrimeAgentRpc extends Context.Service<PrimeAgentRpc, PrimeAgentRpcInstance>()("@ernie/main/PrimeAgentRpc") {}
 
 export const make = (options: Options) => Effect.gen(function* () {
   const state = yield* Ref.make(initialState());
   const child = yield* Ref.make<Option.Option<ChildProcessWithoutNullStreams>>(Option.none());
+  const processExit = yield* Ref.make<Option.Option<Deferred.Deferred<void>>>(Option.none());
   const pending = yield* Ref.make<ReadonlyMap<string, PendingRequest>>(new Map());
   const requestSequence = yield* Ref.make(0);
   const eventSequence = yield* Ref.make(0);
   const assistantMessageSequence = yield* Ref.make(0);
   const activeAssistantMessage = yield* Ref.make<Option.Option<string>>(Option.none());
   const stderr = yield* Ref.make(Buffer.alloc(0));
-  const messages = yield* Queue.unbounded<ProcessMessage>();
+  const messages = yield* Queue.bounded<ProcessMessage>(64);
   const framing = yield* Ref.make<FramingState>({ carry: Buffer.alloc(0) });
   const events = yield* PubSub.unbounded<AgentEvent>();
   const executionTargetSwitch = yield* Ref.make<Option.Option<{ readonly target: ExecutionTarget; readonly deferred: Deferred.Deferred<void, PrimeAgentRpcError> }>>(Option.none());
   const activeIPythonExecutions = yield* Ref.make<ReadonlyMap<string, ActiveIPythonExecution>>(new Map());
   const activeToolNames = yield* Ref.make<ReadonlyMap<string, string>>(new Map());
+  const operationLock = yield* Queue.bounded<void>(1);
+  yield* Queue.offer(operationLock, undefined);
+
+  const exclusively = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    Effect.acquireUseRelease(Queue.take(operationLock), () => effect, () => Queue.offer(operationLock, undefined));
 
   const publish = (event: AgentEvent) => PubSub.publish(events, event).pipe(Effect.asVoid);
   const snapshot = Ref.get(state).pipe(Effect.map((value) => ({ ...value })));
@@ -319,7 +370,8 @@ export const make = (options: Options) => Effect.gen(function* () {
     }
     if (!response.success) {
       const error = asRecord(response.error);
-      yield* Deferred.fail(request.deferred, rpcError(response.command, string(error["message"]) || `${response.command} failed`, response.error)); return;
+      const message = typeof response.error === "string" ? response.error : string(error["message"]);
+      yield* Deferred.fail(request.deferred, rpcError(response.command, message || `${response.command} failed`, response.error)); return;
     }
     if (response.command === "get_state") yield* applyState(response.data);
     if (response.command === "get_session_stats") yield* applyStats(response.data);
@@ -548,16 +600,45 @@ export const make = (options: Options) => Effect.gen(function* () {
 
   const stop = Effect.gen(function* () {
     const current = yield* Ref.getAndSet(child, Option.none());
+    const exitSignal = yield* Ref.getAndSet(processExit, Option.none());
     if (Option.isNone(current)) return;
-    current.value.stdin.end();
-    signalProcessTree(current.value, "SIGTERM");
+    const agentProcess = current.value;
+    if (!agentProcess.stdin.destroyed) agentProcess.stdin.end();
     const error = rpcError("stop", "Prime Agent stopped");
     yield* failAllPending(error);
     yield* failExecutionTargetSwitch(error);
+    if (agentProcess.exitCode === null && agentProcess.signalCode === null) {
+      yield* Effect.try({ try: () => signalProcessTree(agentProcess, "SIGTERM"), catch: (cause) => rpcError("stop", "Could not terminate Prime Agent", cause) });
+    }
+    if (Option.isSome(exitSignal)) {
+      const terminated = yield* Deferred.await(exitSignal.value).pipe(
+        Effect.as(true),
+        Effect.raceFirst(Effect.sleep("2 seconds").pipe(Effect.as(false))),
+      );
+      if (!terminated && agentProcess.exitCode === null && agentProcess.signalCode === null) {
+        yield* Effect.try({ try: () => signalProcessTree(agentProcess, "SIGKILL"), catch: (cause) => rpcError("stop", "Could not kill Prime Agent", cause) });
+        const reaped = yield* Deferred.await(exitSignal.value).pipe(
+          Effect.as(true),
+          Effect.raceFirst(Effect.sleep("2 seconds").pipe(Effect.as(false))),
+        );
+        if (!reaped) return yield* rpcError("stop", "Prime Agent did not exit after SIGKILL");
+      }
+    }
     yield* setConnection("closed", "Prime Agent stopped");
+    agentProcess.stdout.removeAllListeners();
+    agentProcess.stderr.removeAllListeners();
+    agentProcess.removeAllListeners();
   }).pipe(Effect.withSpan("PrimeAgentRpc.stop"));
 
-  const start = Effect.gen(function* () {
+  const startUnsafe = Effect.gen(function* () {
+    const running = yield* Ref.get(child);
+    if (Option.isSome(running) && running.value.exitCode === null && running.value.signalCode === null) return;
+    const forbiddenSessionArgs = new Set(["--continue", "-c", "--resume", "-r", "--session"]);
+    if ((options.extraArgs ?? []).some((argument) => forbiddenSessionArgs.has(argument) || argument.startsWith("--continue=") || argument.startsWith("--resume=") || argument.startsWith("--session="))) {
+      return yield* rpcError("start", "Session-resume arguments are not allowed for an owned RPC instance");
+    }
+    yield* Ref.set(framing, { carry: Buffer.alloc(0) });
+    yield* Ref.set(stderr, Buffer.alloc(0));
     const projectPath = yield* Effect.tryPromise({ try: () => realpath(options.projectPath), catch: (cause) => rpcError("start", "Project path cannot be resolved", cause) });
     const remoteExtensionPath = yield* Effect.tryPromise({ try: () => realpath(options.remoteExtensionPath), catch: (cause) => rpcError("start", "Remote extension path cannot be resolved", cause) });
     yield* Effect.try({
@@ -581,14 +662,21 @@ export const make = (options: Options) => Effect.gen(function* () {
       try: () => spawn(options.nodePath, [options.cliPath, "--mode", "rpc", "--cwd", projectPath, "--thinking", "xhigh", "-e", remoteExtensionPath, ...(options.extraArgs ?? [])], { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" }),
       catch: (cause) => rpcError("start", "Prime Agent process could not be spawned", cause),
     });
+    const exited = yield* Deferred.make<void>();
+    yield* Ref.set(processExit, Option.some(exited));
     yield* Ref.set(child, Option.some(agentProcess));
     yield* setConnection("starting", "Launching Prime Agent RPC");
     yield* Effect.sync(() => {
-      agentProcess.stdout.on("data", (chunk: Buffer) => { Effect.runFork(Queue.offer(messages, { _tag: "Chunk", chunk: Buffer.from(chunk) })); });
+      agentProcess.stdout.on("data", (chunk: Buffer) => {
+        agentProcess.stdout.pause();
+        void Effect.runPromise(Queue.offer(messages, { _tag: "Chunk", chunk: Buffer.from(chunk) }))
+          .then(() => { if (!agentProcess.stdout.destroyed) agentProcess.stdout.resume(); });
+      });
       agentProcess.stdout.on("end", () => { Effect.runFork(Queue.offer(messages, { _tag: "End" })); });
       agentProcess.stderr.on("data", (chunk: Buffer) => { Effect.runFork(Ref.update(stderr, (current) => Buffer.concat([current, chunk]).subarray(-MAX_STDERR_BYTES))); });
       agentProcess.on("error", (cause) => { Effect.runFork(protocolFailure(rpcError("process", cause.message, cause))); });
       agentProcess.on("exit", (code, signal) => { Effect.runFork(Effect.gen(function* () {
+        yield* Deferred.succeed(exited, undefined);
         yield* Ref.set(child, Option.none());
         const diagnostic = (yield* Ref.get(stderr)).toString("utf8").trim();
         const message = `Prime Agent exited (${signal ?? code ?? "unknown"})${diagnostic ? `: ${diagnostic}` : ""}`;
@@ -600,9 +688,10 @@ export const make = (options: Options) => Effect.gen(function* () {
     yield* refresh.pipe(Effect.raceFirst(startupTimeout));
     yield* setConnection("ready", "Live Prime Agent RPC");
   }).pipe(
-    Effect.catch((error) => protocolFailure(error)),
+    Effect.tapError((error) => protocolFailure(error).pipe(Effect.andThen(stop.pipe(Effect.ignore)))),
     Effect.withSpan("PrimeAgentRpc.start"),
   );
+  const start = exclusively(startUnsafe);
 
   const availableCommands = request("get_commands", {}).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(RpcSlashCommandResponse)),
@@ -610,12 +699,74 @@ export const make = (options: Options) => Effect.gen(function* () {
     Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("get_commands", "Prime Agent returned an invalid command catalog", cause)),
   );
 
-  const command = Effect.fn("PrimeAgentRpc.command")(function* (input: AgentCommand) {
+  const parseModel = (operation: string, value: unknown) => Schema.decodeUnknownEffect(RpcModel)(value).pipe(
+    Effect.map((model): PrimeAgentModel => ({ provider: model.provider, id: model.id, name: model.name ?? model.id })),
+    Effect.mapError((cause) => rpcError(operation, "Prime Agent returned an invalid model", cause)),
+  );
+
+  const availableModels = request("get_available_models", {}).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(RpcAvailableModelsResponse)),
+    Effect.map((catalog): readonly PrimeAgentModel[] => catalog.models.map((model) => ({
+      provider: model.provider,
+      id: model.id,
+      name: model.name ?? model.id,
+    }))),
+    Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("get_available_models", "Prime Agent returned an invalid model catalog", cause)),
+  );
+
+  const currentModel = request("get_state", {}).pipe(
+    Effect.flatMap((value) => parseModel("get_state", asRecord(value)["model"])),
+  );
+
+  const setModelUnsafe = Effect.fn("PrimeAgentRpc.setModel")(function* (identity: PrimeAgentModelIdentity) {
+    if (!identity.provider || !identity.id) return yield* rpcError("set_model", "Model provider and ID must not be empty");
+    const catalog = yield* availableModels;
+    const selected = catalog.find((model) => model.provider === identity.provider && model.id === identity.id);
+    if (selected === undefined) return yield* rpcError("set_model", `Unknown model: ${identity.provider}/${identity.id}`);
+    const model = yield* request("set_model", { provider: selected.provider, modelId: selected.id }).pipe(
+      Effect.flatMap((value) => parseModel("set_model", value)),
+    );
+    yield* request("get_state", {});
+    return model;
+  });
+  const setModel = (model: PrimeAgentModelIdentity) => exclusively(setModelUnsafe(model));
+
+  const getRlmMaxDepthStatus = request("get_rlm_max_depth_status", {}).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(RpcRlmMaxDepthStatus)),
+    Effect.map((status): RlmMaxDepthStatus => status),
+    Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("get_rlm_max_depth_status", "Prime Agent returned an invalid RLM max-depth status", cause)),
+  );
+
+  const setRlmMaxDepthUnsafe = Effect.fn("PrimeAgentRpc.setRlmMaxDepth")(function* (maxDepth: number) {
+    if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) return yield* rpcError("set_rlm_max_depth", "RLM max depth must be a non-negative integer");
+    return yield* request("set_rlm_max_depth", { maxDepth }).pipe(
+      Effect.flatMap(Schema.decodeUnknownEffect(RpcRlmMaxDepthStatus)),
+      Effect.map((status): RlmMaxDepthStatus => status),
+      Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("set_rlm_max_depth", "Prime Agent returned an invalid RLM max-depth status", cause)),
+    );
+  });
+  const setRlmMaxDepth = (maxDepth: number) => exclusively(setRlmMaxDepthUnsafe(maxDepth));
+
+  const configureThenPrompt = (configuration: ConfigureFirstPrompt) => exclusively(Effect.gen(function* () {
+    yield* startUnsafe;
+    const fresh = asRecord(yield* request("new_session", {}));
+    if (fresh["cancelled"] === true) return yield* rpcError("new_session", "Prime Agent cancelled owned-session creation");
+    if (configuration.model !== undefined) yield* setModelUnsafe(configuration.model);
+    const payload: Record<string, unknown> = { message: configuration.message };
+    if (configuration.behavior && configuration.behavior !== "now") payload["streamingBehavior"] = configuration.behavior;
+    yield* request("prompt", payload);
+  }));
+
+  const commandUnsafe = Effect.fn("PrimeAgentRpc.command")(function* (input: AgentCommand) {
     switch (input.type) {
       case "prompt": {
         const payload: Record<string, unknown> = { message: input.message };
         if (input.behavior && input.behavior !== "now") payload["streamingBehavior"] = input.behavior;
         yield* request("prompt", payload); return {};
+      }
+      case "set_model": {
+        yield* setModelUnsafe({ provider: input.provider, id: input.modelId });
+        return {};
       }
       case "set_execution_target": {
         const current = yield* Ref.get(state);
@@ -662,10 +813,19 @@ export const make = (options: Options) => Effect.gen(function* () {
       case "refresh": yield* refresh; return {};
     }
   });
+  const command = (input: AgentCommand) => exclusively(commandUnsafe(input));
 
   yield* Effect.forkScoped(consume);
-  yield* Effect.addFinalizer(() => stop);
-  return PrimeAgentRpc.of({ start, stop, state: snapshot, events: Stream.fromPubSub(events), availableCommands, command });
+  yield* Effect.addFinalizer(() => stop.pipe(Effect.ignore));
+  return PrimeAgentRpc.of({
+    start, stop, state: snapshot, events: Stream.fromPubSub(events), availableCommands,
+    availableModels, currentModel, setModel, getRlmMaxDepthStatus, setRlmMaxDepth,
+    configureThenPrompt, command,
+  });
 });
 
-export const layer = (options: Options) => Layer.effect(PrimeAgentRpc, make(options));
+/** Creates one Prime Agent process adapter whose listeners and process are owned by the provided Scope. */
+export const makeScoped = (options: Options): Effect.Effect<PrimeAgentRpcInstance, never, Scope.Scope> => make(options);
+
+/** Provides a scope-owned PrimeAgentRpc service. */
+export const layer = (options: Options) => Layer.effect(PrimeAgentRpc, makeScoped(options));

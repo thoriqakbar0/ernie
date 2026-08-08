@@ -42,9 +42,9 @@ try {
     "command", "copyText", "detachSessionTranscript", "getCommands", "getState", "getWorkspace",
     "onAgentEvent", "onSessionTranscriptEvent", "openDevServer", "platform", "refreshDevServers", "selectSessionTranscript",
   ]);
-  const copyResult = await window.evaluate(() => window.ernie.copyText("Agentation clipboard smoke"));
+  const copyResult = await window.evaluate(() => window.ernie.copyText("Ernie clipboard smoke"));
   assert.equal(copyResult.ok, true);
-  assert.equal(await electronApp.evaluate(({ clipboard }) => clipboard.readText()), "Agentation clipboard smoke");
+  assert.equal(await electronApp.evaluate(({ clipboard }) => clipboard.readText()), "Ernie clipboard smoke");
   const oversizedCopy = await window.evaluate(() => window.ernie.copyText("x".repeat(524_289)));
   assert.equal(oversizedCopy.ok, false);
   assert.match(oversizedCopy.error ?? "", /too large/);

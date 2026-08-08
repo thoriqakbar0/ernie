@@ -3,6 +3,11 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 
+function rendererPort(value: string | undefined): number {
+  const parsed = value === undefined ? 5_173 : Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 65_535 ? parsed : 5_173;
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -20,16 +25,7 @@ export default defineConfig({
   renderer: {
     root: resolve("src/renderer"),
     build: { rollupOptions: { input: resolve("src/renderer/index.html") } },
-    server: {
-      port: 5_173,
-      strictPort: true,
-      proxy: {
-        "/__agentation": {
-          target: "http://127.0.0.1:4748",
-          rewrite: (path) => path.replace(/^\/__agentation/u, ""),
-        },
-      },
-    },
+    server: { port: rendererPort(process.env["ERNIE_RENDERER_PORT"]), strictPort: true },
     plugins: [react(), tailwindcss()],
   },
 });

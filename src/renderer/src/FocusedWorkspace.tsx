@@ -1,16 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import type { AgentState } from "../../shared/contract";
+import type { AgentModelOption, SpaceRuntimeState } from "../../shared/spaceRuntime";
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
 import { flattenAgentHierarchy } from "./ProjectSidebar";
 import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface";
+import { SpaceLaunchpad } from "./SpaceLaunchpad";
+import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./spaceLaunchPreferences";
 import type { ThreadItem } from "./transcript";
 import { prioritizeAgents } from "./agentPriority";
 import {
   closeSpaceSessionTab,
   emptySpaceSessionTabs,
   openSpaceSessionTab,
-  reconcileProvisionalSessionTabs,
+  reconcileProvisionalSessionTab,
   selectSpaceSessionTab,
   tabsForSpace,
 } from "./spaceSessionTabs";
@@ -369,23 +372,148 @@ function SessionTabs({ snapshot, spaceLabel, openAgentIds, activeAgentId, naviga
   </div>;
 }
 
-function SessionSurface({ snapshot, agentId, loading, activeProject, agentState, liveItems, onAppendLiveUser }: {
+function modelKey(model: { readonly provider: string; readonly id: string }): string {
+  return JSON.stringify([model.provider, model.id]);
+}
+
+function preferenceWithModel(preference: SpaceLaunchPreference, model: AgentModelOption | undefined): SpaceLaunchPreference {
+  return model
+    ? { modelProvider: model.provider, modelId: model.id, rlmMaxDepth: preference.rlmMaxDepth }
+    : { rlmMaxDepth: preference.rlmMaxDepth };
+}
+
+function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onStarted }: {
+  readonly project: WorkspaceProject;
+  readonly worktreeLabel: string;
+  readonly onRuntimeState: (state: SpaceRuntimeState) => void;
+  readonly onStarted: (agentId: string, prompt: string) => void;
+}) {
+  const [preference, setPreference] = useState(() => readSpaceLaunchPreference(window.localStorage, project.id));
+  const initialPreference = useRef(preference).current;
+  const [models, setModels] = useState<readonly AgentModelOption[]>([]);
+  const [selectedModelKey, setSelectedModelKey] = useState("");
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [retrySequence, setRetrySequence] = useState(0);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setModelsLoading(true);
+    setModelsError(null);
+    void window.ernie.getSpaceModels(project.id).then(async (available) => {
+      if (!active) return;
+      if (available.length === 0) {
+        setModels([]);
+        setModelsError("Models are unavailable. Retry to choose a model and start a thread.");
+        return;
+      }
+      const runtime = await window.ernie.getSpaceState(project.id);
+      if (!active) return;
+      onRuntimeState(runtime);
+      setModels(available);
+      const preferred = available.find((model) => model.provider === initialPreference.modelProvider && model.id === initialPreference.modelId);
+      const current = available.find((model) => model.provider === runtime.agent.provider && model.id === runtime.agent.modelId);
+      const selected = preferred ?? current ?? available[0];
+      if (selected) setSelectedModelKey(modelKey(selected));
+    }).catch(() => {
+      if (active) setModelsError("Models are unavailable. Retry to choose a model and start a thread.");
+    }).finally(() => { if (active) setModelsLoading(false); });
+    return () => { active = false; };
+  }, [initialPreference.modelId, initialPreference.modelProvider, onRuntimeState, project.id, retrySequence]);
+
+  const persist = (next: SpaceLaunchPreference) => {
+    setPreference(next);
+    writeSpaceLaunchPreference(window.localStorage, project.id, next);
+  };
+  const selectModel = (key: string) => {
+    setSelectedModelKey(key);
+    const selected = models.find((model) => modelKey(model) === key);
+    if (selected) persist(preferenceWithModel(preference, selected));
+  };
+  const selectDepth = (rlmMaxDepth: number) => {
+    const selected = models.find((model) => modelKey(model) === selectedModelKey);
+    persist({ ...preferenceWithModel(preference, selected), rlmMaxDepth });
+  };
+  const start = async ({ prompt, modelId, rlmMaxDepth }: { readonly prompt: string; readonly modelId: string; readonly rlmMaxDepth: number }) => {
+    const selected = models.find((model) => modelKey(model) === modelId);
+    if (!selected || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await window.ernie.startSpace({
+        spaceId: project.id,
+        prompt,
+        model: { provider: selected.provider, id: selected.id },
+        rlmMaxDepth,
+      });
+      if (!result.ok) {
+        setError(result.error ?? "Prime Agent is unavailable. Review the recovery details, then try again.");
+        return;
+      }
+      persist({ modelProvider: selected.provider, modelId: selected.id, rlmMaxDepth });
+      try { onRuntimeState(await window.ernie.getSpaceState(project.id)); } catch { /* A live state event remains authoritative. */ }
+      onStarted(`rpc:${project.id}`, prompt);
+    } catch {
+      setError("Prime Agent is unavailable. Review the recovery details, then try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <SpaceLaunchpad
+    spaceLabel={project.label}
+    worktreeLabel={worktreeLabel}
+    models={models.map((model) => ({ id: modelKey(model), label: model.label, provider: model.provider }))}
+    selectedModelId={selectedModelKey}
+    modelsLoading={modelsLoading}
+    modelsError={modelsError}
+    onModelChange={selectModel}
+    onRetryModels={() => setRetrySequence((sequence) => sequence + 1)}
+    rlmMaxDepth={preference.rlmMaxDepth}
+    onRlmMaxDepthChange={selectDepth}
+    promptDraft={promptDraft}
+    onPromptDraftChange={setPromptDraft}
+    busy={busy}
+    error={error}
+    onSubmit={(payload) => { void start(payload); }}
+  />;
+}
+
+function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, onAppendLiveUser, onRuntimeState, onStarted }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly agentId: string | undefined;
   readonly loading: boolean;
   readonly activeProject: WorkspaceProject | undefined;
-  readonly agentState: AgentState;
+  readonly runtimeState: SpaceRuntimeState | undefined;
   readonly liveItems: readonly ThreadItem[];
-  readonly onAppendLiveUser: (text: string) => void;
+  readonly onAppendLiveUser: (spaceId: string, text: string) => void;
+  readonly onRuntimeState: (state: SpaceRuntimeState) => void;
+  readonly onStarted: (agentId: string, prompt: string) => void;
 }) {
   const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
   if (loading) return <section className="focused-surface empty"><div><h1>Loading workspace…</h1><p>Finding your spaces and Prime Agent sessions.</p></div></section>;
-  if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No session open</h1><p>{activeProject ? `Select a session in ${activeProject.label} to open its conversation.` : "Open a folder to add your first space."}</p></div></section>;
+  if (agentId === undefined && activeProject) {
+    const worktreeIds = new Set(activeProject.worktreeIds);
+    const worktree = snapshot.worktrees.find((candidate) => worktreeIds.has(candidate.id));
+    return <SpaceLaunchpadContainer
+      key={activeProject.id}
+      project={activeProject}
+      worktreeLabel={worktree?.label ?? "Local directory"}
+      onRuntimeState={onRuntimeState}
+      onStarted={onStarted}
+    />;
+  }
+  if (agentId === undefined) return <section className="focused-surface empty"><div><h1>No spaces yet</h1><p>Open a folder to add your first space.</p></div></section>;
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
   const worktree = snapshot.worktrees.find((candidate) => candidate.id === agent.worktreeId);
-  if (agent.id.startsWith("rpc:")) return <LiveSessionChatSurface agent={agent} state={agentState} items={liveItems} onAppendUser={onAppendLiveUser} projectLabel={project?.label ?? "Space"} worktreeLabel={worktree?.label ?? "Worktree"} />;
-  return <SessionChatSurface agent={agent} state={agentState} interactive={isCommandableAgent(agent, agentState.sessionId)} projectLabel={project?.label ?? "Space"} worktreeLabel={worktree?.label ?? "Worktree"} />;
+  const state = runtimeState?.agent;
+  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text)} spaceId={project?.id ?? activeProject?.id ?? ""} projectLabel={project?.label ?? "Space"} worktreeLabel={worktree?.label ?? "Worktree"} />;
+  const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);
+  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={project?.id} projectLabel={project?.label ?? "Space"} worktreeLabel={worktree?.label ?? "Worktree"} />;
 }
 
 function useMediaQuery(query: string): boolean {
@@ -400,29 +528,47 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLiveUser, failed, loading, onSnapshot }: {
+export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, onAppendLiveUser, onRuntimeState, failed, loading, onSnapshot }: {
   readonly snapshot: WorkspaceSnapshot;
-  readonly agentState: AgentState;
-  readonly liveItems: readonly ThreadItem[];
-  readonly onAppendLiveUser: (text: string) => void;
+  readonly runtimeStates: ReadonlyMap<string, SpaceRuntimeState>;
+  readonly liveItemsBySpace: ReadonlyMap<string, readonly ThreadItem[]>;
+  readonly onAppendLiveUser: (spaceId: string, text: string) => void;
+  readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly failed: boolean;
   readonly loading: boolean;
   readonly onSnapshot: (snapshot: WorkspaceSnapshot) => void;
 }) {
-  const { workspace, currentAgentId } = useMemo(() => {
-    const catalogCommandable = snapshot.agents.find((agent) => isCommandableAgent(agent, agentState.sessionId));
-    const rootWorktreeId = snapshot.projects[0]?.worktreeIds[0] ?? snapshot.worktrees[0]?.id;
-    const liveAgent: WorkspaceAgent | undefined = !catalogCommandable && rootWorktreeId !== undefined ? {
-      id: `rpc:${agentState.sessionId || "current"}`, sessionId: agentState.sessionId, worktreeId: rootWorktreeId,
-      name: agentState.sessionName || "New conversation", summary: agentState.detail,
-      status: agentState.isStreaming ? "working" : agentState.connection === "ready" ? "idle" : agentState.connection === "failed" ? "failed" : "waiting",
-      runtimeKind: "root",
-    } : undefined;
+  const { workspace, currentAgentBySpace } = useMemo(() => {
+    const current = new Map<string, string>();
+    const liveAgents: WorkspaceAgent[] = [];
+    for (const project of snapshot.projects) {
+      const runtime = runtimeStates.get(project.id);
+      if (!runtime) continue;
+      const catalogAgent = snapshot.agents.find((agent) => project.worktreeIds.includes(agent.worktreeId) && isCommandableAgent(agent, runtime.agent.sessionId));
+      if (catalogAgent) {
+        current.set(project.id, catalogAgent.id);
+        continue;
+      }
+      if (runtime.agent.messageCount === 0 && !runtime.agent.isStreaming) continue;
+      const worktreeId = project.worktreeIds[0];
+      if (!worktreeId) continue;
+      const liveAgent: WorkspaceAgent = {
+        id: `rpc:${project.id}`,
+        sessionId: runtime.agent.sessionId,
+        worktreeId,
+        name: runtime.agent.sessionName || "New conversation",
+        summary: runtime.agent.detail,
+        status: runtime.agent.isStreaming ? "working" : runtime.agent.connection === "ready" ? "idle" : runtime.agent.connection === "failed" ? "failed" : "waiting",
+        runtimeKind: "root",
+      };
+      liveAgents.push(liveAgent);
+      current.set(project.id, liveAgent.id);
+    }
     return {
-      workspace: liveAgent ? { ...snapshot, agents: [liveAgent, ...snapshot.agents] } : snapshot,
-      currentAgentId: catalogCommandable?.id ?? liveAgent?.id,
+      workspace: liveAgents.length > 0 ? { ...snapshot, agents: [...liveAgents, ...snapshot.agents] } : snapshot,
+      currentAgentBySpace: current,
     };
-  }, [agentState.connection, agentState.detail, agentState.isStreaming, agentState.sessionId, agentState.sessionName, snapshot]);
+  }, [runtimeStates, snapshot]);
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(snapshot.projects[0]?.id);
   const [spaceTabs, setSpaceTabs] = useState(emptySpaceSessionTabs);
   const [opening, setOpening] = useState(false);
@@ -453,25 +599,41 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
   useEffect(() => {
     if (initialized.current || workspace.agents.length === 0) return;
     initialized.current = true;
-    const initial = workspace.agents.find((agent) => agent.id === currentAgentId) ?? workspace.agents.find((agent) => agent.status === "working") ?? workspace.agents[0];
+    const currentIds = new Set(currentAgentBySpace.values());
+    const initial = workspace.agents.find((agent) => currentIds.has(agent.id))
+      ?? workspace.agents.find((agent) => agent.status === "working")
+      ?? workspace.agents[0];
     if (!initial) return;
     const projectId = projectForAgent(workspace, initial)?.id;
     if (!projectId) return;
     setSpaceTabs((state) => openSpaceSessionTab(state, projectId, initial.id));
     setActiveProjectId(projectId);
-  }, [currentAgentId, workspace]);
+  }, [currentAgentBySpace, workspace]);
 
   useEffect(() => {
-    if (!currentAgentId) return;
-    setSpaceTabs((state) => reconcileProvisionalSessionTabs(state, currentAgentId));
-  }, [currentAgentId]);
+    setSpaceTabs((state) => {
+      let next = state;
+      for (const [spaceId, agentId] of currentAgentBySpace) {
+        if (!agentId.startsWith("rpc:")) next = reconcileProvisionalSessionTab(next, spaceId, agentId);
+      }
+      return next;
+    });
+  }, [currentAgentBySpace]);
 
   useEffect(() => {
     if (activeProjectId !== undefined && snapshot.projects.some((project) => project.id === activeProjectId)) return;
     setActiveProjectId(snapshot.projects[0]?.id);
   }, [activeProjectId, snapshot.projects]);
+  useEffect(() => {
+    if (!activeProjectId || runtimeStates.has(activeProjectId)) return;
+    let active = true;
+    void window.ernie.getSpaceState(activeProjectId).then((state) => { if (active) onRuntimeState(state); }).catch(() => {});
+    return () => { active = false; };
+  }, [activeProjectId, onRuntimeState, runtimeStates]);
 
   const activeProject = workspace.projects.find((project) => project.id === activeProjectId);
+  const runtimeState = activeProjectId ? runtimeStates.get(activeProjectId) : undefined;
+  const liveItems = activeProjectId ? liveItemsBySpace.get(activeProjectId) ?? [] : [];
   const selectProject = (projectId: string) => {
     setActiveProjectId(projectId);
     if (compactNavigation) closeNavigation();
@@ -491,6 +653,11 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
     if (!activeProjectId) return;
     setSpaceTabs((state) => closeSpaceSessionTab(state, activeProjectId, agentId));
   };
+  const started = (agentId: string, prompt: string) => {
+    if (!activeProjectId) return;
+    setSpaceTabs((state) => openSpaceSessionTab(state, activeProjectId, agentId));
+    onAppendLiveUser(activeProjectId, prompt);
+  };
   const openDirectory = async () => {
     setOpening(true); setOpenError(undefined);
     try {
@@ -507,7 +674,7 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
       <div className="focused-titlebar-drag" aria-hidden="true" />
       <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
       <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
-        <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} agentState={agentState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} />
+        <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} />
       </section>
     </section>
   </div>;

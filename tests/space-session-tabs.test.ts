@@ -3,7 +3,7 @@ import {
   closeSpaceSessionTab,
   emptySpaceSessionTabs,
   openSpaceSessionTab,
-  reconcileProvisionalSessionTabs,
+  reconcileProvisionalSessionTab,
   selectSpaceSessionTab,
   tabsForSpace,
 } from "../src/renderer/src/spaceSessionTabs";
@@ -35,10 +35,10 @@ describe("Space-local session tabs", () => {
 
   it("reconciles provisional RPC identity inside the existing Space", () => {
     let state = openSpaceSessionTab(emptySpaceSessionTabs(), "ernie", "rpc:current");
-    state = openSpaceSessionTab(state, "garden", "garden-agent");
-    const reconciled = reconcileProvisionalSessionTabs(state, "stable-root");
+    state = openSpaceSessionTab(state, "garden", "rpc:garden");
+    const reconciled = reconcileProvisionalSessionTab(state, "ernie", "stable-root");
 
     expect(tabsForSpace(reconciled, "ernie")).toEqual({ agentIds: ["stable-root"], activeAgentId: "stable-root" });
-    expect(tabsForSpace(reconciled, "garden")).toEqual({ agentIds: ["garden-agent"], activeAgentId: "garden-agent" });
+    expect(tabsForSpace(reconciled, "garden")).toEqual({ agentIds: ["rpc:garden"], activeAgentId: "rpc:garden" });
   });
 });

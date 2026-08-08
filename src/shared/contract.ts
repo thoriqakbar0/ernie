@@ -2,6 +2,7 @@ import type { AgentSlashCommand } from "./commands";
 import type { WorkspaceSnapshot } from "./workspace";
 import type { DevServerSnapshot } from "./devServer";
 import type { SessionTranscriptEvent, SessionTranscriptSnapshot } from "./sessionTranscript";
+import type { AgentModelOption, SpaceAgentEvent, SpaceRuntimeState, StartSpaceInput } from "./spaceRuntime";
 
 export type ConnectionState = "starting" | "ready" | "failed" | "closed";
 export type ExecutionTarget = "local" | "modal";
@@ -46,6 +47,7 @@ export interface AgentState {
 export type AgentCommand =
   | { readonly type: "prompt"; readonly message: string; readonly behavior?: "now" | "steer" | "followUp" }
   | { readonly type: "set_execution_target"; readonly target: ExecutionTarget }
+  | { readonly type: "set_model"; readonly provider: string; readonly modelId: string }
   | { readonly type: "abort" }
   | { readonly type: "new_session" }
   | { readonly type: "compact" }
@@ -65,6 +67,9 @@ export type AgentEvent =
   | { readonly kind: "error"; readonly source: string; readonly message: string; readonly detail?: unknown }
   | { readonly kind: "raw"; readonly sequence: number; readonly event: unknown };
 
+/** Workspace-only events kept separate from Space runtime streams. */
+export type WorkspaceEvent = Extract<AgentEvent, { readonly kind: "workspace" }> | Extract<AgentEvent, { readonly kind: "error" }>;
+
 export interface CommandResult {
   readonly ok: boolean;
   readonly cancelled?: boolean;
@@ -77,8 +82,15 @@ export type OpenProjectResult =
   | { readonly ok: false; readonly error: string };
 
 export interface ErnieApi {
-  getState(): Promise<AgentState>;
-  getCommands(): Promise<readonly AgentSlashCommand[]>;
+  /** Get or lazily create the runtime authorized by this catalog Space. */
+  getSpaceState(spaceId: string): Promise<SpaceRuntimeState>;
+  getSpaceCommands(spaceId: string): Promise<readonly AgentSlashCommand[]>;
+  getSpaceModels(spaceId: string): Promise<readonly AgentModelOption[]>;
+  getSpaceRlmMaxDepth(spaceId: string): Promise<number>;
+  startSpace(input: StartSpaceInput): Promise<CommandResult>;
+  spaceCommand(spaceId: string, command: AgentCommand): Promise<CommandResult>;
+  onSpaceEvent(listener: (event: SpaceAgentEvent) => void): () => void;
+  onWorkspaceEvent(listener: (event: WorkspaceEvent) => void): () => void;
   getWorkspace(): Promise<WorkspaceSnapshot>;
   openProjectDirectory(): Promise<OpenProjectResult>;
   refreshDevServers(worktreeId: string): Promise<DevServerSnapshot>;
@@ -86,8 +98,6 @@ export interface ErnieApi {
   copyText(text: string): Promise<CommandResult>;
   selectSessionTranscript(activeSessionId: string): Promise<SessionTranscriptSnapshot>;
   detachSessionTranscript(): Promise<void>;
-  command(command: AgentCommand): Promise<CommandResult>;
-  onAgentEvent(listener: (event: AgentEvent) => void): () => void;
   onSessionTranscriptEvent(listener: (event: SessionTranscriptEvent) => void): () => void;
   platform: string;
 }

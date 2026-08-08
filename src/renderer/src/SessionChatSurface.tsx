@@ -22,7 +22,7 @@ function formatTokens(value: number): string {
   return String(value);
 }
 
-function ChatComposer({ state, connectionReady = true, onAppendUser }: { readonly state: AgentState; readonly connectionReady?: boolean; readonly onAppendUser?: (text: string) => void }) {
+function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser }: { readonly spaceId: string; readonly state: AgentState; readonly connectionReady?: boolean; readonly onAppendUser?: (text: string) => void }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [commands, setCommands] = useState<readonly AgentSlashCommand[]>([]);
@@ -35,9 +35,9 @@ function ChatComposer({ state, connectionReady = true, onAppendUser }: { readonl
   useEffect(() => {
     if (state.connection !== "ready") return;
     let active = true;
-    void window.ernie.getCommands().then((available) => { if (active) setCommands(available); }).catch(() => { if (active) setCommands([]); });
+    void window.ernie.getSpaceCommands(spaceId).then((available) => { if (active) setCommands(available); }).catch(() => { if (active) setCommands([]); });
     return () => { active = false; };
-  }, [state.connection]);
+  }, [spaceId, state.connection]);
 
   useEffect(() => { setCommandIndex(0); setCommandMenuDismissed(false); }, [draft]);
 
@@ -45,7 +45,7 @@ function ChatComposer({ state, connectionReady = true, onAppendUser }: { readonl
     const message = draft.trim();
     if (!message || disabled) return;
     setError("");
-    const result = await window.ernie.command({ type: "prompt", message, behavior: state.isStreaming ? "steer" : "now" });
+    const result = await window.ernie.spaceCommand(spaceId, { type: "prompt", message, behavior: state.isStreaming ? "steer" : "now" });
     if (result.ok) {
       onAppendUser?.(message);
       setDraft("");
@@ -103,7 +103,7 @@ function ChatComposer({ state, connectionReady = true, onAppendUser }: { readonl
       <footer>
         <span className="chat-usage">{state.contextPercent}% context · {formatTokens(state.totalTokens)} tokens · {state.cost}</span>
         {state.isStreaming
-          ? <button type="button" className="chat-send stop" aria-label="Stop response" onClick={() => { void window.ernie.command({ type: "abort" }); }}><SendIcon stop /></button>
+          ? <button type="button" className="chat-send stop" aria-label="Stop response" onClick={() => { void window.ernie.spaceCommand(spaceId, { type: "abort" }); }}><SendIcon stop /></button>
           : <button type="submit" className="chat-send" aria-label="Send message" disabled={disabled || draft.trim().length === 0}><SendIcon /></button>}
       </footer>
     </form>
@@ -111,11 +111,12 @@ function ChatComposer({ state, connectionReady = true, onAppendUser }: { readonl
   </div>;
 }
 
-export function LiveSessionChatSurface({ agent, state, items, onAppendUser, projectLabel, worktreeLabel }: {
+export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId, projectLabel, worktreeLabel }: {
   readonly agent: WorkspaceAgent;
   readonly state: AgentState;
   readonly items: readonly ThreadItem[];
   readonly onAppendUser: (text: string) => void;
+  readonly spaceId: string;
   readonly projectLabel: string;
   readonly worktreeLabel: string;
 }) {
@@ -129,14 +130,15 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, proj
     headerContext={`${projectLabel} · ${worktreeLabel} · ${runtimeUnavailable ? "Unavailable" : state.connection === "ready" ? "Interactive" : "Connecting"}`}
     onRetry={() => {}}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
-    footer={<ChatComposer state={state} onAppendUser={onAppendUser} />}
+    footer={<ChatComposer spaceId={spaceId} state={state} onAppendUser={onAppendUser} />}
   />;
 }
 
-export function SessionChatSurface({ agent, state, interactive, projectLabel, worktreeLabel }: {
+export function SessionChatSurface({ agent, state, interactive, spaceId, projectLabel, worktreeLabel }: {
   readonly agent: WorkspaceAgent;
-  readonly state: AgentState;
+  readonly state: AgentState | undefined;
   readonly interactive: boolean;
+  readonly spaceId: string | undefined;
   readonly projectLabel: string;
   readonly worktreeLabel: string;
 }) {
@@ -167,7 +169,7 @@ export function SessionChatSurface({ agent, state, interactive, projectLabel, wo
     };
   }, [activeSessionId, retrySequence]);
 
-  const runtimeUnavailable = interactive && (state.connection === "failed" || state.connection === "closed");
+  const runtimeUnavailable = interactive && (state === undefined || state.connection === "failed" || state.connection === "closed");
   const surfaceState = runtimeUnavailable ? "unavailable" : streamState;
   return <SessionTranscriptView
     agent={agent}
@@ -177,6 +179,6 @@ export function SessionChatSurface({ agent, state, interactive, projectLabel, wo
     headerContext={`${projectLabel} · ${worktreeLabel} · ${runtimeUnavailable ? "Unavailable" : interactive ? "Interactive" : "Read only"}`}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel="Prime Agent" />}
-    footer={interactive ? <ChatComposer state={state} connectionReady={streamState === "ready"} /> : undefined}
+    footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} /> : undefined}
   />;
 }

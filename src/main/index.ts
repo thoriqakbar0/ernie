@@ -11,7 +11,7 @@ import * as Layer from "effect/Layer";
 import { join, resolve } from "node:path";
 import * as ErnieApp from "./ErnieApp";
 import * as ErnieWindow from "./ErnieWindow";
-import * as PrimeAgentRpc from "./PrimeAgentRpc";
+import * as SpaceRuntimeRegistry from "./SpaceRuntimeRegistry";
 import * as WorkspaceCatalog from "./WorkspaceCatalog";
 import * as DevServerCatalog from "./DevServerCatalog";
 import * as SessionTranscriptStream from "./SessionTranscriptStream";
@@ -34,25 +34,28 @@ const remoteExtensionPath = app.isPackaged
 const defaultRemoteUvPath = join(homedir(), ".local", "bin", "uv");
 const remoteUvPath = process.env["PRIME_AGENT_REMOTE_UV"] ?? (existsSync(defaultRemoteUvPath) ? defaultRemoteUvPath : undefined);
 
+const catalogLayer = WorkspaceCatalog.layer({
+  repositoryPath: projectPath,
+  nodePath: agentNodePath,
+  primeAgentCliPath: catalogAgentCliPath,
+  projectStorePath: join(app.getPath("userData"), "projects.json"),
+  ...(process.env["ERNIE_CATALOG_GIT_PATH"] ? { gitPath: process.env["ERNIE_CATALOG_GIT_PATH"] } : {}),
+});
+
+const registryLayer = SpaceRuntimeRegistry.layer({
+  nodePath: agentNodePath,
+  cliPath: rpcAgentCliPath,
+  remoteExtensionPath,
+  ...(remoteUvPath === undefined ? {} : { remoteUvPath }),
+}).pipe(Layer.provide(catalogLayer));
+
 const applicationLayer = Layer.mergeAll(
   ErnieWindow.layer,
   ClipboardWriter.layer,
   SessionTranscriptStream.layer({ ...(process.env["ERNIE_DAEMON_SOCKET_PATH"] ? { socketPath: process.env["ERNIE_DAEMON_SOCKET_PATH"] } : {}) }),
+  catalogLayer,
+  registryLayer,
   DevServerCatalog.layer({ ...(process.env["ERNIE_DEV_SERVER_LSOF_PATH"] ? { lsofPath: process.env["ERNIE_DEV_SERVER_LSOF_PATH"] } : {}) }),
-  PrimeAgentRpc.layer({
-    nodePath: agentNodePath,
-    cliPath: rpcAgentCliPath,
-    projectPath,
-    remoteExtensionPath,
-    ...(remoteUvPath === undefined ? {} : { remoteUvPath }),
-  }),
-  WorkspaceCatalog.layer({
-    repositoryPath: projectPath,
-    nodePath: agentNodePath,
-    primeAgentCliPath: catalogAgentCliPath,
-    projectStorePath: join(app.getPath("userData"), "projects.json"),
-    ...(process.env["ERNIE_CATALOG_GIT_PATH"] ? { gitPath: process.env["ERNIE_CATALOG_GIT_PATH"] } : {}),
-  }),
 );
 
 ErnieApp.program.pipe(Effect.provide(applicationLayer), Effect.orDie, NodeRuntime.runMain);

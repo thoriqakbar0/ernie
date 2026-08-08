@@ -15,36 +15,42 @@ function formatDuration(durationMs: number): string {
   return `${(durationMs / 1_000).toFixed(durationMs < 10_000 ? 1 : 0)} s`;
 }
 
-/** Renders one renderer-owned IPython execution record as an accessible transcript card. */
+/** Names the execution language without changing the exact source shown on disclosure. */
+export function executionLanguage(code: string): "Bash" | "IPython" {
+  return /^\s*%%bash(?:\s|$)/u.test(code) ? "Bash" : "IPython";
+}
+
+/** Renders execution output in the transcript flow with its source behind a disclosure. */
 export function IPythonExecutionCard({ execution }: { readonly execution: IPythonExecutionItem }) {
   const titleId = useId();
   const metadataId = useId();
   const startedAt = execution.startedAt === null ? null : new Date(execution.startedAt);
   const statusLabel = STATUS_LABELS[execution.status];
+  const language = executionLanguage(execution.code);
 
   return <section
     className={`ipython-execution-card ${execution.status}`}
     aria-labelledby={titleId}
     aria-describedby={metadataId}
   >
-    <header className="ipython-execution-heading">
-      <div className="ipython-execution-heading-copy">
-        <h3 id={titleId}>IPython</h3>
-        <p id={metadataId} className="ipython-execution-meta">
-          <span>{execution.executionTarget === "local" ? "Local" : execution.executionTarget === "modal" ? "Remote (legacy)" : "Runtime unavailable"}</span>
-          {startedAt && <time dateTime={startedAt.toISOString()}>{startedAt.toLocaleTimeString()}</time>}
-          {execution.durationMs !== null && <span>{formatDuration(execution.durationMs)}</span>}
-        </p>
-      </div>
-      <span className="ipython-execution-status" aria-label={`Status: ${statusLabel}`}>{statusLabel}</span>
-    </header>
-    <section className="ipython-execution-code" aria-label="Executed code">
-      <span className="ipython-execution-label" aria-hidden="true">Input</span>
-      <pre tabIndex={0}><code>{execution.code}</code></pre>
-    </section>
-    {execution.detail && <section className="ipython-execution-detail" aria-label="Execution output">
-      <span className="ipython-execution-label" aria-hidden="true">Output</span>
-      <pre tabIndex={0}>{execution.detail}</pre>
-    </section>}
+    <details className="ipython-execution-source">
+      <summary>
+        <span className="ipython-execution-heading-copy">
+          <span id={titleId} className="ipython-execution-language">{language}</span>
+          <span id={metadataId} className="ipython-execution-meta">
+            <span>{execution.executionTarget === "local" ? "Local" : execution.executionTarget === "modal" ? "Remote (legacy)" : "Runtime unavailable"}</span>
+            {startedAt && <time dateTime={startedAt.toISOString()}>{startedAt.toLocaleTimeString()}</time>}
+            {execution.durationMs !== null && <span>{formatDuration(execution.durationMs)}</span>}
+          </span>
+        </span>
+        <span className="ipython-execution-status" aria-label={`Status: ${statusLabel}`}>{statusLabel}</span>
+      </summary>
+      <section className="ipython-execution-code" aria-label={`Executed ${language} input`}>
+        <pre tabIndex={0}><code>{execution.code}</code></pre>
+      </section>
+    </details>
+    {execution.detail
+      ? <section className="ipython-execution-detail" aria-label={`${language} output`}><pre tabIndex={0}>{execution.detail}</pre></section>
+      : execution.status === "running" && <p className="ipython-execution-pending" role="status">Waiting for output…</p>}
   </section>;
 }

@@ -174,8 +174,9 @@ describe("IPython execution card", () => {
 
     expect(markup).toContain("<section");
     expect(markup).toContain("aria-labelledby=");
-    expect(markup).toContain('aria-label="Executed code"');
-    expect(markup).toContain('aria-label="Execution output"');
+    expect(markup).toContain("<details");
+    expect(markup).toContain('aria-label="Executed IPython input"');
+    expect(markup).toContain('aria-label="IPython output"');
     expect(markup).toContain("Remote (legacy)");
     expect(markup).not.toContain(">Local<");
   });

@@ -256,9 +256,9 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .execution-output-fold-content{position:relative}
 .execution-output-fold[data-expanded="true"] .execution-output-fold-content,.execution-output-fold[data-expanded="true"] .execution-output-fold-content>pre{max-height:none}
 .execution-output-fold[data-foldable="true"][data-expanded="false"] .execution-output-fold-content::after{content:"";position:absolute;inset:auto 0 0;height:var(--execution-output-fade-height);pointer-events:none;background:linear-gradient(transparent,var(--execution-output-fade))}
-.execution-output-fold-toggle{position:relative;display:block;min-height:32px;margin:5px auto 0;padding-inline:11px;border:1px solid transparent;border-radius:999px;background:transparent;color:var(--secondary);font-size:10px;font-weight:600}
+.execution-output-fold-toggle{position:relative;display:block;min-height:32px;margin:5px auto 0;padding-inline:11px;border:1px solid transparent;border-radius:999px;background:transparent;color:var(--secondary);font-size:10px;font-weight:600;opacity:.5;transition:opacity 120ms ease}
 .execution-output-fold-toggle::before{content:"";position:absolute;inset:-4px}
-.execution-output-fold-toggle:hover{background:var(--hover);color:var(--text)}
+.execution-output-fold-toggle:hover,.execution-output-fold-toggle:focus-visible{background:transparent;color:var(--secondary);opacity:.8}
 .execution-file-output{display:grid;gap:10px}
 .execution-output-preamble{padding:0 2px}
 .execution-file{--execution-output-fold-height:240px;--execution-output-fade-height:54px;--execution-output-fade:#0e0f0e;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#0e0f0e}
@@ -294,9 +294,14 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-product-stage{margin-inline-start:4px;color:var(--accent);font-size:9px;font-weight:720;letter-spacing:.045em;vertical-align:.14em}
 .workspace-sidebar-title strong{flex:0 0 auto;-webkit-app-region:no-drag}
 .workspace-sidebar-body{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(124px,42%) 1px minmax(160px,1fr);overflow:hidden}
+.workspace-sidebar-body[data-agents-expanded="false"]{grid-template-rows:minmax(124px,1fr) 1px 40px}
 .workspace-projects,.workspace-sessions{min-width:0;min-height:0;display:grid;grid-template-rows:40px minmax(0,1fr);overflow:hidden}
 .workspace-section-heading{height:40px;display:flex;align-items:center;gap:8px;padding-inline:10px 6px;border-block-end:1px solid rgba(255,255,255,.045)}
 .workspace-section-heading h2{margin:0;color:var(--secondary);font-size:11.5px;font-weight:650;letter-spacing:.025em}
+.workspace-agents-disclosure{height:40px;display:flex;align-items:center;gap:5px;margin-inline-start:-6px;padding-inline:6px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit}
+.workspace-agents-disclosure:hover{color:var(--text)}
+.workspace-agents-disclosure svg{width:12px;height:12px;transition:transform 140ms ease}
+.workspace-agents-disclosure[aria-expanded="true"] svg{transform:rotate(90deg)}
 .workspace-section-heading>button{width:40px;height:40px;margin-inline-start:auto;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:var(--tertiary)}
 .workspace-section-heading>button:hover{background:var(--hover);color:var(--text)}
 .workspace-section-heading>button svg{width:16px;height:16px;stroke-width:1.8}
@@ -348,7 +353,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-sidebar .focused-session-row{border-radius:7px}
 @media(max-width:900px){.focused-workspace{grid-template-columns:248px minmax(0,1fr)}}
 @media(max-height:560px){.workspace-sidebar-body{grid-template-rows:minmax(96px,36%) 1px minmax(132px,1fr)}.workspace-sidebar-title{padding-block-end:8px}.workspace-agent-list .focused-session-row{min-height:41px}}
-@media(forced-colors:active){.execution-output-fold-content::after{display:none}.execution-output-fold-toggle{border:1px solid ButtonText}.workspace-product-stage{color:LinkText}.workspace-agent-tab-indicator{display:none}.ipython-execution-source>summary,.execution-file,.markdown-code,.markdown-table-scroll{border:1px solid CanvasText}.workspace-sidebar{background:Canvas;color:CanvasText}.workspace-project-control.active,.workspace-agent-tabs>button.active{border:2px solid Highlight;background:Canvas;color:CanvasText}.workspace-project-mark{background:CanvasText}.workspace-section-divider{background:CanvasText}}
+@media(forced-colors:active){.execution-output-fold-content::after{display:none}.execution-output-fold-toggle{opacity:1}.execution-output-fold-toggle{border:1px solid ButtonText}.workspace-product-stage{color:LinkText}.workspace-agent-tab-indicator{display:none}.ipython-execution-source>summary,.execution-file,.markdown-code,.markdown-table-scroll{border:1px solid CanvasText}.workspace-sidebar{background:Canvas;color:CanvasText}.workspace-project-control.active,.workspace-agent-tabs>button.active{border:2px solid Highlight;background:Canvas;color:CanvasText}.workspace-project-mark{background:CanvasText}.workspace-section-divider{background:CanvasText}}
 
 .sr-only:not(:focus):not(:active){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .selected-session-panel{min-width:0;min-height:0;display:grid;overflow:hidden}
@@ -374,7 +379,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
   .workspace-navigation-scrim{position:absolute;z-index:19;inset:0;display:block;border:0;background:rgba(0,0,0,.52)}
   .session-transcript-body>.transcript,.chat-composer-wrap{padding-inline:18px}
 }
-@media(prefers-reduced-motion:reduce){.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.ipython-execution-source>summary::after{transition:none}}
+@media(prefers-reduced-motion:reduce){.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-agents-disclosure svg,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
 
 
 /* Agent pane + transcript motion storyboard

@@ -211,6 +211,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   readonly onOpenDirectory: () => void;
 }) {
   const [agentView, setAgentView] = useState<AgentView>("agents");
+  const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
@@ -218,14 +219,17 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
     setAgentView(next);
   };
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const handledRevealRequestRef = useRef<number | undefined>(undefined);
   useLayoutEffect(() => {
     if (!compact || !open) return;
     const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [compact, open]);
   useLayoutEffect(() => {
-    if (!open || revealAgent === undefined) return;
+    if (!open || revealAgent === undefined || handledRevealRequestRef.current === revealAgent.requestId) return;
+    if (!agentsExpanded) { setAgentsExpanded(true); return; }
     if (agentView !== "agents") { changeAgentView("agents"); return; }
+    handledRevealRequestRef.current = revealAgent.requestId;
     const frame = requestAnimationFrame(() => {
       const row = document.getElementById(`workspace-agent-${encodeURIComponent(revealAgent.agentId)}`);
       if (!(row instanceof HTMLButtonElement)) return;
@@ -233,7 +237,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
       row.scrollIntoView({ block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [agentView, open, revealAgent]);
+  }, [agentView, agentsExpanded, open, revealAgent]);
   const priorityCount = prioritizeRootAgents(snapshot.agents).length;
   const workingWorktreeIds = new Set<string>();
   for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
@@ -255,7 +259,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
       <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" onClick={onClose}><Icon name="close" /></button>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">Workspace status: {loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}</div>
-    <div className="workspace-sidebar-body">
+    <div className="workspace-sidebar-body" data-agents-expanded={agentsExpanded}>
       <section id="spaces-panel" className="workspace-projects" aria-labelledby="spaces-heading">
         <header className="workspace-section-heading">
           <h2 id="spaces-heading">Spaces</h2>
@@ -275,12 +279,15 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
       </section>
       <div className="workspace-section-divider" aria-hidden="true" />
       <section id="agents-panel" className="workspace-sessions" aria-labelledby="agents-heading">
-        <header className="workspace-section-heading agent-heading"><h2 id="agents-heading">Agents</h2><AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={changeAgentView} /></header>
-        <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
+        <header className="workspace-section-heading agent-heading">
+          <h2 id="agents-heading"><button type="button" className="workspace-agents-disclosure" aria-expanded={agentsExpanded} aria-controls="agent-list-panel" onClick={() => setAgentsExpanded((current) => !current)}>Agents <Icon name="chevron" /></button></h2>
+          {agentsExpanded && <AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={changeAgentView} />}
+        </header>
+        {agentsExpanded && <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection}>
             <AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />
           </div>
-        </div>
+        </div>}
       </section>
     </div>
   </aside>;

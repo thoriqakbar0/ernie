@@ -6,6 +6,14 @@ import { flattenAgentHierarchy } from "./ProjectSidebar";
 import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface";
 import type { ThreadItem } from "./transcript";
 import { prioritizeAgents } from "./agentPriority";
+import {
+  closeSpaceSessionTab,
+  emptySpaceSessionTabs,
+  openSpaceSessionTab,
+  reconcileProvisionalSessionTabs,
+  selectSpaceSessionTab,
+  tabsForSpace,
+} from "./spaceSessionTabs";
 
 type IconName = "close" | "folder-add" | "sidebar";
 
@@ -286,8 +294,9 @@ function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, f
   </aside>;
 }
 
-function SessionTabs({ snapshot, openAgentIds, activeAgentId, navigationOpen, navigationToggleRef, emptyFocusRef, onToggleNavigation, onSelect, onClose }: {
+function SessionTabs({ snapshot, spaceLabel, openAgentIds, activeAgentId, navigationOpen, navigationToggleRef, emptyFocusRef, onToggleNavigation, onSelect, onClose }: {
   readonly snapshot: WorkspaceSnapshot;
+  readonly spaceLabel: string | undefined;
   readonly openAgentIds: readonly string[];
   readonly activeAgentId: string | undefined;
   readonly navigationOpen: boolean;
@@ -321,13 +330,12 @@ function SessionTabs({ snapshot, openAgentIds, activeAgentId, navigationOpen, na
   };
   return <div className="focused-titlebar-tabs">
     <button ref={navigationToggleRef} type="button" className="workspace-navigation-toggle" aria-label={navigationOpen ? "Close workspace navigation" : "Open workspace navigation"} aria-controls="workspace-navigation" aria-expanded={navigationOpen} onClick={onToggleNavigation}><Icon name="sidebar" /></button>
-    <div className="focused-tabstrip" role="tablist" aria-label="Open sessions">
+    <div className="focused-tabstrip" role="tablist" aria-label={spaceLabel ? `Open sessions in ${spaceLabel}` : "Open sessions"}>
     {openAgentIds.map((agentId) => {
       const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
-      const project = agent ? projectForAgent(snapshot, agent) : undefined;
       const title = agent?.name ?? "Detached session";
       const status = agent ? statusText(agent.status) : "Disconnected";
-      const visibleTitle = `${title}${project ? ` · ${project.label}` : ""} · ${status}`;
+      const visibleTitle = `${title} · ${status}`;
       return <div key={agentId} role="presentation" className={`focused-tab-shell ${agentId === activeAgentId ? "active" : ""}`}>
         <button
           ref={(element) => { if (element) tabRefs.current.set(agentId, element); else tabRefs.current.delete(agentId); }}
@@ -336,7 +344,7 @@ function SessionTabs({ snapshot, openAgentIds, activeAgentId, navigationOpen, na
           role="tab"
           aria-controls="selected-session-panel"
           aria-selected={agentId === activeAgentId}
-          aria-label={`${visibleTitle}. Press Delete to close.`}
+          aria-label={`${visibleTitle}${spaceLabel ? ` in ${spaceLabel}` : ""}. Press Delete to close.`}
           title={visibleTitle}
           tabIndex={agentId === activeAgentId ? 0 : -1}
           className="focused-tab"
@@ -411,8 +419,7 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
     };
   }, [agentState.connection, agentState.detail, agentState.isStreaming, agentState.sessionId, agentState.sessionName, snapshot]);
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(snapshot.projects[0]?.id);
-  const [openAgentIds, setOpenAgentIds] = useState<readonly string[]>([]);
-  const [activeAgentId, setActiveAgentId] = useState<string | undefined>();
+  const [spaceTabs, setSpaceTabs] = useState(emptySpaceSessionTabs);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | undefined>();
   const compactNavigation = useMediaQuery("(max-width: 700px)");
@@ -421,6 +428,9 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
   const emptySessionFocusRef = useRef<HTMLElement>(null);
   const initialized = useRef(false);
   const closeNavigation = () => setNavigationOpen(false);
+  const activeSpaceTabs = tabsForSpace(spaceTabs, activeProjectId);
+  const openAgentIds = activeSpaceTabs.agentIds;
+  const activeAgentId = activeSpaceTabs.activeAgentId;
 
   useEffect(() => { if (!compactNavigation) setNavigationOpen(false); }, [compactNavigation]);
   useLayoutEffect(() => {
@@ -440,17 +450,15 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
     initialized.current = true;
     const initial = workspace.agents.find((agent) => agent.id === currentAgentId) ?? workspace.agents.find((agent) => agent.status === "working") ?? workspace.agents[0];
     if (!initial) return;
-    setOpenAgentIds([initial.id]); setActiveAgentId(initial.id); setActiveProjectId(projectForAgent(workspace, initial)?.id);
+    const projectId = projectForAgent(workspace, initial)?.id;
+    if (!projectId) return;
+    setSpaceTabs((state) => openSpaceSessionTab(state, projectId, initial.id));
+    setActiveProjectId(projectId);
   }, [currentAgentId, workspace]);
 
   useEffect(() => {
     if (!currentAgentId) return;
-    setOpenAgentIds((ids) => {
-      const unique = new Set<string>();
-      for (const id of ids) unique.add(id.startsWith("rpc:") ? currentAgentId : id);
-      return [...unique];
-    });
-    setActiveAgentId((id) => id?.startsWith("rpc:") ? currentAgentId : id);
+    setSpaceTabs((state) => reconcileProvisionalSessionTabs(state, currentAgentId));
   }, [currentAgentId]);
 
   useEffect(() => {
@@ -459,17 +467,24 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
   }, [activeProjectId, snapshot.projects]);
 
   const activeProject = workspace.projects.find((project) => project.id === activeProjectId);
-  const openAgent = (agent: WorkspaceAgent) => {
-    setOpenAgentIds((ids) => ids.includes(agent.id) ? ids : [...ids, agent.id]);
-    setActiveAgentId(agent.id);
-    setActiveProjectId(projectForAgent(workspace, agent)?.id);
+  const selectProject = (projectId: string) => {
+    setActiveProjectId(projectId);
     if (compactNavigation) closeNavigation();
   };
+  const openAgent = (agent: WorkspaceAgent) => {
+    const projectId = projectForAgent(workspace, agent)?.id;
+    if (!projectId) return;
+    setSpaceTabs((state) => openSpaceSessionTab(state, projectId, agent.id));
+    setActiveProjectId(projectId);
+    if (compactNavigation) closeNavigation();
+  };
+  const selectAgent = (agentId: string) => {
+    if (!activeProjectId) return;
+    setSpaceTabs((state) => selectSpaceSessionTab(state, activeProjectId, agentId));
+  };
   const closeAgent = (agentId: string) => {
-    const index = openAgentIds.indexOf(agentId);
-    const next = openAgentIds.filter((id) => id !== agentId);
-    setOpenAgentIds(next);
-    if (agentId === activeAgentId) setActiveAgentId(next[Math.min(index, next.length - 1)] ?? next[0]);
+    if (!activeProjectId) return;
+    setSpaceTabs((state) => closeSpaceSessionTab(state, activeProjectId, agentId));
   };
   const openDirectory = async () => {
     setOpening(true); setOpenError(undefined);
@@ -481,11 +496,11 @@ export function FocusedWorkspace({ snapshot, agentState, liveItems, onAppendLive
   };
 
   return <div className="focused-workspace">
-    <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={!compactNavigation || navigationOpen} onClose={closeNavigation} onSelectProject={setActiveProjectId} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
+    <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={!compactNavigation || navigationOpen} onClose={closeNavigation} onSelectProject={selectProject} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
     {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
     <section className="focused-main-column" aria-hidden={compactNavigation && navigationOpen} inert={compactNavigation && navigationOpen ? true : undefined}>
       <div className="focused-titlebar-drag" aria-hidden="true" />
-      <SessionTabs snapshot={workspace} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={setActiveAgentId} onClose={closeAgent} />
+      <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
       <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
         <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} agentState={agentState} liveItems={liveItems} onAppendLiveUser={onAppendLiveUser} />
       </section>

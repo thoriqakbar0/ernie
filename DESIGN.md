@@ -2,7 +2,7 @@
 
 Ernie is a quiet desktop workspace for developers who run several Prime Agent sessions across several local directories. Live work should be easy to locate without turning the interface into a process monitor. Product behavior and security constraints live in [PRODUCT.md](./PRODUCT.md); this document owns the interface model, visual language, and interaction rules.
 
-The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces and Agents remain simultaneously visible in a divided sidebar, Priority is a view within Agents, and session tabs span the main work surface.
+The focused-project model originated in Variant B of the session-mapping prototype, preserved on branch `prototype/session-mapping-focused-project` at commit `4fa17c0`. The production interface now adopts Herdr’s high-level information architecture as an Ernie-native workspace: Spaces and Agents remain simultaneously visible in a divided sidebar, Priority is a view within Agents, and each Space owns its session tabs.
 
 ## Design principles
 
@@ -18,13 +18,12 @@ The focused-project model originated in Variant B of the session-mapping prototy
 ```text
 Workspace
 ├── Space
-│   └── Worktree
-│       └── Agent
-│           ├── Session
-│           └── Subagent
+│   ├── Worktree
+│   │   └── Agent
+│   │       ├── Session
+│   │       └── Subagent
+│   └── Tab ──views──> contained Agent session
 └── Priority queue ──projects attention from──> Agent status
-
-Open agent session ──opens or focuses──> Tab
 ```
 
 - A **workspace** is the complete Ernie window.
@@ -34,7 +33,7 @@ Open agent session ──opens or focuses──> Tab
 - A **session** is the persisted conversation and activity history belonging to an agent.
 - A **subagent** is an agent with an explicit parent-agent relationship.
 - **Priority** is a computed view, not a stored attribute or object. It orders agents by attention: Failed, Waiting, Working, then Idle.
-- A **tab** is an open view of one agent session. It does not own the agent or session lifecycle.
+- A **tab** is a Space-local open view of one contained agent session. Each Space retains its own open tabs and active tab; a tab does not own the agent or session lifecycle.
 
 Use these terms consistently in UI copy. **Open folder** is the trusted native action that creates a **space** in Ernie.
 
@@ -44,7 +43,7 @@ The window has two stable regions: the unified sidebar and the tabbed session wo
 
 ### Unified workspace sidebar
 
-The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section, so location and live work remain visible together without changing the current session tab. A single hairline separates the independently scrolling sections; compact headings replace large mode controls.
+The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section, so location and live work remain visible together. Selecting a Space restores that Space’s own tabs and active session. A single hairline separates the independently scrolling sections; compact headings replace large mode controls.
 
 #### Spaces
 
@@ -73,9 +72,11 @@ The Agents section contains a compact **Grouped** / **Priority** switch in its h
 
 The main column answers, “What am I working on now?”
 
-- Global session tabs occupy the title-bar row. Tab copy integrates status and space context: `Session name · Space · Status`. Tab sets use one roving tab stop, wrapping arrow/Home/End navigation, Delete or Backspace to close the focused tab, a pointer close affordance, and deterministic focus restoration after close.
-- Clicking a session opens its tab once; later clicks focus the existing tab.
-- Closing the active tab selects the nearest remaining tab. Closing the final tab returns focus to the session workspace empty state.
+- The active Space’s session tabs occupy the title-bar row. Tab copy integrates the session name and status; Space context is already established by the selected Space. Each Space keeps an independent tab set and active selection.
+- Clicking a session focuses its owning Space, then opens its tab once within that Space; later clicks focus the existing local tab.
+- Switching Spaces restores the destination Space’s tabs without closing or moving tabs from the previous Space.
+- Tab sets use one roving tab stop, wrapping arrow/Home/End navigation, Delete or Backspace to close the focused tab, a pointer close affordance, and deterministic focus restoration after close.
+- Closing the active tab selects the nearest remaining tab in the same Space. Closing that Space’s final tab returns focus to the session workspace empty state.
 - The transcript heading integrates space, worktree, and authority (`Interactive` or `Read only`) as one supporting line. Do not repeat this provenance as a separate badge stack.
 - A detached tab explains that its session is unavailable and that closing the view will not delete saved work.
 - Until targeted daemon-backed commands exist, non-root session surfaces remain read-only.
@@ -184,7 +185,7 @@ Use **thread** only for the explicit “new thread” product action, not as a s
 Before merging interface changes, verify:
 
 - Spaces, Agents, Priority, and session tabs are findable within seconds.
-- Space switching preserves open tabs and running agents.
+- Space switching restores the destination Space’s active tab while preserving every Space’s independent tab set and running agents.
 - Agent location is visible without duplicated metadata.
 - Priority order follows Failed → Waiting → Working → Idle without manual or invented scores.
 - Working, waiting, failed, empty, and detached states are distinguishable.

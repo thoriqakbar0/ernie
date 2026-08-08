@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { HighlightedCode } from "./HighlightedCode";
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -45,20 +45,49 @@ export function parseNamedFileOutput(output: string): NamedFileOutput | null {
   return { prelude: lines.slice(0, headers[0]?.index ?? 0).join("\n").trim(), files };
 }
 
+function FoldableOutput({ children, content, className }: { readonly children: ReactNode; readonly content: string; readonly className?: string }) {
+  const contentId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [foldable, setFoldable] = useState(false);
+
+  useLayoutEffect(() => {
+    if (expanded) return;
+    const element = contentRef.current;
+    if (!element) return;
+    const measure = () => {
+      const next = element.scrollHeight > element.clientHeight + 1;
+      setFoldable((current) => current === next ? current : next);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [content, expanded]);
+
+  return <div className="execution-output-fold" data-foldable={foldable} data-expanded={expanded}>
+    <div ref={contentRef} className="execution-output-fold-content" id={contentId}>
+      <pre className={className} tabIndex={0}>{children}</pre>
+    </div>
+    {foldable && <button type="button" className="execution-output-fold-toggle" aria-controls={contentId} aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? "Collapse output" : "Show all output"}</button>}
+  </div>;
+}
+
 /** Presents structured file excerpts when recognizable and preserves a truthful plain-text fallback. */
 export function ExecutionOutput({ detail, language }: { readonly detail: string; readonly language: string }) {
   const labelId = useId();
   const namedFiles = parseNamedFileOutput(detail);
   return <section className="ipython-execution-detail" aria-label={`${language} output`}>
     {namedFiles === null
-      ? <pre tabIndex={0}>{detail}</pre>
+      ? <FoldableOutput content={detail}>{detail}</FoldableOutput>
       : <div className="execution-file-output">
-        {namedFiles.prelude && <pre className="execution-output-preamble" tabIndex={0}>{namedFiles.prelude}</pre>}
+        {namedFiles.prelude && <FoldableOutput content={namedFiles.prelude} className="execution-output-preamble">{namedFiles.prelude}</FoldableOutput>}
         {namedFiles.files.map((file, index) => {
           const fileLabelId = `${labelId}-${index}`;
           return <section className="execution-file" aria-labelledby={fileLabelId} key={`${file.name}-${index}`}>
             <header><strong id={fileLabelId}>{file.name}</strong><span>{file.language}</span></header>
-            <pre tabIndex={0}><HighlightedCode code={file.content} language={file.language} /></pre>
+            <FoldableOutput content={file.content}><HighlightedCode code={file.content} language={file.language} /></FoldableOutput>
           </section>;
         })}
       </div>}

@@ -1,5 +1,9 @@
+// @vitest-environment jsdom
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgent } from "../src/shared/workspace";
 import { SessionTranscriptView } from "../src/renderer/src/SessionTranscriptView";
 
@@ -59,6 +63,29 @@ describe("SessionTranscriptView source context", () => {
     expect(html).toContain("Ernie · feature/sidebar");
     expect(html).toContain("Researcher");
     expect(html).toContain('aria-label="Current location: Ernie · feature/sidebar / Researcher"');
+  });
+
+  it("renames the selected session through its visible name", async () => {
+    Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
+    vi.stubGlobal("prompt", vi.fn(() => "  Better   session name  "));
+    const onRename = vi.fn().mockResolvedValue(undefined);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => root.render(<SessionTranscriptView
+      agent={{ ...subagent, runtimeKind: "root" }}
+      locationLabel="Ernie · feature/sidebar"
+      items={[]}
+      state="ready"
+      onRetry={() => {}}
+      onRename={onRename}
+      renderItem={() => null}
+    />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Rename Researcher"]')?.click());
+
+    expect(onRename).toHaveBeenCalledWith("Better session name");
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
   });
 
 });

@@ -210,7 +210,7 @@ class Connection {
       const timeout = setTimeout(() => this.onTransportFailure("handshake", "Prime Agent daemon handshake timed out"), this.options.requestTimeoutMs);
       const finish = () => clearTimeout(timeout);
       socket.on("data", (chunk: Buffer) => { if (this.socket === socket) this.onChunk(chunk); });
-      socket.once("error", () => { if (this.socket === socket) this.onTransportFailure("connect", "Unable to connect to the Prime Agent daemon"); });
+      socket.once("error", (cause) => { if (this.socket === socket) this.onTransportFailure("connect", "Unable to connect to the Prime Agent daemon", cause); });
       socket.once("close", () => { if (this.socket === socket) this.onTransportFailure("connection", "Prime Agent daemon connection closed"); });
       const originalResolve = this.helloResolve;
       this.helloResolve = () => { finish(); originalResolve?.(); };
@@ -222,10 +222,18 @@ class Connection {
   async select(activeSessionId: string): Promise<SessionTranscriptSnapshot> {
     if (!activeSessionId || activeSessionId.length > 256) throw this.error("select", "Invalid session identity");
     this.cancelReconnect();
-    if (!this.hello) await this.connect();
-    if (this.selected && this.selected !== activeSessionId) await this.request("detach", { activeSessionId: this.selected });
+    const previous = this.selected;
     this.selected = activeSessionId;
     this.lastEventCursor = undefined;
+    this.resetProjectionState();
+    if (!this.hello) await this.connect();
+    if (previous && previous !== activeSessionId) {
+      try { await this.request("detach", { activeSessionId: previous }); }
+      catch (cause) {
+        if (!this.hello) throw cause;
+        // A stale daemon attachment must not prevent a new read-only selection.
+      }
+    }
     return this.attachSelected(false);
   }
 
@@ -280,9 +288,7 @@ class Connection {
     const selected = this.selected;
     this.selected = undefined;
     this.lastEventCursor = undefined;
-    this.activeAssistantId = undefined;
-    this.toolNames.clear();
-    this.ipythonExecutions.clear();
+    this.resetProjectionState();
     if (selected) await this.request("detach", { activeSessionId: selected });
   }
 
@@ -298,7 +304,13 @@ class Connection {
     return new SessionTranscriptStreamError({ operation, message, ...(cause === undefined ? {} : { cause }) });
   }
 
-  private resetTransport(operation: string, message: string): SessionTranscriptStreamError {
+  private resetProjectionState(): void {
+    this.activeAssistantId = undefined;
+    this.toolNames.clear();
+    this.ipythonExecutions.clear();
+  }
+
+  private resetTransport(operation: string, message: string, cause?: unknown): SessionTranscriptStreamError {
     this.hello = false;
     const socket = this.socket;
     this.socket = undefined;
@@ -306,7 +318,7 @@ class Connection {
     this.carry = Buffer.alloc(0);
     this.attaching = false;
     this.bufferedEvents = [];
-    const error = this.error(operation, message);
+    const error = this.error(operation, message, cause);
     this.helloReject?.(error);
     this.helloReject = undefined;
     this.helloResolve = undefined;
@@ -315,8 +327,8 @@ class Connection {
     return error;
   }
 
-  private onTransportFailure(operation: string, message: string): void {
-    this.resetTransport(operation, message);
+  private onTransportFailure(operation: string, message: string, cause?: unknown): void {
+    this.resetTransport(operation, message, cause);
     if (this.selected && !this.closing) this.scheduleReconnect();
   }
 
@@ -326,9 +338,7 @@ class Connection {
     const selected = this.selected;
     this.selected = undefined;
     this.lastEventCursor = undefined;
-    this.activeAssistantId = undefined;
-    this.toolNames.clear();
-    this.ipythonExecutions.clear();
+    this.resetProjectionState();
     if (selected) this.publish({ kind: "closed", activeSessionId: selected });
   }
 
@@ -397,9 +407,8 @@ class Connection {
       this.pending.set(id, { command, resolve, reject, timeout });
       this.socket?.write(`${JSON.stringify(envelope)}\n`, "utf8", (cause) => {
         if (!cause) return;
-        const pending = this.pending.get(id);
-        if (!pending) return;
-        clearTimeout(pending.timeout); this.pending.delete(id); pending.reject(this.error(command, `Unable to send ${command}`, cause));
+        if (!this.pending.has(id)) return;
+        this.onTransportFailure(command, `Unable to send ${command}`, cause);
       });
     });
   }
@@ -452,6 +461,7 @@ class Connection {
       this.cancelReconnect();
       this.selected = undefined;
       this.lastEventCursor = undefined;
+      this.resetProjectionState();
       this.publish({ kind: "closed", activeSessionId: selected });
     }
   }

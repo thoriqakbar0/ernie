@@ -110,6 +110,45 @@ describe("SessionTranscriptStream", () => {
     }
   });
 
+  it("recovers the selected session when the first daemon connection closes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ernie-transcript-initial-reconnect-"));
+    const socketPath = join(directory, "daemon.sock");
+    const sockets = new Set<Socket>();
+    let connectionCount = 0;
+    const server = createServer((socket) => {
+      const connection = ++connectionCount;
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      if (connection === 1) { socket.destroy(); return; }
+      socket.write(`${JSON.stringify({ type: "daemon_hello", protocol: { name: "prime-agent.daemon", version: 7 }, serverCapabilities: ["attach_snapshot", "event_sequence"] })}\n`);
+      socket.once("data", (chunk) => {
+        const envelope = JSON.parse(chunk.toString("utf8").trim()) as { readonly id: string; readonly command: { readonly activeSessionId?: string } };
+        const activeSessionId = envelope.command.activeSessionId ?? "";
+        socket.write(`${JSON.stringify({ type: "response", id: envelope.id, command: "attach", success: true, data: {
+          activeSessionId, snapshot: { activeSessionId, messages: [] },
+        } })}\n`);
+      });
+    });
+    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
+    try {
+      const events = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+        const service = yield* SessionTranscriptStream;
+        const fiber = yield* service.events.pipe(Stream.take(3), Stream.runCollect, Effect.forkScoped);
+        yield* Effect.flip(service.select("session-initial-reconnect"));
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(layer({ socketPath, requestTimeoutMs: 100, reconnectDelaysMs: [1, 5] })))));
+
+      expect(events.map((event) => event.kind)).toEqual(["connection", "snapshot", "connection"]);
+      expect(events[0]).toMatchObject({ activeSessionId: "session-initial-reconnect", state: "reconnecting" });
+      expect(events[2]).toMatchObject({ activeSessionId: "session-initial-reconnect", state: "connected" });
+      expect(connectionCount).toBe(2);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("closes the connection after a malformed successful attach snapshot", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ernie-transcript-malformed-"));
     const socketPath = join(directory, "daemon.sock");

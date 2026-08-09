@@ -150,6 +150,25 @@ function sidebarProps(snapshotValue: WorkspaceSnapshot) {
 }
 
 describe("WorkspaceSidebar Spaces", () => {
+  it("uses a flat empty state with one direct folder action", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const onOpenDirectory = vi.fn();
+    await act(async () => root.render(<WorkspaceSidebar
+      {...sidebarProps({ ...snapshot, projects: [], worktrees: [], agents: [] })}
+      onOpenDirectory={onOpenDirectory}
+    />));
+
+    const emptyState = container.querySelector(".workspace-empty-state");
+    expect(emptyState?.textContent).toContain("No spaces yet. Open a local folder to create one.");
+    expect(emptyState?.querySelector("strong")).toBeNull();
+    const action = emptyState?.querySelector<HTMLButtonElement>(".workspace-empty-action");
+    await act(async () => action?.click());
+    expect(onOpenDirectory).toHaveBeenCalledOnce();
+
+    await act(async () => root.unmount());
+  });
+
   it("renders a checkout-only project as one selectable Space without a disclosure or duplicate row", async () => {
     const container = document.createElement("div");
     const root = createRoot(container);

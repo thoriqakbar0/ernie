@@ -256,7 +256,7 @@ export function SessionSurface({ snapshot, agentId, loading, activeProject, runt
   if (!agent) return <section className="focused-surface empty"><div><h1>Session no longer available</h1><p>Ernie can’t find this session in its space. Closing this tab won’t delete saved work.</p></div></section>;
   const project = projectForAgent(snapshot, agent);
   const assistantSubagents = summarizeAgentDescendantActivity(snapshot.agents, agent.id);
-  const assistantSubagentCount = assistantSubagents.engaged;
+  const assistantSubagentCount = assistantSubagents.working;
   const assistantRunningSubagentCount = assistantSubagents.working;
   const state = runtimeState?.agent;
   if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(project?.id ?? activeProject?.id ?? "", text, steered)} spaceId={project?.id ?? activeProject?.id ?? ""} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;

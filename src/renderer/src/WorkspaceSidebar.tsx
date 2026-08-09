@@ -45,43 +45,101 @@ function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOp
   </button>;
 }
 
-function SpaceRow({ project, worktrees, active, hasWorkingAgent, onSelect }: {
-  readonly project: WorkspaceProject;
-  readonly worktrees: readonly WorkspaceWorktree[];
+function WorktreeRow({ projectId, worktree, active, working, onSelect }: {
+  readonly projectId: string;
+  readonly worktree: WorkspaceWorktree;
   readonly active: boolean;
-  readonly hasWorkingAgent: boolean;
-  readonly onSelect: () => void;
+  readonly working: boolean;
+  readonly onSelect: (projectId: string, worktreeId: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const label = `${worktree.label}${working ? ", working" : ""}`;
+  return <li className="workspace-worktree-connector-row">
+    <button
+      type="button"
+      className={`workspace-worktree-button ${active ? "active" : ""}`}
+      aria-current={active ? "page" : undefined}
+      aria-label={label}
+      title={worktree.path}
+      onClick={() => onSelect(projectId, worktree.id)}
+    >
+      <span className="workspace-worktree-connector" aria-hidden="true" />
+      <span className="workspace-worktree-copy">
+        <span className="workspace-worktree-title">
+          <strong>{worktree.label}</strong>
+          <span className={`workspace-worktree-mark ${working ? "working" : ""}`} aria-hidden="true" />
+        </span>
+        <small>{worktree.path}</small>
+      </span>
+    </button>
+  </li>;
+}
+
+function SpaceRow({ project, rootWorktree, linkedWorktrees, activeProjectId, activeWorktreeId, workingWorktreeIds, onSelectProject, onSelectWorktree }: {
+  readonly project: WorkspaceProject;
+  readonly rootWorktree: WorkspaceWorktree | undefined;
+  readonly linkedWorktrees: readonly WorkspaceWorktree[];
+  readonly activeProjectId: string | undefined;
+  readonly activeWorktreeId: string | undefined;
+  readonly workingWorktreeIds: ReadonlySet<string>;
+  readonly onSelectProject: (projectId: string) => void;
+  readonly onSelectWorktree: (projectId: string, worktreeId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
   const worktreeListId = useId();
-  const worktreeContext = worktrees.length === 1
-    ? worktrees[0]?.label ?? "Local directory"
-    : `${worktrees.length} worktrees`;
-  const label = `${project.label}, ${worktreeContext}${hasWorkingAgent ? ", working" : ""}`;
+  const rootRuntimeId = rootWorktree?.id ?? project.id;
+  const rootWorking = workingWorktreeIds.has(rootRuntimeId);
+  const activeRoot = project.id === activeProjectId && (activeWorktreeId === undefined || activeWorktreeId === rootRuntimeId);
+  const rootContext = rootWorktree?.label ?? "Local directory";
+  const rootLabel = `${project.label}, ${rootContext}${rootWorking ? ", working" : ""}`;
+  const activeLinkedWorktree = linkedWorktrees.find((worktree) => worktree.id === activeWorktreeId);
+  const hasLinkedWorktrees = linkedWorktrees.length > 0;
+
   return <li className="workspace-project-node">
-    <div className={`workspace-project-control ${active ? "active" : ""}`}>
-      <button type="button" className="workspace-project-row" aria-current={active ? "page" : undefined} aria-label={label} title={project.path} onClick={onSelect}>
+    <div className={`workspace-project-control ${activeRoot ? "active" : ""}`}>
+      <button type="button" className="workspace-project-row" aria-current={activeRoot ? "page" : undefined} aria-label={rootLabel} title={rootWorktree?.path ?? project.path} onClick={() => onSelectProject(project.id)}>
         <span className="workspace-project-title">
           <strong>{project.label}</strong>
-          <span className={`workspace-project-mark ${hasWorkingAgent ? "working" : ""}`} aria-hidden="true" />
+          <span className={`workspace-project-mark ${rootWorking ? "working" : ""}`} aria-hidden="true" />
         </span>
-        <small>{worktreeContext}</small>
+        <small>{rootContext}</small>
       </button>
-      {worktrees.length > 0 && <button
+      {hasLinkedWorktrees && <button
         type="button"
         className={`workspace-project-disclosure ${expanded ? "expanded" : ""}`}
         aria-expanded={expanded}
         aria-controls={worktreeListId}
-        aria-label={`${expanded ? "Hide" : "Show"} worktrees for ${project.label}`}
-        title={`${expanded ? "Hide" : "Show"} worktrees`}
+        aria-label={`${expanded ? "Hide" : "Show"} linked worktrees for ${project.label}`}
+        title={`${expanded ? "Hide" : "Show"} linked worktrees`}
         onClick={() => setExpanded((current) => !current)}
       ><Icon name="chevron" /></button>}
     </div>
-    {expanded && worktrees.length > 0 && <ul id={worktreeListId} className="workspace-worktree-list" aria-label={`Worktrees for ${project.label}`}>
-      {worktrees.map((worktree) => <li key={worktree.id} className="workspace-worktree-row" title={worktree.path}>
-        <strong>{worktree.label}</strong>
-        <small>{worktree.path}</small>
-      </li>)}
+    {hasLinkedWorktrees && <div id={worktreeListId} hidden={!expanded}>
+      {expanded && <ul
+        className="workspace-worktree-list workspace-linked-worktree-list"
+        aria-label={`Linked worktrees for ${project.label}`}
+      >
+        {linkedWorktrees.map((worktree) => <WorktreeRow
+          key={worktree.id}
+          projectId={project.id}
+          worktree={worktree}
+          active={project.id === activeProjectId && worktree.id === activeWorktreeId}
+          working={workingWorktreeIds.has(worktree.id)}
+          onSelect={onSelectWorktree}
+        />)}
+      </ul>}
+    </div>}
+    {!expanded && activeLinkedWorktree && <ul
+      className="workspace-worktree-list workspace-linked-worktree-list workspace-active-worktree-context"
+      aria-label={`Active worktree in ${project.label}`}
+      data-collapsed="true"
+    >
+      <WorktreeRow
+        projectId={project.id}
+        worktree={activeLinkedWorktree}
+        active
+        working={workingWorktreeIds.has(activeLinkedWorktree.id)}
+        onSelect={onSelectWorktree}
+      />
     </ul>}
   </li>;
 }
@@ -208,9 +266,10 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
-export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loading, failed, opening, openError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onOpenAgent, onOpenDirectory }: {
+export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, openError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onOpenAgent, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly activeProjectId: string | undefined;
+  readonly activeWorktreeId: string | undefined;
   readonly activeAgentId: string | undefined;
   readonly loading: boolean;
   readonly failed: boolean;
@@ -223,6 +282,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   readonly onTogglePerformance: () => void;
   readonly onClose: () => void;
   readonly onSelectProject: (projectId: string) => void;
+  readonly onSelectWorktree: (projectId: string, worktreeId: string) => void;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
   readonly onOpenDirectory: () => void;
 }) {
@@ -276,9 +336,13 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
     onKeyDown={compact && open ? trapDrawerFocus : undefined}
   >
     <header className="workspace-sidebar-title">
-      <strong id="workspace-navigation-title">ernie <span className="workspace-product-stage">dev mode</span></strong>
-      {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
-      <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" onClick={onClose}><Icon name="close" /></button>
+      <div className="workspace-sidebar-toolbar">
+        <strong id="workspace-navigation-title">ernie <span className="workspace-product-stage">dev mode</span></strong>
+        <div className="workspace-sidebar-actions">
+          {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
+          <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar" onClick={onClose}><Icon name="sidebar-close" /></button>
+        </div>
+      </div>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">Workspace status: {loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}</div>
     <div className="workspace-sidebar-body" data-agents-expanded={agentsExpanded}>
@@ -294,8 +358,19 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
           {!loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
           <ul className="workspace-project-list">{snapshot.projects.map((project) => {
             const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
-            const hasWorkingAgent = project.worktreeIds.some((worktreeId) => workingWorktreeIds.has(worktreeId));
-            return <SpaceRow key={project.id} project={project} worktrees={worktrees} active={project.id === activeProjectId} hasWorkingAgent={hasWorkingAgent} onSelect={() => onSelectProject(project.id)} />;
+            const rootWorktree = worktrees.find((worktree) => worktree.id === project.id) ?? worktrees[0];
+            const linkedWorktrees = worktrees.filter((worktree) => worktree.id !== rootWorktree?.id);
+            return <SpaceRow
+              key={project.id}
+              project={project}
+              rootWorktree={rootWorktree}
+              linkedWorktrees={linkedWorktrees}
+              activeProjectId={activeProjectId}
+              activeWorktreeId={activeWorktreeId}
+              workingWorktreeIds={workingWorktreeIds}
+              onSelectProject={onSelectProject}
+              onSelectWorktree={onSelectWorktree}
+            />;
           })}</ul>
         </div>
       </section>

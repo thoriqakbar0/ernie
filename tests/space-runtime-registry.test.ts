@@ -15,12 +15,16 @@ const readyState = (overrides: Partial<AgentState> = {}): AgentState => ({
 
 const snapshot: WorkspaceSnapshot = {
   projects: [
-    { id: "space-a", path: "/catalog/a", label: "A", worktreeIds: [] },
+    { id: "space-a", path: "/catalog/a", label: "A", worktreeIds: ["space-a", "worktree-a"] },
     { id: "space-b", path: "/catalog/b", label: "B", worktreeIds: [] },
     { id: "space-c", path: "/catalog/c", label: "C", worktreeIds: [] },
     { id: "space-d", path: "/catalog/d", label: "D", worktreeIds: [] },
   ],
-  worktrees: [], agents: [], updatedAt: "2026-01-01T00:00:00.000Z",
+  worktrees: [
+    { id: "space-a", path: "/catalog/a-root-worktree", label: "A root" },
+    { id: "worktree-a", path: "/catalog/a-worktree", label: "A branch" },
+    { id: "orphan-worktree", path: "/catalog/orphan", label: "Orphan" },
+  ], agents: [], updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
 interface OpenRecord { readonly cwd: string; readonly depth: number; stopped: boolean; state: AgentState; configured: unknown[] }
@@ -36,9 +40,9 @@ function fakeFactory(records: OpenRecord[]) {
         state: Effect.sync(() => record.state),
         events: Stream.empty,
         availableCommands: Effect.succeed([]),
-        availableModels: Effect.succeed([{ provider: "provider", id: "m", name: "Model" }]),
-        currentModel: Effect.succeed({ provider: "provider", id: "m", name: "Model" }),
-        setModel: (model) => Effect.succeed({ ...model, name: model.id }),
+        availableModels: Effect.succeed([{ provider: "provider", id: "m", name: "Model", thinkingLevels: ["off", "high"] }]),
+        currentModel: Effect.succeed({ provider: "provider", id: "m", name: "Model", thinkingLevels: ["off", "high"] }),
+        setModel: (model) => Effect.succeed({ ...model, name: model.id, thinkingLevels: ["off", "high"] }),
         getRlmMaxDepthStatus: Effect.succeed({ maxDepth: depth, source: "chat" }),
         setRlmMaxDepth: (maxDepth) => Effect.succeed({ maxDepth, source: "chat" }),
         configureThenPrompt: (configuration) => Effect.sync(() => { record.configured.push(configuration); }),
@@ -55,9 +59,10 @@ describe("SpaceRuntimeRegistry", () => {
     const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
       const registry = yield* make({ snapshot: Effect.succeed(snapshot), runtimeFactory: fakeFactory(records) });
       yield* registry.availableModels("space-a");
+      yield* registry.state("worktree-a");
       return yield* registry.state("/renderer/chosen/path").pipe(Effect.flip);
     })));
-    expect(records.map(({ cwd }) => cwd)).toEqual(["/catalog/a"]);
+    expect(records.map(({ cwd }) => cwd)).toEqual(["/catalog/a", "/catalog/a-worktree"]);
     expect(result).toBeInstanceOf(SpaceRuntimeRegistryError);
     if (!(result instanceof SpaceRuntimeRegistryError)) throw new Error("Expected registry error");
     expect(result.reason).toBe("unknown_space");
@@ -98,11 +103,11 @@ describe("SpaceRuntimeRegistry", () => {
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
       const registry = yield* make({ snapshot: Effect.succeed(snapshot), runtimeFactory: fakeFactory(records) });
       yield* registry.availableModels("space-a");
-      yield* registry.startSpace({ spaceId: "space-a", prompt: "Build it", model: { provider: "provider", id: "m" }, rlmMaxDepth: 2 });
+      yield* registry.startSpace({ spaceId: "space-a", prompt: "Build it", model: { provider: "provider", id: "m" }, thinkingLevel: "high", rlmMaxDepth: 2 });
     })));
     expect(records.map(({ depth }) => depth)).toEqual([0, 2]);
     expect(records[0]?.stopped).toBe(true);
-    expect(records[1]?.configured).toEqual([{ message: "Build it", model: { provider: "provider", id: "m" } }]);
+    expect(records[1]?.configured).toEqual([{ message: "Build it", model: { provider: "provider", id: "m" }, thinkingLevel: "high" }]);
   });
   it("replaces an idle used runtime when a new thread selects a different depth", async () => {
     const records: OpenRecord[] = [];
@@ -110,11 +115,11 @@ describe("SpaceRuntimeRegistry", () => {
       const registry = yield* make({ snapshot: Effect.succeed(snapshot), runtimeFactory: fakeFactory(records) });
       yield* registry.state("space-a");
       if (records[0]) records[0].state = readyState({ messageCount: 3 });
-      yield* registry.startSpace({ spaceId: "space-a", prompt: "New thread", model: { provider: "provider", id: "m" }, rlmMaxDepth: 4 });
+      yield* registry.startSpace({ spaceId: "space-a", prompt: "New thread", model: { provider: "provider", id: "m" }, thinkingLevel: "off", rlmMaxDepth: 4 });
     })));
     expect(records.map(({ depth }) => depth)).toEqual([0, 4]);
     expect(records[0]?.stopped).toBe(true);
-    expect(records[1]?.configured).toEqual([{ message: "New thread", model: { provider: "provider", id: "m" } }]);
+    expect(records[1]?.configured).toEqual([{ message: "New thread", model: { provider: "provider", id: "m" }, thinkingLevel: "off" }]);
   });
 
 });

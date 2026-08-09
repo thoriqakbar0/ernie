@@ -16,11 +16,15 @@ const baseProps = () => ({
   onOpenDirectory: vi.fn(),
   openingDirectory: false,
   openDirectoryError: undefined,
-  models: [{ id: "openai-codex:gpt", label: "GPT", provider: "openai-codex" }],
+  models: [{ id: "openai-codex:gpt", label: "GPT", provider: "openai-codex", thinkingLevels: ["off", "low", "high"] as const }],
   selectedModelId: "openai-codex:gpt",
   modelsLoading: false,
   modelsError: null,
   onModelChange: vi.fn(),
+  selectedThinkingLevel: "low" as const,
+  onThinkingLevelChange: vi.fn(),
+  rlmMaxDepth: 0,
+  onRlmMaxDepthChange: vi.fn(),
   onRetryModels: vi.fn(),
   promptDraft: "Build it",
   onPromptDraftChange: vi.fn(),
@@ -55,7 +59,7 @@ describe("SpaceLaunchpad draft composer", () => {
     expect(send?.getAttribute("aria-label")).toBe("Send message");
     expect(send?.disabled).toBe(false);
     await act(async () => container.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(props.onSubmit).toHaveBeenCalledWith({ prompt: "Build it", modelId: "openai-codex:gpt", rlmMaxDepth: 0 });
+    expect(props.onSubmit).toHaveBeenCalledWith({ prompt: "Build it", modelId: "openai-codex:gpt", thinkingLevel: "low", rlmMaxDepth: 0 });
     await act(async () => root.unmount());
   });
 
@@ -86,6 +90,33 @@ describe("SpaceLaunchpad draft composer", () => {
     expect(container.querySelector("[role='menu']")).toBeNull();
     await act(async () => root.unmount());
     container.remove();
+  });
+
+  it("exposes model-aware thinking and advanced RLM depth controls", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const props = baseProps();
+    await act(async () => root.render(<SpaceLaunchpad {...props} />));
+
+    const thinking = container.querySelector<HTMLSelectElement>(".space-launchpad-thinking-select");
+    expect([...thinking?.options ?? []].map((option) => option.value)).toEqual(["off", "low", "high"]);
+    await act(async () => {
+      if (!thinking) return;
+      thinking.value = "high";
+      thinking.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(props.onThinkingLevelChange).toHaveBeenCalledWith("high");
+
+    await act(async () => container.querySelector<HTMLButtonElement>(".space-launchpad-advanced-trigger")?.click());
+    const depthPreset = container.querySelector<HTMLSelectElement>(".space-launchpad-advanced-popover select");
+    await act(async () => {
+      if (!depthPreset) return;
+      depthPreset.value = "2";
+      depthPreset.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(props.onRlmMaxDepthChange).toHaveBeenCalledWith(2);
+    expect(container.querySelector("[role='dialog']")?.textContent).toContain("Root only");
+    await act(async () => root.unmount());
   });
 
 

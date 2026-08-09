@@ -16,6 +16,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import type { AgentSlashCommand } from "../shared/commands";
 import type { AgentCommand, AgentEvent, AgentState, ExecutionTarget, IPythonExecution, IPythonExecutionStatus } from "../shared/contract";
+import type { AgentThinkingLevel } from "../shared/spaceRuntime";
 
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
 const MAX_STDERR_BYTES = 128 * 1024;
@@ -52,10 +53,21 @@ const RpcResponse = Schema.Struct({
 });
 type RpcResponse = typeof RpcResponse.Type;
 
+const RpcThinkingLevelMap = Schema.Struct({
+  off: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  minimal: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  low: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  medium: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  high: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  xhigh: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  max: Schema.optionalKey(Schema.NullOr(Schema.String)),
+});
 const RpcModel = Schema.Struct({
   provider: Schema.String,
   id: Schema.String,
   name: Schema.optionalKey(Schema.String),
+  reasoning: Schema.Boolean,
+  thinkingLevelMap: Schema.optionalKey(RpcThinkingLevelMap),
 });
 const RpcAvailableModelsResponse = Schema.Struct({ models: Schema.Array(RpcModel) });
 const RpcRlmMaxDepthStatus = Schema.Struct({
@@ -87,6 +99,7 @@ export interface PrimeAgentModel {
   readonly provider: string;
   readonly id: string;
   readonly name: string;
+  readonly thinkingLevels: readonly AgentThinkingLevel[];
 }
 
 /** Provider-qualified identity used to select one model without catalog ambiguity. */
@@ -105,7 +118,8 @@ export interface RlmMaxDepthStatus {
 export interface ConfigureFirstPrompt {
   readonly message: string;
   readonly behavior?: "steer" | "followUp" | "now";
-  readonly model?: PrimeAgentModelIdentity;
+  readonly model: PrimeAgentModelIdentity;
+  readonly thinkingLevel: AgentThinkingLevel;
 }
 
 /** A scope-owned, single-process Prime Agent RPC adapter instance. */
@@ -699,18 +713,30 @@ export const make = (options: Options) => Effect.gen(function* () {
     Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("get_commands", "Prime Agent returned an invalid command catalog", cause)),
   );
 
+  const canonicalThinkingLevels: readonly AgentThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+  const thinkingLevelsForModel = (model: typeof RpcModel.Type): readonly AgentThinkingLevel[] => {
+    if (model.reasoning !== true) return ["off"];
+    return canonicalThinkingLevels.filter((level) => {
+      const mapped = model.thinkingLevelMap?.[level];
+      if (mapped === null) return false;
+      if (level === "xhigh" || level === "max") return mapped !== undefined;
+      return true;
+    });
+  };
+  const toPrimeAgentModel = (model: typeof RpcModel.Type): PrimeAgentModel => ({
+    provider: model.provider,
+    id: model.id,
+    name: model.name ?? model.id,
+    thinkingLevels: thinkingLevelsForModel(model),
+  });
   const parseModel = (operation: string, value: unknown) => Schema.decodeUnknownEffect(RpcModel)(value).pipe(
-    Effect.map((model): PrimeAgentModel => ({ provider: model.provider, id: model.id, name: model.name ?? model.id })),
+    Effect.map(toPrimeAgentModel),
     Effect.mapError((cause) => rpcError(operation, "Prime Agent returned an invalid model", cause)),
   );
 
   const availableModels = request("get_available_models", {}).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(RpcAvailableModelsResponse)),
-    Effect.map((catalog): readonly PrimeAgentModel[] => catalog.models.map((model) => ({
-      provider: model.provider,
-      id: model.id,
-      name: model.name ?? model.id,
-    }))),
+    Effect.map((catalog): readonly PrimeAgentModel[] => catalog.models.map(toPrimeAgentModel)),
     Effect.mapError((cause) => cause instanceof PrimeAgentRpcError ? cause : rpcError("get_available_models", "Prime Agent returned an invalid model catalog", cause)),
   );
 
@@ -726,8 +752,11 @@ export const make = (options: Options) => Effect.gen(function* () {
     const model = yield* request("set_model", { provider: selected.provider, modelId: selected.id }).pipe(
       Effect.flatMap((value) => parseModel("set_model", value)),
     );
+    if (model.provider !== selected.provider || model.id !== selected.id) {
+      return yield* rpcError("set_model", `Prime Agent selected ${model.provider}/${model.id} instead of ${selected.provider}/${selected.id}`);
+    }
     yield* request("get_state", {});
-    return model;
+    return selected;
   });
   const setModel = (model: PrimeAgentModelIdentity) => exclusively(setModelUnsafe(model));
 
@@ -751,7 +780,14 @@ export const make = (options: Options) => Effect.gen(function* () {
     yield* startUnsafe;
     const fresh = asRecord(yield* request("new_session", {}));
     if (fresh["cancelled"] === true) return yield* rpcError("new_session", "Prime Agent cancelled owned-session creation");
-    if (configuration.model !== undefined) yield* setModelUnsafe(configuration.model);
+    const selected = yield* setModelUnsafe(configuration.model);
+    if (!selected.thinkingLevels.includes(configuration.thinkingLevel)) {
+      return yield* rpcError(
+        "set_thinking_level",
+        `Thinking level ${configuration.thinkingLevel} is unsupported by ${selected.provider}/${selected.id}`,
+      );
+    }
+    yield* request("set_thinking_level", { level: configuration.thinkingLevel });
     const payload: Record<string, unknown> = { message: configuration.message };
     if (configuration.behavior && configuration.behavior !== "now") payload["streamingBehavior"] = configuration.behavior;
     yield* request("prompt", payload);

@@ -1,10 +1,19 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
+import type { AgentThinkingLevel } from "../../shared/spaceRuntime";
+
+function thinkingLevelFromValue(value: string): AgentThinkingLevel | undefined {
+  switch (value) {
+    case "off": case "minimal": case "low": case "medium": case "high": case "xhigh": case "max": return value;
+    default: return undefined;
+  }
+}
 
 export interface SpaceLaunchpadModelOption {
   readonly id: string;
   readonly label: string;
   readonly provider?: string;
+  readonly thinkingLevels: readonly AgentThinkingLevel[];
 }
 
 export interface SpaceLaunchpadProjectOption {
@@ -16,6 +25,7 @@ export interface SpaceLaunchpadProjectOption {
 export interface SpaceLaunchpadSubmitPayload {
   readonly prompt: string;
   readonly modelId: string;
+  readonly thinkingLevel: AgentThinkingLevel;
   readonly rlmMaxDepth: number;
 }
 
@@ -33,6 +43,10 @@ export interface SpaceLaunchpadProps {
   readonly modelsLoading: boolean;
   readonly modelsError: string | null;
   readonly onModelChange: (modelId: string) => void;
+  readonly selectedThinkingLevel: AgentThinkingLevel;
+  readonly onThinkingLevelChange: (level: AgentThinkingLevel) => void;
+  readonly rlmMaxDepth: number;
+  readonly onRlmMaxDepthChange: (depth: number) => void;
   readonly onRetryModels: () => void;
   readonly promptDraft: string;
   readonly onPromptDraftChange: (prompt: string) => void;
@@ -56,6 +70,10 @@ export function SpaceLaunchpad({
   modelsLoading,
   modelsError,
   onModelChange,
+  selectedThinkingLevel,
+  onThinkingLevelChange,
+  rlmMaxDepth,
+  onRlmMaxDepthChange,
   onRetryModels,
   promptDraft,
   onPromptDraftChange,
@@ -64,16 +82,24 @@ export function SpaceLaunchpad({
   onSubmit,
 }: SpaceLaunchpadProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [customDepthSelected, setCustomDepthSelected] = useState(rlmMaxDepth > 2);
   const projectMenuRef = useRef<HTMLDivElement>(null);
+  const advancedRef = useRef<HTMLDivElement>(null);
   const promptId = useId();
   const projectMenuId = useId();
   const modelId = useId();
+  const thinkingId = useId();
+  const advancedId = useId();
   const errorId = useId();
   const modelStatusId = useId();
   const modelProviderId = useId();
 
   useEffect(() => {
-    if (busy) setProjectMenuOpen(false);
+    if (busy) {
+      setProjectMenuOpen(false);
+      setAdvancedOpen(false);
+    }
   }, [busy]);
 
   useEffect(() => {
@@ -85,10 +111,31 @@ export function SpaceLaunchpad({
     return () => document.removeEventListener("pointerdown", closeOnPointerDown);
   }, [projectMenuOpen]);
 
+  useEffect(() => {
+    if (!advancedOpen) return;
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !advancedRef.current?.contains(event.target)) setAdvancedOpen(false);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setAdvancedOpen(false);
+      requestAnimationFrame(() => advancedRef.current?.querySelector<HTMLButtonElement>(".space-launchpad-advanced-trigger")?.focus());
+    };
+    document.addEventListener("pointerdown", closeOnPointerDown);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnPointerDown);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [advancedOpen]);
+
   const selectedModel = models.find((model) => model.id === selectedModelId);
   const hasSelectedModel = selectedModel !== undefined;
+  const thinkingLevels = selectedModel?.thinkingLevels ?? [];
+  const hasSelectedThinkingLevel = thinkingLevels.includes(selectedThinkingLevel);
   const canSubmit = promptDraft.trim().length > 0
     && hasSelectedModel
+    && hasSelectedThinkingLevel
     && !modelsLoading
     && modelsError === null
     && !busy;
@@ -100,7 +147,7 @@ export function SpaceLaunchpad({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
-    onSubmit({ prompt: promptDraft.trim(), modelId: selectedModelId, rlmMaxDepth: 0 });
+    onSubmit({ prompt: promptDraft.trim(), modelId: selectedModelId, thinkingLevel: selectedThinkingLevel, rlmMaxDepth });
   };
 
   const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -227,7 +274,60 @@ export function SpaceLaunchpad({
                   {models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
                 </select>
                 {selectedModel?.provider && <p id={modelProviderId} className="sr-only">Selected provider: {selectedModel.provider}</p>}
-
+                <label className="sr-only" htmlFor={thinkingId}>Thinking level</label>
+                <select
+                  id={thinkingId}
+                  className="space-launchpad-thinking-select"
+                  value={hasSelectedThinkingLevel ? selectedThinkingLevel : ""}
+                  disabled={busy || !hasSelectedModel || thinkingLevels.length === 0}
+                  title="Thinking level"
+                  onChange={(event) => {
+                    const level = thinkingLevelFromValue(event.currentTarget.value);
+                    if (level !== undefined) onThinkingLevelChange(level);
+                  }}
+                >
+                  {!hasSelectedThinkingLevel && <option value="" disabled>Thinking</option>}
+                  {thinkingLevels.map((level) => <option key={level} value={level}>{level === "off" ? "Thinking off" : `${level[0]?.toUpperCase()}${level.slice(1)}`}</option>)}
+                </select>
+                <div ref={advancedRef} className="space-launchpad-advanced">
+                  <button
+                    type="button"
+                    className="space-launchpad-advanced-trigger"
+                    aria-expanded={advancedOpen}
+                    aria-controls={advancedId}
+                    disabled={busy}
+                    onClick={() => setAdvancedOpen((current) => !current)}
+                  >Advanced</button>
+                  {advancedOpen && <div id={advancedId} className="space-launchpad-advanced-popover" role="dialog" aria-label="Advanced launch settings">
+                    <label htmlFor={`${advancedId}-depth`}>RLM depth</label>
+                    <select
+                      id={`${advancedId}-depth`}
+                      value={customDepthSelected ? "custom" : String(rlmMaxDepth)}
+                      disabled={busy}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        if (value === "custom") setCustomDepthSelected(true);
+                        else {
+                          setCustomDepthSelected(false);
+                          onRlmMaxDepthChange(Number(value));
+                        }
+                      }}
+                    >
+                      <option value="0">Root only</option>
+                      <option value="1">Subagents</option>
+                      <option value="2">Nested</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    {customDepthSelected && <label className="space-launchpad-custom-depth">
+                      <span>Custom maximum depth</span>
+                      <input type="number" min="0" step="1" value={rlmMaxDepth} disabled={busy} onChange={(event) => {
+                        const depth = event.currentTarget.valueAsNumber;
+                        if (Number.isSafeInteger(depth) && depth >= 0) onRlmMaxDepthChange(depth);
+                      }} />
+                    </label>}
+                    <p>Depth is fixed when this worktree runtime starts.</p>
+                  </div>}
+                </div>
               </div>
               <button className="space-launchpad-submit" type="submit" disabled={!canSubmit} aria-label={busy ? "Starting thread" : "Send message"} title={busy ? "Starting thread" : "Send message"}>
                 {busy ? <span className="space-launchpad-spinner" aria-hidden="true" /> : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13V3M8 3 4 7M8 3l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}

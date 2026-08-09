@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { join, resolve } from "node:path";
 import type { AgentEvent } from "../src/shared/contract";
-import { AgentCommandSchema } from "../src/main/IpcProtocol";
+import { AgentCommandSchema, StartSpaceSchema } from "../src/main/IpcProtocol";
 import { isIPythonToolName, makeScoped, PrimeAgentRpc, layer } from "../src/main/PrimeAgentRpc";
 
 const root = resolve(import.meta.dirname, "..");
@@ -151,6 +151,19 @@ describe("PrimeAgentRpc", () => {
     expect(() => Schema.decodeUnknownSync(AgentCommandSchema)({ type: "set_execution_target", target: "ssh" })).toThrow();
   });
 
+  it("decodes bounded start configuration with a canonical thinking level", () => {
+    const input = {
+      spaceId: "space-a",
+      prompt: "Start",
+      model: { provider: "provider-a", id: "model-a" },
+      thinkingLevel: "max",
+      rlmMaxDepth: 3,
+    };
+    expect(Schema.decodeUnknownSync(StartSpaceSchema)(input)).toEqual(input);
+    expect(() => Schema.decodeUnknownSync(StartSpaceSchema)({ ...input, thinkingLevel: "turbo" })).toThrow();
+    expect(() => Schema.decodeUnknownSync(StartSpaceSchema)({ ...input, rlmMaxDepth: -1 })).toThrow();
+  });
+
   it("restores the active execution target from the project-scoped remote config", async () => {
     const agentDirectory = await mkdtemp(join(tmpdir(), "ernie-prime-agent-"));
     try {
@@ -198,7 +211,7 @@ describe("PrimeAgentRpc", () => {
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 let carry = "";
-const model = { provider: "provider-a", id: "shared-id", name: "Qualified Model" };
+const model = { provider: "provider-a", id: "shared-id", name: "Qualified Model", reasoning: true, thinkingLevelMap: { minimal: null, xhigh: "max", max: "max" } };
 const state = { sessionId: "owned", sessionName: "Owned", model, thinkingLevel: "xhigh", isStreaming: false, isCompacting: false, messageCount: 0, sessionActions: { queuedCount: 0 } };
 const send = (request, data = {}) => process.stdout.write(JSON.stringify({ type: "response", id: request.id, command: request.type, success: true, data }) + "\\n");
 function handle(request) {
@@ -206,7 +219,7 @@ function handle(request) {
   if (request.type === "get_state") return send(request, state);
   if (request.type === "get_session_stats") return send(request, { contextUsage: {}, tokens: {}, cost: 0 });
   if (request.type === "new_session") return send(request, { cancelled: false });
-  if (request.type === "get_available_models") return send(request, { models: [model, { provider: "provider-b", id: "shared-id", name: "Other" }] });
+  if (request.type === "get_available_models") return send(request, { models: [model, { provider: "provider-b", id: "shared-id", name: "Other", reasoning: false }] });
   if (request.type === "set_model") return send(request, model);
   return send(request);
 }
@@ -220,16 +233,34 @@ process.stdin.on("data", chunk => { carry += chunk; for (;;) { const newline = c
           ...options({ REQUEST_LOG: logPath }),
           cliPath,
         });
+        yield* rpc.start;
+        expect(yield* rpc.availableModels).toEqual([
+          { provider: "provider-a", id: "shared-id", name: "Qualified Model", thinkingLevels: ["off", "low", "medium", "high", "xhigh", "max"] },
+          { provider: "provider-b", id: "shared-id", name: "Other", thinkingLevels: ["off"] },
+        ]);
         yield* rpc.configureThenPrompt({
           message: "first",
           model: { provider: "provider-a", id: "shared-id" },
+          thinkingLevel: "xhigh",
         });
-        expect(yield* rpc.currentModel).toEqual({ provider: "provider-a", id: "shared-id", name: "Qualified Model" });
+        expect(yield* rpc.currentModel).toEqual({
+          provider: "provider-a", id: "shared-id", name: "Qualified Model",
+          thinkingLevels: ["off", "low", "medium", "high", "xhigh", "max"],
+        });
+        const unsupported = yield* rpc.configureThenPrompt({
+          message: "must not run",
+          model: { provider: "provider-a", id: "shared-id" },
+          thinkingLevel: "minimal",
+        }).pipe(Effect.flip);
+        expect(unsupported).toMatchObject({ operation: "set_thinking_level" });
       })));
       const requests = (await readFile(logPath, "utf8")).trim().split("\n");
-      expect(requests).toEqual(expect.arrayContaining(["new_session", "get_available_models", "set_model", "prompt"]));
+      expect(requests).toEqual(expect.arrayContaining(["new_session", "get_available_models", "set_model", "set_thinking_level", "prompt"]));
       expect(requests.indexOf("new_session")).toBeLessThan(requests.indexOf("set_model"));
-      expect(requests.indexOf("set_model")).toBeLessThan(requests.indexOf("prompt"));
+      expect(requests.indexOf("set_model")).toBeLessThan(requests.indexOf("set_thinking_level"));
+      expect(requests.indexOf("set_thinking_level")).toBeLessThan(requests.indexOf("prompt"));
+      expect(requests.filter((request) => request === "set_thinking_level")).toHaveLength(1);
+      expect(requests.filter((request) => request === "prompt")).toHaveLength(1);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

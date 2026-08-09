@@ -1,7 +1,10 @@
-/** Persisted, non-sensitive launcher choices for one Space. */
+import type { AgentThinkingLevel } from "../../shared/spaceRuntime";
+
+/** Persisted, non-sensitive launcher choices for one worktree. */
 export interface SpaceLaunchPreference {
   readonly modelProvider?: string;
   readonly modelId?: string;
+  readonly thinkingLevel: AgentThinkingLevel;
   readonly rlmMaxDepth: number;
 }
 
@@ -12,7 +15,13 @@ interface StoragePort {
 
 const STORAGE_KEY = "ernie.space-launch-preferences.v1";
 const MAX_PREFERENCES = 32;
-const DEFAULT_PREFERENCE: SpaceLaunchPreference = { rlmMaxDepth: 0 };
+const DEFAULT_PREFERENCE: SpaceLaunchPreference = { thinkingLevel: "low", rlmMaxDepth: 0 };
+function parseThinkingLevel(value: unknown): AgentThinkingLevel {
+  switch (value) {
+    case "off": case "minimal": case "low": case "medium": case "high": case "xhigh": case "max": return value;
+    default: return "low";
+  }
+}
 
 type RecordValue = Readonly<Record<string, unknown>>;
 
@@ -27,10 +36,12 @@ function parsePreference(value: unknown): SpaceLaunchPreference | undefined {
   if (typeof rlmMaxDepth !== "number" || !Number.isSafeInteger(rlmMaxDepth) || rlmMaxDepth < 0) return undefined;
   const modelProvider = candidate?.["modelProvider"];
   const modelId = candidate?.["modelId"];
+  const thinkingLevel = parseThinkingLevel(candidate?.["thinkingLevel"]);
   if ((modelProvider === undefined) !== (modelId === undefined)) return undefined;
   if (modelProvider !== undefined && (typeof modelProvider !== "string" || modelProvider.length === 0 || modelProvider.length > 128)) return undefined;
   if (modelId !== undefined && (typeof modelId !== "string" || modelId.length === 0 || modelId.length > 512)) return undefined;
   return {
+    thinkingLevel,
     rlmMaxDepth,
     ...(typeof modelProvider === "string" && typeof modelId === "string" ? { modelProvider, modelId } : {}),
   };
@@ -55,12 +66,12 @@ function readAll(storage: StoragePort): Map<string, SpaceLaunchPreference> {
   }
 }
 
-/** Reads a Space's saved model/depth selection, defaulting safely to root-only depth. */
+/** Reads a worktree's saved launch selection, defaulting to low thinking and root-only depth. */
 export function readSpaceLaunchPreference(storage: StoragePort, spaceId: string): SpaceLaunchPreference {
   return readAll(storage).get(spaceId) ?? DEFAULT_PREFERENCE;
 }
 
-/** Saves bounded per-Space launcher configuration without persisting prompt text. */
+/** Saves bounded per-worktree launcher configuration without persisting prompt text. */
 export function writeSpaceLaunchPreference(storage: StoragePort, spaceId: string, preference: SpaceLaunchPreference): void {
   const parsed = parsePreference(preference);
   if (!spaceId || spaceId.length > 4_096 || !parsed) return;

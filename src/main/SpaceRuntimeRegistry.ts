@@ -57,7 +57,11 @@ export class SpaceRuntimeRegistry extends Context.Service<SpaceRuntimeRegistry, 
 }>()("@ernie/main/SpaceRuntimeRegistry") {}
 
 function cwdForSpace(snapshot: WorkspaceSnapshot, spaceId: string): string | undefined {
-  return snapshot.projects.find((candidate) => candidate.id === spaceId)?.path;
+  const project = snapshot.projects.find((candidate) => candidate.id === spaceId);
+  if (project !== undefined) return project.path;
+  const authorizedWorktreeIds = new Set(snapshot.projects.flatMap((candidate) => candidate.worktreeIds));
+  if (!authorizedWorktreeIds.has(spaceId)) return undefined;
+  return snapshot.worktrees.find((candidate) => candidate.id === spaceId)?.path;
 }
 
 function isIdle(state: AgentState, entry: ResidentRuntime): boolean {
@@ -149,7 +153,12 @@ export const make = (options: SpaceRuntimeRegistryOptions) => Effect.gen(functio
 
   const availableCommands = (spaceId: string) => withRuntime(spaceId, (runtime) => runtime.availableCommands);
   const availableModels = (spaceId: string) => withRuntime(spaceId, (runtime) => runtime.availableModels.pipe(
-    Effect.map((models) => models.map((model) => ({ id: model.id, label: model.name || model.id, provider: model.provider }))),
+    Effect.map((models) => models.map((model) => ({
+      id: model.id,
+      label: model.name || model.id,
+      provider: model.provider,
+      thinkingLevels: model.thinkingLevels,
+    }))),
   ));
   const getRlmMaxDepth = (spaceId: string) => withRuntime(spaceId, () => Effect.gen(function* () {
     return (yield* Ref.get(residents)).get(spaceId)?.rlmMaxDepth ?? 0;
@@ -158,6 +167,7 @@ export const make = (options: SpaceRuntimeRegistryOptions) => Effect.gen(functio
   const startSpace = (input: StartSpaceInput) => withRuntimeAtDepth(input.spaceId, input.rlmMaxDepth, (runtime) => runtime.configureThenPrompt({
     message: input.prompt,
     model: input.model,
+    thinkingLevel: input.thinkingLevel,
   }).pipe(
     Effect.tap(() => Ref.update(residents, (current) => {
       const entry = current.get(input.spaceId);

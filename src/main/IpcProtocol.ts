@@ -5,6 +5,7 @@ const BoundedPrompt = Schema.String.check(Schema.isLengthBetween(1, 524_288));
 const ModelProvider = Schema.String.check(Schema.isLengthBetween(1, 128));
 const ModelId = Schema.String.check(Schema.isLengthBetween(1, 512));
 const NonNegativeDepth = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 const PromptCommand = Schema.Struct({
   type: Schema.Literal("prompt"),
@@ -32,5 +33,6 @@ export const StartSpaceSchema = Schema.Struct({
   spaceId: BoundedSpaceId,
   prompt: BoundedPrompt,
   model: ModelIdentitySchema,
+  thinkingLevel: ThinkingLevel,
   rlmMaxDepth: NonNegativeDepth,
 });

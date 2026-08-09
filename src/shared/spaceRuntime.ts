@@ -3,11 +3,15 @@ import type { AgentCommand, AgentEvent, AgentState } from "./contract";
 /** Catalog-owned identifier for an independently running project Space. */
 export type SpaceId = string;
 
-/** Renderer-safe model entry returned by Prime Agent. */
+/** Canonical Prime Agent thinking level, ordered from least to most reasoning. */
+export type AgentThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+/** Renderer-safe, model-aware entry returned by Prime Agent. */
 export interface AgentModelOption {
   readonly id: string;
   readonly label: string;
   readonly provider: string;
+  readonly thinkingLevels: readonly AgentThinkingLevel[];
 }
 
 /** State for one Space-scoped Prime Agent runtime. */
@@ -34,5 +38,6 @@ export interface StartSpaceInput {
   readonly spaceId: SpaceId;
   readonly prompt: string;
   readonly model: { readonly provider: string; readonly id: string };
+  readonly thinkingLevel: AgentThinkingLevel;
   readonly rlmMaxDepth: number;
 }

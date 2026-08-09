@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TranscriptItem } from "../src/renderer/src/TranscriptItem";
@@ -46,5 +48,10 @@ describe("TranscriptItem assistant attribution", () => {
     />);
 
     expect(html).toContain('<div class="chat-message-role">You steered</div>');
+  });
+
+  it("bounds long user-authored messages to one internal scroll surface", () => {
+    const styles = readFileSync(resolve(process.cwd(), "src/renderer/src/styles.css"), "utf8");
+    expect(styles).toContain(".chat-message.user .chat-message-copy{max-height:min(50vh,420px);overflow:auto");
   });
 });

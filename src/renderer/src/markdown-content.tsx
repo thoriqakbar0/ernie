@@ -1,6 +1,6 @@
 import { createElement, Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
-import { HighlightedCode } from "./HighlightedCode";
+import { HighlightedCode } from "./highlighted-code";
 
 interface MarkdownListItem {
   readonly content: string;

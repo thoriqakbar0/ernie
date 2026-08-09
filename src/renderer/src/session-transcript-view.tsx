@@ -2,9 +2,9 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, UIEvent, WheelEvent } from "react";
 import type { WorkspaceAgent } from "../../shared/workspace";
 import type { ThreadItem } from "./transcript";
-import { AccessibleTranscriptDialog } from "./AccessibleTranscriptDialog";
-import { VirtualTranscript } from "./VirtualTranscript";
-import { Icon } from "./WorkspaceIcon";
+import { AccessibleTranscriptDialog } from "./accessible-transcript-dialog";
+import { VirtualTranscript } from "./virtual-transcript";
+import { Icon } from "./workspace-icon";
 
 function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string {
   if (agent.status === "working") return "Working";

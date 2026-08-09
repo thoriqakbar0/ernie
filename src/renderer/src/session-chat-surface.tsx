@@ -5,10 +5,10 @@ import type { AgentState } from "../../shared/contract";
 import type { SessionTranscriptEvent } from "../../shared/sessionTranscript";
 import type { WorkspaceAgent } from "../../shared/workspace";
 import type { ThreadItem } from "./transcript";
-import { ComposerAutocomplete, matchingCommands } from "./ComposerAutocomplete";
+import { ComposerAutocomplete, matchingCommands } from "./composer-autocomplete";
 import { sessionTranscriptReducer } from "./sessionTranscript";
-import { SessionTranscriptView } from "./SessionTranscriptView";
-import { TranscriptItem } from "./TranscriptItem";
+import { SessionTranscriptView } from "./session-transcript-view";
+import { TranscriptItem } from "./transcript-item";
 
 /** Quiet period that absorbs transient daemon attachment failures. */
 export const DAEMON_ERROR_GRACE_MS = 3_000;

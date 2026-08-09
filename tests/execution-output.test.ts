@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseNamedFileOutput } from "../src/renderer/src/ExecutionOutput";
+import { parseNamedFileOutput } from "../src/renderer/src/execution-output";
 
 describe("parseNamedFileOutput", () => {
   it("splits blank-line-separated code excerpts into named language blocks", () => {

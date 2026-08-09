@@ -9,7 +9,7 @@ import {
   type TranscriptAction,
 } from "../src/renderer/src/transcript";
 import { safeAgentErrorMessage } from "../src/renderer/src/useTranscript";
-import { IPythonExecutionCard } from "../src/renderer/src/IPythonExecutionCard";
+import { IPythonExecutionCard } from "../src/renderer/src/ipython-execution-card";
 
 function makeHarness() {
   let nextHandle = 0;

@@ -85,8 +85,8 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing Space-addressed state, commands, model/start operations, workspace/session streams, local-server actions, and bounded clipboard writes.
-- `src/renderer/src/App.tsx` / `FocusedWorkspace.tsx` — flat Spaces with linked-worktree navigation, worktree-local tabs, keyed live runtime state, and development-only React Grab plus Agentation.
-- `src/renderer/src/SpaceLaunchpad.tsx` — accessible T3-style first-thread form with dedicated model and model-aware thinking-effort dropdown components.
+- `src/renderer/src/app.tsx` / `focused-workspace.tsx` — flat Spaces with linked-worktree navigation, worktree-local tabs, keyed live runtime state, and development-only React Grab plus Agentation.
+- `src/renderer/src/space-launchpad.tsx` — accessible T3-style first-thread form with dedicated model and model-aware thinking-effort dropdown components.
 - `src/renderer/src/spaceSessionTabs.ts`, `transcript.ts`, `sessionTranscript.ts`, and `spaceLaunchPreferences.ts` — pure worktree-local navigation, transcript, and bounded preference state.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.

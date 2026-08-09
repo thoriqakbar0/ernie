@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AgentState } from "../../shared/contract";
 import type { SpaceRuntimeState } from "../../shared/spaceRuntime";
 import type { WorkspaceSnapshot } from "../../shared/workspace";
-import { FocusedWorkspace } from "./FocusedWorkspace";
+import { FocusedWorkspace } from "./focused-workspace";
 import { useSpaceTranscripts } from "./useSpaceTranscripts";
 
 const EMPTY_WORKSPACE: WorkspaceSnapshot = { projects: [], worktrees: [], settledWorktrees: [], agents: [], updatedAt: new Date(0).toISOString() };

@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { executionLanguage, IPythonExecutionCard } from "../src/renderer/src/IPythonExecutionCard";
+import { executionLanguage, IPythonExecutionCard } from "../src/renderer/src/ipython-execution-card";
 import type { ThreadItem } from "../src/renderer/src/transcript";
 
 type ExecutionItem = Extract<ThreadItem, { readonly kind: "ipython_execution" }>;

@@ -3,8 +3,8 @@ import type { FormEvent, KeyboardEvent } from "react";
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
 import { prioritizeRootAgents } from "./agentPriority";
 import { horizontalTabStep } from "./tabKeyboardNavigation";
-import { flattenAgentHierarchy } from "./ProjectSidebar";
-import { Icon } from "./WorkspaceIcon";
+import { flattenAgentHierarchy } from "./project-sidebar";
+import { Icon } from "./workspace-icon";
 import { projectForAgent, statusText } from "./workspaceAgentPresentation";
 
 const SUBAGENT_ICONS = ["subagent-fork", "subagent-workflow", "subagent-network", "subagent-waypoints"] as const;

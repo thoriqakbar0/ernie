@@ -17,7 +17,7 @@ function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string 
 }
 
 /** Live transcript surface with an optional interactive composer for the commandable root session. */
-export function SessionTranscriptView({ agent, locationLabel, items, state, onRetry, onRename, renderItem, interactive = false, footer }: {
+export function SessionTranscriptView({ agent, locationLabel, items, state, onRetry, onRename, renderItem, interactive = false, footer, unavailableTitle, unavailableCopy }: {
   readonly agent: WorkspaceAgent;
   readonly locationLabel: string;
   readonly items: readonly ThreadItem[];
@@ -27,6 +27,8 @@ export function SessionTranscriptView({ agent, locationLabel, items, state, onRe
   readonly renderItem: (item: ThreadItem) => ReactNode;
   readonly interactive?: boolean;
   readonly footer?: ReactNode;
+  readonly unavailableTitle?: string;
+  readonly unavailableCopy?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const followingRef = useRef(true);
@@ -82,11 +84,11 @@ export function SessionTranscriptView({ agent, locationLabel, items, state, onRe
   const emptyTitle = state === "loading" ? "Connecting to Prime Agent…"
     : state === "reconnecting" ? "Reconnecting to session…"
     : state === "error" ? "Unable to attach to this live session"
-    : state === "unavailable" ? "Prime Agent is unavailable"
+    : state === "unavailable" ? unavailableTitle ?? "Prime Agent is unavailable"
     : "No messages yet";
   const emptyCopy = state === "error" ? "The session remains safe and unchanged."
     : state === "reconnecting" ? "Existing messages remain available while Ernie restores live updates."
-    : state === "unavailable" ? "Review the recovery details below, then retry when Prime Agent is available."
+    : state === "unavailable" ? unavailableCopy ?? "Review the recovery details below, then retry when Prime Agent is available."
     : interactive ? "Send a message to start working with Prime Agent."
     : terminal ? "This session has no messages."
     : "Messages will appear here as the session runs.";

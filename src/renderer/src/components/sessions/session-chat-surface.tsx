@@ -188,6 +188,7 @@ export function SessionChatSurface({ agent, locationLabel, state, interactive, s
   const [streamState, setStreamState] = useState<"loading" | "reconnecting" | "ready" | "error">("loading");
   const [retrySequence, setRetrySequence] = useState(0);
   const pendingUserAdmissions = useRef<Array<{ readonly text: string; readonly steered: boolean; readonly expiresAt: number }>>([]);
+  const transcriptResident = agent.activeSessionId !== undefined;
   const activeSessionId = agent.activeSessionId ?? agent.id;
 
   useEffect(() => {
@@ -211,6 +212,7 @@ export function SessionChatSurface({ agent, locationLabel, state, interactive, s
     pendingUserAdmissions.current = [];
     dispatch({ kind: "snapshot", activeSessionId, items: [], historyTruncated: false });
     setStreamState("loading");
+    if (!transcriptResident) return;
     const unsubscribe = window.ernie.onSessionTranscriptEvent((event: SessionTranscriptEvent) => {
       if (!active || event.activeSessionId !== activeSessionId) return;
       if (event.kind === "closed") { delayFailure(event); return; }
@@ -244,20 +246,24 @@ export function SessionChatSurface({ agent, locationLabel, state, interactive, s
       unsubscribe();
       void window.ernie.detachSessionTranscript();
     };
-  }, [activeSessionId, retrySequence]);
+  }, [activeSessionId, retrySequence, transcriptResident]);
 
   const runtimeUnavailable = interactive && (state === undefined || state.connection === "failed" || state.connection === "closed");
-  const surfaceState = runtimeUnavailable ? "unavailable" : streamState;
+  const surfaceState = runtimeUnavailable || !transcriptResident ? "unavailable" : streamState;
   return <SessionTranscriptView
     agent={agent}
     locationLabel={locationLabel}
     items={items}
     state={surfaceState}
-    interactive={interactive && !runtimeUnavailable}
+    interactive={interactive && !runtimeUnavailable && transcriptResident}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
-    {...(interactive && !runtimeUnavailable && spaceId ? { onRename: (name: string) => renameSession(spaceId, name) } : {})}
+    {...(!transcriptResident ? {
+      unavailableTitle: agent.runtimeKind === "subagent" ? "Subagent is not live" : "Prime Agent is not live",
+      unavailableCopy: agent.answerPreview ?? "This session is no longer connected. Its catalog details remain available.",
+    } : {})}
+    {...(interactive && !runtimeUnavailable && transcriptResident && spaceId ? { onRename: (name: string) => renameSession(spaceId, name) } : {})}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
-    footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} onAdmissionHint={(text, steered) => {
+    footer={interactive && transcriptResident && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} onAdmissionHint={(text, steered) => {
       const hint = { text, steered, expiresAt: Date.now() + 30_000 };
       pendingUserAdmissions.current = [...pendingUserAdmissions.current.slice(-7), hint];
       return () => { pendingUserAdmissions.current = pendingUserAdmissions.current.filter((candidate) => candidate !== hint); };

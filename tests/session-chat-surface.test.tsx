@@ -30,6 +30,40 @@ afterEach(() => {
 });
 
 describe("SessionChatSurface daemon grace", () => {
+  it("keeps a cataloged nonresident subagent read-only without attaching", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const selectSessionTranscript = vi.fn(async () => ({ kind: "snapshot" as const, activeSessionId: "saved-subagent", items: [], historyTruncated: false }));
+    Object.defineProperty(window, "ernie", {
+      configurable: true,
+      value: {
+        onSessionTranscriptEvent: vi.fn(() => vi.fn()),
+        selectSessionTranscript,
+        detachSessionTranscript: vi.fn(async () => {}),
+      },
+    });
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    await act(async () => root.render(<SessionChatSurface
+      agent={{ ...agent, id: "saved-subagent", activeSessionId: undefined, sessionId: "saved-subagent", name: "Reviewer", answerPreview: "Review completed.", status: "idle", runtimeKind: "subagent" }}
+      locationLabel="Ernie"
+      state={undefined}
+      interactive={false}
+      spaceId={undefined}
+      assistantSubagentCount={0}
+      assistantRunningSubagentCount={0}
+      onShowAssistantHierarchy={vi.fn()}
+    />));
+    await act(async () => Promise.resolve());
+
+    expect(selectSessionTranscript).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Subagent is not live");
+    expect(container.textContent).toContain("Review completed.");
+    expect(container.textContent).not.toContain("Retry connection");
+
+    await act(async () => root.unmount());
+  });
+
   it("delays terminal UI when a live attachment closes", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });

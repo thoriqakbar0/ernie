@@ -1,8 +1,8 @@
 # Ernie Dev
 
-Ernie Dev is a secure, multi-directory Electron workbench for Prime Agent. It presents independent **Spaces** and **Agents** inventories, preserves worktree-local session tabs, supports recoverable managed-worktree workflows, and combines interactive owned runtimes with read-only attachment to discovered root and subagent sessions.
+Ernie Dev is an Electron runtime foundation for Prime Agent.
 
-An empty worktree opens a functional start surface with a first prompt plus dedicated provider-qualified model and model-aware thinking-effort dropdowns. Thinking defaults to `low` when supported, and new threads launch at RLM depth `0` (root only). Development builds include React Grab and Agentation for source-aware and persistent visual feedback.
+The previous renderer interface was removed for a clean restart. The application currently opens a blank, sandboxed renderer.
 
 There is no terminal scraping, Native SDK layer, or global Prime Agent dependency.
 
@@ -24,16 +24,6 @@ ERNIE_RENDERER_PORT=5174 pnpm dev
 
 The runtime binaries are generated rather than stored in Git: the pinned Node executable is larger than GitHub's per-file limit, and the dereferenced Prime Agent package is several hundred megabytes. `pnpm runtime:vendor` copies the active Node and Prime Agent installations into `assets/runtime/` and records their versions in `assets/runtime/VERSIONS`.
 
-### Interface feedback tools
-
-Development builds load [`react-grab`](https://react-grab.com) from the local dependency. Hover an element in Ernie, press **⌘C** (or **Ctrl+C**), then paste the copied component/source context into your coding agent. Its project-local skill lives at `.prime/agent/skills/react-grab/SKILL.md`.
-
-Agentation is also available for local visual annotations. Its copy action writes feedback through Ernie's native clipboard bridge. It does not start or use an API or MCP service.
-
-Both renderer tools are guarded by `import.meta.env.DEV` and excluded from production builds.
-
-Development builds expose a sidebar performance switch for an opt-in diagnostics HUD. FPS, renderer CPU, and renderer working-set memory are process-wide. Sidebar and Main ratings are separate rolling React render measurements: after ten samples, p95 render duration maps from 10/10 at 4 ms or less to 1/10 at 50 ms or more. Turning the HUD off—or entering compact navigation—stops its animation-frame loop and one-second resource sampler and clears the rolling measurements.
-
 The app targets `/Users/thor/work/ernie` by default. Override it without exposing filesystem authority to the renderer:
 
 ```sh
@@ -50,11 +40,8 @@ pnpm ensure:electron
 
 - Each cataloged project root or linked worktree owns at most one Ernie-managed Prime Agent RPC client. Its path is resolved and authorized in the Electron main process; the renderer never supplies a working directory.
 - Ernie keeps at most **three resident runtime clients**. At capacity it evicts only the least-recently-used idle client. It never evicts a working, compacting, queued, switching, or in-flight runtime.
-- Model and thinking-level preferences are stored per worktree. Prompt drafts are intentionally not persisted.
-- `Cmd–B` toggles workspace navigation without placing a redundant open control in the main titlebar. The sidebar follows the native traffic-light row with its close control, one **Ernie Dev** title, and a shared Search field that filters Spaces and Agents. Secondary Spaces expose an Archive action that removes the directory from Ernie, stops its owned runtime, and preserves files and saved sessions; reopening the folder restores it.
-- Prime Agent `0.7.1` does not expose live RLM-depth mutation in RPC mode. The launch surface currently requests root-only depth `0`; the main-process registry still applies creation-time `RLM_MAX_DEPTH` safely before setting the model and thinking level and admitting the first prompt.
+- Prime Agent `0.7.1` does not expose live RLM-depth mutation in RPC mode. The main-process registry applies creation-time `RLM_MAX_DEPTH` before it admits the first prompt.
 - On macOS, `Cmd–W` closes only the window. The main-process registry and active work continue, and reopening Ernie restores the attached runtime state. `Cmd–Q` shuts down Ernie-owned RPC process trees with bounded TERM/KILL cleanup; saved Prime Agent sessions remain discoverable.
-- Closing a session tab closes only its view. It does not stop or delete the underlying session.
 
 ## Validate and package
 
@@ -79,15 +66,13 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/SpaceRuntimeRegistry.ts` — catalog-authorized project/worktree ownership, a three-client idle-LRU resource limit, runtime-tagged events, and atomic depth/model/thinking/first-prompt sequencing.
 - `src/main/WorkspaceCatalog.ts` — catalog-authorized Effect service joining Git worktrees with schema-decoded Prime Agent sessions and serializing managed create, settle, restore, and clean-only checkout removal.
 - `src/main/SessionTranscriptStream.ts` — read-only daemon protocol-v7 attachment for bounded selected-session snapshots and live message/tool streams.
-- `src/main/RendererPerformanceSampler.ts` — trusted, rate-limited projection of renderer CPU and working-set metrics for the opt-in diagnostics HUD.
+- `src/main/RendererPerformanceSampler.ts` — trusted, rate-limited projection of renderer CPU and working-set metrics.
 - `src/main/DevServerCatalog.ts` — serialized, worktree-scoped discovery of allowlisted local development-server listeners.
 - `src/main/ErnieWindow.ts` — Effect-owned Electron window and security boundary.
 - `src/main/ErnieApp.ts` — scoped application program and schema-decoded IPC handlers.
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing Space-addressed state, commands, model/start operations, workspace/session streams, local-server actions, and bounded clipboard writes.
-- `src/renderer/src/App.tsx` / `FocusedWorkspace.tsx` — flat Spaces with linked-worktree navigation, worktree-local tabs, keyed live runtime state, and development-only React Grab plus Agentation.
-- `src/renderer/src/SpaceLaunchpad.tsx` — accessible T3-style first-thread form with dedicated model and model-aware thinking-effort dropdown components.
-- `src/renderer/src/spaceSessionTabs.ts`, `transcript.ts`, `sessionTranscript.ts`, and `spaceLaunchPreferences.ts` — pure worktree-local navigation, transcript, and bounded preference state.
+- `src/renderer/src/main.ts` — empty renderer entry point for the interface restart.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.
 

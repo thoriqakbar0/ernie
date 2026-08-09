@@ -33,6 +33,7 @@ describe("SessionTranscriptView source context", () => {
     expect(html).toContain('data-transcript-source="subagent"');
     expect(html).toContain('aria-describedby="transcript-source-child%2F1"');
     expect(html).toContain("Source: Researcher, subagent session.");
+    expect(html).toContain('class="transcript empty"');
   });
 
   it("does not overlay an error banner on a preserved transcript", () => {

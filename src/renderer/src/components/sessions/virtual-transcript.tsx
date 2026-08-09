@@ -36,7 +36,7 @@ export function VirtualTranscript({ items, scrollRef, busy, empty, renderItem, o
   const virtualItems = virtualizer.getVirtualItems();
 
   return <div
-    className="transcript"
+    className={`transcript ${items.length === 0 ? "empty" : "populated"}`}
     ref={scrollRef}
     onScroll={onScroll}
     onWheel={onWheel}

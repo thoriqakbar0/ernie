@@ -1,0 +1,33 @@
+{
+  "name": "ernie",
+  "productName": "Ernie",
+  "version": "0.1.0",
+  "description": "A desktop client for Prime Agent.",
+  "main": ".build/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "npm run build && electron .",
+    "build:main": "tsc --project tsconfig.main.json",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "typecheck": "tsc --noEmit",
+    "lint:boundaries": "depcruise src",
+    "test": "tsx --test \"src/packages/**/tests/*.test.ts\"",
+    "check": "npm run typecheck && npm run lint:boundaries && npm test"
+  },
+  "keywords": [],
+  "author": {
+    "name": "thoriq",
+    "email": "41317726+thoriqakbar0@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "dependency-cruiser": "^18.1.1",
+    "electron": "43.3.0",
+    "tsx": "^4.23.11",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.1"
+  }
+}

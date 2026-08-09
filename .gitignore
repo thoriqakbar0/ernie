@@ -1,0 +1,28 @@
+# Dependencies and package-manager state
+node_modules/
+.npm/
+
+# Build output
+.build/
+out/
+dist/
+coverage/
+
+# Logs and diagnostics
+*.log
+npm-debug.log*
+report.*.json
+
+# Local runtime files
+*.pid
+*.pid.lock
+.DS_Store
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# TypeScript and tooling caches
+*.tsbuildinfo
+.eslintcache

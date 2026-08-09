@@ -14,13 +14,22 @@ import { TranscriptItem } from "./TranscriptItem";
 export const DAEMON_ERROR_GRACE_MS = 3_000;
 
 function SendIcon({ stop = false }: { readonly stop?: boolean }) {
-  return <svg viewBox="0 0 20 20" aria-hidden="true">{stop
-    ? <rect x="6" y="6" width="8" height="8" rx="1" fill="currentColor" stroke="none" />
-    : <><path d="m3.5 10 13-6-4.6 12-2.1-4.2z" /><path d="m9.8 11.8 6.7-7.8" /></>}</svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true">{stop
+    ? <rect x="8" y="8" width="8" height="8" rx="1.5" fill="currentColor" stroke="none" />
+    : <path d="m5 12 7-7 7 7m-7 7V5" />}</svg>;
 }
 
 function assistantSourceLabel(agent: WorkspaceAgent): string {
   return agent.runtimeKind === "subagent" ? `${agent.name} · Subagent` : "Prime Agent";
+}
+
+async function renameSession(spaceId: string, name: string): Promise<string | undefined> {
+  try {
+    const result = await window.ernie.spaceCommand(spaceId, { type: "prompt", message: `/session-name ${name}` });
+    return result.ok ? undefined : result.error ?? "Unable to rename this session. Try again.";
+  } catch {
+    return "Unable to rename this session. Try again.";
+  }
 }
 
 function formatTokens(value: number): string {
@@ -159,6 +168,7 @@ export function LiveSessionChatSurface({ agent, locationLabel, state, items, onA
     state={viewState}
     interactive={state.connection === "ready"}
     onRetry={() => {}}
+    {...(state.connection === "ready" ? { onRename: (name: string) => renameSession(spaceId, name) } : {})}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
     footer={<ChatComposer spaceId={spaceId} state={state} onAppendUser={onAppendUser} />}
   />;
@@ -245,6 +255,7 @@ export function SessionChatSurface({ agent, locationLabel, state, interactive, s
     state={surfaceState}
     interactive={interactive && !runtimeUnavailable}
     onRetry={() => setRetrySequence((sequence) => sequence + 1)}
+    {...(interactive && !runtimeUnavailable && spaceId ? { onRename: (name: string) => renameSession(spaceId, name) } : {})}
     renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
     footer={interactive && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} onAdmissionHint={(text, steered) => {
       const hint = { text, steered, expiresAt: Date.now() + 30_000 };

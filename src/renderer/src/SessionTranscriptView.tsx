@@ -17,12 +17,13 @@ function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string 
 }
 
 /** Live transcript surface with an optional interactive composer for the commandable root session. */
-export function SessionTranscriptView({ agent, locationLabel, items, state, onRetry, renderItem, interactive = false, footer }: {
+export function SessionTranscriptView({ agent, locationLabel, items, state, onRetry, onRename, renderItem, interactive = false, footer }: {
   readonly agent: WorkspaceAgent;
   readonly locationLabel: string;
   readonly items: readonly ThreadItem[];
   readonly state: "loading" | "reconnecting" | "ready" | "error" | "unavailable";
   readonly onRetry: () => void;
+  readonly onRename?: (name: string) => Promise<string | undefined>;
   readonly renderItem: (item: ThreadItem) => ReactNode;
   readonly interactive?: boolean;
   readonly footer?: ReactNode;
@@ -30,6 +31,8 @@ export function SessionTranscriptView({ agent, locationLabel, items, state, onRe
   const scrollRef = useRef<HTMLDivElement>(null);
   const followingRef = useRef(true);
   const [following, setFollowing] = useState(true);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string>();
   useLayoutEffect(() => {
     if (!followingRef.current) return;
     requestAnimationFrame(() => {
@@ -53,6 +56,22 @@ export function SessionTranscriptView({ agent, locationLabel, items, state, onRe
     setFollowing(true);
     const element = scrollRef.current;
     if (element) element.scrollTo({ top: element.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+  const rename = async () => {
+    if (!onRename || renaming) return;
+    const requested = window.prompt("Rename session", agent.name);
+    if (requested === null) return;
+    const name = requested.trim().replace(/\s+/gu, " ").slice(0, 120);
+    if (name === "" || name === agent.name) return;
+    setRenaming(true);
+    setRenameError(undefined);
+    try {
+      setRenameError(await onRename(name));
+    } catch {
+      setRenameError("Unable to rename this session. Try again.");
+    } finally {
+      setRenaming(false);
+    }
   };
   const terminal = agent.status === "completed" || agent.status === "cancelled" || agent.status === "failed" || agent.status === "disconnected";
   const statusLabel = state === "loading" ? "Connecting"
@@ -88,7 +107,10 @@ export function SessionTranscriptView({ agent, locationLabel, items, state, onRe
     <header className="session-location" aria-label={`Current location: ${locationLabel} / ${agent.name}`}>
       <span className="session-location-space" title={locationLabel}><Icon name="folder" /><span>{locationLabel}</span></span>
       <span className="session-location-separator" aria-hidden="true">/</span>
-      <strong className="session-location-session" title={agent.name}>{agent.name}</strong>
+      {onRename
+        ? <button type="button" className="session-location-rename" title="Rename session" aria-label={`Rename ${agent.name}`} disabled={renaming} onClick={() => { void rename(); }}><strong className="session-location-session">{agent.name}</strong></button>
+        : <strong className="session-location-session" title={agent.name}>{agent.name}</strong>}
+      {renameError && <span className="session-location-rename-error" role="alert">{renameError}</span>}
     </header>
     <div className="session-transcript-body">
       <VirtualTranscript items={items} scrollRef={scrollRef} busy={state === "ready" && agent.status === "working"} onScroll={onScroll} onWheel={onWheel} renderItem={renderItem} empty={empty} />

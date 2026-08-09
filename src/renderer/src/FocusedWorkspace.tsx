@@ -307,6 +307,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
 }) {
   const { workspace, currentAgentByWorktree } = useMemo(() => {
     const current = new Map<string, string>();
+    const runtimeNameByAgentId = new Map<string, string>();
     const liveAgents: WorkspaceAgent[] = [];
     for (const project of snapshot.projects) {
       const worktreeIds = project.worktreeIds.length > 0 ? project.worktreeIds : [project.id];
@@ -316,6 +317,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
         const catalogAgent = snapshot.agents.find((agent) => agent.worktreeId === worktreeId && isCommandableAgent(agent, runtime.agent.sessionId));
         if (catalogAgent) {
           current.set(worktreeId, catalogAgent.id);
+          if (runtime.agent.sessionName) runtimeNameByAgentId.set(catalogAgent.id, runtime.agent.sessionName);
           continue;
         }
         if (runtime.agent.messageCount === 0 && !runtime.agent.isStreaming) continue;
@@ -333,7 +335,12 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
       }
     }
     return {
-      workspace: liveAgents.length > 0 ? { ...snapshot, agents: [...liveAgents, ...snapshot.agents] } : snapshot,
+      workspace: liveAgents.length > 0 || runtimeNameByAgentId.size > 0
+        ? { ...snapshot, agents: [...liveAgents, ...snapshot.agents.map((agent) => {
+          const runtimeName = runtimeNameByAgentId.get(agent.id);
+          return runtimeName === undefined || runtimeName === agent.name ? agent : { ...agent, name: runtimeName };
+        })] }
+        : snapshot,
       currentAgentByWorktree: current,
     };
   }, [runtimeStates, snapshot]);

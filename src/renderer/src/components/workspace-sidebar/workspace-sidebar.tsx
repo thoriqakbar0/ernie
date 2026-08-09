@@ -278,7 +278,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         {agentsExpanded && <div id="agent-list-panel" className="workspace-agent-scroll" role="tabpanel" aria-labelledby={agentView === "all" ? "all-agents-tab" : "attention-agents-tab"}>
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
             {agentView === "all"
-              ? <AllAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandIdleSubagents={normalizedQuery !== ""} includeEmptyActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
+              ? <AllAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandSubagents={normalizedQuery !== ""} includeEmptyActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
               : <AttentionAgentPane snapshot={visibleSnapshot} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />}
           </div>
         </div>}

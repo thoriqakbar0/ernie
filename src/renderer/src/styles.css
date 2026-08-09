@@ -451,7 +451,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-agent-tabs>button.active>span{color:var(--secondary)}
 .workspace-agent-groups{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
 .workspace-agent-group{min-width:0;padding:2px;border-radius:9px}
-.workspace-agent-group[data-current="true"]{background:rgba(167,139,250,.05)}
+.workspace-agent-group[data-current="true"]>.workspace-agent-group-heading>button{color:var(--secondary)}
 .workspace-agent-group-heading{min-width:0;margin:0}
 .workspace-agent-group-heading>button{width:100%;min-height:36px;display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;align-items:center;gap:7px;padding:0 7px;border:0;border-radius:7px;background:transparent;color:var(--tertiary);font-size:11px;font-weight:620;letter-spacing:.015em;text-align:start}
 .workspace-agent-group-heading>button:hover,.workspace-agent-group-heading>button:focus-visible{background:var(--hover);color:var(--text)}
@@ -491,11 +491,11 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-agent-kind{flex:0 0 auto;display:inline-flex;min-width:24px;height:20px;align-items:center;justify-content:center;gap:3px;color:var(--tertiary)}
 .workspace-agent-kind svg{width:12px;height:12px;stroke-width:1.8}
 .workspace-agent-depth{color:var(--secondary);font-size:9px;font-weight:720;font-variant-numeric:tabular-nums;line-height:1}
-.workspace-idle-subagents-list{margin:0;padding:0;list-style:none}
-.workspace-idle-subagents-disclosure{min-height:28px;width:100%;display:flex;align-items:center;gap:6px;padding:2px 8px;border:0;border-radius:7px;background:transparent;color:var(--tertiary);font-size:10.5px;text-align:start}
-.workspace-idle-subagents-disclosure:hover,.workspace-idle-subagents-disclosure:focus-visible{background:var(--hover);color:var(--secondary)}
-.workspace-idle-subagents-disclosure svg{width:12px;height:12px;transition:transform 160ms ease}
-.workspace-idle-subagents-disclosure[aria-expanded="true"] svg{transform:rotate(90deg)}
+.workspace-folded-subagents-list{margin:0;padding:0;list-style:none}
+.workspace-folded-subagents-disclosure{min-height:32px;width:100%;display:flex;align-items:center;gap:6px;padding:2px 8px;border:0;border-radius:7px;background:transparent;color:var(--tertiary);font-size:10.5px;text-align:start}
+.workspace-folded-subagents-disclosure:hover,.workspace-folded-subagents-disclosure:focus-visible{background:var(--hover);color:var(--secondary)}
+.workspace-folded-subagents-disclosure svg{width:12px;height:12px;transition:transform 160ms ease}
+.workspace-folded-subagents-disclosure[aria-expanded="true"] svg{transform:rotate(90deg)}
 .workspace-message{margin:4px;padding:7px;color:var(--tertiary);font-size:11px;line-height:1.45}
 .workspace-message.error{color:#e59a9a}
 .workspace-empty-state{margin:4px 0;padding:11px 12px;color:var(--tertiary)}
@@ -528,7 +528,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
   .session-location,.session-transcript-body>.transcript,.chat-composer-wrap{padding-inline:18px}
   .session-location{gap:8px}.session-location-session{font-size:15px}
 }
-@media(prefers-reduced-motion:reduce){.workspace-shell,.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-spaces-disclosure svg,.workspace-agents-disclosure svg,.workspace-agent-group-heading svg,.workspace-settled-disclosure>svg:last-child,.workspace-idle-subagents-disclosure svg,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
+@media(prefers-reduced-motion:reduce){.workspace-shell,.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-spaces-disclosure svg,.workspace-agents-disclosure svg,.workspace-agent-group-heading svg,.workspace-settled-disclosure>svg:last-child,.workspace-folded-subagents-disclosure svg,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
 
 
 /* Agent pane + transcript motion storyboard

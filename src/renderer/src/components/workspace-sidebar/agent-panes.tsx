@@ -119,35 +119,33 @@ function containsAgent(node: AgentTreeNode, agentId: string | undefined): boolea
   return agentId !== undefined && (node.agent.id === agentId || node.children.some((child) => containsAgent(child, agentId)));
 }
 
-function isIdleBranch(node: AgentTreeNode): boolean {
-  return node.agent.status === "idle" && node.children.every(isIdleBranch);
-}
-
-function AgentTreeRow({ node, activeAgentId, expandIdleSubagents, onOpenAgent }: {
+function AgentTreeRow({ node, activeAgentId, expandSubagents, onOpenAgent }: {
   readonly node: AgentTreeNode;
   readonly activeAgentId: string | undefined;
-  readonly expandIdleSubagents: boolean;
+  readonly expandSubagents: boolean;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
-  const [idleExpanded, setIdleExpanded] = useState(false);
-  const idleGroupId = useId();
-  const foldedChildren = node.children.filter((child) => isIdleBranch(child) && !containsAgent(child, activeAgentId));
+  const [childrenExpanded, setChildrenExpanded] = useState(false);
+  const foldedGroupId = useId();
+  const foldedChildren = node.children.filter((child) => !containsAgent(child, activeAgentId));
   const visibleChildren = node.children.filter((child) => !foldedChildren.includes(child));
-  const showFoldedChildren = expandIdleSubagents || idleExpanded;
+  const showFoldedChildren = expandSubagents || childrenExpanded;
+  const foldedAgentCount = countAgentNodes(foldedChildren);
+  const foldedLabel = `${foldedAgentCount} ${visibleChildren.length > 0 ? "more " : ""}${foldedAgentCount === 1 ? "subagent" : "subagents"}`;
   return <li>
     <SessionRow agent={node.agent} depth={node.depth} entranceOrder={node.entranceOrder} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
-      {visibleChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}
-      {foldedChildren.length > 0 && <li className="workspace-idle-subagents">
+      {visibleChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}
+      {foldedChildren.length > 0 && <li className="workspace-folded-subagents">
         <button
           type="button"
-          className="workspace-idle-subagents-disclosure"
+          className="workspace-folded-subagents-disclosure"
           aria-expanded={showFoldedChildren}
-          aria-controls={idleGroupId}
-          onClick={() => { if (!expandIdleSubagents) setIdleExpanded((current) => !current); }}
-        ><Icon name="chevron" /><span>{foldedChildren.length} idle {foldedChildren.length === 1 ? "subagent" : "subagents"}</span></button>
-        <ul id={idleGroupId} className="workspace-idle-subagents-list" hidden={!showFoldedChildren}>
-          {showFoldedChildren && foldedChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}
+          aria-controls={foldedGroupId}
+          onClick={() => { if (!expandSubagents) setChildrenExpanded((current) => !current); }}
+        ><Icon name="chevron" /><span>{foldedLabel}</span></button>
+        <ul id={foldedGroupId} className="workspace-folded-subagents-list" hidden={!showFoldedChildren}>
+          {showFoldedChildren && foldedChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}
         </ul>
       </li>}
     </ul>}
@@ -179,12 +177,12 @@ function countAgentNodes(nodes: readonly AgentTreeNode[]): number {
   return nodes.reduce((total, node) => total + 1 + countAgentNodes(node.children), 0);
 }
 
-function AgentGroup({ group, orderedTrees, activeAgentId, forceExpanded, expandIdleSubagents, onOpenAgent }: {
+function AgentGroup({ group, orderedTrees, activeAgentId, forceExpanded, expandSubagents, onOpenAgent }: {
   readonly group: AgentGroupModel;
   readonly orderedTrees: readonly AgentTreeNode[];
   readonly activeAgentId: string | undefined;
   readonly forceExpanded: boolean;
-  readonly expandIdleSubagents: boolean;
+  readonly expandSubagents: boolean;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   const [expanded, setExpanded] = useState<boolean>();
@@ -208,18 +206,18 @@ function AgentGroup({ group, orderedTrees, activeAgentId, forceExpanded, expandI
     </h3>
     <div id={agentListId} hidden={!displayedExpanded}>
       {displayedExpanded && (orderedTrees.length > 0
-        ? <ul className="workspace-agent-list">{orderedTrees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}</ul>
+        ? <ul className="workspace-agent-list">{orderedTrees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}</ul>
         : <p className="workspace-message">No agents yet</p>)}
     </div>
   </li>;
 }
 
 /** All-agent variant with worktree headings and nested subagents. */
-export function AllAgentPane({ snapshot, activeWorktreeId, activeAgentId, expandIdleSubagents, includeEmptyActiveWorktree, emptyMessage, onOpenAgent }: {
+export function AllAgentPane({ snapshot, activeWorktreeId, activeAgentId, expandSubagents, includeEmptyActiveWorktree, emptyMessage, onOpenAgent }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly activeWorktreeId: string | undefined;
   readonly activeAgentId: string | undefined;
-  readonly expandIdleSubagents: boolean;
+  readonly expandSubagents: boolean;
   readonly includeEmptyActiveWorktree: boolean;
   readonly emptyMessage: string | undefined;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
@@ -240,8 +238,8 @@ export function AllAgentPane({ snapshot, activeWorktreeId, activeAgentId, expand
     group={group}
     orderedTrees={orderedTrees.filter((node) => node.agent.worktreeId === group.id)}
     activeAgentId={activeAgentId}
-    forceExpanded={expandIdleSubagents}
-    expandIdleSubagents={expandIdleSubagents}
+    forceExpanded={expandSubagents}
+    expandSubagents={expandSubagents}
     onOpenAgent={onOpenAgent}
   />)}</ul>;
 }

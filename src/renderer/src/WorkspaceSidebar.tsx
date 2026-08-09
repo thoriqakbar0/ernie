@@ -313,6 +313,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   readonly onOpenDirectory: () => void;
 }) {
   const [agentView, setAgentView] = useState<AgentView>("agents");
+  const [spacesExpanded, setSpacesExpanded] = useState(true);
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
   const [agentPaneMotion, setAgentPaneMotion] = useState<"horizontal" | "vertical">("vertical");
@@ -343,6 +344,12 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const toggleAgentsExpanded = () => {
     if (!agentsExpanded) setAgentPaneMotion("vertical");
     setAgentsExpanded((current) => !current);
+  };
+  const changeSearchQuery = (value: string) => {
+    setSearchQuery(value);
+    if (value.trim() === "") return;
+    setSpacesExpanded(true);
+    if (!agentsExpanded) { setAgentPaneMotion("vertical"); setAgentsExpanded(true); }
   };
   const clearSearch = () => {
     setSearchQuery("");
@@ -394,18 +401,18 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
       </div>
       <div className="workspace-sidebar-search">
         <Icon name="search" />
-        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search Spaces and Agents" placeholder="Search" spellCheck={false} onChange={(event) => setSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
+        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search Spaces and Agents" placeholder="Search" spellCheck={false} onChange={(event) => changeSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
         {searchQuery !== "" && <button type="button" aria-label="Clear search" title="Clear search" onClick={clearSearch}><Icon name="close" /></button>}
       </div>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{normalizedQuery === "" ? `Workspace status: ${loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}` : searchResultStatus}</div>
-    <div className="workspace-sidebar-body" data-agents-expanded={agentsExpanded}>
+    <div className="workspace-sidebar-body" data-spaces-expanded={spacesExpanded} data-agents-expanded={agentsExpanded}>
       <section id="spaces-panel" className="workspace-projects" aria-labelledby="spaces-heading">
         <header className="workspace-section-heading">
-          <h2 id="spaces-heading"><Icon name="folder" /><span>Spaces</span></h2>
+          <h2 id="spaces-heading"><button type="button" className="workspace-spaces-disclosure" aria-expanded={spacesExpanded} aria-controls="spaces-list-panel" onClick={() => setSpacesExpanded((current) => !current)}><Icon name="folder" /><span>Spaces</span><Icon name="chevron" /></button></h2>
           <button type="button" aria-label="Open folder" title="Open folder" disabled={opening} onClick={onOpenDirectory}><Icon name="folder-add" /></button>
         </header>
-        <div className="workspace-project-scroll">
+        {spacesExpanded && <div id="spaces-list-panel" className="workspace-project-scroll">
           {failed && <p className="focused-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
           {openError && <p className="focused-message error" role="alert">{openError}</p>}
           {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
@@ -430,7 +437,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
               onArchiveProject={onArchiveProject}
             />;
           })}</ul>
-        </div>
+        </div>}
       </section>
       <div className="workspace-section-divider" aria-hidden="true" />
       <section id="agents-panel" className="workspace-sessions" aria-labelledby="agents-heading">

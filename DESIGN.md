@@ -43,7 +43,7 @@ The window has two stable regions: the unified sidebar and the tabbed session wo
 
 ### Unified workspace sidebar
 
-The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section as independent inventories, so neither is nested inside or used as a display mode for the other. Selecting a Space restores that Space’s own tabs and active session. A single hairline separates the independently scrolling sections; compact headings replace large mode controls.
+The leading sidebar follows Herdr’s quiet, divided structure without borrowing its terminal visual styling. **Spaces** occupy the upper section and **Agents** the lower section as independent inventories, so neither is nested inside or used as a display mode for the other. Selecting a Space restores that Space’s own tabs and active session. Spaces size to their visible content up to a bounded share of the sidebar, while Agents receive the remaining room instead of leaving an empty upper pane. A single hairline separates the independently scrolling sections; compact disclosure headings let either inventory yield room without hiding its identity.
 
 #### Spaces
 

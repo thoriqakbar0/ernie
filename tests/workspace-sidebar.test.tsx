@@ -147,6 +147,12 @@ describe("WorkspaceSidebar Spaces", () => {
     expect(archive?.getAttribute("aria-label")).toBe("Archive other");
     await act(async () => archive?.click());
     expect(props.onArchiveProject).toHaveBeenCalledWith(snapshot.projects[1]);
+    const spacesDisclosure = container.querySelector<HTMLButtonElement>(".workspace-spaces-disclosure");
+    expect(spacesDisclosure?.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => spacesDisclosure?.click());
+    expect(spacesDisclosure?.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector("#spaces-list-panel")).toBeNull();
+    await act(async () => spacesDisclosure?.click());
 
     await act(async () => root.unmount());
   });
@@ -217,11 +223,15 @@ describe("WorkspaceSidebar Spaces", () => {
     expect(container.querySelector("#workspace-navigation-title")?.textContent).toBe("Ernie Dev");
     const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces and Agents"]');
     expect(search).not.toBeNull();
+    const spacesDisclosure = container.querySelector<HTMLButtonElement>(".workspace-spaces-disclosure");
+    await act(async () => spacesDisclosure?.click());
+    expect(spacesDisclosure?.getAttribute("aria-expanded")).toBe("false");
     await act(async () => {
       if (!search) return;
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "other");
       search.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    expect(spacesDisclosure?.getAttribute("aria-expanded")).toBe("true");
     expect([...container.querySelectorAll(".workspace-project-row")].map((row) => row.textContent)).toEqual(["othermain"]);
     const agentRows = [...container.querySelectorAll(".focused-session-row")];
     expect(agentRows).toHaveLength(1);

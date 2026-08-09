@@ -325,16 +325,22 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-sidebar-search button{width:28px;height:28px;display:grid;place-items:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--tertiary)}
 .workspace-sidebar-search button:hover{background:var(--hover);color:var(--text)}
 .workspace-sidebar-search button svg{width:12px;height:12px}
-.workspace-sidebar-body{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(124px,42%) 1px minmax(160px,1fr);overflow:hidden}
-.workspace-sidebar-body[data-agents-expanded="false"]{grid-template-rows:minmax(124px,1fr) 1px 40px}
-.workspace-projects,.workspace-sessions{min-width:0;min-height:0;display:grid;grid-template-rows:40px minmax(0,1fr);overflow:hidden}
-.workspace-section-heading{height:40px;display:flex;align-items:center;gap:8px;padding-inline:10px 6px;border-block-end:1px solid rgba(255,255,255,.045)}
-.workspace-section-heading h2{min-width:0;margin:0;display:flex;align-items:center;gap:7px;color:var(--secondary);font-size:11.5px;font-weight:650;letter-spacing:.025em}
-.workspace-section-heading h2>svg{width:15px;height:15px;stroke-width:1.7}
-.workspace-agents-disclosure{height:40px;display:flex;align-items:center;gap:5px;margin-inline-start:-6px;padding-inline:6px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit}
-.workspace-agents-disclosure:hover{color:var(--text)}
-.workspace-agents-disclosure svg{width:12px;height:12px;transition:transform 140ms ease}
-.workspace-agents-disclosure[aria-expanded="true"] svg{transform:rotate(90deg)}
+.workspace-sidebar-body{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.workspace-projects,.workspace-sessions{min-width:0;min-height:0;display:grid;grid-template-rows:44px minmax(0,1fr);overflow:hidden}
+.workspace-projects{flex:0 1 auto;min-block-size:88px;max-block-size:42%}
+.workspace-sessions{flex:1 1 160px}
+.workspace-section-divider{flex:0 0 1px;margin-block:8px}
+.workspace-sidebar-body[data-spaces-expanded="false"] .workspace-projects{flex:0 0 44px;min-block-size:44px}
+.workspace-sidebar-body[data-agents-expanded="false"] .workspace-projects{flex:1 1 auto;max-block-size:none}
+.workspace-sidebar-body[data-agents-expanded="false"] .workspace-sessions{flex:0 0 44px}
+.workspace-sidebar-body[data-spaces-expanded="false"][data-agents-expanded="false"] .workspace-projects{flex:0 0 44px;max-block-size:44px}
+.workspace-section-heading{height:44px;display:flex;align-items:center;gap:8px;padding-inline:18px 6px;border-block-end:1px solid rgba(255,255,255,.045)}
+.workspace-section-heading h2{min-width:0;margin:0;display:flex;align-items:center;color:var(--secondary);font-size:11.5px;font-weight:650;letter-spacing:.025em}
+.workspace-spaces-disclosure,.workspace-agents-disclosure{height:40px;display:flex;align-items:center;gap:7px;margin-inline-start:-6px;padding-inline:6px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit}
+.workspace-spaces-disclosure:hover,.workspace-agents-disclosure:hover{color:var(--text)}
+.workspace-spaces-disclosure svg:first-child{width:15px;height:15px;stroke-width:1.7}
+.workspace-spaces-disclosure svg:last-child,.workspace-agents-disclosure svg{width:12px;height:12px;transition:transform 140ms ease}
+.workspace-spaces-disclosure[aria-expanded="true"] svg:last-child,.workspace-agents-disclosure[aria-expanded="true"] svg{transform:rotate(90deg)}
 .workspace-section-heading>button{width:40px;height:40px;margin-inline-start:auto;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:var(--tertiary)}
 .workspace-section-heading>button:hover{background:var(--hover);color:var(--text)}
 .workspace-section-heading>button svg{width:16px;height:16px;stroke-width:1.8}
@@ -345,7 +351,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-project-control{display:flex;min-width:0;border-radius:7px;color:var(--secondary)}
 .workspace-project-control:hover{background:var(--hover);color:var(--text)}
 .workspace-project-control.active{background:#202022;color:var(--text)}
-.workspace-project-row{min-width:0;min-height:44px;flex:1 1 auto;display:grid;align-content:center;padding-block:5px;padding-inline:8px;border:0;border-radius:7px;background:transparent;color:inherit;text-align:start}
+.workspace-project-row{min-width:0;min-height:44px;flex:1 1 auto;display:grid;align-content:center;padding-block:5px;padding-inline:12px;border:0;border-radius:7px;background:transparent;color:inherit;text-align:start}
 .workspace-project-title{min-width:0;display:flex;align-items:center;gap:6px}
 .workspace-project-title strong,.workspace-project-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .workspace-project-title strong{min-width:0;flex:0 1 auto;font-size:12px;font-weight:590;line-height:1.25}
@@ -413,7 +419,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-sidebar .open-first-project svg{width:15px;height:15px;stroke-width:1.8}
 .workspace-sidebar .focused-session-row{border-radius:7px}
 @media(max-width:900px){.focused-workspace{grid-template-columns:248px minmax(0,1fr)}.focused-workspace.sidebar-collapsed{grid-template-columns:0 minmax(0,1fr)}}
-@media(max-height:560px){.workspace-sidebar-body{grid-template-rows:minmax(96px,36%) 1px minmax(132px,1fr)}.workspace-sidebar-title{padding-block-end:9px}.workspace-agent-list .focused-session-row{min-height:41px}}
+@media(max-height:560px){.workspace-projects{max-block-size:36%}.workspace-sidebar-title{padding-block-end:9px}.workspace-agent-list .focused-session-row{min-height:41px}}
 @media(forced-colors:active){.execution-output-fold-content::after{display:none}.execution-output-fold-toggle{opacity:1}.execution-output-fold-toggle{border:1px solid ButtonText}.workspace-agent-tab-indicator{display:none}.ipython-execution-source>summary,.execution-file,.markdown-code,.markdown-table-scroll{border:1px solid CanvasText}.workspace-sidebar,.workspace-sidebar-search{border-color:CanvasText;background:Canvas;color:CanvasText}.workspace-sidebar-search:focus-within{border-color:Highlight;outline:2px solid Highlight;outline-offset:-2px}.workspace-project-control.active,.workspace-worktree-button.active,.workspace-agent-tabs>button.active{border:2px solid Highlight;background:Canvas;color:CanvasText}.workspace-project-mark,.workspace-worktree-mark,.focused-tab-status{background:CanvasText}.workspace-section-divider{background:CanvasText}}
 
 .sr-only:not(:focus):not(:active){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -437,7 +443,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
   .workspace-navigation-scrim{position:absolute;z-index:19;inset:0;display:block;border:0;background:rgba(0,0,0,.52)}
   .session-transcript-body>.transcript,.chat-composer-wrap{padding-inline:18px}
 }
-@media(prefers-reduced-motion:reduce){.focused-workspace,.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-agents-disclosure svg,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
+@media(prefers-reduced-motion:reduce){.focused-workspace,.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-spaces-disclosure svg,.workspace-agents-disclosure svg,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
 
 
 /* Agent pane + transcript motion storyboard

@@ -1,4 +1,4 @@
-/** One Space's open session views and local selection. */
+/** One Space's open session views and local selection inside the workspace shell. */
 export interface SpaceSessionTabs {
   readonly agentIds: readonly string[];
   readonly activeAgentId: string | undefined;

@@ -15,7 +15,7 @@ describe("TranscriptItem assistant attribution", () => {
     />);
 
     expect(html).toContain("Prime Agent <span>with 3 subagents</span>");
-    expect(html).toContain("Show Prime Agent with 3 subagents, 2 running in Grouped Agents");
+    expect(html).toContain("Show Prime Agent with 3 subagents, 2 running in All Agents");
     expect(html).toContain("chat-message-attribution running-subagents");
   });
 

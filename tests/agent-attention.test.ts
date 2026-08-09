@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStatus, WorkspaceAgent } from "../src/shared/workspace";
-import { prioritizeAgents, prioritizeRootAgents } from "../src/renderer/src/components/workspace-sidebar/agent-priority";
+import { orderAgentsByAttention, orderRootAgentsByAttention } from "../src/renderer/src/components/workspace-sidebar/agent-attention";
 
 function agent(id: string, status: AgentStatus, lastActivityAt?: string): WorkspaceAgent {
   return {
@@ -15,9 +15,9 @@ function agent(id: string, status: AgentStatus, lastActivityAt?: string): Worksp
   };
 }
 
-describe("prioritizeAgents", () => {
+describe("orderAgentsByAttention", () => {
   it("orders attention states and excludes terminal states", () => {
-    const result = prioritizeAgents([
+    const result = orderAgentsByAttention([
       agent("idle", "idle"),
       agent("complete", "completed"),
       agent("working", "working"),
@@ -27,11 +27,11 @@ describe("prioritizeAgents", () => {
       agent("disconnected", "disconnected"),
     ]);
 
-    expect(result.map(({ id }) => id)).toEqual(["failed", "waiting", "working", "idle"]);
+    expect(result.map(({ id }) => id)).toEqual(["failed", "waiting"]);
   });
 
   it("puts the most recently active agent first within one state", () => {
-    const result = prioritizeAgents([
+    const result = orderAgentsByAttention([
       agent("older", "waiting", "2026-01-01T00:00:00.000Z"),
       agent("newer", "waiting", "2026-01-02T00:00:00.000Z"),
     ]);
@@ -39,10 +39,10 @@ describe("prioritizeAgents", () => {
     expect(result.map(({ id }) => id)).toEqual(["newer", "older"]);
   });
 
-  it("keeps subagents out of the Priority projection", () => {
+  it("keeps subagents out of the Attention projection", () => {
     const root = agent("root", "waiting");
     const subagent = { ...agent("child", "failed"), runtimeKind: "subagent" as const, parentAgentId: root.id };
 
-    expect(prioritizeRootAgents([subagent, root]).map(({ id }) => id)).toEqual(["root"]);
+    expect(orderRootAgentsByAttention([subagent, root]).map(({ id }) => id)).toEqual(["root"]);
   });
 });

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AgentState } from "../../shared/contract";
 import type { SpaceRuntimeState } from "../../shared/spaceRuntime";
 import type { WorkspaceSnapshot } from "../../shared/workspace";
-import { FocusedWorkspace } from "./components/focused-workspace/focused-workspace";
+import { WorkspaceShell } from "./components/workspace-shell/workspace-shell";
 import { useSpaceTranscripts } from "./hooks/use-space-transcripts";
 
 const EMPTY_WORKSPACE: WorkspaceSnapshot = { projects: [], worktrees: [], settledWorktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
@@ -62,7 +62,7 @@ export function App() {
   }, []);
 
   return <main className="ernie-canvas" aria-label="Ernie workspace">
-    <FocusedWorkspace
+    <WorkspaceShell
       snapshot={workspace}
       runtimeStates={runtimeStates}
       liveItemsBySpace={transcripts.itemsBySpace}

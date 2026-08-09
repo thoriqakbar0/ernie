@@ -1,10 +1,10 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../../../shared/workspace";
-import { prioritizeRootAgents } from "./agent-priority";
+import { orderRootAgentsByAttention } from "./agent-attention";
 import { Icon } from "../ui/workspace-icon";
 import { projectForAgent, statusText } from "../../lib/workspace-agent-presentation";
-import { AgentViewTabs, GroupedAgentPane, PriorityAgentPane } from "./agent-panes";
+import { AgentViewTabs, AllAgentPane, AttentionAgentPane } from "./agent-panes";
 import type { AgentView } from "./agent-panes";
 import { agentIdsWithAncestors, matchesSearch } from "./filter-workspace";
 import { FirstSpaceEmptyState, SettledWorktreeRow, SpaceRow } from "./space-rows";
@@ -49,7 +49,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
   readonly onOpenDirectory: () => void;
 }) {
-  const [agentView, setAgentView] = useState<AgentView>("agents");
+  const [agentView, setAgentView] = useState<AgentView>("all");
   const [spacesExpanded, setSpacesExpanded] = useState(true);
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
@@ -79,15 +79,15 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   });
   const visibleAgentIds = normalizedQuery === "" ? new Set(snapshot.agents.map((agent) => agent.id)) : agentIdsWithAncestors(snapshot.agents, matchingAgents);
   const groupedAgents = normalizedQuery === "" ? snapshot.agents : snapshot.agents.filter((agent) => visibleAgentIds.has(agent.id));
-  const priorityAgents = prioritizeRootAgents(matchingAgents);
-  const visibleAgents = agentView === "priority" ? matchingAgents : groupedAgents;
+  const attentionAgents = orderRootAgentsByAttention(matchingAgents);
+  const visibleAgents = agentView === "attention" ? matchingAgents : groupedAgents;
   const visibleSnapshot = normalizedQuery === "" ? snapshot : { ...snapshot, agents: visibleAgents };
-  const visibleAgentMatchCount = agentView === "priority" ? priorityAgents.length : matchingAgents.length;
+  const visibleAgentMatchCount = agentView === "attention" ? attentionAgents.length : matchingAgents.length;
   const searchResultStatus = `${visibleProjects.length} ${visibleProjects.length === 1 ? "Space" : "Spaces"}, ${visibleSettledEntries.length} settled ${visibleSettledEntries.length === 1 ? "worktree" : "worktrees"}, and ${visibleAgentMatchCount} ${visibleAgentMatchCount === 1 ? "Agent" : "Agents"} match your search.`;
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
     setAgentPaneMotion("horizontal");
-    setAgentViewDirection(next === "priority" ? "forward" : "backward");
+    setAgentViewDirection(next === "attention" ? "forward" : "backward");
     setAgentView(next);
   };
   const toggleAgentsExpanded = () => {
@@ -116,7 +116,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   useLayoutEffect(() => {
     if (!open || revealAgent === undefined || handledRevealRequestRef.current === revealAgent.requestId) return;
     if (!agentsExpanded) { setAgentPaneMotion("vertical"); setAgentsExpanded(true); return; }
-    if (agentView !== "agents") { changeAgentView("agents"); return; }
+    if (agentView !== "all") { changeAgentView("all"); return; }
     handledRevealRequestRef.current = revealAgent.requestId;
     const frame = requestAnimationFrame(() => {
       const row = document.getElementById(`workspace-agent-${encodeURIComponent(revealAgent.agentId)}`);
@@ -170,7 +170,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
     pendingSettledFocusRef.current = { id: worktree.id, index: settledEntries.findIndex((entry) => entry.worktree.id === worktree.id), kind: "remove" };
     onRemoveWorktree(projectId, worktree);
   };
-  const priorityCount = priorityAgents.length;
+  const attentionCount = attentionAgents.length;
   const workingWorktreeIds = new Set<string>();
   for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
   return <aside
@@ -195,24 +195,24 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
       </div>
       <div className="workspace-sidebar-search">
         <Icon name="search" />
-        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search Spaces, Settled worktrees, and Agents" placeholder="Search" spellCheck={false} onChange={(event) => changeSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
+        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search spaces, worktrees, and agents" placeholder="Search spaces and agents" spellCheck={false} onChange={(event) => changeSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
         {searchQuery !== "" && <button type="button" aria-label="Clear search" title="Clear search" onClick={clearSearch}><Icon name="close" /></button>}
       </div>
     </header>
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{normalizedQuery === "" ? `Workspace status: ${loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}` : searchResultStatus}</div>
     <div className="workspace-sidebar-body" data-spaces-expanded={spacesExpanded} data-agents-expanded={agentsExpanded}>
-      <section id="spaces-panel" className="workspace-projects" aria-labelledby="spaces-heading">
+      <section id="spaces-panel" className="workspace-spaces" aria-labelledby="spaces-heading">
         <header className="workspace-section-heading">
           <h2 id="spaces-heading"><button type="button" className="workspace-spaces-disclosure" aria-expanded={spacesExpanded} aria-controls="spaces-list-panel" onClick={() => setSpacesExpanded((current) => !current)}><Icon name="folder" /><span>Spaces</span><Icon name="chevron" /></button></h2>
           <button type="button" aria-label="Open folder" title="Open folder" disabled={opening} onClick={onOpenDirectory}><Icon name="folder-add" /></button>
         </header>
         {spacesExpanded && <div id="spaces-list-panel" className="workspace-project-scroll">
-          {failed && <p className="focused-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
-          {openError && <p className="focused-message error" role="alert">{openError}</p>}
-          {worktreeError && createProjectId === undefined && <p className="focused-message error" role="alert">{worktreeError}</p>}
-          {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
+          {failed && <p className="workspace-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
+          {openError && <p className="workspace-message error" role="alert">{openError}</p>}
+          {worktreeError && createProjectId === undefined && <p className="workspace-message error" role="alert">{worktreeError}</p>}
+          {loading && snapshot.projects.length === 0 && <p className="workspace-message" role="status">Loading spaces…</p>}
           {normalizedQuery === "" && !loading && snapshot.projects.length === 0 && <FirstSpaceEmptyState opening={opening} onOpen={onOpenDirectory} />}
-          {normalizedQuery !== "" && visibleProjects.length === 0 && <p className="focused-message">No spaces match your search.</p>}
+          {normalizedQuery !== "" && visibleProjects.length === 0 && <p className="workspace-message">No spaces match your search.</p>}
           <ul className="workspace-project-list">{visibleProjects.map((project) => {
             const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
             const rootWorktree = worktrees.find((worktree) => worktree.id === project.id) ?? worktrees[0];
@@ -270,16 +270,16 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         </div>}
       </section>
       <div className="workspace-section-divider" aria-hidden="true" />
-      <section id="agents-panel" className="workspace-sessions" aria-labelledby="agents-heading">
+      <section id="agents-panel" className="workspace-agents" aria-labelledby="agents-heading">
         <header className="workspace-section-heading agent-heading">
           <h2 id="agents-heading"><button type="button" className="workspace-agents-disclosure" aria-expanded={agentsExpanded} aria-controls="agent-list-panel" onClick={toggleAgentsExpanded}>Agents <Icon name="chevron" /></button></h2>
-          {agentsExpanded && <AgentViewTabs value={agentView} priorityCount={priorityCount} onChange={changeAgentView} />}
+          {agentsExpanded && <AgentViewTabs value={agentView} attentionCount={attentionCount} onChange={changeAgentView} />}
         </header>
-        {agentsExpanded && <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
+        {agentsExpanded && <div id="agent-list-panel" className="workspace-agent-scroll" role="tabpanel" aria-labelledby={agentView === "all" ? "all-agents-tab" : "attention-agents-tab"}>
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
-            {agentView === "agents"
-              ? <GroupedAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandIdleSubagents={normalizedQuery !== ""} includeEmptyActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
-              : <PriorityAgentPane snapshot={visibleSnapshot} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />}
+            {agentView === "all"
+              ? <AllAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandIdleSubagents={normalizedQuery !== ""} includeEmptyActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
+              : <AttentionAgentPane snapshot={visibleSnapshot} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />}
           </div>
         </div>}
       </section>

@@ -295,7 +295,7 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, onAppendLiveUser, onRuntimeState, failed, loading, onSnapshot }: {
+export function WorkspaceShell({ snapshot, runtimeStates, liveItemsBySpace, onAppendLiveUser, onRuntimeState, failed, loading, onSnapshot }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly runtimeStates: ReadonlyMap<string, SpaceRuntimeState>;
   readonly liveItemsBySpace: ReadonlyMap<string, readonly ThreadItem[]>;
@@ -605,7 +605,7 @@ This removes it from Spaces and stops any Ernie-managed work for it. Files and s
     : activeProject?.label;
 
   return <PerformanceHud enabled={import.meta.env.DEV && performanceEnabled}>
-    <div className={`focused-workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+    <div className={`workspace-shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
       <PerformanceProfiler area="sidebar">
         <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} archivingProjectId={archivingProjectId} openError={openError} worktreeBusyOwner={worktreeBusyOwner} worktreeError={worktreeError} compact={compactNavigation} open={sidebarOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onArchiveProject={(project) => { void archiveProject(project); }} onCreateWorktree={(projectId, sourceWorktreeId, branch) => { void createWorktree(projectId, sourceWorktreeId, branch); }} onArchiveWorktree={(projectId, worktree) => { void archiveWorktree(projectId, worktree); }} onRestoreWorktree={(projectId, worktree) => { void restoreWorktree(projectId, worktree); }} onRemoveWorktree={(projectId, worktree) => { void removeWorktreeCheckout(projectId, worktree); }} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
       </PerformanceProfiler>

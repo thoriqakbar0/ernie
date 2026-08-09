@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { SessionSurface } from "../src/renderer/src/components/focused-workspace/focused-workspace";
+import { SessionSurface } from "../src/renderer/src/components/workspace-shell/workspace-shell";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
 
 const emptyWorkspace: WorkspaceSnapshot = {
@@ -31,7 +31,7 @@ function renderEmpty(opening = false, openError?: string) {
   />);
 }
 
-describe("FocusedWorkspace empty workspace", () => {
+describe("WorkspaceShell empty workspace", () => {
   it("brings the project-opening action into the main empty state", () => {
     const html = renderEmpty();
     expect(html).toContain("What should we work on?");

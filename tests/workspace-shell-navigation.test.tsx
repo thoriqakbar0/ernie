@@ -3,19 +3,19 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import { FocusedWorkspace } from "../src/renderer/src/components/focused-workspace/focused-workspace";
+import { WorkspaceShell } from "../src/renderer/src/components/workspace-shell/workspace-shell";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 
 const emptyWorkspace: WorkspaceSnapshot = { projects: [], worktrees: [], agents: [], updatedAt: "2026-08-09T00:00:00.000Z" };
 
-describe("FocusedWorkspace navigation shortcut", () => {
+describe("WorkspaceShell navigation shortcut", () => {
   it("removes the main-column navigation button and toggles the desktop sidebar with Command-B", async () => {
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     const container = document.createElement("div");
     const root = createRoot(container);
-    await act(async () => root.render(<FocusedWorkspace
+    await act(async () => root.render(<WorkspaceShell
       snapshot={emptyWorkspace}
       runtimeStates={new Map()}
       liveItemsBySpace={new Map()}
@@ -60,7 +60,7 @@ describe("FocusedWorkspace navigation shortcut", () => {
     };
     const container = document.createElement("div");
     const root = createRoot(container);
-    await act(async () => root.render(<FocusedWorkspace
+    await act(async () => root.render(<WorkspaceShell
       snapshot={workspace}
       runtimeStates={new Map()}
       liveItemsBySpace={new Map()}

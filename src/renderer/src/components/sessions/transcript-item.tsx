@@ -17,7 +17,7 @@ export function TranscriptItem({ item, assistantLabel, assistantSubagentCount = 
       const subagentLabel = `${assistantSubagentCount} ${assistantSubagentCount === 1 ? "subagent" : "subagents"}`;
       return <article className="chat-message assistant"><div className="chat-message-role">
         {assistantSubagentCount > 0 && onShowAssistantHierarchy
-          ? <button type="button" className={assistantRunningSubagentCount > 0 ? "chat-message-attribution running-subagents" : "chat-message-attribution"} aria-label={`Show ${assistantLabel} with ${subagentLabel}${assistantRunningSubagentCount > 0 ? `, ${assistantRunningSubagentCount} running` : ""} in Grouped Agents`} onClick={onShowAssistantHierarchy}>{assistantLabel} <span>with {subagentLabel}</span></button>
+          ? <button type="button" className={assistantRunningSubagentCount > 0 ? "chat-message-attribution running-subagents" : "chat-message-attribution"} aria-label={`Show ${assistantLabel} with ${subagentLabel}${assistantRunningSubagentCount > 0 ? `, ${assistantRunningSubagentCount} running` : ""} in All Agents`} onClick={onShowAssistantHierarchy}>{assistantLabel} <span>with {subagentLabel}</span></button>
           : assistantLabel}
       </div><div className="chat-message-copy"><MarkdownContent source={assistantText(item)} trailing={item.active ? <span className="chat-stream-cursor" aria-label="Streaming" /> : undefined} /></div></article>;
     }

@@ -3,15 +3,13 @@ import type { WorkspaceAgent } from "../../../../shared/workspace";
 const ATTENTION_RANK: Partial<Record<WorkspaceAgent["status"], number>> = {
   failed: 0,
   waiting: 1,
-  working: 2,
-  idle: 3,
 };
 
 /**
  * Projects the global agent inventory into Ernie's automatic attention queue.
  * Terminal states are excluded; equal-status agents are ordered by latest activity.
  */
-export function prioritizeAgents(agents: readonly WorkspaceAgent[]): readonly WorkspaceAgent[] {
+export function orderAgentsByAttention(agents: readonly WorkspaceAgent[]): readonly WorkspaceAgent[] {
   return agents
     .filter((agent) => ATTENTION_RANK[agent.status] !== undefined)
     .toSorted((left, right) => {
@@ -21,7 +19,7 @@ export function prioritizeAgents(agents: readonly WorkspaceAgent[]): readonly Wo
     });
 }
 
-/** Projects only root agents into the Priority view; delegated children remain in Grouped. */
-export function prioritizeRootAgents(agents: readonly WorkspaceAgent[]): readonly WorkspaceAgent[] {
-  return prioritizeAgents(agents.filter((agent) => agent.runtimeKind === "root"));
+/** Projects only root agents into the Attention view; delegated children remain in All. */
+export function orderRootAgentsByAttention(agents: readonly WorkspaceAgent[]): readonly WorkspaceAgent[] {
+  return orderAgentsByAttention(agents.filter((agent) => agent.runtimeKind === "root"));
 }

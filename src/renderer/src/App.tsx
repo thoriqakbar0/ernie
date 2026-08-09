@@ -73,7 +73,6 @@ export function App() {
       onSnapshot={setWorkspace}
     />
     {import.meta.env.DEV && <Agentation
-      endpoint="/__agentation"
       copyToClipboard={false}
       onCopy={(output) => { void window.ernie.copyText(output); }}
     />}

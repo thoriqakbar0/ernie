@@ -28,7 +28,7 @@ The runtime binaries are generated rather than stored in Git: the pinned Node ex
 
 Development builds load [`react-grab`](https://react-grab.com) from the local dependency. Hover an element in Ernie, press **⌘C** (or **Ctrl+C**), then paste the copied component/source context into your coding agent. Its project-local skill lives at `.prime/agent/skills/react-grab/SKILL.md`.
 
-Agentation is also available for persistent visual annotations. `pnpm dev` starts an isolated in-memory Agentation service on `127.0.0.1:4748`, exposes it to the renderer through the same-origin `/__agentation` proxy, and cleans up only the service process it owns. MCP-aware clients discover the connection through `.mcp.json`; Prime Agent can read it through `.prime/agent/skills/agentation-dev`. Check the integration with `pnpm agentation:doctor`.
+Agentation is also available for local visual annotations. Its copy action writes feedback through Ernie's native clipboard bridge. It does not start or use an API or MCP service.
 
 Both renderer tools are guarded by `import.meta.env.DEV` and excluded from production builds.
 

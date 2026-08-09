@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import process from "node:process";
 
-const agentationUrl = "http://127.0.0.1:4748";
 const children = new Set();
 let stopping = false;
 
@@ -31,35 +30,9 @@ function stopAll(signal = "SIGTERM") {
   }, 1_500).unref();
 }
 
-async function isAgentationHealthy() {
-  try {
-    const response = await fetch(`${agentationUrl}/health`, { signal: AbortSignal.timeout(500) });
-    return response.ok && (await response.json()).status === "ok";
-  } catch {
-    return false;
-  }
-}
-
-async function waitForAgentation(child) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await isAgentationHealthy()) return;
-    if (child.exitCode !== null) throw new Error(`Agentation exited with code ${child.exitCode}.`);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Agentation did not become healthy at ${agentationUrl}.`);
-}
-
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(signal, () => stopAll(signal));
 
 try {
-  if (!(await isAgentationHealthy())) {
-    const agentation = spawnGroup("pnpm", ["run", "agentation:server"], {
-      env: process.env,
-      stdio: ["ignore", "ignore", "inherit"],
-    });
-    await waitForAgentation(agentation);
-  }
-
   const electron = spawnGroup("pnpm", ["exec", "electron-vite", "dev"], {
     env: { ...process.env, ERNIE_ENABLE_CDP: "1" },
     stdio: "inherit",

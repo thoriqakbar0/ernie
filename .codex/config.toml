@@ -1,0 +1,4 @@
+[features]
+browser_use = true
+in_app_browser = true
+plugins = true

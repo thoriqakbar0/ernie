@@ -28,12 +28,6 @@ export default defineConfig({
     server: {
       port: rendererPort(process.env["ERNIE_RENDERER_PORT"]),
       strictPort: true,
-      proxy: {
-        "/__agentation": {
-          target: "http://127.0.0.1:4748",
-          rewrite: (path) => path.replace(/^\/__agentation/u, ""),
-        },
-      },
     },
     plugins: [react(), tailwindcss()],
   },

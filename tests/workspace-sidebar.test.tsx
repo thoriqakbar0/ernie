@@ -153,7 +153,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     expect(groups[0]?.querySelector(".workspace-agent-group-heading span")?.textContent).toBe("repo · empty");
     expect(groups[0]?.querySelector(".workspace-agent-group-heading small")?.textContent).toBe("Current");
     expect(groups[0]?.textContent).toContain("No agents yet");
-    expect(groups[1]?.querySelector(".workspace-agent-group-heading span")?.textContent).toBe("repo · main");
+    expect(groups[1]?.querySelector(".workspace-agent-group-heading span")?.textContent).toBe("other · main");
 
     await act(async () => root.unmount());
   });
@@ -171,6 +171,49 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     await act(async () => root.render(<WorkspaceSidebar {...sidebarProps(duplicateLabelSnapshot)} />));
 
     expect(container.querySelector(".workspace-agent-group-heading span")?.textContent).toBe("same");
+
+    await act(async () => root.unmount());
+  });
+
+  it("groups attention agents by component with the current component first", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const attentionSnapshot = {
+      projects: [
+        { id: "/zeta", path: "/zeta", label: "zeta", worktreeIds: ["/zeta-main"] },
+        { id: "/beta", path: "/beta", label: "beta", worktreeIds: ["/beta-main"] },
+        { id: "/alpha", path: "/alpha", label: "alpha", worktreeIds: ["/alpha-main"] },
+      ],
+      worktrees: [
+        { id: "/zeta-main", path: "/zeta", label: "main" },
+        { id: "/beta-main", path: "/beta", label: "main" },
+        { id: "/alpha-main", path: "/alpha", label: "main" },
+      ],
+      settledWorktrees: [],
+      agents: [
+        { id: "zeta-agent", sessionId: "zeta-session", worktreeId: "/zeta-main", name: "Zeta task", summary: "", status: "waiting", runtimeKind: "root" },
+        { id: "beta-agent", sessionId: "beta-session", worktreeId: "/beta-main", name: "Beta task", summary: "", status: "failed", runtimeKind: "root" },
+        { id: "alpha-agent", sessionId: "alpha-session", worktreeId: "/alpha-main", name: "Alpha task", summary: "", status: "waiting", runtimeKind: "root" },
+      ],
+      updatedAt: "2026-08-08T00:00:00.000Z",
+    } satisfies WorkspaceSnapshot;
+    await act(async () => root.render(<WorkspaceSidebar
+      {...sidebarProps(attentionSnapshot)}
+      activeProjectId="/zeta"
+      activeWorktreeId="/zeta-main"
+    />));
+    await act(async () => container.querySelector<HTMLButtonElement>("#attention-agents-tab")?.click());
+
+    expect([...container.querySelectorAll(".workspace-agent-group-heading span")].map((heading) => heading.textContent)).toEqual([
+      "zeta · main",
+      "alpha · main",
+      "beta · main",
+    ]);
+    expect(container.querySelector(".workspace-agent-group")?.getAttribute("data-current")).toBe("true");
+    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Zeta task"]);
+    const alphaGroup = container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1];
+    await act(async () => alphaGroup?.click());
+    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Zeta task", "Alpha task"]);
 
     await act(async () => root.unmount());
   });

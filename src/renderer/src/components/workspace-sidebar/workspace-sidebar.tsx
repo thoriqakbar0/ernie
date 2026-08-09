@@ -279,7 +279,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
             {agentView === "all"
               ? <AllAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandSubagents={normalizedQuery !== ""} includeEmptyActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
-              : <AttentionAgentPane snapshot={visibleSnapshot} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />}
+              : <AttentionAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />}
           </div>
         </div>}
       </section>

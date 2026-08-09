@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ExecutionOutput } from "../src/renderer/src/execution-output";
+import { ExecutionOutput } from "../src/renderer/src/components/execution/execution-output";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 

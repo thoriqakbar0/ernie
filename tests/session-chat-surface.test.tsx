@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionTranscriptEvent } from "../src/shared/sessionTranscript";
 import type { WorkspaceAgent } from "../src/shared/workspace";
-import { DAEMON_ERROR_GRACE_MS, SessionChatSurface } from "../src/renderer/src/session-chat-surface";
+import { DAEMON_ERROR_GRACE_MS, SessionChatSurface } from "../src/renderer/src/components/sessions/session-chat-surface";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 

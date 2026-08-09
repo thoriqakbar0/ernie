@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { TranscriptItem } from "../src/renderer/src/transcript-item";
+import { TranscriptItem } from "../src/renderer/src/components/sessions/transcript-item";
 
 describe("TranscriptItem assistant attribution", () => {
   it("integrates a clickable session-level subagent count into the role label", () => {

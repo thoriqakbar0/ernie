@@ -3,7 +3,7 @@
 import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PerformanceHud, PerformanceProfiler } from "../src/renderer/src/performance-hud";
+import { PerformanceHud, PerformanceProfiler } from "../src/renderer/src/components/performance/performance-hud";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 

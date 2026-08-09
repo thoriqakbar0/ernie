@@ -3,8 +3,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
-import { VirtualAgentExplorer, flattenVirtualAgentExplorer } from "../src/renderer/src/virtual-agent-explorer";
-import { flattenAgentHierarchy } from "../src/renderer/src/project-sidebar";
+import { VirtualAgentExplorer, flattenVirtualAgentExplorer } from "../src/renderer/src/components/workspace/virtual-agent-explorer";
+import { flattenAgentHierarchy } from "../src/renderer/src/components/workspace/project-sidebar";
 
 const snapshot: WorkspaceSnapshot = {
   updatedAt: "2026-01-01T00:00:00.000Z",

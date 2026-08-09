@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MarkdownContent, parseMarkdown } from "../src/renderer/src/markdown-content";
+import { MarkdownContent, parseMarkdown } from "../src/renderer/src/components/execution/markdown-content";
 
 describe("MarkdownContent", () => {
   it("parses semantic blocks used in agent responses", () => {

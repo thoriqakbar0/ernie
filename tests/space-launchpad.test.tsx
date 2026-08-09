@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import { SpaceLaunchpad } from "../src/renderer/src/space-launchpad";
+import { SpaceLaunchpad } from "../src/renderer/src/components/space-launchpad/space-launchpad";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentSlashCommand } from "../src/shared/commands";
-import { matchingCommands } from "../src/renderer/src/composer-autocomplete";
+import { matchingCommands } from "../src/renderer/src/components/sessions/composer-autocomplete";
 
 const commands: readonly AgentSlashCommand[] = [
   { name: "skill:research", description: "Research primary sources", source: "skill" },

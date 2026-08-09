@@ -7,9 +7,9 @@ import {
   transcriptReducer,
   type FrameScheduler,
   type TranscriptAction,
-} from "../src/renderer/src/transcript";
-import { safeAgentErrorMessage } from "../src/renderer/src/use-transcript";
-import { IPythonExecutionCard } from "../src/renderer/src/ipython-execution-card";
+} from "../src/renderer/src/lib/transcript";
+import { safeAgentErrorMessage } from "../src/renderer/src/hooks/use-transcript";
+import { IPythonExecutionCard } from "../src/renderer/src/components/execution/ipython-execution-card";
 
 function makeHarness() {
   let nextHandle = 0;

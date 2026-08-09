@@ -135,5 +135,36 @@ describe("SpaceLaunchpad draft composer", () => {
     container.remove();
   });
 
+  it("orders supported thinking levels from minimal through maximum", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const props = {
+      ...baseProps(),
+      models: [{
+        id: "openai-codex:gpt",
+        label: "GPT",
+        provider: "openai-codex",
+        thinkingLevels: ["max", "high", "minimal", "xhigh", "medium", "low"] as const,
+      }],
+      selectedThinkingLevel: "max" as const,
+    };
+    await act(async () => root.render(<SpaceLaunchpad {...props} />));
+
+    const trigger = container.querySelector<HTMLButtonElement>(".space-launchpad-dropdown.thinking .space-launchpad-dropdown-trigger");
+    expect(trigger?.textContent).toContain("Maximum effort");
+    await act(async () => trigger?.click());
+    const options = [...container.querySelectorAll<HTMLButtonElement>(".space-launchpad-dropdown.thinking [role='option']")];
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Minimal effort",
+      "Low effort",
+      "Medium effort",
+      "High effort",
+      "Extra high",
+      "Maximum effort",
+    ]);
+
+    await act(async () => root.unmount());
+  });
+
 
 });

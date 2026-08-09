@@ -2,6 +2,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import type { AgentThinkingLevel } from "../../shared/spaceRuntime";
 
+const THINKING_LEVEL_ORDER: readonly AgentThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
 function thinkingLevelFromValue(value: string): AgentThinkingLevel | undefined {
   switch (value) {
     case "off": case "minimal": case "low": case "medium": case "high": case "xhigh": case "max": return value;
@@ -19,6 +21,11 @@ function thinkingEffortLabel(level: AgentThinkingLevel): string {
     case "xhigh": return "Extra high";
     case "max": return "Maximum effort";
   }
+}
+
+function orderedThinkingLevels(levels: readonly AgentThinkingLevel[]): readonly AgentThinkingLevel[] {
+  const supported = new Set(levels);
+  return THINKING_LEVEL_ORDER.filter((level) => supported.has(level));
 }
 
 interface LaunchpadDropdownOption {
@@ -249,7 +256,7 @@ export function SpaceLaunchpad({
 
   const selectedModel = models.find((model) => model.id === selectedModelId);
   const hasSelectedModel = selectedModel !== undefined;
-  const thinkingLevels = selectedModel?.thinkingLevels ?? [];
+  const thinkingLevels = orderedThinkingLevels(selectedModel?.thinkingLevels ?? []);
   const hasSelectedThinkingLevel = thinkingLevels.includes(selectedThinkingLevel);
   const canSubmit = promptDraft.trim().length > 0
     && hasSelectedModel

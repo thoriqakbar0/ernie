@@ -463,6 +463,11 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-agent-pane[data-motion="vertical"] .workspace-agent-list .focused-session-row{animation:agent-row-enter var(--agent-row-duration) cubic-bezier(.16,1,.3,1) both}
 .workspace-agent-list .focused-session-row.subagent{height:28px;min-height:28px;padding-block:2px}
 .workspace-agent-list .focused-session-row.subagent .focused-session-copy>small{display:none}
+.workspace-idle-subagents-list{margin:0;padding:0;list-style:none}
+.workspace-idle-subagents-disclosure{min-height:28px;width:100%;display:flex;align-items:center;gap:6px;padding:2px 8px;border:0;border-radius:7px;background:transparent;color:var(--tertiary);font-size:10.5px;text-align:start}
+.workspace-idle-subagents-disclosure:hover,.workspace-idle-subagents-disclosure:focus-visible{background:var(--hover);color:var(--secondary)}
+.workspace-idle-subagents-disclosure svg{width:12px;height:12px;transition:transform 160ms ease}
+.workspace-idle-subagents-disclosure[aria-expanded="true"] svg{transform:rotate(90deg)}
 .workspace-sidebar .focused-message{margin:4px;padding:7px;font-size:10.5px}
 .workspace-empty-state{margin:4px 0;padding:11px 12px;color:var(--tertiary)}
 .workspace-empty-state>p{margin:0 0 10px;font-size:11.5px;line-height:1.45}
@@ -495,7 +500,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
   .session-location,.session-transcript-body>.transcript,.chat-composer-wrap{padding-inline:18px}
   .session-location{gap:8px}.session-location-session{font-size:15px}
 }
-@media(prefers-reduced-motion:reduce){.focused-workspace,.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-spaces-disclosure svg,.workspace-agents-disclosure svg,.workspace-settled-disclosure>svg:last-child,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
+@media(prefers-reduced-motion:reduce){.focused-workspace,.workspace-sidebar,.workspace-agent-tabs>button,.workspace-agent-tab-indicator,.workspace-project-disclosure svg,.workspace-spaces-disclosure svg,.workspace-agents-disclosure svg,.workspace-settled-disclosure>svg:last-child,.workspace-idle-subagents-disclosure svg,.execution-output-fold-toggle,.ipython-execution-source>summary::after{transition:none}}
 
 
 /* Agent pane + transcript motion storyboard

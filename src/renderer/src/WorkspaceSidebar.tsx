@@ -402,15 +402,41 @@ function orderAgentTreeEntrances(trees: readonly AgentTreeNode[]): readonly Agen
   return trees.map(assign);
 }
 
-function AgentTreeRow({ node, activeAgentId, onOpenAgent }: {
+function containsAgent(node: AgentTreeNode, agentId: string | undefined): boolean {
+  return agentId !== undefined && (node.agent.id === agentId || node.children.some((child) => containsAgent(child, agentId)));
+}
+
+function isIdleBranch(node: AgentTreeNode): boolean {
+  return node.agent.status === "idle" && node.children.every(isIdleBranch);
+}
+
+function AgentTreeRow({ node, activeAgentId, expandIdleSubagents, onOpenAgent }: {
   readonly node: AgentTreeNode;
   readonly activeAgentId: string | undefined;
+  readonly expandIdleSubagents: boolean;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
+  const [idleExpanded, setIdleExpanded] = useState(false);
+  const idleGroupId = useId();
+  const foldedChildren = node.children.filter((child) => isIdleBranch(child) && !containsAgent(child, activeAgentId));
+  const visibleChildren = node.children.filter((child) => !foldedChildren.includes(child));
+  const showFoldedChildren = expandIdleSubagents || idleExpanded;
   return <li>
     <SessionRow agent={node.agent} context={node.context} depth={node.depth} entranceOrder={node.entranceOrder} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
-      {node.children.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}
+      {visibleChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}
+      {foldedChildren.length > 0 && <li className="workspace-idle-subagents">
+        <button
+          type="button"
+          className="workspace-idle-subagents-disclosure"
+          aria-expanded={showFoldedChildren}
+          aria-controls={idleGroupId}
+          onClick={() => { if (!expandIdleSubagents) setIdleExpanded((current) => !current); }}
+        ><Icon name="chevron" /><span>{foldedChildren.length} idle {foldedChildren.length === 1 ? "subagent" : "subagents"}</span></button>
+        <ul id={idleGroupId} className="workspace-idle-subagents-list" hidden={!showFoldedChildren}>
+          {showFoldedChildren && foldedChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}
+        </ul>
+      </li>}
     </ul>}
   </li>;
 }
@@ -434,10 +460,11 @@ function agentIdsWithAncestors(agents: readonly WorkspaceAgent[], matches: reado
   return included;
 }
 
-function AgentPane({ snapshot, view, activeAgentId, emptyMessage, onOpenAgent }: {
+function AgentPane({ snapshot, view, activeAgentId, expandIdleSubagents, emptyMessage, onOpenAgent }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly view: AgentView;
   readonly activeAgentId: string | undefined;
+  readonly expandIdleSubagents: boolean;
   readonly emptyMessage: string | undefined;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
@@ -453,7 +480,7 @@ function AgentPane({ snapshot, view, activeAgentId, emptyMessage, onOpenAgent }:
     return worktree ? agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId), () => `${project.label} · ${worktree.label}`) : [];
   })));
   if (trees.length === 0) return <p className="focused-message">{emptyMessage ?? "No agents are available yet."}</p>;
-  return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
+  return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
 export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, archivingProjectId, openError, worktreeBusyOwner, worktreeError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onArchiveProject, onCreateWorktree, onArchiveWorktree, onRestoreWorktree, onRemoveWorktree, onOpenAgent, onOpenDirectory }: {
@@ -712,7 +739,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         </header>
         {agentsExpanded && <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
-            <AgentPane snapshot={visibleSnapshot} view={agentView} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
+            <AgentPane snapshot={visibleSnapshot} view={agentView} activeAgentId={activeAgentId} expandIdleSubagents={normalizedQuery !== ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
           </div>
         </div>}
       </section>

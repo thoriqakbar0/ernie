@@ -64,11 +64,17 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     const disclosure = container.querySelector<HTMLButtonElement>(".workspace-agents-disclosure");
     expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
     expect(container.querySelector("#agent-list-panel")).not.toBeNull();
-    const rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .focused-session-row");
-    expect(rows).toHaveLength(3);
+    let rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .focused-session-row");
+    expect(rows).toHaveLength(2);
     expect(rows[0]?.style.animationDelay).toBe("calc(2 * var(--agent-row-stagger))");
+    expect(rows[1]?.style.animationDelay).toBe("calc(0 * var(--agent-row-stagger))");
+    const idleDisclosure = container.querySelector<HTMLButtonElement>(".workspace-idle-subagents-disclosure");
+    expect(idleDisclosure?.textContent).toBe("1 idle subagent");
+    expect(idleDisclosure?.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => idleDisclosure?.click());
+    rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .focused-session-row");
+    expect(rows).toHaveLength(3);
     expect(rows[1]?.style.animationDelay).toBe("calc(1 * var(--agent-row-stagger))");
-    expect(rows[2]?.style.animationDelay).toBe("calc(0 * var(--agent-row-stagger))");
     expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("vertical");
 
     const priority = container.querySelector<HTMLButtonElement>("#priority-tab");
@@ -88,6 +94,39 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     expect(container.querySelector(".workspace-sidebar-body")?.getAttribute("data-agents-expanded")).toBe("false");
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
+  });
+
+  it("keeps active idle and working subagents visible while search opens idle groups", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const activeSnapshot = {
+      ...snapshot,
+      agents: [
+        snapshot.agents[0],
+        snapshot.agents[1],
+        { ...snapshot.agents[1], id: "working-child", sessionId: "working-child-session", name: "Working child", status: "working" as const },
+        snapshot.agents[2],
+      ],
+    } satisfies WorkspaceSnapshot;
+    const props = sidebarProps(activeSnapshot);
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeAgentId="child" />));
+
+    expect(container.querySelector(".workspace-idle-subagents-disclosure")).toBeNull();
+    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Rootrepo · main", "Child1repo · main", "Working child1repo · main", "Otherother · main"]);
+
+    await act(async () => root.render(<WorkspaceSidebar {...props} />));
+    expect(container.querySelector(".workspace-idle-subagents-disclosure")?.textContent).toBe("1 idle subagent");
+    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Rootrepo · main", "Working child1repo · main", "Otherother · main"]);
+    const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces, Settled worktrees, and Agents"]');
+    await act(async () => {
+      if (!search) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "child");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelector(".workspace-idle-subagents-disclosure")?.getAttribute("aria-expanded")).toBe("true");
+    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Rootrepo · main", "Working child1repo · main", "Child1repo · main"]);
+
+    await act(async () => root.unmount());
   });
 });
 

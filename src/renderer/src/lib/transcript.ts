@@ -6,7 +6,7 @@ export type ThreadItem =
   | { readonly id: string; readonly kind: "assistant"; readonly segments: readonly string[]; readonly active: boolean }
   | { readonly id: string; readonly kind: "tool"; readonly callId: string; readonly name: string; readonly detail: string; readonly phase: "start" | "update" | "end"; readonly isError: boolean }
   | { readonly id: string; readonly kind: "ipython_execution"; readonly callId: string; readonly executionTarget: "local" | "modal" | "unknown"; readonly status: "running" | "succeeded" | "failed" | "aborted"; readonly code: string; readonly detail: string; readonly startedAt: number | null; readonly durationMs: number | null }
-  | { readonly id: string; readonly kind: "delegation"; readonly childId: string; readonly activeSessionId?: string; readonly name: string; readonly task: string; readonly status: "queued" | "running" | "done" | "error" | "cancelled"; readonly detail: string }
+  | { readonly id: string; readonly kind: "delegation"; readonly childId: string; readonly activeSessionId?: string; readonly name: string; readonly task: string; readonly status: "queued" | "running" | "done" | "error" | "cancelled"; readonly detail: string; readonly startedAt: number; readonly updatedAt: number }
   | { readonly id: string; readonly kind: "notice"; readonly text: string; readonly tone: "neutral" | "error" };
 
 /** Closed set of legal transcript state transitions. */
@@ -16,7 +16,7 @@ export type TranscriptAction =
   | { readonly type: "append_assistant"; readonly id: string; readonly segments: ReadonlyArray<readonly [number, string]> }
   | { readonly type: "finish_assistant"; readonly id: string; readonly segments?: ReadonlyArray<readonly [number, string]> }
   | { readonly type: "tool"; readonly id: string; readonly event: Extract<AgentEvent, { readonly kind: "tool" }> }
-  | { readonly type: "delegation"; readonly id: string; readonly event: Extract<AgentEvent, { readonly kind: "delegation" }> }
+  | { readonly type: "delegation"; readonly id: string; readonly observedAt: number; readonly event: Extract<AgentEvent, { readonly kind: "delegation" }> }
   | { readonly type: "notice"; readonly id: string; readonly text: string; readonly tone: "neutral" | "error" }
   | { readonly type: "reset" };
 
@@ -95,6 +95,8 @@ export function transcriptReducer(items: readonly ThreadItem[], action: Transcri
         task: action.event.task || previous?.task || "Delegated work",
         status: action.event.status,
         detail: action.event.detail || previous?.detail || "",
+        startedAt: previous?.startedAt ?? action.observedAt,
+        updatedAt: action.observedAt,
       };
       return index < 0 ? [...items, next] : items.map((item, itemIndex) => itemIndex === index ? next : item);
     }

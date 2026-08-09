@@ -26,6 +26,15 @@ function isCommandableAgent(agent: WorkspaceAgent, sessionId: string): boolean {
     && (agent.sessionId === sessionId || agent.id === sessionId || agent.activeSessionId === sessionId);
 }
 
+/** Returns a breadcrumb label when a child transcript is opened beside its parent Space. */
+export function sessionTabTitle(snapshot: WorkspaceSnapshot, agentId: string): string {
+  const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
+  if (!agent) return "Detached session";
+  if (agent.runtimeKind !== "subagent" || !agent.parentAgentId) return agent.name;
+  const parent = snapshot.agents.find((candidate) => candidate.id === agent.parentAgentId);
+  return parent ? `${parent.name} / ${agent.name}` : agent.name;
+}
+
 function SessionTabs({ snapshot, locationLabel, openAgentIds, activeAgentId, emptyFocusRef, onSelect, onClose }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly locationLabel: string | undefined;
@@ -61,7 +70,7 @@ function SessionTabs({ snapshot, locationLabel, openAgentIds, activeAgentId, emp
     <div className="focused-tabstrip" role="tablist" aria-label={locationLabel ? `Open sessions in ${locationLabel}` : "Open sessions"}>
     {openAgentIds.map((agentId) => {
       const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
-      const title = agent?.name ?? "Detached session";
+      const title = sessionTabTitle(snapshot, agentId);
       const status = agent ? statusText(agent.status) : "Disconnected";
       return <div key={agentId} role="presentation" className={`focused-tab-shell ${agentId === activeAgentId ? "active" : ""}`}>
         <button
@@ -222,7 +231,7 @@ function SpaceLaunchpadContainer({ runtimeId, project, projects, worktreeLabel, 
   />;
 }
 
-export function SessionSurface({ snapshot, agentId, loading, activeProject, activeWorktree, runtimeState, liveItems, opening, openError, spacePromptDraft, onSpacePromptDraftChange, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy, onSelectProject, onOpenDirectory }: {
+export function SessionSurface({ snapshot, agentId, loading, activeProject, activeWorktree, runtimeState, liveItems, opening, openError, spacePromptDraft, onSpacePromptDraftChange, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy, onOpenAgent, onSelectProject, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly agentId: string | undefined;
   readonly loading: boolean;
@@ -238,6 +247,7 @@ export function SessionSurface({ snapshot, agentId, loading, activeProject, acti
   readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly onStarted: (agentId: string, prompt: string) => void;
   readonly onShowAgentHierarchy: (agentId: string) => void;
+  readonly onOpenAgent?: (agent: WorkspaceAgent) => void;
   readonly onSelectProject: (projectId: string) => void;
   readonly onOpenDirectory: () => void;
 }) {
@@ -274,13 +284,22 @@ export function SessionSurface({ snapshot, agentId, loading, activeProject, acti
   const assistantSubagents = summarizeAgentDescendantActivity(snapshot.agents, agent.id);
   const assistantSubagentCount = assistantSubagents.working;
   const assistantRunningSubagentCount = assistantSubagents.working;
+  const openDelegationTranscript = (item: Extract<ThreadItem, { readonly kind: "delegation" }>) => {
+    const child = snapshot.agents.find((candidate) => candidate.runtimeKind === "subagent" && (
+      candidate.childId === item.childId
+      || candidate.id === item.activeSessionId
+      || candidate.activeSessionId === item.activeSessionId
+      || candidate.sessionId === item.activeSessionId
+    ));
+    if (child) onOpenAgent?.(child);
+  };
   const state = runtimeState?.agent;
   const locationLabel = activeProject === undefined ? "Unavailable Space"
     : activeWorktree === undefined || activeWorktree.id === activeProject.id ? activeProject.label
     : `${activeProject.label} · ${activeWorktree.label}`;
-  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} locationLabel={locationLabel} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(agent.worktreeId, text, steered)} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
+  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} locationLabel={locationLabel} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(agent.worktreeId, text, steered)} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} onOpenDelegationTranscript={openDelegationTranscript} />;
   const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);
-  return <SessionChatSurface agent={agent} locationLabel={locationLabel} state={state} interactive={interactive} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
+  return <SessionChatSurface agent={agent} locationLabel={locationLabel} state={state} interactive={interactive} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} onOpenDelegationTranscript={openDelegationTranscript} />;
 }
 
 function useMediaQuery(query: string): boolean {
@@ -366,30 +385,20 @@ export function WorkspaceShell({ snapshot, runtimeStates, liveItemsBySpace, onAp
   const [openError, setOpenError] = useState<string | undefined>();
   const compactNavigation = useMediaQuery("(max-width: 700px)");
   const [navigationOpen, setNavigationOpen] = useState(false);
-  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [performanceEnabled, setPerformanceEnabled] = useState(false);
-  const [agentRevealRequest, setAgentRevealRequest] = useState<{ readonly agentId: string; readonly requestId: number }>();
   const emptySessionFocusRef = useRef<HTMLElement>(null);
   const initialized = useRef(false);
-  const sidebarOpen = compactNavigation ? navigationOpen : desktopSidebarOpen;
-  const closeNavigation = () => {
-    if (compactNavigation) setNavigationOpen(false);
-    else setDesktopSidebarOpen(false);
-  };
-  const openNavigation = () => {
-    if (compactNavigation) setNavigationOpen(true);
-    else setDesktopSidebarOpen(true);
-  };
+  const sidebarOpen = compactNavigation ? navigationOpen : true;
+  const closeNavigation = () => setNavigationOpen(false);
   const activeSpaceTabs = tabsForSpace(spaceTabs, activeWorktreeId);
   const openAgentIds = activeSpaceTabs.agentIds;
   const activeAgentId = activeSpaceTabs.activeAgentId;
 
   useEffect(() => {
     const toggleNavigationShortcut = (event: globalThis.KeyboardEvent) => {
-      if (event.repeat || event.key.toLocaleLowerCase() !== "b" || (!event.metaKey && !event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (!compactNavigation || event.repeat || event.key.toLocaleLowerCase() !== "b" || (!event.metaKey && !event.ctrlKey) || event.altKey || event.shiftKey) return;
       event.preventDefault();
-      if (compactNavigation) setNavigationOpen((current) => !current);
-      else setDesktopSidebarOpen((current) => !current);
+      setNavigationOpen((current) => !current);
     };
     window.addEventListener("keydown", toggleNavigationShortcut);
     return () => window.removeEventListener("keydown", toggleNavigationShortcut);
@@ -474,7 +483,7 @@ export function WorkspaceShell({ snapshot, runtimeStates, liveItemsBySpace, onAp
     const project = workspace.projects.find((candidate) => candidate.id === projectId);
     setActiveProjectId(projectId);
     setActiveWorktreeId(rootWorktreeFor(project)?.id ?? projectId);
-    if (compactNavigation) closeNavigation();
+    if (compactNavigation) setNavigationOpen(true);
   };
   const selectWorktree = (projectId: string, worktreeId: string) => {
     setActiveProjectId(projectId);
@@ -502,9 +511,12 @@ export function WorkspaceShell({ snapshot, runtimeStates, liveItemsBySpace, onAp
     setSpaceTabs((state) => openSpaceSessionTab(state, activeWorktreeId, agentId));
     onAppendLiveUser(activeWorktreeId, prompt, false);
   };
-  const showAgentHierarchy = (agentId: string) => {
-    setAgentRevealRequest((current) => ({ agentId, requestId: (current?.requestId ?? 0) + 1 }));
-    openNavigation();
+  const showAgentHierarchy = () => {
+    requestAnimationFrame(() => {
+      const row = document.querySelector<HTMLElement>(".chat-delegation-card");
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: "center" });
+    });
   };
   const openDirectory = async () => {
     setOpening(true); setOpenError(undefined);
@@ -605,9 +617,9 @@ This removes it from Spaces and stops any Ernie-managed work for it. Files and s
     : activeProject?.label;
 
   return <PerformanceHud enabled={import.meta.env.DEV && performanceEnabled}>
-    <div className={`workspace-shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+    <div className="workspace-shell tab-shell">
       <PerformanceProfiler area="sidebar">
-        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} archivingProjectId={archivingProjectId} openError={openError} worktreeBusyOwner={worktreeBusyOwner} worktreeError={worktreeError} compact={compactNavigation} open={sidebarOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onArchiveProject={(project) => { void archiveProject(project); }} onCreateWorktree={(projectId, sourceWorktreeId, branch) => { void createWorktree(projectId, sourceWorktreeId, branch); }} onArchiveWorktree={(projectId, worktree) => { void archiveWorktree(projectId, worktree); }} onRestoreWorktree={(projectId, worktree) => { void restoreWorktree(projectId, worktree); }} onRemoveWorktree={(projectId, worktree) => { void removeWorktreeCheckout(projectId, worktree); }} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
+        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} archivingProjectId={archivingProjectId} openError={openError} worktreeBusyOwner={worktreeBusyOwner} worktreeError={worktreeError} compact={compactNavigation} open={sidebarOpen} revealAgent={undefined} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onArchiveProject={(project) => { void archiveProject(project); }} onCreateWorktree={(projectId, sourceWorktreeId, branch) => { void createWorktree(projectId, sourceWorktreeId, branch); }} onArchiveWorktree={(projectId, worktree) => { void archiveWorktree(projectId, worktree); }} onRestoreWorktree={(projectId, worktree) => { void restoreWorktree(projectId, worktree); }} onRemoveWorktree={(projectId, worktree) => { void removeWorktreeCheckout(projectId, worktree); }} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
       </PerformanceProfiler>
       {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
       <PerformanceProfiler area="main">
@@ -615,7 +627,7 @@ This removes it from Spaces and stops any Ernie-managed work for it. Files and s
           <div className="focused-titlebar-drag" aria-hidden="true" />
           <SessionTabs snapshot={workspace} locationLabel={locationLabel} openAgentIds={openAgentIds} activeAgentId={activeAgentId} emptyFocusRef={emptySessionFocusRef} onSelect={selectAgent} onClose={closeAgent} />
           <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
-            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} activeWorktree={activeWorktree} runtimeState={runtimeState} liveItems={liveItems} opening={opening} openError={openError} spacePromptDraft={activeSpacePromptDraft} onSpacePromptDraftChange={setActiveSpacePromptDraft} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} onSelectProject={selectProject} onOpenDirectory={() => { void openDirectory(); }} />
+            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} activeWorktree={activeWorktree} runtimeState={runtimeState} liveItems={liveItems} opening={opening} openError={openError} spacePromptDraft={activeSpacePromptDraft} onSpacePromptDraftChange={setActiveSpacePromptDraft} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} onOpenAgent={openAgent} onSelectProject={selectProject} onOpenDirectory={() => { void openDirectory(); }} />
           </section>
         </section>
       </PerformanceProfiler>

@@ -68,7 +68,7 @@ export function useSpaceTranscripts() {
     }
     if (event.kind === "delegation") {
       stream.finish();
-      dispatch({ spaceId, action: { type: "delegation", id: crypto.randomUUID(), event } });
+      dispatch({ spaceId, action: { type: "delegation", id: crypto.randomUUID(), observedAt: Date.now(), event } });
       return;
     }
     if (event.kind === "lifecycle") {

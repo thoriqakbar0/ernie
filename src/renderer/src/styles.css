@@ -80,6 +80,10 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .focused-project-panel>header{height:calc(var(--titlebar-safe-height) + 54px);flex:0 0 auto;display:flex;flex-direction:column;justify-content:end;padding:var(--titlebar-safe-height) 14px 11px;border-block-end:1px solid var(--line)}
 .focused-project-panel h2{min-width:0;overflow:hidden;margin:0 0 4px;color:var(--text);font-size:16px;font-weight:650;letter-spacing:-.018em;text-overflow:ellipsis;white-space:nowrap}
 .focused-project-panel header p{overflow:hidden;margin:0;color:var(--tertiary);font-size:10.5px;text-overflow:ellipsis;white-space:nowrap}
+.focused-project-panel>header{position:relative}
+.focused-project-archive{position:absolute;inset-inline-end:10px;inset-block-end:14px;width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--tertiary);-webkit-app-region:no-drag}
+.focused-project-archive:hover{background:var(--hover);color:var(--text)}
+.focused-project-archive svg{width:14px;height:14px}
 .focused-project-content{min-height:0;flex:1;overflow-y:auto;padding:10px 9px 24px;scrollbar-width:thin;scrollbar-color:#303034 transparent}
 .focused-message{margin:8px;padding:9px;color:var(--tertiary);font-size:11px;line-height:1.45}
 .focused-message.error{color:#e59a9a}
@@ -235,6 +239,16 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .chat-delegation-copy small,.chat-delegation summary>span:last-child{color:var(--tertiary);font-size:10px}
 .chat-delegation summary>span:last-child{text-transform:capitalize}
 .chat-delegation-detail{padding:10px 11px;border-block-start:1px solid var(--line);color:var(--secondary);font-size:11px;line-height:1.5;white-space:pre-wrap}
+.chat-delegation-card{position:relative;width:min(68ch,100%);margin-inline:auto;padding-block-end:30px}
+.chat-delegation-card>.chat-delegation{width:100%;margin:0}
+.chat-delegation summary{grid-template-columns:minmax(0,1fr) auto}
+.chat-delegation-meta{display:flex;align-items:center;gap:8px;color:var(--tertiary);font-size:10px;text-transform:capitalize}
+.chat-delegation-meta time{min-width:34px;color:var(--secondary);font-variant-numeric:tabular-nums;text-align:end;text-transform:none}
+.chat-delegation-latest{grid-column:1/-1;min-width:0;overflow:hidden;color:var(--tertiary);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.chat-delegation-detail strong{display:block;margin-block-end:5px;color:var(--secondary);font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.05em}
+.chat-delegation-detail p{margin:0;white-space:pre-wrap}
+.chat-delegation-open{position:absolute;inset-block-end:0;inset-inline-end:0;height:25px;padding:0 7px;border:0;border-radius:5px;background:transparent;color:var(--tertiary);font-size:10px}
+.chat-delegation-open:hover{background:var(--hover);color:var(--text)}
 .chat-notice{width:min(68ch,100%);margin-inline:auto;padding:5px 10px;border-inline-start:2px solid var(--tertiary);color:var(--secondary);font-size:11.5px;line-height:1.5}
 .chat-notice.neutral{width:fit-content;padding:2px 6px;border:0;color:var(--tertiary);font-size:10px;opacity:.62;text-align:center}
 .chat-notice.error{border-color:var(--danger);color:#e59a9a}
@@ -558,6 +572,25 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .performance-hud-resources{padding-block:6px;color:var(--tertiary)}
 .performance-hud-regions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .performance-hud-regions section{min-width:0;padding:6px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(255,255,255,.025)}
+
+/* Project rail + repository Space index. */
+.workspace-shell.tab-shell{grid-template-columns:64px 286px minmax(0,1fr)}
+.tab-shell .focused-project-panel[data-open="false"]{display:flex}
+.focused-space-index-heading{height:30px;display:flex;align-items:center;justify-content:space-between;padding-inline:7px;color:var(--tertiary);font-size:10px;letter-spacing:.07em;text-transform:uppercase}
+.focused-space-index-heading strong{font-weight:680}.focused-space-index-heading small{font-variant-numeric:tabular-nums}
+.focused-worktree[data-current="true"]>.focused-worktree-heading{background:rgba(255,255,255,.035);color:var(--secondary)}
+.focused-worktree-heading>svg:first-child{width:12px;height:12px;transition:transform 140ms ease}
+.focused-worktree-heading[aria-expanded="true"]>svg:first-child{transform:rotate(90deg)}
+.focused-worktree-heading>svg:nth-child(2){width:14px;height:14px}
+.focused-session-row .focused-status{display:inline-block}
+.focused-session-row>strong{font-size:12px;font-weight:560}
+@media(max-width:900px){.workspace-shell.tab-shell{grid-template-columns:58px 250px minmax(0,1fr)}}
+@media(max-width:700px){
+  .workspace-shell.tab-shell{grid-template-columns:58px minmax(0,1fr)}
+  .tab-shell .focused-project-panel{position:absolute;z-index:20;inset-block:0;inset-inline-start:58px;width:min(286px,calc(100% - 58px));transform:translateX(-110%);box-shadow:18px 0 48px rgba(0,0,0,.5);transition:transform 160ms cubic-bezier(.16,1,.3,1)}
+  .tab-shell .focused-project-panel[data-open="true"]{transform:translateX(0)}
+  .tab-shell .focused-main-column{grid-column:2}
+}
 .performance-hud-regions span,.performance-hud-regions small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.performance-hud-regions strong{display:block;margin-block:1px;color:var(--text);font-size:14px}.performance-hud-regions small{color:var(--tertiary);font-size:8.5px}
 @media(max-width:700px){.performance-hud{inset-inline:12px auto;inset-block-start:52px}}
 @media(prefers-reduced-motion:reduce){.performance-toggle span{transition:none}}

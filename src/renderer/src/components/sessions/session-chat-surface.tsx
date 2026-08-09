@@ -148,7 +148,7 @@ function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser, on
   </div>;
 }
 
-export function LiveSessionChatSurface({ agent, locationLabel, state, items, onAppendUser, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
+export function LiveSessionChatSurface({ agent, locationLabel, state, items, onAppendUser, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy, onOpenDelegationTranscript }: {
   readonly agent: WorkspaceAgent;
   readonly locationLabel: string;
   readonly state: AgentState;
@@ -158,6 +158,7 @@ export function LiveSessionChatSurface({ agent, locationLabel, state, items, onA
   readonly assistantSubagentCount: number;
   readonly assistantRunningSubagentCount: number;
   readonly onShowAssistantHierarchy: () => void;
+  readonly onOpenDelegationTranscript?: (item: Extract<ThreadItem, { readonly kind: "delegation" }>) => void;
 }) {
   const runtimeUnavailable = state.connection === "failed" || state.connection === "closed";
   const viewState = runtimeUnavailable ? "unavailable" : state.connection === "starting" ? "loading" : "ready";
@@ -169,12 +170,12 @@ export function LiveSessionChatSurface({ agent, locationLabel, state, items, onA
     interactive={state.connection === "ready"}
     onRetry={() => {}}
     {...(state.connection === "ready" ? { onRename: (name: string) => renameSession(spaceId, name) } : {})}
-    renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
+    renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} {...(onOpenDelegationTranscript ? { onOpenDelegationTranscript } : {})} />}
     footer={<ChatComposer spaceId={spaceId} state={state} onAppendUser={onAppendUser} />}
   />;
 }
 
-export function SessionChatSurface({ agent, locationLabel, state, interactive, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
+export function SessionChatSurface({ agent, locationLabel, state, interactive, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy, onOpenDelegationTranscript }: {
   readonly agent: WorkspaceAgent;
   readonly locationLabel: string;
   readonly state: AgentState | undefined;
@@ -183,6 +184,7 @@ export function SessionChatSurface({ agent, locationLabel, state, interactive, s
   readonly assistantSubagentCount: number;
   readonly assistantRunningSubagentCount: number;
   readonly onShowAssistantHierarchy: () => void;
+  readonly onOpenDelegationTranscript?: (item: Extract<ThreadItem, { readonly kind: "delegation" }>) => void;
 }) {
   const [items, dispatch] = useReducer(sessionTranscriptReducer, []);
   const [streamState, setStreamState] = useState<"loading" | "reconnecting" | "ready" | "error">("loading");
@@ -262,7 +264,7 @@ export function SessionChatSurface({ agent, locationLabel, state, interactive, s
       unavailableCopy: agent.answerPreview ?? "This session is no longer connected. Its catalog details remain available.",
     } : {})}
     {...(interactive && !runtimeUnavailable && transcriptResident && spaceId ? { onRename: (name: string) => renameSession(spaceId, name) } : {})}
-    renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} />}
+    renderItem={(item) => <TranscriptItem item={item} assistantLabel={assistantSourceLabel(agent)} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={onShowAssistantHierarchy} {...(onOpenDelegationTranscript ? { onOpenDelegationTranscript } : {})} />}
     footer={interactive && transcriptResident && state && spaceId ? <ChatComposer spaceId={spaceId} state={state} connectionReady={streamState === "ready"} onAdmissionHint={(text, steered) => {
       const hint = { text, steered, expiresAt: Date.now() + 30_000 };
       pendingUserAdmissions.current = [...pendingUserAdmissions.current.slice(-7), hint];

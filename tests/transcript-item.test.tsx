@@ -15,7 +15,7 @@ describe("TranscriptItem assistant attribution", () => {
     />);
 
     expect(html).toContain("Prime Agent <span>with 3 subagents</span>");
-    expect(html).toContain("Show Prime Agent with 3 subagents, 2 running in All Agents");
+    expect(html).toContain("Show Prime Agent with 3 subagents, 2 running in the trace");
     expect(html).toContain("chat-message-attribution running-subagents");
   });
 
@@ -53,5 +53,23 @@ describe("TranscriptItem assistant attribution", () => {
   it("bounds long user-authored messages to one internal scroll surface", () => {
     const styles = readFileSync(resolve(process.cwd(), "src/renderer/src/styles.css"), "utf8");
     expect(styles).toContain(".chat-message.user .chat-message-copy{max-height:min(50vh,420px);overflow:auto");
+  });
+
+  it("renders one stable child trace row with timing, latest action, findings, and transcript access", () => {
+    const html = renderToStaticMarkup(<TranscriptItem
+      item={{ id: "child-row", kind: "delegation", childId: "child", activeSessionId: "child-active", name: "test-reviewer", task: "Review auth tests", status: "done", detail: "Two missing boundary tests", startedAt: 1_000, updatedAt: 6_000 }}
+      assistantLabel="Prime Agent"
+      onOpenDelegationTranscript={() => {}}
+    />);
+
+    expect(html).toContain("test-reviewer");
+    expect(html).toContain("Review auth tests");
+    expect(html).toContain("done");
+    expect(html).toContain("5s");
+    expect(html).toContain("Latest action:");
+    expect(html).toContain("Returned findings");
+    expect(html).toContain("Two missing boundary tests");
+    expect(html).toContain("Open transcript");
+    expect(html).not.toContain("open=\"\"");
   });
 });

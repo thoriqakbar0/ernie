@@ -63,7 +63,7 @@ export function useTranscript() {
     }
     if (event.kind === "delegation") {
       stream.finish();
-      dispatch({ type: "delegation", id: crypto.randomUUID(), event });
+      dispatch({ type: "delegation", id: crypto.randomUUID(), observedAt: Date.now(), event });
       if (event.status === "done") announce(`${event.name || "Delegated task"} completed.`);
       else if (event.status === "error" || event.status === "cancelled") announce(`${event.name || "Delegated task"} ${event.status}.`);
       return;

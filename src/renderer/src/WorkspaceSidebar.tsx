@@ -352,14 +352,13 @@ function AgentViewTabs({ value, priorityCount, onChange }: {
   </div>;
 }
 
-function FirstSpacePrompt({ opening, onOpen }: {
+function FirstSpaceEmptyState({ opening, onOpen }: {
   readonly opening: boolean;
   readonly onOpen: () => void;
 }) {
-  return <div className="focused-first-project">
-    <strong>No spaces yet</strong>
-    <p>Open a local folder to create your first space.</p>
-    <button type="button" className="open-first-project" disabled={opening} onClick={onOpen}><Icon name="folder-add" /><span>{opening ? "Opening folder…" : "Open folder"}</span></button>
+  return <div className="workspace-empty-state">
+    <p>No spaces yet. Open a local folder to create one.</p>
+    <button type="button" className="workspace-empty-action" disabled={opening} onClick={onOpen}><Icon name="folder-add" /><span>{opening ? "Opening folder…" : "Open folder"}</span></button>
   </div>;
 }
 
@@ -647,7 +646,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
           {openError && <p className="focused-message error" role="alert">{openError}</p>}
           {worktreeError && createProjectId === undefined && <p className="focused-message error" role="alert">{worktreeError}</p>}
           {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
-          {normalizedQuery === "" && !loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
+          {normalizedQuery === "" && !loading && snapshot.projects.length === 0 && <FirstSpaceEmptyState opening={opening} onOpen={onOpenDirectory} />}
           {normalizedQuery !== "" && visibleProjects.length === 0 && <p className="focused-message">No spaces match your search.</p>}
           <ul className="workspace-project-list">{visibleProjects.map((project) => {
             const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
@@ -720,4 +719,3 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
     </div>
   </aside>;
 }
-

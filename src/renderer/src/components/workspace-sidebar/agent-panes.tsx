@@ -10,17 +10,24 @@ import { agentDisplayName, statusText } from "../../lib/workspace-agent-presenta
 /** The explicit agent-list variants available in the sidebar. */
 export type AgentView = "all" | "attention";
 
-function SessionRow({ agent, active, context, depth = 0, onOpen }: {
+function SessionRow({ agent, active, context, depth = 0, subagents, onOpen }: {
   readonly agent: WorkspaceAgent;
   readonly active: boolean;
   readonly context?: string;
   readonly depth?: number;
+  readonly subagents?: {
+    readonly count: number;
+    readonly expanded: boolean;
+    readonly controls: string;
+    readonly onToggle: () => void;
+  };
   readonly onOpen: (agent: WorkspaceAgent) => void;
 }) {
   const status = statusText(agent.status);
   const isSubagent = agent.runtimeKind === "subagent";
   const subagentDepth = isSubagent ? Math.max(1, depth) : 0;
-  const fullLabel = [agent.name, isSubagent ? `Subagent, depth ${subagentDepth}` : undefined, status, context].filter(Boolean).join(" — ");
+  const subagentAction = subagents === undefined ? undefined : `${subagents.expanded ? "Hide" : "Show"} ${subagents.count} ${subagents.count === 1 ? "subagent" : "subagents"}`;
+  const fullLabel = [agent.name, isSubagent ? `Subagent, depth ${subagentDepth}` : undefined, status, context, subagentAction].filter(Boolean).join(" — ");
   const displayName = agentDisplayName(agent.name);
   const visibleStatus = agent.status === "working" || agent.status === "waiting" || agent.status === "failed" ? status : undefined;
   return <button
@@ -29,12 +36,14 @@ function SessionRow({ agent, active, context, depth = 0, onOpen }: {
     className={`workspace-agent-row ${isSubagent ? "subagent" : "root-agent"} ${active ? "selected" : ""}`}
     aria-current={active ? "page" : undefined}
     aria-label={fullLabel}
+    aria-expanded={subagents?.expanded}
+    aria-controls={subagents?.controls}
     title={fullLabel}
     data-status={agent.status}
-    onClick={() => onOpen(agent)}
+    onClick={() => subagents === undefined ? onOpen(agent) : subagents.onToggle()}
   >
     <span className="workspace-agent-copy">
-      <span className="workspace-agent-title"><span className={`workspace-agent-status ${agent.status}`} aria-hidden="true" /><strong>{displayName}</strong>{visibleStatus && <span className="workspace-agent-status-label" aria-hidden="true">{visibleStatus}</span>}</span>
+      <span className="workspace-agent-title"><span className={`workspace-agent-status ${agent.status}`} aria-hidden="true" /><strong>{displayName}</strong>{visibleStatus && <span className="workspace-agent-status-label" aria-hidden="true">{visibleStatus}</span>}{subagents && <Icon name="chevron" />}</span>
       {context && <small>{context}</small>}
     </span>
   </button>;
@@ -85,10 +94,6 @@ function agentTree(agents: readonly WorkspaceAgent[]): readonly AgentTreeNode[] 
   return roots;
 }
 
-function containsAgent(node: AgentTreeNode, agentId: string | undefined): boolean {
-  return agentId !== undefined && (node.agent.id === agentId || node.children.some((child) => containsAgent(child, agentId)));
-}
-
 interface AgentGroupModel {
   readonly id: string;
   readonly label: string;
@@ -125,29 +130,24 @@ function AgentTreeRow({ node, activeAgentId, expandSubagents, onOpenAgent }: {
 }) {
   const [childrenExpanded, setChildrenExpanded] = useState(false);
   const foldedGroupId = useId();
-  const foldedChildren = node.children.filter((child) => !containsAgent(child, activeAgentId));
-  const visibleChildren = node.children.filter((child) => !foldedChildren.includes(child));
+  const foldedChildren = node.children;
   const showFoldedChildren = expandSubagents || childrenExpanded;
   const foldedAgentCount = countAgentNodes(foldedChildren);
-  const foldedLabel = showFoldedChildren
-    ? `Hide ${foldedAgentCount} ${foldedAgentCount === 1 ? "subagent" : "subagents"}`
-    : `Show ${foldedAgentCount} ${visibleChildren.length > 0 ? "more " : ""}${foldedAgentCount === 1 ? "subagent" : "subagents"}`;
   return <li>
-    <SessionRow agent={node.agent} depth={node.depth} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
-    {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
-      {visibleChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}
-      {foldedChildren.length > 0 && <li className="workspace-folded-subagents">
-        <button
-          type="button"
-          className="workspace-folded-subagents-disclosure"
-          aria-expanded={showFoldedChildren}
-          aria-controls={foldedGroupId}
-          onClick={() => { if (!expandSubagents) setChildrenExpanded((current) => !current); }}
-        ><Icon name="chevron" /><span>{foldedLabel}</span></button>
-        <ul id={foldedGroupId} className="workspace-folded-subagents-list" hidden={!showFoldedChildren}>
-          {showFoldedChildren && foldedChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}
-        </ul>
-      </li>}
+    <SessionRow
+      agent={node.agent}
+      depth={node.depth}
+      active={node.agent.id === activeAgentId}
+      onOpen={onOpenAgent}
+      {...(foldedChildren.length === 0 ? {} : { subagents: {
+        count: foldedAgentCount,
+        expanded: showFoldedChildren,
+        controls: foldedGroupId,
+        onToggle: () => { if (!expandSubagents) setChildrenExpanded((current) => !current); },
+      } })}
+    />
+    {node.children.length > 0 && <ul id={foldedGroupId} className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`} hidden={!showFoldedChildren}>
+      {showFoldedChildren && foldedChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}
     </ul>}
   </li>;
 }

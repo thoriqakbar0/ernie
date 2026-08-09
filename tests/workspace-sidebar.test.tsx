@@ -27,6 +27,25 @@ const snapshot = {
 } satisfies WorkspaceSnapshot;
 
 describe("WorkspaceSidebar Agents disclosure", () => {
+  it("reveals every child session from its parent row without opening the parent transcript", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const props = sidebarProps(snapshot);
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" />));
+
+    const parent = container.querySelector<HTMLButtonElement>("#workspace-agent-root");
+    expect(parent?.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector("#workspace-agent-child")).toBeNull();
+
+    await act(async () => parent?.click());
+
+    expect(parent?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector("#workspace-agent-child")).not.toBeNull();
+    expect(props.onOpenAgent).not.toHaveBeenCalled();
+
+    await act(async () => root.unmount());
+  });
+
   it("starts open, consumes reveal requests once, and gives collapsed space back to Spaces", async () => {
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
@@ -68,11 +87,11 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     let rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .workspace-agent-row");
     expect(rows).toHaveLength(1);
     expect(container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1]?.getAttribute("aria-expanded")).toBe("false");
-    const foldedDisclosure = container.querySelector<HTMLButtonElement>(".workspace-folded-subagents-disclosure");
-    expect(foldedDisclosure?.textContent).toBe("Show 1 subagent");
-    expect(foldedDisclosure?.getAttribute("aria-expanded")).toBe("false");
-    await act(async () => foldedDisclosure?.click());
-    expect(foldedDisclosure?.textContent).toBe("Hide 1 subagent");
+    const parentAgent = container.querySelector<HTMLButtonElement>("#workspace-agent-root");
+    expect(parentAgent?.getAttribute("aria-label")).toContain("Show 1 subagent");
+    expect(parentAgent?.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => parentAgent?.click());
+    expect(parentAgent?.getAttribute("aria-label")).toContain("Hide 1 subagent");
     rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .workspace-agent-row");
     expect(rows).toHaveLength(2);
 
@@ -94,7 +113,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps only the selected subagent visible while search opens folded siblings", async () => {
+  it("keeps subagents closed until requested while search opens matching children", async () => {
     const container = document.createElement("div");
     const root = createRoot(container);
     const activeSnapshot = {
@@ -109,20 +128,20 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     const props = sidebarProps(activeSnapshot);
     await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" activeAgentId="child" />));
 
-    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.textContent).toBe("Show 1 more subagent");
+    expect(container.querySelector("#workspace-agent-root")?.getAttribute("aria-label")).toContain("Show 2 subagents");
     expect([...container.querySelectorAll(".workspace-agent-group-heading span")].map((heading) => heading.textContent)).toEqual(["repo · main", "other · main"]);
     expect(container.querySelector(".workspace-agent-group")?.getAttribute("data-current")).toBe("true");
     expect(container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1]?.getAttribute("aria-expanded")).toBe("false");
-    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Child"]);
-    expect(container.querySelector(".workspace-agent-row.selected .workspace-agent-status")?.classList.contains("idle")).toBe(true);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root"]);
+    expect(container.querySelector(".workspace-agent-row.selected")).toBeNull();
     expect(container.querySelector("[data-status='working']")).toBeNull();
     const otherGroup = container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1];
     await act(async () => otherGroup?.click());
-    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Child", "Other"]);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Other"]);
     await act(async () => otherGroup?.click());
 
     await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" />));
-    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.textContent).toBe("Show 2 subagents");
+    expect(container.querySelector("#workspace-agent-root")?.getAttribute("aria-label")).toContain("Show 2 subagents");
     expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Root"]);
     const search = container.querySelector<HTMLInputElement>('[aria-label="Search spaces, worktrees, and agents"]');
     await act(async () => {
@@ -130,7 +149,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "child");
       search.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector("#workspace-agent-root")?.getAttribute("aria-expanded")).toBe("true");
     expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Child", "Working child"]);
 
     await act(async () => root.unmount());

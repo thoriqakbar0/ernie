@@ -393,10 +393,10 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   >
     <header className="workspace-sidebar-title">
       <div className="workspace-sidebar-toolbar">
-        <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar (⌘B)" onClick={onClose}><Icon name="sidebar-close" /></button>
         <strong id="workspace-navigation-title">Ernie Dev</strong>
         <div className="workspace-sidebar-actions">
           {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
+          <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar (⌘B)" onClick={onClose}><Icon name="sidebar-close" /></button>
         </div>
       </div>
       <div className="workspace-sidebar-search">

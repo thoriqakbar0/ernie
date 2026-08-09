@@ -499,23 +499,31 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .space-launchpad-frame:focus-within{background:var(--accent);box-shadow:0 0 0 2px color-mix(in oklch,var(--accent) 24%,transparent),0 16px 42px rgba(0,0,0,.18)}
 .space-launchpad-composer>textarea{width:100%;height:104px;min-height:104px;display:block;resize:none;padding:17px 18px 10px;border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;line-height:1.55;outline:0}
 .space-launchpad-composer>textarea::placeholder{color:var(--tertiary)}
-.space-launchpad-composer>textarea:disabled,.space-launchpad-toolbar select:disabled{opacity:.55}
+.space-launchpad-composer>textarea:disabled{opacity:.55}
 .space-launchpad-toolbar{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px 10px 13px}
 .space-launchpad-toolbar-controls{min-width:0;display:flex;align-items:center;gap:7px;overflow:visible}
 .space-launchpad-toolbar-controls::-webkit-scrollbar{display:none}
-.space-launchpad-model-select,.space-launchpad-thinking-select{flex:0 1 auto;max-width:180px;height:40px;padding-inline:5px 22px;border:0;border-radius:8px;background:transparent;color:var(--secondary);font:inherit;font-size:12px;font-weight:580;text-overflow:ellipsis}
-.space-launchpad-thinking-select{max-width:128px;text-transform:capitalize}
-.space-launchpad-model-select:hover:not(:disabled),.space-launchpad-thinking-select:hover:not(:disabled){background:var(--hover);color:var(--text)}
-.space-launchpad-model-select:focus-visible,.space-launchpad-thinking-select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.space-launchpad-advanced{position:relative;flex:0 0 auto}
-.space-launchpad-advanced-trigger{height:40px;padding-inline:8px;border:0;border-radius:8px;background:transparent;color:var(--tertiary);font:inherit;font-size:11.5px;font-weight:580}
-.space-launchpad-advanced-trigger:hover:not(:disabled),.space-launchpad-advanced-trigger[aria-expanded="true"]{background:var(--hover);color:var(--text)}
-.space-launchpad-advanced-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.space-launchpad-advanced-popover{position:absolute;z-index:30;inset-block-start:calc(100% + 8px);inset-inline-start:0;width:min(250px,calc(100vw - 36px));display:grid;gap:9px;padding:12px;border:1px solid var(--line-strong);border-radius:11px;background:var(--panel);box-shadow:0 16px 42px rgba(0,0,0,.42);color:var(--secondary);text-align:start}
-.space-launchpad-advanced-popover>label{font-size:11px;font-weight:620}
-.space-launchpad-advanced-popover select,.space-launchpad-advanced-popover input{width:100%;min-height:36px;padding-inline:8px;border:1px solid var(--line);border-radius:7px;background:var(--raised);color:var(--text);font:inherit;font-size:12px}
-.space-launchpad-custom-depth{display:grid;gap:6px}
-.space-launchpad-advanced-popover p{margin:0;color:var(--tertiary);font-size:10.5px;line-height:1.4}
+.space-launchpad-dropdown{position:relative;flex:0 0 auto}
+.space-launchpad-dropdown.model{width:125px}
+.space-launchpad-dropdown.thinking{width:121px}
+.space-launchpad-dropdown-trigger{width:100%;height:40px;display:flex;align-items:center;justify-content:space-between;gap:7px;padding-inline:9px 7px;border:0;border-radius:8px;background:transparent;color:var(--secondary);font:inherit;font-size:12px;font-weight:580;text-align:start}
+.space-launchpad-dropdown-trigger>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.space-launchpad-dropdown-trigger>svg{width:16px;height:16px;flex:0 0 auto;color:var(--tertiary);stroke-width:1.8;transition:transform 140ms cubic-bezier(.16,1,.3,1)}
+.space-launchpad-dropdown-trigger[aria-expanded="true"]>svg{transform:rotate(180deg)}
+.space-launchpad-dropdown-trigger:hover:not(:disabled),.space-launchpad-dropdown-trigger[aria-expanded="true"]{background:var(--hover);color:var(--text)}
+.space-launchpad-dropdown-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.space-launchpad-dropdown-trigger:disabled{opacity:.55}
+.space-launchpad-dropdown-list{position:absolute;z-index:30;inset-block-start:auto;inset-block-end:calc(100% + 7px);inset-inline-start:0;width:max(100%,220px);max-width:min(280px,calc(100vw - 36px));max-height:min(320px,45vh);overflow-y:auto;padding:5px;border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);box-shadow:0 16px 42px rgba(0,0,0,.42);scrollbar-width:thin;scrollbar-color:#303034 transparent}
+.space-launchpad-dropdown.model .space-launchpad-dropdown-list{width:min(280px,calc(100vw - 36px))}
+.space-launchpad-dropdown.thinking .space-launchpad-dropdown-list{width:min(220px,calc(100vw - 36px))}
+.space-launchpad-dropdown-list>button{width:100%;min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;border:0;border-radius:7px;background:transparent;color:var(--secondary);font:inherit;font-size:12px;text-align:start}
+.space-launchpad-dropdown-option-copy{min-width:0;display:grid;gap:1px;overflow:hidden}
+.space-launchpad-dropdown-option-copy>span,.space-launchpad-dropdown-option-copy>small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.space-launchpad-dropdown-option-copy>small{color:var(--tertiary);font-size:9px;font-weight:500}
+.space-launchpad-dropdown-list>button>svg{width:15px;height:15px;flex:0 0 auto;color:var(--accent);stroke-width:2}
+.space-launchpad-dropdown-list>button:hover{background:var(--hover);color:var(--text)}
+.space-launchpad-dropdown-list>button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--hover);color:var(--text)}
+.space-launchpad-dropdown-list>button[aria-selected="true"]{color:var(--text);font-weight:620}
 .space-launchpad-submit{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:var(--text);color:var(--canvas);transition:transform 120ms ease,opacity 120ms ease,background-color 120ms ease}
 .space-launchpad-submit:hover:not(:disabled){transform:translateY(-1px)}
 .space-launchpad-submit:active:not(:disabled){transform:translateY(0) scale(.96)}
@@ -530,9 +538,10 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .space-launchpad-error{padding:10px 12px;border:1px solid rgba(248,113,113,.25);border-radius:10px;background:rgba(248,113,113,.07);color:var(--secondary);font-size:12px;line-height:1.45}
 .space-launchpad-error strong{display:block;margin-block-end:2px;color:var(--danger);font-size:12.5px}
 .space-launchpad-error p{margin:0;overflow-wrap:anywhere}
-@media(max-width:620px){.space-launchpad{place-items:start center;padding-block:max(54px,9vh) 28px;padding-inline:14px}.space-launchpad-inner{min-height:auto}.space-launchpad-heading{margin-block-end:22px}.space-launchpad-heading h1{font-size:22px}.space-launchpad-toolbar{align-items:flex-end}.space-launchpad-toolbar-controls{gap:3px}.space-launchpad-model-select{max-width:120px}.space-launchpad-thinking-select{max-width:105px}.space-launchpad-advanced-trigger{padding-inline:6px;font-size:10.5px}.space-launchpad-advanced-popover{inset-inline-start:auto;inset-inline-end:0}}
-@media(forced-colors:active){.space-launchpad{background:Canvas;color:CanvasText}.space-launchpad-frame,.space-launchpad-composer,.space-launchpad-project-menu,.space-launchpad-model-select,.space-launchpad-thinking-select,.space-launchpad-advanced-popover,.space-launchpad-error,.space-launchpad-submit{border:1px solid CanvasText;background:Canvas;color:CanvasText}.space-launchpad-frame:focus-within,.space-launchpad-project-trigger:focus-visible,.space-launchpad-model-select:focus-visible,.space-launchpad-thinking-select:focus-visible,.space-launchpad-advanced-trigger:focus-visible,.space-launchpad-submit:focus-visible{outline:2px solid Highlight;outline-offset:2px}.space-launchpad-error strong{color:CanvasText}.space-launchpad-submit:disabled{color:GrayText}}
-@media(prefers-reduced-motion:reduce){.space-launchpad *{scroll-behavior:auto}.space-launchpad-composer,.space-launchpad-submit{transition:none}.space-launchpad-submit:hover:not(:disabled),.space-launchpad-submit:active:not(:disabled){transform:none}.space-launchpad-spinner{animation:none}}
+@media(max-width:620px){.space-launchpad{place-items:start center;padding-block:max(54px,9vh) 28px;padding-inline:14px}.space-launchpad-inner{min-height:auto}.space-launchpad-heading{margin-block-end:22px}.space-launchpad-heading h1{font-size:22px}.space-launchpad-toolbar{align-items:flex-end}.space-launchpad-toolbar-controls{gap:3px}.space-launchpad-dropdown.model{width:125px}.space-launchpad-dropdown.thinking{width:121px}.space-launchpad-dropdown.thinking .space-launchpad-dropdown-list{inset-inline-start:auto;inset-inline-end:0}}
+@media(max-width:360px){.space-launchpad-toolbar{gap:4px;padding-inline:7px}.space-launchpad-toolbar-controls{gap:2px}.space-launchpad-dropdown.model{width:min(105px,30vw)}.space-launchpad-dropdown.thinking{width:min(112px,34vw)}.space-launchpad-dropdown-trigger{padding-inline:6px 4px;font-size:11px}}
+@media(forced-colors:active){.space-launchpad{background:Canvas;color:CanvasText}.space-launchpad-frame,.space-launchpad-composer,.space-launchpad-project-menu,.space-launchpad-dropdown-trigger,.space-launchpad-dropdown-list,.space-launchpad-error,.space-launchpad-submit{border:1px solid CanvasText;background:Canvas;color:CanvasText}.space-launchpad-frame:focus-within,.space-launchpad-project-trigger:focus-visible,.space-launchpad-dropdown-trigger:focus-visible,.space-launchpad-submit:focus-visible{outline:2px solid Highlight;outline-offset:2px}.space-launchpad-dropdown-list>button:focus-visible{outline:2px solid Highlight;outline-offset:-2px}.space-launchpad-error strong{color:CanvasText}.space-launchpad-submit:disabled{color:GrayText}}
+@media(prefers-reduced-motion:reduce){.space-launchpad *{scroll-behavior:auto}.space-launchpad-composer,.space-launchpad-submit,.space-launchpad-dropdown-trigger>svg{transition:none}.space-launchpad-submit:hover:not(:disabled),.space-launchpad-submit:active:not(:disabled){transform:none}.space-launchpad-spinner{animation:none}}
 /* === End Space launchpad === */
 
 @media(prefers-reduced-motion:reduce){.focused-tab-close svg{transition:none}.focused-tab-close:hover svg,.focused-tab-close:active svg{transform:none}}

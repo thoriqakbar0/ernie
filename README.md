@@ -2,7 +2,7 @@
 
 Ernie Dev is a secure, multi-directory Electron workbench for Prime Agent. It presents independent **Spaces** and **Agents** inventories, preserves worktree-local session tabs, and combines interactive owned runtimes with read-only attachment to discovered root and subagent sessions.
 
-An empty worktree opens a functional start surface with a first prompt, provider-qualified model selection, model-aware thinking levels (defaulting to `low` when supported), and Advanced RLM depth presets or a custom depth. Depth defaults to `0` (root only). Development builds include React Grab and Agentation for source-aware and persistent visual feedback.
+An empty worktree opens a functional start surface with a first prompt plus dedicated provider-qualified model and model-aware thinking-effort dropdowns. Thinking defaults to `low` when supported, and new threads launch at RLM depth `0` (root only). Development builds include React Grab and Agentation for source-aware and persistent visual feedback.
 
 There is no terminal scraping, Native SDK layer, or global Prime Agent dependency.
 
@@ -50,8 +50,8 @@ pnpm ensure:electron
 
 - Each cataloged project root or linked worktree owns at most one Ernie-managed Prime Agent RPC client. Its path is resolved and authorized in the Electron main process; the renderer never supplies a working directory.
 - Ernie keeps at most **three resident runtime clients**. At capacity it evicts only the least-recently-used idle client. It never evicts a working, compacting, queued, switching, or in-flight runtime.
-- Model, thinking-level, and RLM-depth preferences are stored per worktree. Prompt drafts are intentionally not persisted.
-- Prime Agent `0.7.1` does not expose live RLM-depth mutation in RPC mode. Ernie applies the selected depth through `RLM_MAX_DEPTH` when creating the owned process. If the idle worktree client has a different depth, Ernie safely replaces it before creating the next session, setting its model and thinking level, and admitting the first prompt; the previous saved session remains discoverable.
+- Model and thinking-level preferences are stored per worktree. Prompt drafts are intentionally not persisted.
+- Prime Agent `0.7.1` does not expose live RLM-depth mutation in RPC mode. The launch surface currently requests root-only depth `0`; the main-process registry still applies creation-time `RLM_MAX_DEPTH` safely before setting the model and thinking level and admitting the first prompt.
 - On macOS, `Cmd–W` closes only the window. The main-process registry and active work continue, and reopening Ernie restores the attached runtime state. `Cmd–Q` shuts down Ernie-owned RPC process trees with bounded TERM/KILL cleanup; saved Prime Agent sessions remain discoverable.
 - Closing a session tab closes only its view. It does not stop or delete the underlying session.
 
@@ -85,7 +85,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 - `src/main/index.ts` — Layer composition root, following T3Code's Effect-based desktop structure.
 - `src/preload/index.ts` — sandbox-compatible CJS preload exposing Space-addressed state, commands, model/start operations, workspace/session streams, local-server actions, and bounded clipboard writes.
 - `src/renderer/src/App.tsx` / `FocusedWorkspace.tsx` — flat Spaces with linked-worktree navigation, worktree-local tabs, keyed live runtime state, and development-only React Grab plus Agentation.
-- `src/renderer/src/SpaceLaunchpad.tsx` — accessible T3-style first-thread form with functional model, model-aware thinking, and Advanced RLM-depth configuration.
+- `src/renderer/src/SpaceLaunchpad.tsx` — accessible T3-style first-thread form with dedicated model and model-aware thinking-effort dropdown components.
 - `src/renderer/src/spaceSessionTabs.ts`, `transcript.ts`, `sessionTranscript.ts`, and `spaceLaunchPreferences.ts` — pure worktree-local navigation, transcript, and bounded preference state.
 - `tests/prime-agent-rpc.test.ts` — direct RPC handshake, event ordering, streaming/tool mapping, and fail-closed framing tests.
 - `assets/runtime/` — pinned executable Node and Prime Agent package copied outside ASAR.

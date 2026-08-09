@@ -23,8 +23,6 @@ const baseProps = () => ({
   onModelChange: vi.fn(),
   selectedThinkingLevel: "low" as const,
   onThinkingLevelChange: vi.fn(),
-  rlmMaxDepth: 0,
-  onRlmMaxDepthChange: vi.fn(),
   onRetryModels: vi.fn(),
   promptDraft: "Build it",
   onPromptDraftChange: vi.fn(),
@@ -92,31 +90,49 @@ describe("SpaceLaunchpad draft composer", () => {
     container.remove();
   });
 
-  it("exposes model-aware thinking and advanced RLM depth controls", async () => {
+  it("uses accessible dropdown components for model and thinking effort without Advanced", async () => {
     const container = document.createElement("div");
+    document.body.append(container);
     const root = createRoot(container);
     const props = baseProps();
     await act(async () => root.render(<SpaceLaunchpad {...props} />));
 
-    const thinking = container.querySelector<HTMLSelectElement>(".space-launchpad-thinking-select");
-    expect([...thinking?.options ?? []].map((option) => option.value)).toEqual(["off", "low", "high"]);
+    expect(container.querySelector("select")).toBeNull();
+    expect(container.querySelector(".space-launchpad-advanced-trigger")).toBeNull();
+    const thinkingTrigger = container.querySelector<HTMLButtonElement>(".space-launchpad-dropdown.thinking .space-launchpad-dropdown-trigger");
+    expect(thinkingTrigger?.textContent).toContain("Low effort");
+    expect(thinkingTrigger?.getAttribute("aria-haspopup")).toBe("listbox");
+
+    await act(async () => thinkingTrigger?.click());
+    const thinkingListbox = container.querySelector<HTMLElement>(".space-launchpad-dropdown.thinking [role='listbox']");
+    expect(thinkingListbox?.getAttribute("aria-label")).toBe("Thinking effort");
+    const options = [...thinkingListbox?.querySelectorAll<HTMLButtonElement>("[role='option']") ?? []];
+    expect(options.map((option) => option.textContent)).toEqual(["Off", "Low effort", "High effort"]);
+    expect(options[1]?.tabIndex).toBe(0);
+    await act(async () => options[1]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true })));
+    expect(options[0]?.tabIndex).toBe(0);
+    expect(options[1]?.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(options[0]);
     await act(async () => {
-      if (!thinking) return;
-      thinking.value = "high";
-      thinking.dispatchEvent(new Event("change", { bubbles: true }));
+      options[2]?.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
     });
     expect(props.onThinkingLevelChange).toHaveBeenCalledWith("high");
+    expect(thinkingTrigger?.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(thinkingTrigger);
 
-    await act(async () => container.querySelector<HTMLButtonElement>(".space-launchpad-advanced-trigger")?.click());
-    const depthPreset = container.querySelector<HTMLSelectElement>(".space-launchpad-advanced-popover select");
+    const modelTrigger = container.querySelector<HTMLButtonElement>(".space-launchpad-dropdown.model .space-launchpad-dropdown-trigger");
     await act(async () => {
-      if (!depthPreset) return;
-      depthPreset.value = "2";
-      depthPreset.dispatchEvent(new Event("change", { bubbles: true }));
+      modelTrigger?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
     });
-    expect(props.onRlmMaxDepthChange).toHaveBeenCalledWith(2);
-    expect(container.querySelector("[role='dialog']")?.textContent).toContain("Root only");
+    expect(document.activeElement?.getAttribute("role")).toBe("option");
+    await act(async () => document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+    expect(document.activeElement).toBe(modelTrigger);
+
     await act(async () => root.unmount());
+    container.remove();
   });
 
 

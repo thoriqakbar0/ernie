@@ -174,10 +174,6 @@ function SpaceLaunchpadContainer({ runtimeId, project, projects, worktreeLabel, 
     const selected = models.find((model) => modelKey(model) === selectedModelKey);
     persist({ ...(selected ? { modelProvider: selected.provider, modelId: selected.id } : {}), thinkingLevel, rlmMaxDepth: preference.rlmMaxDepth });
   };
-  const selectDepth = (rlmMaxDepth: number) => {
-    const selected = models.find((model) => modelKey(model) === selectedModelKey);
-    persist({ ...(selected ? { modelProvider: selected.provider, modelId: selected.id } : {}), thinkingLevel: selectedThinkingLevel, rlmMaxDepth });
-  };
   const start = async ({ prompt, modelId, thinkingLevel, rlmMaxDepth }: { readonly prompt: string; readonly modelId: string; readonly thinkingLevel: AgentThinkingLevel; readonly rlmMaxDepth: number }) => {
     const selected = models.find((model) => modelKey(model) === modelId);
     if (!selected || busy) return;
@@ -222,8 +218,6 @@ function SpaceLaunchpadContainer({ runtimeId, project, projects, worktreeLabel, 
     onModelChange={selectModel}
     selectedThinkingLevel={selectedThinkingLevel}
     onThinkingLevelChange={selectThinkingLevel}
-    rlmMaxDepth={preference.rlmMaxDepth}
-    onRlmMaxDepthChange={selectDepth}
     onRetryModels={() => setRetrySequence((sequence) => sequence + 1)}
     promptDraft={promptDraft}
     onPromptDraftChange={onPromptDraftChange}

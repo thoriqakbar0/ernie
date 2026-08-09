@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import type { AgentThinkingLevel } from "../../shared/spaceRuntime";
 
@@ -7,6 +7,152 @@ function thinkingLevelFromValue(value: string): AgentThinkingLevel | undefined {
     case "off": case "minimal": case "low": case "medium": case "high": case "xhigh": case "max": return value;
     default: return undefined;
   }
+}
+
+function thinkingEffortLabel(level: AgentThinkingLevel): string {
+  switch (level) {
+    case "off": return "Off";
+    case "minimal": return "Minimal effort";
+    case "low": return "Low effort";
+    case "medium": return "Medium effort";
+    case "high": return "High effort";
+    case "xhigh": return "Extra high";
+    case "max": return "Maximum effort";
+  }
+}
+
+interface LaunchpadDropdownOption {
+  readonly value: string;
+  readonly label: string;
+  readonly description?: string;
+}
+
+function LaunchpadDropdown({ id, label, className, options, selectedValue, placeholder, disabled, describedBy, onChange }: {
+  readonly id: string;
+  readonly label: string;
+  readonly className: string;
+  readonly options: readonly LaunchpadDropdownOption[];
+  readonly selectedValue: string;
+  readonly placeholder: string;
+  readonly disabled: boolean;
+  readonly describedBy?: string;
+  readonly onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef(new Map<number, HTMLButtonElement>());
+  const listboxId = `${id}-listbox`;
+  const selectedIndex = options.findIndex((option) => option.value === selectedValue);
+  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const [activeOptionIndex, setActiveOptionIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0);
+
+  const show = (index = selectedIndex >= 0 ? selectedIndex : 0) => {
+    if (disabled || options.length === 0) return;
+    setActiveOptionIndex(index);
+    setOpen(true);
+  };
+  const hide = (restoreFocus = true) => {
+    setOpen(false);
+    if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+  const choose = (value: string) => {
+    onChange(value);
+    hide();
+  };
+
+  useLayoutEffect(() => {
+    if (open) optionRefs.current.get(activeOptionIndex)?.focus();
+  }, [activeOptionIndex, open]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) hide(false);
+    };
+    document.addEventListener("pointerdown", closeOnPointerDown);
+    return () => document.removeEventListener("pointerdown", closeOnPointerDown);
+  }, [open]);
+
+  const handleListboxKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowDown") nextIndex = (activeOptionIndex + 1 + options.length) % options.length;
+    if (event.key === "ArrowUp") nextIndex = (activeOptionIndex - 1 + options.length) % options.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = options.length - 1;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      hide();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      const option = options[activeOptionIndex];
+      if (!option) return;
+      event.preventDefault();
+      choose(option.value);
+      return;
+    }
+    if (event.key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      const query = event.key.toLocaleLowerCase();
+      const searchOrder = options.map((_, index) => (activeOptionIndex + index + 1) % options.length);
+      nextIndex = searchOrder.find((index) => options[index]?.label.toLocaleLowerCase().startsWith(query));
+    }
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    setActiveOptionIndex(nextIndex);
+  };
+
+  return <div
+    ref={rootRef}
+    className={`space-launchpad-dropdown ${className}`}
+    onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
+  >
+    <button
+      ref={triggerRef}
+      id={id}
+      type="button"
+      className="space-launchpad-dropdown-trigger"
+      aria-label={`${label}: ${selected?.label ?? placeholder}`}
+      aria-haspopup="listbox"
+      aria-controls={listboxId}
+      aria-expanded={open}
+      aria-describedby={describedBy}
+      disabled={disabled}
+      title={label}
+      onClick={() => { if (open) hide(); else show(); }}
+      onKeyDown={(event) => {
+        const navigationKey = event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End";
+        const typeahead = event.key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey
+          ? options.findIndex((option) => option.label.toLocaleLowerCase().startsWith(event.key.toLocaleLowerCase()))
+          : -1;
+        if (!navigationKey && typeahead < 0) return;
+        event.preventDefault();
+        const index = typeahead >= 0 ? typeahead
+          : event.key === "ArrowUp" || event.key === "End" ? options.length - 1
+          : event.key === "Home" ? 0
+          : selectedIndex >= 0 ? selectedIndex : 0;
+        show(index);
+      }}
+    >
+      <span>{selected?.label ?? placeholder}</span>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 8 3.5 3.5L13.5 8" /></svg>
+    </button>
+    {open && <div id={listboxId} className="space-launchpad-dropdown-list" role="listbox" aria-label={label} onKeyDown={handleListboxKeyDown}>
+      {options.map((option, index) => <button
+        key={option.value}
+        ref={(element) => { if (element) optionRefs.current.set(index, element); else optionRefs.current.delete(index); }}
+        type="button"
+        role="option"
+        aria-selected={option.value === selectedValue}
+        tabIndex={index === activeOptionIndex ? 0 : -1}
+        onClick={() => choose(option.value)}
+      ><span className="space-launchpad-dropdown-option-copy"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>{option.value === selectedValue && <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>}</button>)}
+    </div>}
+  </div>;
 }
 
 export interface SpaceLaunchpadModelOption {
@@ -45,8 +191,6 @@ export interface SpaceLaunchpadProps {
   readonly onModelChange: (modelId: string) => void;
   readonly selectedThinkingLevel: AgentThinkingLevel;
   readonly onThinkingLevelChange: (level: AgentThinkingLevel) => void;
-  readonly rlmMaxDepth: number;
-  readonly onRlmMaxDepthChange: (depth: number) => void;
   readonly onRetryModels: () => void;
   readonly promptDraft: string;
   readonly onPromptDraftChange: (prompt: string) => void;
@@ -72,8 +216,6 @@ export function SpaceLaunchpad({
   onModelChange,
   selectedThinkingLevel,
   onThinkingLevelChange,
-  rlmMaxDepth,
-  onRlmMaxDepthChange,
   onRetryModels,
   promptDraft,
   onPromptDraftChange,
@@ -82,24 +224,17 @@ export function SpaceLaunchpad({
   onSubmit,
 }: SpaceLaunchpadProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [customDepthSelected, setCustomDepthSelected] = useState(rlmMaxDepth > 2);
   const projectMenuRef = useRef<HTMLDivElement>(null);
-  const advancedRef = useRef<HTMLDivElement>(null);
   const promptId = useId();
   const projectMenuId = useId();
   const modelId = useId();
   const thinkingId = useId();
-  const advancedId = useId();
   const errorId = useId();
   const modelStatusId = useId();
   const modelProviderId = useId();
 
   useEffect(() => {
-    if (busy) {
-      setProjectMenuOpen(false);
-      setAdvancedOpen(false);
-    }
+    if (busy) setProjectMenuOpen(false);
   }, [busy]);
 
   useEffect(() => {
@@ -111,23 +246,6 @@ export function SpaceLaunchpad({
     return () => document.removeEventListener("pointerdown", closeOnPointerDown);
   }, [projectMenuOpen]);
 
-  useEffect(() => {
-    if (!advancedOpen) return;
-    const closeOnPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !advancedRef.current?.contains(event.target)) setAdvancedOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setAdvancedOpen(false);
-      requestAnimationFrame(() => advancedRef.current?.querySelector<HTMLButtonElement>(".space-launchpad-advanced-trigger")?.focus());
-    };
-    document.addEventListener("pointerdown", closeOnPointerDown);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnPointerDown);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [advancedOpen]);
 
   const selectedModel = models.find((model) => model.id === selectedModelId);
   const hasSelectedModel = selectedModel !== undefined;
@@ -147,7 +265,7 @@ export function SpaceLaunchpad({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
-    onSubmit({ prompt: promptDraft.trim(), modelId: selectedModelId, thinkingLevel: selectedThinkingLevel, rlmMaxDepth });
+    onSubmit({ prompt: promptDraft.trim(), modelId: selectedModelId, thinkingLevel: selectedThinkingLevel, rlmMaxDepth: 0 });
   };
 
   const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -260,74 +378,31 @@ export function SpaceLaunchpad({
             />
             <footer className="space-launchpad-toolbar">
               <div className="space-launchpad-toolbar-controls">
-                <label className="sr-only" htmlFor={modelId}>Model</label>
-                <select
+                <LaunchpadDropdown
                   id={modelId}
-                  className="space-launchpad-model-select"
-                  value={hasSelectedModel ? selectedModelId : ""}
+                  label="Model"
+                  className="model"
+                  options={models.map((model) => ({ value: model.id, label: model.label, ...(model.provider ? { description: model.provider } : {}) }))}
+                  selectedValue={hasSelectedModel ? selectedModelId : ""}
+                  placeholder={modelsLoading ? "Loading…" : models.length === 0 ? "No models" : "Choose model"}
                   disabled={busy || modelsLoading || modelsError !== null || models.length === 0}
-                  aria-describedby={modelDescription}
-                  title="Model"
-                  onChange={(event) => { onModelChange(event.currentTarget.value); }}
-                >
-                  {!hasSelectedModel && <option value="" disabled>{modelsLoading ? "Loading…" : models.length === 0 ? "No models" : "Choose model"}</option>}
-                  {models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
-                </select>
+                  {...(modelDescription ? { describedBy: modelDescription } : {})}
+                  onChange={onModelChange}
+                />
                 {selectedModel?.provider && <p id={modelProviderId} className="sr-only">Selected provider: {selectedModel.provider}</p>}
-                <label className="sr-only" htmlFor={thinkingId}>Thinking level</label>
-                <select
+                <LaunchpadDropdown
                   id={thinkingId}
-                  className="space-launchpad-thinking-select"
-                  value={hasSelectedThinkingLevel ? selectedThinkingLevel : ""}
+                  label="Thinking effort"
+                  className="thinking"
+                  options={thinkingLevels.map((level) => ({ value: level, label: thinkingEffortLabel(level) }))}
+                  selectedValue={hasSelectedThinkingLevel ? selectedThinkingLevel : ""}
+                  placeholder="Thinking effort"
                   disabled={busy || !hasSelectedModel || thinkingLevels.length === 0}
-                  title="Thinking level"
-                  onChange={(event) => {
-                    const level = thinkingLevelFromValue(event.currentTarget.value);
+                  onChange={(value) => {
+                    const level = thinkingLevelFromValue(value);
                     if (level !== undefined) onThinkingLevelChange(level);
                   }}
-                >
-                  {!hasSelectedThinkingLevel && <option value="" disabled>Thinking</option>}
-                  {thinkingLevels.map((level) => <option key={level} value={level}>{level === "off" ? "Thinking off" : `${level[0]?.toUpperCase()}${level.slice(1)}`}</option>)}
-                </select>
-                <div ref={advancedRef} className="space-launchpad-advanced">
-                  <button
-                    type="button"
-                    className="space-launchpad-advanced-trigger"
-                    aria-expanded={advancedOpen}
-                    aria-controls={advancedId}
-                    disabled={busy}
-                    onClick={() => setAdvancedOpen((current) => !current)}
-                  >Advanced</button>
-                  {advancedOpen && <div id={advancedId} className="space-launchpad-advanced-popover" role="dialog" aria-label="Advanced launch settings">
-                    <label htmlFor={`${advancedId}-depth`}>RLM depth</label>
-                    <select
-                      id={`${advancedId}-depth`}
-                      value={customDepthSelected ? "custom" : String(rlmMaxDepth)}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const value = event.currentTarget.value;
-                        if (value === "custom") setCustomDepthSelected(true);
-                        else {
-                          setCustomDepthSelected(false);
-                          onRlmMaxDepthChange(Number(value));
-                        }
-                      }}
-                    >
-                      <option value="0">Root only</option>
-                      <option value="1">Subagents</option>
-                      <option value="2">Nested</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    {customDepthSelected && <label className="space-launchpad-custom-depth">
-                      <span>Custom maximum depth</span>
-                      <input type="number" min="0" step="1" value={rlmMaxDepth} disabled={busy} onChange={(event) => {
-                        const depth = event.currentTarget.valueAsNumber;
-                        if (Number.isSafeInteger(depth) && depth >= 0) onRlmMaxDepthChange(depth);
-                      }} />
-                    </label>}
-                    <p>Depth is fixed when this worktree runtime starts.</p>
-                  </div>}
-                </div>
+                />
               </div>
               <button className="space-launchpad-submit" type="submit" disabled={!canSubmit} aria-label={busy ? "Starting thread" : "Send message"} title={busy ? "Starting thread" : "Send message"}>
                 {busy ? <span className="space-launchpad-spinner" aria-hidden="true" /> : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13V3M8 3 4 7M8 3l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}

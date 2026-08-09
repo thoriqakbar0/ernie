@@ -20,10 +20,13 @@ function renderEmpty(opening = false, openError?: string) {
     liveItems={[]}
     opening={opening}
     openError={openError}
+    spacePromptDraft=""
+    onSpacePromptDraftChange={() => {}}
     onAppendLiveUser={() => {}}
     onRuntimeState={() => {}}
     onStarted={() => {}}
     onShowAgentHierarchy={() => {}}
+    onSelectProject={() => {}}
     onOpenDirectory={() => {}}
   />);
 }

@@ -98,15 +98,16 @@ function modelKey(model: { readonly provider: string; readonly id: string }): st
   return JSON.stringify([model.provider, model.id]);
 }
 
-function preferenceWithModel(preference: SpaceLaunchPreference, model: AgentModelOption | undefined): SpaceLaunchPreference {
-  return model
-    ? { modelProvider: model.provider, modelId: model.id, rlmMaxDepth: preference.rlmMaxDepth }
-    : { rlmMaxDepth: preference.rlmMaxDepth };
-}
-
-function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onStarted }: {
+function SpaceLaunchpadContainer({ project, projects, worktreeLabel, openingDirectory, openDirectoryError, promptDraft, onPromptDraftChange, onSelectProject, onOpenDirectory, onRuntimeState, onStarted }: {
   readonly project: WorkspaceProject;
+  readonly projects: readonly WorkspaceProject[];
   readonly worktreeLabel: string;
+  readonly openingDirectory: boolean;
+  readonly openDirectoryError: string | undefined;
+  readonly promptDraft: string;
+  readonly onPromptDraftChange: (prompt: string) => void;
+  readonly onSelectProject: (projectId: string) => void;
+  readonly onOpenDirectory: () => void;
   readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly onStarted: (agentId: string, prompt: string) => void;
 }) {
@@ -117,7 +118,6 @@ function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onSta
   const [modelsLoading, setModelsLoading] = useState(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [retrySequence, setRetrySequence] = useState(0);
-  const [promptDraft, setPromptDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -153,11 +153,7 @@ function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onSta
   const selectModel = (key: string) => {
     setSelectedModelKey(key);
     const selected = models.find((model) => modelKey(model) === key);
-    if (selected) persist(preferenceWithModel(preference, selected));
-  };
-  const selectDepth = (rlmMaxDepth: number) => {
-    const selected = models.find((model) => modelKey(model) === selectedModelKey);
-    persist({ ...preferenceWithModel(preference, selected), rlmMaxDepth });
+    if (selected) persist({ modelProvider: selected.provider, modelId: selected.id, rlmMaxDepth: 0 });
   };
   const start = async ({ prompt, modelId, rlmMaxDepth }: { readonly prompt: string; readonly modelId: string; readonly rlmMaxDepth: number }) => {
     const selected = models.find((model) => modelKey(model) === modelId);
@@ -177,6 +173,7 @@ function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onSta
       }
       persist({ modelProvider: selected.provider, modelId: selected.id, rlmMaxDepth });
       try { onRuntimeState(await window.ernie.getSpaceState(project.id)); } catch { /* A live state event remains authoritative. */ }
+      onPromptDraftChange("");
       onStarted(`rpc:${project.id}`, prompt);
     } catch {
       setError("Prime Agent is unavailable. Review the recovery details, then try again.");
@@ -186,25 +183,29 @@ function SpaceLaunchpadContainer({ project, worktreeLabel, onRuntimeState, onSta
   };
 
   return <SpaceLaunchpad
+    spaceId={project.id}
     spaceLabel={project.label}
     worktreeLabel={worktreeLabel}
+    projects={projects.map(({ id, label, path }) => ({ id, label, path }))}
+    onSelectProject={onSelectProject}
+    onOpenDirectory={onOpenDirectory}
+    openingDirectory={openingDirectory}
+    openDirectoryError={openDirectoryError}
     models={models.map((model) => ({ id: modelKey(model), label: model.label, provider: model.provider }))}
     selectedModelId={selectedModelKey}
     modelsLoading={modelsLoading}
     modelsError={modelsError}
     onModelChange={selectModel}
     onRetryModels={() => setRetrySequence((sequence) => sequence + 1)}
-    rlmMaxDepth={preference.rlmMaxDepth}
-    onRlmMaxDepthChange={selectDepth}
     promptDraft={promptDraft}
-    onPromptDraftChange={setPromptDraft}
+    onPromptDraftChange={onPromptDraftChange}
     busy={busy}
     error={error}
     onSubmit={(payload) => { void start(payload); }}
   />;
 }
 
-export function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, opening, openError, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy, onOpenDirectory }: {
+export function SessionSurface({ snapshot, agentId, loading, activeProject, runtimeState, liveItems, opening, openError, spacePromptDraft, onSpacePromptDraftChange, onAppendLiveUser, onRuntimeState, onStarted, onShowAgentHierarchy, onSelectProject, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly agentId: string | undefined;
   readonly loading: boolean;
@@ -213,10 +214,13 @@ export function SessionSurface({ snapshot, agentId, loading, activeProject, runt
   readonly liveItems: readonly ThreadItem[];
   readonly opening: boolean;
   readonly openError: string | undefined;
+  readonly spacePromptDraft: string;
+  readonly onSpacePromptDraftChange: (prompt: string) => void;
   readonly onAppendLiveUser: (spaceId: string, text: string, steered: boolean) => void;
   readonly onRuntimeState: (state: SpaceRuntimeState) => void;
   readonly onStarted: (agentId: string, prompt: string) => void;
   readonly onShowAgentHierarchy: (agentId: string) => void;
+  readonly onSelectProject: (projectId: string) => void;
   readonly onOpenDirectory: () => void;
 }) {
   const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
@@ -227,7 +231,14 @@ export function SessionSurface({ snapshot, agentId, loading, activeProject, runt
     return <SpaceLaunchpadContainer
       key={activeProject.id}
       project={activeProject}
+      projects={snapshot.projects}
       worktreeLabel={worktree?.label ?? "Local directory"}
+      openingDirectory={opening}
+      openDirectoryError={openError}
+      promptDraft={spacePromptDraft}
+      onPromptDraftChange={onSpacePromptDraftChange}
+      onSelectProject={onSelectProject}
+      onOpenDirectory={onOpenDirectory}
       onRuntimeState={onRuntimeState}
       onStarted={onStarted}
     />;
@@ -307,6 +318,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
     };
   }, [runtimeStates, snapshot]);
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(snapshot.projects[0]?.id);
+  const [spacePromptDrafts, setSpacePromptDrafts] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [spaceTabs, setSpaceTabs] = useState(emptySpaceSessionTabs);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | undefined>();
@@ -374,6 +386,16 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   }, [activeProjectId, onRuntimeState, runtimeStates]);
 
   const activeProject = workspace.projects.find((project) => project.id === activeProjectId);
+  const activeSpacePromptDraft = activeProjectId ? spacePromptDrafts.get(activeProjectId) ?? "" : "";
+  const setActiveSpacePromptDraft = (prompt: string) => {
+    if (!activeProjectId) return;
+    setSpacePromptDrafts((current) => {
+      const next = new Map(current);
+      if (prompt === "") next.delete(activeProjectId);
+      else next.set(activeProjectId, prompt);
+      return next;
+    });
+  };
   const runtimeState = activeProjectId ? runtimeStates.get(activeProjectId) : undefined;
   const liveItems = activeProjectId ? liveItemsBySpace.get(activeProjectId) ?? [] : [];
   const selectProject = (projectId: string) => {
@@ -424,7 +446,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
           <div className="focused-titlebar-drag" aria-hidden="true" />
           <SessionTabs snapshot={workspace} spaceLabel={activeProject?.label} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={navigationOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={() => setNavigationOpen((current) => !current)} onSelect={selectAgent} onClose={closeAgent} />
           <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
-            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} opening={opening} openError={openError} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} onOpenDirectory={() => { void openDirectory(); }} />
+            <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} runtimeState={runtimeState} liveItems={liveItems} opening={opening} openError={openError} spacePromptDraft={activeSpacePromptDraft} onSpacePromptDraftChange={setActiveSpacePromptDraft} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} onSelectProject={selectProject} onOpenDirectory={() => { void openDirectory(); }} />
           </section>
         </section>
       </PerformanceProfiler>

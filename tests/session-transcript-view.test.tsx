@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgent } from "../src/shared/workspace";
-import { SessionTranscriptView } from "../src/renderer/src/SessionTranscriptView";
+import { SessionTranscriptView } from "../src/renderer/src/session-transcript-view";
 
 const subagent: WorkspaceAgent = {
   id: "child/1",

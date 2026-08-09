@@ -6,7 +6,7 @@ import {
   reconcileProvisionalSessionTab,
   selectSpaceSessionTab,
   tabsForSpace,
-} from "../src/renderer/src/spaceSessionTabs";
+} from "../src/renderer/src/space-session-tabs";
 
 describe("Space-local session tabs", () => {
   it("keeps independent tab sets and active sessions for each Space", () => {

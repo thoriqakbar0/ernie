@@ -23,4 +23,3 @@ export function Icon({ name }: { readonly name: IconName }) {
   const usesLucideGrid = name !== "close" && name !== "sidebar-close";
   return <svg viewBox={usesLucideGrid ? "0 0 24 24" : "0 0 20 20"} aria-hidden="true">{ICON_PATHS[name]}</svg>;
 }
-

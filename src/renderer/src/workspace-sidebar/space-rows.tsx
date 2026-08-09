@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../../shared/workspace";
-import { Icon } from "../WorkspaceIcon";
+import { Icon } from "../workspace-icon";
 
 /** A worktree stored on the settled shelf. */
 export type SettledWorktree = NonNullable<WorkspaceSnapshot["settledWorktrees"]>[number];

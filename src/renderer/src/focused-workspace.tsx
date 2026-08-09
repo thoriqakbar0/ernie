@@ -3,15 +3,15 @@ import type { KeyboardEvent, RefObject } from "react";
 import type { AgentState } from "../../shared/contract";
 import type { AgentModelOption, AgentThinkingLevel, SpaceRuntimeState } from "../../shared/spaceRuntime";
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
-import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface";
-import { SpaceLaunchpad } from "./SpaceLaunchpad";
+import { LiveSessionChatSurface, SessionChatSurface } from "./session-chat-surface";
+import { SpaceLaunchpad } from "./space-launchpad";
 import { WorkspaceSidebar } from "./workspace-sidebar";
-import { PerformanceHud, PerformanceProfiler } from "./PerformanceHud";
-import { Icon } from "./WorkspaceIcon";
-import { summarizeAgentDescendantActivity, projectForAgent, statusText } from "./workspaceAgentPresentation";
-import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./spaceLaunchPreferences";
+import { PerformanceHud, PerformanceProfiler } from "./performance-hud";
+import { Icon } from "./workspace-icon";
+import { summarizeAgentDescendantActivity, projectForAgent, statusText } from "./workspace-agent-presentation";
+import { readSpaceLaunchPreference, writeSpaceLaunchPreference, type SpaceLaunchPreference } from "./space-launch-preferences";
 import type { ThreadItem } from "./transcript";
-import { horizontalTabStep } from "./tabKeyboardNavigation";
+import { horizontalTabStep } from "./tab-keyboard-navigation";
 import {
   closeSpaceSessionTab,
   emptySpaceSessionTabs,
@@ -19,7 +19,7 @@ import {
   reconcileProvisionalSessionTab,
   selectSpaceSessionTab,
   tabsForSpace,
-} from "./spaceSessionTabs";
+} from "./space-session-tabs";
 
 function isCommandableAgent(agent: WorkspaceAgent, sessionId: string): boolean {
   return sessionId.length > 0

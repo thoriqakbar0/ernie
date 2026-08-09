@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SessionTranscriptEvent } from "../src/shared/sessionTranscript";
 import { assistantText } from "../src/renderer/src/transcript";
-import { sessionTranscriptReducer } from "../src/renderer/src/sessionTranscript";
+import { sessionTranscriptReducer } from "../src/renderer/src/session-transcript";
 
 describe("selected session transcript projection", () => {
   it("renders a bounded snapshot with user, assistant, generic tool, and IPython execution rows", () => {

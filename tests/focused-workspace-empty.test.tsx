@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { SessionSurface } from "../src/renderer/src/FocusedWorkspace";
+import { SessionSurface } from "../src/renderer/src/focused-workspace";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
 
 const emptyWorkspace: WorkspaceSnapshot = {

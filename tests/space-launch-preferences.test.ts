@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readSpaceLaunchPreference, writeSpaceLaunchPreference } from "../src/renderer/src/spaceLaunchPreferences";
+import { readSpaceLaunchPreference, writeSpaceLaunchPreference } from "../src/renderer/src/space-launch-preferences";
 
 function memoryStorage(initial?: string) {
   const values = new Map<string, string>();

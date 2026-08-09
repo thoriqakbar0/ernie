@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { HighlightedCode } from "./HighlightedCode";
+import { HighlightedCode } from "./highlighted-code";
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   bash: "Shell", c: "C", cc: "C++", cpp: "C++", css: "CSS", ex: "Elixir", exs: "Elixir",

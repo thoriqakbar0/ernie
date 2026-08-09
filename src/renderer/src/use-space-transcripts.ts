@@ -9,7 +9,7 @@ import {
   type ThreadItem,
   type TranscriptAction,
 } from "./transcript";
-import { safeAgentErrorMessage } from "./useTranscript";
+import { safeAgentErrorMessage } from "./use-transcript";
 
 const browserFrameScheduler: FrameScheduler = {
   request: (callback) => window.requestAnimationFrame(callback),

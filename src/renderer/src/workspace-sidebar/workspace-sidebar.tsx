@@ -1,9 +1,9 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../../shared/workspace";
-import { prioritizeRootAgents } from "../agentPriority";
-import { Icon } from "../WorkspaceIcon";
-import { projectForAgent, statusText } from "../workspaceAgentPresentation";
+import { prioritizeRootAgents } from "../agent-priority";
+import { Icon } from "../workspace-icon";
+import { projectForAgent, statusText } from "../workspace-agent-presentation";
 import { AgentViewTabs, GroupedAgentPane, PriorityAgentPane } from "./agent-panes";
 import type { AgentView } from "./agent-panes";
 import { agentIdsWithAncestors, matchesSearch } from "./filter-workspace";

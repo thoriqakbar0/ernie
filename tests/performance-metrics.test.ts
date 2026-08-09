@@ -5,7 +5,7 @@ import {
   PROFILER_ROLLING_SAMPLE_LIMIT,
   rateProfilerDuration,
   summarizeProfilerTimings,
-} from "../src/renderer/src/performanceMetrics";
+} from "../src/renderer/src/performance-metrics";
 
 describe("performance metrics", () => {
   it("reports Collecting state through a null rating until enough samples exist", () => {

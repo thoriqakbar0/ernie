@@ -1,6 +1,6 @@
 import { assistantText, type ThreadItem } from "./transcript";
-import { IPythonExecutionCard } from "./IPythonExecutionCard";
-import { MarkdownContent } from "./MarkdownContent";
+import { IPythonExecutionCard } from "./ipython-execution-card";
+import { MarkdownContent } from "./markdown-content";
 
 /** Shared transcript projection for interactive and read-only session chat surfaces. */
 export function TranscriptItem({ item, assistantLabel, assistantSubagentCount = 0, assistantRunningSubagentCount = 0, onShowAssistantHierarchy }: {

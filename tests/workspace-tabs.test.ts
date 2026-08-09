@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceAgent, WorkspaceSnapshot, WorkspaceWorktree } from "../src/shared/workspace";
-import { initialWorkspaceTabs, resolveRootTabStatus, resolveWorkspaceTabSurface, workspaceTabsReducer } from "../src/renderer/src/workspaceTabs";
+import { initialWorkspaceTabs, resolveRootTabStatus, resolveWorkspaceTabSurface, workspaceTabsReducer } from "../src/renderer/src/workspace-tabs";
 
 const rootWorktree: WorkspaceWorktree = { id: "/repo", path: "/repo", label: "main" };
 const childWorktree: WorkspaceWorktree = { id: "/repo/child", path: "/repo/child", label: "feature", parentWorktreeId: "/repo" };

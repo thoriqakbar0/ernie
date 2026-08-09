@@ -1,5 +1,5 @@
 import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "./modal-dialog";
 
 interface NewThreadLauncherProps {
   readonly open: boolean;

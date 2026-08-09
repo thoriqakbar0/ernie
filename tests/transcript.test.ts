@@ -8,8 +8,8 @@ import {
   type FrameScheduler,
   type TranscriptAction,
 } from "../src/renderer/src/transcript";
-import { safeAgentErrorMessage } from "../src/renderer/src/useTranscript";
-import { IPythonExecutionCard } from "../src/renderer/src/IPythonExecutionCard";
+import { safeAgentErrorMessage } from "../src/renderer/src/use-transcript";
+import { IPythonExecutionCard } from "../src/renderer/src/ipython-execution-card";
 
 function makeHarness() {
   let nextHandle = 0;

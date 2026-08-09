@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode, SVGProps } from "react";
 import type { WorkspaceAgent, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
-import { ModalDialog } from "./ModalDialog";
-import type { WorkspaceTab } from "./workspaceTabs";
+import { ModalDialog } from "./modal-dialog";
+import type { WorkspaceTab } from "./workspace-tabs";
 
 type IconName = "add" | "branch" | "chevron" | "close" | "detached" | "manager" | "subagent";
 

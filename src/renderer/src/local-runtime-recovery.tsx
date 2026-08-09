@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "./modal-dialog";
 
 /** Local-only recovery for a legacy remote IPython runtime; it never offers remote selection. */
 export function LocalRuntimeRecovery({ disabled, switching, onSwitch }: {

@@ -1,11 +1,11 @@
 import { useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { WorkspaceAgent, WorkspaceSnapshot } from "../../../shared/workspace";
-import { prioritizeRootAgents } from "../agentPriority";
-import { horizontalTabStep } from "../tabKeyboardNavigation";
-import { flattenAgentHierarchy } from "../ProjectSidebar";
-import { Icon } from "../WorkspaceIcon";
-import { agentDisplayName, projectForAgent, statusText } from "../workspaceAgentPresentation";
+import { prioritizeRootAgents } from "../agent-priority";
+import { horizontalTabStep } from "../tab-keyboard-navigation";
+import { flattenAgentHierarchy } from "../project-sidebar";
+import { Icon } from "../workspace-icon";
+import { agentDisplayName, projectForAgent, statusText } from "../workspace-agent-presentation";
 
 const SUBAGENT_ICONS = ["subagent-fork", "subagent-workflow", "subagent-network", "subagent-waypoints"] as const;
 

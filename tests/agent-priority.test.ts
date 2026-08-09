@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStatus, WorkspaceAgent } from "../src/shared/workspace";
-import { prioritizeAgents, prioritizeRootAgents } from "../src/renderer/src/agentPriority";
+import { prioritizeAgents, prioritizeRootAgents } from "../src/renderer/src/agent-priority";
 
 function agent(id: string, status: AgentStatus, lastActivityAt?: string): WorkspaceAgent {
   return {

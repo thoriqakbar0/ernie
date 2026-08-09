@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceAgent } from "../src/shared/workspace";
-import { agentDisplayName, countAgentDescendants, countEngagedAgentDescendants, countWorkingAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
+import { agentDisplayName, countAgentDescendants, countEngagedAgentDescendants, countWorkingAgentDescendants } from "../src/renderer/src/workspace-agent-presentation";
 
 function agent(id: string, parentAgentId?: string, status: WorkspaceAgent["status"] = "idle"): WorkspaceAgent {
   return {

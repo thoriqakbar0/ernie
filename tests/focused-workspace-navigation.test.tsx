@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import { FocusedWorkspace } from "../src/renderer/src/FocusedWorkspace";
+import { FocusedWorkspace } from "../src/renderer/src/focused-workspace";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
 
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });

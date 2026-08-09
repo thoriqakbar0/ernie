@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import type { ThreadItem } from "./transcript";
 import { assistantText } from "./transcript";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "./modal-dialog";
 
 const PAGE_SIZE = 40;
 function accessibleText(item: ThreadItem, assistantLabel: string, promptLabel: string): string {

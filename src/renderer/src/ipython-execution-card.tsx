@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ThreadItem } from "./transcript";
-import { ExecutionOutput } from "./ExecutionOutput";
-import { HighlightedCode } from "./HighlightedCode";
+import { ExecutionOutput } from "./execution-output";
+import { HighlightedCode } from "./highlighted-code";
 
 type IPythonExecutionItem = Extract<ThreadItem, { readonly kind: "ipython_execution" }>;
 

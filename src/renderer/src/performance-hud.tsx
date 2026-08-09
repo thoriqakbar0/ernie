@@ -1,6 +1,6 @@
 import { createContext, Profiler, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { RendererPerformanceSample } from "../../shared/performance";
-import { PerformanceMetricsStore, type PerformanceArea, type ProfilerMetricSummary } from "./performanceMetrics";
+import { PerformanceMetricsStore, type PerformanceArea, type ProfilerMetricSummary } from "./performance-metrics";
 
 interface PerformanceDiagnosticsContextValue {
   readonly enabled: boolean;

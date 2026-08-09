@@ -59,6 +59,7 @@ describe("WorkspaceShell navigation shortcut", () => {
       updatedAt: "2026-08-09T00:00:00.000Z",
     };
     const container = document.createElement("div");
+    document.body.append(container);
     const root = createRoot(container);
     await act(async () => root.render(<WorkspaceShell
       snapshot={workspace}
@@ -71,11 +72,14 @@ describe("WorkspaceShell navigation shortcut", () => {
       onSnapshot={vi.fn()}
     />));
 
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Archive garden"]')?.click());
+    const gardenMenu = container.querySelectorAll<HTMLButtonElement>(".workspace-project-menu-trigger")[1];
+    await act(async () => gardenMenu?.click());
+    await act(async () => document.body.querySelector<HTMLElement>('[aria-label="Archive garden"]')?.click());
     expect(archiveProject).toHaveBeenCalledWith("/garden");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Unable to archive garden");
 
     await act(async () => root.unmount());
+    container.remove();
     vi.unstubAllGlobals();
     Reflect.deleteProperty(window, "ernie");
   });

@@ -1,6 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import type { AgentThinkingLevel } from "../../../../shared/spaceRuntime";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 const THINKING_LEVEL_ORDER: readonly AgentThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
@@ -28,137 +29,42 @@ function orderedThinkingLevels(levels: readonly AgentThinkingLevel[]): readonly 
   return THINKING_LEVEL_ORDER.filter((level) => supported.has(level));
 }
 
-interface LaunchpadDropdownOption {
+interface LaunchpadSelectOption {
   readonly value: string;
   readonly label: string;
   readonly description?: string;
 }
 
-function LaunchpadDropdown({ id, label, className, options, selectedValue, placeholder, disabled, describedBy, onChange }: {
+function LaunchpadSelect({ id, label, className, options, selectedValue, placeholder, disabled, describedBy, onChange }: {
   readonly id: string;
   readonly label: string;
   readonly className: string;
-  readonly options: readonly LaunchpadDropdownOption[];
+  readonly options: readonly LaunchpadSelectOption[];
   readonly selectedValue: string;
   readonly placeholder: string;
   readonly disabled: boolean;
   readonly describedBy?: string;
   readonly onChange: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const optionRefs = useRef(new Map<number, HTMLButtonElement>());
-  const listboxId = `${id}-listbox`;
-  const selectedIndex = options.findIndex((option) => option.value === selectedValue);
-  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
-  const [activeOptionIndex, setActiveOptionIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0);
-
-  const show = (index = selectedIndex >= 0 ? selectedIndex : 0) => {
-    if (disabled || options.length === 0) return;
-    setActiveOptionIndex(index);
-    setOpen(true);
-  };
-  const hide = (restoreFocus = true) => {
-    setOpen(false);
-    if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
-  };
-  const choose = (value: string) => {
-    onChange(value);
-    hide();
-  };
-
-  useLayoutEffect(() => {
-    if (open) optionRefs.current.get(activeOptionIndex)?.focus();
-  }, [activeOptionIndex, open]);
-
-  useEffect(() => {
-    if (disabled) setOpen(false);
-  }, [disabled]);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) hide(false);
-    };
-    document.addEventListener("pointerdown", closeOnPointerDown);
-    return () => document.removeEventListener("pointerdown", closeOnPointerDown);
-  }, [open]);
-
-  const handleListboxKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    let nextIndex: number | undefined;
-    if (event.key === "ArrowDown") nextIndex = (activeOptionIndex + 1 + options.length) % options.length;
-    if (event.key === "ArrowUp") nextIndex = (activeOptionIndex - 1 + options.length) % options.length;
-    if (event.key === "Home") nextIndex = 0;
-    if (event.key === "End") nextIndex = options.length - 1;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      hide();
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      const option = options[activeOptionIndex];
-      if (!option) return;
-      event.preventDefault();
-      choose(option.value);
-      return;
-    }
-    if (event.key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey) {
-      const query = event.key.toLocaleLowerCase();
-      const searchOrder = options.map((_, index) => (activeOptionIndex + index + 1) % options.length);
-      nextIndex = searchOrder.find((index) => options[index]?.label.toLocaleLowerCase().startsWith(query));
-    }
-    if (nextIndex === undefined) return;
-    event.preventDefault();
-    setActiveOptionIndex(nextIndex);
-  };
-
-  return <div
-    ref={rootRef}
-    className={`space-launchpad-dropdown ${className}`}
-    onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
-  >
-    <button
-      ref={triggerRef}
-      id={id}
-      type="button"
-      className="space-launchpad-dropdown-trigger"
-      aria-label={`${label}: ${selected?.label ?? placeholder}`}
-      aria-haspopup="listbox"
-      aria-controls={listboxId}
-      aria-expanded={open}
-      aria-describedby={describedBy}
+  return <div className={`space-launchpad-select ${className}`}>
+    <Select
+      value={selectedValue || null}
+      items={options}
       disabled={disabled}
-      title={label}
-      onClick={() => { if (open) hide(); else show(); }}
-      onKeyDown={(event) => {
-        const navigationKey = event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End";
-        const typeahead = event.key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey
-          ? options.findIndex((option) => option.label.toLocaleLowerCase().startsWith(event.key.toLocaleLowerCase()))
-          : -1;
-        if (!navigationKey && typeahead < 0) return;
-        event.preventDefault();
-        const index = typeahead >= 0 ? typeahead
-          : event.key === "ArrowUp" || event.key === "End" ? options.length - 1
-          : event.key === "Home" ? 0
-          : selectedIndex >= 0 ? selectedIndex : 0;
-        show(index);
-      }}
+      onValueChange={(value) => { if (value !== null) onChange(value); }}
     >
-      <span>{selected?.label ?? placeholder}</span>
-      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 8 3.5 3.5L13.5 8" /></svg>
-    </button>
-    {open && <div id={listboxId} className="space-launchpad-dropdown-list" role="listbox" aria-label={label} onKeyDown={handleListboxKeyDown}>
-      {options.map((option, index) => <button
-        key={option.value}
-        ref={(element) => { if (element) optionRefs.current.set(index, element); else optionRefs.current.delete(index); }}
-        type="button"
-        role="option"
-        aria-selected={option.value === selectedValue}
-        tabIndex={index === activeOptionIndex ? 0 : -1}
-        onClick={() => choose(option.value)}
-      ><span className="space-launchpad-dropdown-option-copy"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>{option.value === selectedValue && <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>}</button>)}
-    </div>}
+      <SelectTrigger id={id} size="sm" aria-label={label} aria-describedby={describedBy} title={label}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent side="top" align="start" alignItemWithTrigger={false}>
+        <SelectGroup>
+          {options.map((option) => <SelectItem key={option.value} value={option.value}>
+            <span>{option.label}</span>
+            {option.description && <small>{option.description}</small>}
+          </SelectItem>)}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   </div>;
 }
 
@@ -385,7 +291,7 @@ export function SpaceLaunchpad({
             />
             <footer className="space-launchpad-toolbar">
               <div className="space-launchpad-toolbar-controls">
-                <LaunchpadDropdown
+                <LaunchpadSelect
                   id={modelId}
                   label="Model"
                   className="model"
@@ -397,7 +303,7 @@ export function SpaceLaunchpad({
                   onChange={onModelChange}
                 />
                 {selectedModel?.provider && <p id={modelProviderId} className="sr-only">Selected provider: {selectedModel.provider}</p>}
-                <LaunchpadDropdown
+                <LaunchpadSelect
                   id={thinkingId}
                   label="Thinking effort"
                   className="thinking"

@@ -7,24 +7,14 @@ import { flattenAgentHierarchy } from "../workspace/project-sidebar";
 import { Icon } from "../ui/workspace-icon";
 import { agentDisplayName, statusText } from "../../lib/workspace-agent-presentation";
 
-const SUBAGENT_ICONS = ["subagent-fork", "subagent-workflow", "subagent-network", "subagent-waypoints"] as const;
-
 /** The explicit agent-list variants available in the sidebar. */
 export type AgentView = "all" | "attention";
 
-function SubagentMark({ agentId, depth }: { readonly agentId: string; readonly depth: number }) {
-  let hash = 0;
-  for (const character of agentId) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  const icon = SUBAGENT_ICONS[hash % SUBAGENT_ICONS.length] ?? "subagent-fork";
-  return <span className="workspace-agent-kind" title={`Subagent, depth ${depth}`}><Icon name={icon} /><span className="workspace-agent-depth" aria-hidden="true">{depth}</span></span>;
-}
-
-function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOpen }: {
+function SessionRow({ agent, active, context, depth = 0, onOpen }: {
   readonly agent: WorkspaceAgent;
   readonly active: boolean;
   readonly context?: string;
   readonly depth?: number;
-  readonly entranceOrder?: number;
   readonly onOpen: (agent: WorkspaceAgent) => void;
 }) {
   const status = statusText(agent.status);
@@ -32,6 +22,7 @@ function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOp
   const subagentDepth = isSubagent ? Math.max(1, depth) : 0;
   const fullLabel = [agent.name, isSubagent ? `Subagent, depth ${subagentDepth}` : undefined, status, context].filter(Boolean).join(" — ");
   const displayName = agentDisplayName(agent.name);
+  const visibleStatus = agent.status === "working" || agent.status === "waiting" || agent.status === "failed" ? status : undefined;
   return <button
     id={`workspace-agent-${encodeURIComponent(agent.id)}`}
     type="button"
@@ -40,11 +31,10 @@ function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOp
     aria-label={fullLabel}
     title={fullLabel}
     data-status={agent.status}
-    style={{ animationDelay: `calc(${entranceOrder} * var(--agent-row-stagger))` }}
     onClick={() => onOpen(agent)}
   >
     <span className="workspace-agent-copy">
-      <span className="workspace-agent-title"><span className={`workspace-agent-status ${agent.status}`} aria-hidden="true" /><strong>{displayName}</strong>{isSubagent && <SubagentMark agentId={agent.id} depth={subagentDepth} />}</span>
+      <span className="workspace-agent-title"><span className={`workspace-agent-status ${agent.status}`} aria-hidden="true" /><strong>{displayName}</strong>{visibleStatus && <span className="workspace-agent-status-label" aria-hidden="true">{visibleStatus}</span>}</span>
       {context && <small>{context}</small>}
     </span>
   </button>;
@@ -69,8 +59,7 @@ export function AgentViewTabs({ value, attentionCount, onChange }: {
     onChange(next);
     (next === "all" ? allRef : attentionRef).current?.focus();
   };
-  return <div className="workspace-agent-tabs" role="tablist" aria-label="Agent views" data-view={value}>
-    <span className="workspace-agent-tab-indicator" aria-hidden="true" />
+  return <div className="workspace-agent-tabs" role="tablist" aria-label="Agent views">
     <button ref={allRef} id="all-agents-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "all"} aria-label="All agents grouped by component" className={value === "all" ? "active" : ""} tabIndex={value === "all" ? 0 : -1} onClick={() => onChange("all")} onKeyDown={moveFocus}>All</button>
     <button ref={attentionRef} id="attention-agents-tab" type="button" role="tab" aria-controls="agent-list-panel" aria-selected={value === "attention"} aria-label={`Agents needing attention grouped by component, ${attentionCount} agents`} className={value === "attention" ? "active" : ""} tabIndex={value === "attention" ? 0 : -1} onClick={() => onChange("attention")} onKeyDown={moveFocus}>Attention <span aria-hidden="true">{attentionCount}</span></button>
   </div>;
@@ -79,7 +68,6 @@ export function AgentViewTabs({ value, attentionCount, onChange }: {
 interface AgentTreeNode {
   readonly agent: WorkspaceAgent;
   readonly depth: number;
-  readonly entranceOrder: number;
   readonly children: AgentTreeNode[];
 }
 
@@ -88,7 +76,7 @@ function agentTree(agents: readonly WorkspaceAgent[]): readonly AgentTreeNode[] 
   const stack: AgentTreeNode[] = [];
   const flattened = flattenAgentHierarchy(agents);
   for (const { agent, depth } of flattened) {
-    const node: AgentTreeNode = { agent, depth, entranceOrder: 0, children: [] };
+    const node: AgentTreeNode = { agent, depth, children: [] };
     if (depth === 0) roots.push(node);
     else stack[depth - 1]?.children.push(node);
     stack.length = depth;
@@ -97,20 +85,36 @@ function agentTree(agents: readonly WorkspaceAgent[]): readonly AgentTreeNode[] 
   return roots;
 }
 
-function orderAgentTreeEntrances(trees: readonly AgentTreeNode[]): readonly AgentTreeNode[] {
-  const count = (nodes: readonly AgentTreeNode[]): number => nodes.reduce((total, node) => total + 1 + count(node.children), 0);
-  const total = count(trees);
-  let displayIndex = 0;
-  const assign = (node: AgentTreeNode): AgentTreeNode => {
-    const entranceOrder = total - displayIndex - 1;
-    displayIndex += 1;
-    return { ...node, entranceOrder, children: node.children.map(assign) };
-  };
-  return trees.map(assign);
-}
-
 function containsAgent(node: AgentTreeNode, agentId: string | undefined): boolean {
   return agentId !== undefined && (node.agent.id === agentId || node.children.some((child) => containsAgent(child, agentId)));
+}
+
+interface AgentGroupModel {
+  readonly id: string;
+  readonly label: string;
+  readonly current: boolean;
+  readonly trees: readonly AgentTreeNode[];
+}
+
+function agentGroupLabel(projectLabel: string, worktreeLabel: string): string {
+  return projectLabel === worktreeLabel ? projectLabel : `${projectLabel} · ${worktreeLabel}`;
+}
+
+function orderAgentGroups(groups: readonly AgentGroupModel[]): readonly AgentGroupModel[] {
+  return groups.toSorted((left, right) => Number(right.current) - Number(left.current) || left.label.localeCompare(right.label));
+}
+
+function groupAgentsByWorktree(snapshot: WorkspaceSnapshot, agents: readonly WorkspaceAgent[], activeWorktreeId: string | undefined, includeEmptyActiveWorktree: boolean): readonly AgentGroupModel[] {
+  const groups = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
+    const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
+    if (!worktree) return [];
+    const trees = agentTree(agents.filter((agent) => agent.worktreeId === worktreeId));
+    const current = worktreeId === activeWorktreeId;
+    return trees.length > 0 || (includeEmptyActiveWorktree && current)
+      ? [{ id: worktreeId, label: agentGroupLabel(project.label, worktree.label), current, trees }]
+      : [];
+  }));
+  return orderAgentGroups(groups);
 }
 
 function AgentTreeRow({ node, activeAgentId, expandSubagents, onOpenAgent }: {
@@ -125,9 +129,11 @@ function AgentTreeRow({ node, activeAgentId, expandSubagents, onOpenAgent }: {
   const visibleChildren = node.children.filter((child) => !foldedChildren.includes(child));
   const showFoldedChildren = expandSubagents || childrenExpanded;
   const foldedAgentCount = countAgentNodes(foldedChildren);
-  const foldedLabel = `${foldedAgentCount} ${visibleChildren.length > 0 ? "more " : ""}${foldedAgentCount === 1 ? "subagent" : "subagents"}`;
+  const foldedLabel = showFoldedChildren
+    ? `Hide ${foldedAgentCount} ${foldedAgentCount === 1 ? "subagent" : "subagents"}`
+    : `Show ${foldedAgentCount} ${visibleChildren.length > 0 ? "more " : ""}${foldedAgentCount === 1 ? "subagent" : "subagents"}`;
   return <li>
-    <SessionRow agent={node.agent} depth={node.depth} entranceOrder={node.entranceOrder} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
+    <SessionRow agent={node.agent} depth={node.depth} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
       {visibleChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}
       {foldedChildren.length > 0 && <li className="workspace-folded-subagents">
@@ -155,20 +161,12 @@ export function AttentionAgentPane({ snapshot, activeWorktreeId, activeAgentId, 
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   const attentionAgents = orderRootAgentsByAttention(snapshot.agents);
-  const groups = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
-    const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
-    if (!worktree) return [];
-    const trees = agentTree(attentionAgents.filter((agent) => agent.worktreeId === worktreeId));
-    const current = worktreeId === activeWorktreeId;
-    return trees.length > 0 || current ? [{ id: worktreeId, label: agentGroupLabel(project.label, worktree.label), current, trees }] : [];
-  }));
-  const orderedGroups = orderAgentGroups(groups);
-  const orderedTrees = orderAgentTreeEntrances(orderedGroups.flatMap((group) => group.trees));
+  const orderedGroups = groupAgentsByWorktree(snapshot, attentionAgents, activeWorktreeId, true);
   if (orderedGroups.length === 0) return <p className="workspace-message">{emptyMessage ?? "Nothing needs attention right now."}</p>;
   return <ul className="workspace-agent-groups workspace-agent-attention-groups">{orderedGroups.map((group) => <AgentGroup
     key={group.id}
     group={group}
-    orderedTrees={orderedTrees.filter((node) => node.agent.worktreeId === group.id)}
+    trees={group.trees}
     activeAgentId={activeAgentId}
     forceExpanded={false}
     expandSubagents={false}
@@ -177,28 +175,13 @@ export function AttentionAgentPane({ snapshot, activeWorktreeId, activeAgentId, 
   />)}</ul>;
 }
 
-interface AgentGroupModel {
-  readonly id: string;
-  readonly label: string;
-  readonly current: boolean;
-  readonly trees: readonly AgentTreeNode[];
-}
-
 function countAgentNodes(nodes: readonly AgentTreeNode[]): number {
   return nodes.reduce((total, node) => total + 1 + countAgentNodes(node.children), 0);
 }
 
-function agentGroupLabel(projectLabel: string, worktreeLabel: string): string {
-  return projectLabel === worktreeLabel ? projectLabel : `${projectLabel} · ${worktreeLabel}`;
-}
-
-function orderAgentGroups(groups: readonly AgentGroupModel[]): readonly AgentGroupModel[] {
-  return groups.toSorted((left, right) => Number(right.current) - Number(left.current) || left.label.localeCompare(right.label));
-}
-
-function AgentGroup({ group, orderedTrees, activeAgentId, forceExpanded, expandSubagents, emptyMessage = "No agents yet", onOpenAgent }: {
+function AgentGroup({ group, trees, activeAgentId, forceExpanded, expandSubagents, emptyMessage = "No agents yet", onOpenAgent }: {
   readonly group: AgentGroupModel;
-  readonly orderedTrees: readonly AgentTreeNode[];
+  readonly trees: readonly AgentTreeNode[];
   readonly activeAgentId: string | undefined;
   readonly forceExpanded: boolean;
   readonly expandSubagents: boolean;
@@ -225,8 +208,8 @@ function AgentGroup({ group, orderedTrees, activeAgentId, forceExpanded, expandS
       </button>
     </h3>
     <div id={agentListId} hidden={!displayedExpanded}>
-      {displayedExpanded && (orderedTrees.length > 0
-        ? <ul className="workspace-agent-list">{orderedTrees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}</ul>
+      {displayedExpanded && (trees.length > 0
+        ? <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandSubagents={expandSubagents} onOpenAgent={onOpenAgent} />)}</ul>
         : <p className="workspace-message">{emptyMessage}</p>)}
     </div>
   </li>;
@@ -242,21 +225,12 @@ export function AllAgentPane({ snapshot, activeWorktreeId, activeAgentId, expand
   readonly emptyMessage: string | undefined;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
-  const groups = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
-    const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
-    if (!worktree) return [];
-    const trees = agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId));
-    const current = worktreeId === activeWorktreeId;
-    const label = agentGroupLabel(project.label, worktree.label);
-    return trees.length > 0 || (includeEmptyActiveWorktree && current) ? [{ id: worktreeId, label, current, trees }] : [];
-  }));
-  const orderedGroups = orderAgentGroups(groups);
-  const orderedTrees = orderAgentTreeEntrances(orderedGroups.flatMap((group) => group.trees));
+  const orderedGroups = groupAgentsByWorktree(snapshot, snapshot.agents, activeWorktreeId, includeEmptyActiveWorktree);
   if (orderedGroups.length === 0) return <p className="workspace-message">{emptyMessage ?? "No agents are available yet."}</p>;
   return <ul className="workspace-agent-groups">{orderedGroups.map((group) => <AgentGroup
     key={group.id}
     group={group}
-    orderedTrees={orderedTrees.filter((node) => node.agent.worktreeId === group.id)}
+    trees={group.trees}
     activeAgentId={activeAgentId}
     forceExpanded={expandSubagents}
     expandSubagents={expandSubagents}

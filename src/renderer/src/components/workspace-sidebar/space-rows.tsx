@@ -1,6 +1,9 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { ArchiveIcon, EllipsisIcon, GitBranchPlusIcon } from "lucide-react";
 import type { WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../../../shared/workspace";
+import { Button } from "../ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Icon } from "../ui/workspace-icon";
 
 /** A worktree stored on the settled shelf. */
@@ -111,7 +114,7 @@ function CreateWorktreeForm({ id, project, sourceWorktree, busy, error, onCreate
     {visibleError && <p id={errorId} role="alert">{visibleError}</p>}
     <footer>
       <button type="button" disabled={busy} onClick={() => onCancel(true)}>Cancel</button>
-      <button type="submit" disabled={busy}><Icon name="branch-add" /><span>{busy ? "Creating…" : "Create worktree"}</span></button>
+      <button type="submit" disabled={busy}><Icon name="worktree-add" /><span>{busy ? "Creating…" : "Create worktree"}</span></button>
     </footer>
   </form>;
 }
@@ -184,7 +187,7 @@ export function SpaceRow({ project, rootWorktree, linkedWorktrees, forceExpanded
   const activeRoot = project.id === activeProjectId && (activeWorktreeId === undefined || activeWorktreeId === rootRuntimeId);
   const rootContext = rootWorktree?.label ?? "Local directory";
   const visibleRootContext = rootContext === project.label ? undefined : rootContext;
-  const rootLabel = `${project.label}, ${rootContext}${rootWorking ? ", working" : ""}`;
+  const rootLabel = `${project.label}${visibleRootContext ? `, ${rootContext}` : ""}${rootWorking ? ", working" : ""}`;
   const activeLinkedWorktree = linkedWorktrees.find((worktree) => worktree.id === activeWorktreeId);
   const hasLinkedWorktrees = linkedWorktrees.length > 0;
   const displayedExpanded = forceExpanded || expanded;
@@ -202,35 +205,49 @@ export function SpaceRow({ project, rootWorktree, linkedWorktrees, forceExpanded
   }, [createBusy, createError, createOpen, onCloseCreate, project.id]);
 
   return <li className="workspace-project-node">
-    <div className={`workspace-project-control ${activeRoot ? "active" : ""}`}>
+    <div className={`workspace-project-control ${activeRoot ? "active" : ""} ${hasLinkedWorktrees ? "has-disclosure" : ""}`}>
       <button id={`workspace-project-${encodeURIComponent(project.id)}`} type="button" className="workspace-project-row" aria-current={activeRoot ? "page" : undefined} aria-label={rootLabel} title={rootWorktree?.path ?? project.path} onClick={() => onSelectProject(project.id)}>
-        <span className="workspace-project-title">
+        <span className={`workspace-project-mark ${rootWorking ? "working" : ""}`} aria-hidden="true" />
+        <span className="workspace-project-copy">
           <strong>{project.label}</strong>
           {visibleRootContext && <small>{visibleRootContext}</small>}
-          <span className={`workspace-project-mark ${rootWorking ? "working" : ""}`} aria-hidden="true" />
         </span>
       </button>
-      {sourceWorktree && <button
-        ref={createTriggerRef}
-        type="button"
-        className="workspace-project-create"
-        aria-label={`Create worktree in ${project.label}`}
-        title={`Create worktree in ${project.label}`}
-        aria-expanded={createOpen}
-        aria-controls={createFormId}
-        disabled={createBusy || (mutationBusy && !createOpen)}
-        onClick={() => createOpen ? onCloseCreate(project.id, true) : onOpenCreate(project.id)}
-      ><Icon name="branch-add" /></button>}
-      {archivable && <button type="button" className="workspace-project-archive" aria-label={`Archive ${project.label}`} title={`Archive ${project.label}`} disabled={archiving || mutationBusy} onClick={() => onArchiveProject(project)}><Icon name="archive" /></button>}
-      {hasLinkedWorktrees && <button
-        type="button"
-        className={`workspace-project-disclosure ${displayedExpanded ? "expanded" : ""}`}
-        aria-expanded={displayedExpanded}
-        aria-controls={worktreeListId}
-        aria-label={`${displayedExpanded ? "Hide" : "Show"} linked worktrees for ${project.label}`}
-        title={`${displayedExpanded ? "Hide" : "Show"} linked worktrees`}
-        onClick={() => setExpanded((current) => !current)}
-      ><Icon name="chevron" /></button>}
+      <span className="workspace-project-actions" data-create-open={createOpen || undefined}>
+        {(sourceWorktree || archivable) && <DropdownMenu>
+          <DropdownMenuTrigger render={<Button
+            ref={createTriggerRef}
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="workspace-project-menu-trigger"
+            aria-label={`More actions for ${project.label}`}
+            title={`More actions for ${project.label}`}
+            disabled={createBusy || archiving || mutationBusy}
+          />}><EllipsisIcon data-icon="inline-start" aria-hidden="true" /></DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuGroup>
+              {sourceWorktree && <DropdownMenuItem aria-label={`Create worktree in ${project.label}`} onClick={() => onOpenCreate(project.id)}>
+                <GitBranchPlusIcon data-icon="inline-start" aria-hidden="true" />
+                <span>Create worktree</span>
+              </DropdownMenuItem>}
+              {archivable && <DropdownMenuItem aria-label={`Archive ${project.label}`} onClick={() => onArchiveProject(project)}>
+                <ArchiveIcon data-icon="inline-start" aria-hidden="true" />
+                <span>Archive Space</span>
+              </DropdownMenuItem>}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>}
+        {hasLinkedWorktrees && <button
+          type="button"
+          className={`workspace-project-disclosure ${displayedExpanded ? "expanded" : ""}`}
+          aria-expanded={displayedExpanded}
+          aria-controls={worktreeListId}
+          aria-label={`${displayedExpanded ? "Hide" : "Show"} linked worktrees for ${project.label}`}
+          title={`${displayedExpanded ? "Hide" : "Show"} linked worktrees`}
+          onClick={() => setExpanded((current) => !current)}
+        ><Icon name="chevron" /></button>}
+      </span>
     </div>
     {createOpen && sourceWorktree && <CreateWorktreeForm
       id={createFormId}

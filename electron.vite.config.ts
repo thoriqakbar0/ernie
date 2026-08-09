@@ -24,6 +24,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve("src/renderer"),
+    resolve: { alias: { "@": resolve("src/renderer/src") } },
     build: { rollupOptions: { input: resolve("src/renderer/index.html") } },
     server: {
       port: rendererPort(process.env["ERNIE_RENDERER_PORT"]),

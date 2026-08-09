@@ -52,8 +52,6 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const [agentView, setAgentView] = useState<AgentView>("all");
   const [spacesExpanded, setSpacesExpanded] = useState(true);
   const [agentsExpanded, setAgentsExpanded] = useState(true);
-  const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
-  const [agentPaneMotion, setAgentPaneMotion] = useState<"horizontal" | "vertical">("vertical");
   const [searchQuery, setSearchQuery] = useState("");
   const [createProjectId, setCreateProjectId] = useState<string>();
   const [settledExpanded, setSettledExpanded] = useState(true);
@@ -86,20 +84,15 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const searchResultStatus = `${visibleProjects.length} ${visibleProjects.length === 1 ? "Space" : "Spaces"}, ${visibleSettledEntries.length} settled ${visibleSettledEntries.length === 1 ? "worktree" : "worktrees"}, and ${visibleAgentMatchCount} ${visibleAgentMatchCount === 1 ? "Agent" : "Agents"} match your search.`;
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
-    setAgentPaneMotion("horizontal");
-    setAgentViewDirection(next === "attention" ? "forward" : "backward");
     setAgentView(next);
   };
-  const toggleAgentsExpanded = () => {
-    if (!agentsExpanded) setAgentPaneMotion("vertical");
-    setAgentsExpanded((current) => !current);
-  };
+  const toggleAgentsExpanded = () => setAgentsExpanded((current) => !current);
   const changeSearchQuery = (value: string) => {
     setSearchQuery(value);
     if (value.trim() === "") return;
     setCreateProjectId(undefined);
     setSpacesExpanded(true);
-    if (!agentsExpanded) { setAgentPaneMotion("vertical"); setAgentsExpanded(true); }
+    if (!agentsExpanded) setAgentsExpanded(true);
   };
   const clearSearch = () => {
     setSearchQuery("");
@@ -115,7 +108,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   }, [compact, open]);
   useLayoutEffect(() => {
     if (!open || revealAgent === undefined || handledRevealRequestRef.current === revealAgent.requestId) return;
-    if (!agentsExpanded) { setAgentPaneMotion("vertical"); setAgentsExpanded(true); return; }
+    if (!agentsExpanded) { setAgentsExpanded(true); return; }
     if (agentView !== "all") { changeAgentView("all"); return; }
     handledRevealRequestRef.current = revealAgent.requestId;
     const frame = requestAnimationFrame(() => {
@@ -276,7 +269,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
           {agentsExpanded && <AgentViewTabs value={agentView} attentionCount={attentionCount} onChange={changeAgentView} />}
         </header>
         {agentsExpanded && <div id="agent-list-panel" className="workspace-agent-scroll" role="tabpanel" aria-labelledby={agentView === "all" ? "all-agents-tab" : "attention-agents-tab"}>
-          <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
+          <div className="workspace-agent-pane">
             {agentView === "all"
               ? <AllAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandSubagents={normalizedQuery !== ""} includeEmptyActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
               : <AttentionAgentPane snapshot={visibleSnapshot} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />}

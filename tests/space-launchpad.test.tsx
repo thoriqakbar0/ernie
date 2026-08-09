@@ -99,20 +99,15 @@ describe("SpaceLaunchpad draft composer", () => {
 
     expect(container.querySelector("select")).toBeNull();
     expect(container.querySelector(".space-launchpad-advanced-trigger")).toBeNull();
-    const thinkingTrigger = container.querySelector<HTMLButtonElement>(".space-launchpad-dropdown.thinking .space-launchpad-dropdown-trigger");
+    const thinkingTrigger = container.querySelector<HTMLButtonElement>('.space-launchpad-select.thinking [data-slot="select-trigger"]');
     expect(thinkingTrigger?.textContent).toContain("Low effort");
     expect(thinkingTrigger?.getAttribute("aria-haspopup")).toBe("listbox");
 
     await act(async () => thinkingTrigger?.click());
-    const thinkingListbox = container.querySelector<HTMLElement>(".space-launchpad-dropdown.thinking [role='listbox']");
-    expect(thinkingListbox?.getAttribute("aria-label")).toBe("Thinking effort");
+    const thinkingListbox = document.body.querySelector<HTMLElement>("[role='listbox']");
+    expect(thinkingListbox).not.toBeNull();
     const options = [...thinkingListbox?.querySelectorAll<HTMLButtonElement>("[role='option']") ?? []];
     expect(options.map((option) => option.textContent)).toEqual(["Off", "Low effort", "High effort"]);
-    expect(options[1]?.tabIndex).toBe(0);
-    await act(async () => options[1]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true })));
-    expect(options[0]?.tabIndex).toBe(0);
-    expect(options[1]?.tabIndex).toBe(-1);
-    expect(document.activeElement).toBe(options[0]);
     await act(async () => {
       options[2]?.click();
       await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -121,18 +116,77 @@ describe("SpaceLaunchpad draft composer", () => {
     expect(thinkingTrigger?.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(thinkingTrigger);
 
-    const modelTrigger = container.querySelector<HTMLButtonElement>(".space-launchpad-dropdown.model .space-launchpad-dropdown-trigger");
+    const modelTrigger = container.querySelector<HTMLButtonElement>('.space-launchpad-select.model [data-slot="select-trigger"]');
     await act(async () => {
-      modelTrigger?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      modelTrigger?.click();
       await new Promise((resolve) => requestAnimationFrame(resolve));
     });
-    expect(document.activeElement?.getAttribute("role")).toBe("option");
-    await act(async () => document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    const modelListbox = document.body.querySelector<HTMLElement>("[role='listbox']");
+    expect(modelListbox).not.toBeNull();
+    await act(async () => modelListbox?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
     expect(document.activeElement).toBe(modelTrigger);
 
     await act(async () => root.unmount());
     container.remove();
+  });
+
+  it("changes the selected Prime Agent model through the shadcn listbox", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const props = {
+      ...baseProps(),
+      models: [
+        ...baseProps().models,
+        { id: "openai-codex:gpt-fast", label: "GPT Fast", provider: "openai-codex", thinkingLevels: ["low"] as const },
+      ],
+    };
+    await act(async () => root.render(<SpaceLaunchpad {...props} />));
+
+    const trigger = container.querySelector<HTMLButtonElement>('.space-launchpad-select.model [data-slot="select-trigger"]');
+    await act(async () => trigger?.click());
+    const options = [...document.body.querySelectorAll<HTMLElement>("[role='option']")];
+    expect(options.map((option) => option.textContent)).toEqual(["GPTopenai-codex", "GPT Fastopenai-codex"]);
+    await act(async () => options[1]?.click());
+
+    expect(props.onModelChange).toHaveBeenCalledOnce();
+    expect(props.onModelChange).toHaveBeenCalledWith("openai-codex:gpt-fast");
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it("disables launch controls when Prime Agent has no available models", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const props = { ...baseProps(), models: [] };
+    await act(async () => root.render(<SpaceLaunchpad {...props} />));
+
+    const model = container.querySelector<HTMLButtonElement>('.space-launchpad-select.model [data-slot="select-trigger"]');
+    const thinking = container.querySelector<HTMLButtonElement>('.space-launchpad-select.thinking [data-slot="select-trigger"]');
+    expect(model?.disabled).toBe(true);
+    expect(thinking?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>(".space-launchpad-submit")?.disabled).toBe(true);
+    expect(container.querySelector(".space-launchpad-model-status")?.textContent).toBe("No models are available.");
+
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the draft and offers retry when Prime Agent model loading fails", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const props = { ...baseProps(), modelsError: "Prime Agent is unavailable." };
+    await act(async () => root.render(<SpaceLaunchpad {...props} />));
+
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("Build it");
+    expect(container.querySelector<HTMLButtonElement>(".space-launchpad-submit")?.disabled).toBe(true);
+    const retry = container.querySelector<HTMLButtonElement>(".space-launchpad-model-status button");
+    expect(retry?.textContent).toBe("Retry");
+    await act(async () => retry?.click());
+    expect(props.onRetryModels).toHaveBeenCalledOnce();
+
+    await act(async () => root.unmount());
   });
 
   it("orders supported thinking levels from minimal through maximum", async () => {
@@ -150,10 +204,10 @@ describe("SpaceLaunchpad draft composer", () => {
     };
     await act(async () => root.render(<SpaceLaunchpad {...props} />));
 
-    const trigger = container.querySelector<HTMLButtonElement>(".space-launchpad-dropdown.thinking .space-launchpad-dropdown-trigger");
+    const trigger = container.querySelector<HTMLButtonElement>('.space-launchpad-select.thinking [data-slot="select-trigger"]');
     expect(trigger?.textContent).toContain("Maximum effort");
     await act(async () => trigger?.click());
-    const options = [...container.querySelectorAll<HTMLButtonElement>(".space-launchpad-dropdown.thinking [role='option']")];
+    const options = [...document.body.querySelectorAll<HTMLButtonElement>("[role='option']")];
     expect(options.map((option) => option.textContent)).toEqual([
       "Minimal effort",
       "Low effort",

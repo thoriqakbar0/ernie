@@ -67,30 +67,27 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     expect(container.querySelector("#agent-list-panel")).not.toBeNull();
     let rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .workspace-agent-row");
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.style.animationDelay).toBe("calc(2 * var(--agent-row-stagger))");
     expect(container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1]?.getAttribute("aria-expanded")).toBe("false");
     const foldedDisclosure = container.querySelector<HTMLButtonElement>(".workspace-folded-subagents-disclosure");
-    expect(foldedDisclosure?.textContent).toBe("1 subagent");
+    expect(foldedDisclosure?.textContent).toBe("Show 1 subagent");
     expect(foldedDisclosure?.getAttribute("aria-expanded")).toBe("false");
     await act(async () => foldedDisclosure?.click());
+    expect(foldedDisclosure?.textContent).toBe("Hide 1 subagent");
     rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .workspace-agent-row");
     expect(rows).toHaveLength(2);
-    expect(rows[1]?.style.animationDelay).toBe("calc(1 * var(--agent-row-stagger))");
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("vertical");
 
     const attention = container.querySelector<HTMLButtonElement>("#attention-agents-tab");
     await act(async () => attention?.click());
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("horizontal");
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("forward");
+    expect(attention?.getAttribute("aria-selected")).toBe("true");
     const all = container.querySelector<HTMLButtonElement>("#all-agents-tab");
     await act(async () => all?.click());
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("backward");
+    expect(all?.getAttribute("aria-selected")).toBe("true");
 
     await act(async () => disclosure?.click());
     expect(disclosure?.getAttribute("aria-expanded")).toBe("false");
     expect(container.querySelector("#agent-list-panel")).toBeNull();
     await act(async () => disclosure?.click());
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("vertical");
+    expect(container.querySelector(".workspace-agent-pane")).not.toBeNull();
     await act(async () => disclosure?.click());
     expect(container.querySelector(".workspace-sidebar-body")?.getAttribute("data-agents-expanded")).toBe("false");
     await act(async () => root.unmount());
@@ -112,20 +109,20 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     const props = sidebarProps(activeSnapshot);
     await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" activeAgentId="child" />));
 
-    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.textContent).toBe("1 more subagent");
+    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.textContent).toBe("Show 1 more subagent");
     expect([...container.querySelectorAll(".workspace-agent-group-heading span")].map((heading) => heading.textContent)).toEqual(["repo · main", "other · main"]);
     expect(container.querySelector(".workspace-agent-group")?.getAttribute("data-current")).toBe("true");
     expect(container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1]?.getAttribute("aria-expanded")).toBe("false");
-    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Root", "Child1"]);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Child"]);
     expect(container.querySelector(".workspace-agent-row.selected .workspace-agent-status")?.classList.contains("idle")).toBe(true);
     expect(container.querySelector("[data-status='working']")).toBeNull();
     const otherGroup = container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1];
     await act(async () => otherGroup?.click());
-    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Root", "Child1", "Other"]);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Child", "Other"]);
     await act(async () => otherGroup?.click());
 
     await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" />));
-    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.textContent).toBe("2 subagents");
+    expect(container.querySelector(".workspace-folded-subagents-disclosure")?.textContent).toBe("Show 2 subagents");
     expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Root"]);
     const search = container.querySelector<HTMLInputElement>('[aria-label="Search spaces, worktrees, and agents"]');
     await act(async () => {
@@ -134,7 +131,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       search.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(container.querySelector(".workspace-folded-subagents-disclosure")?.getAttribute("aria-expanded")).toBe("true");
-    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Root", "Child1", "Working child1"]);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Root", "Child", "Working child"]);
 
     await act(async () => root.unmount());
   });
@@ -171,6 +168,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     await act(async () => root.render(<WorkspaceSidebar {...sidebarProps(duplicateLabelSnapshot)} />));
 
     expect(container.querySelector(".workspace-agent-group-heading span")?.textContent).toBe("same");
+    expect(container.querySelector(".workspace-project-row")?.getAttribute("aria-label")).toBe("same");
 
     await act(async () => root.unmount());
   });
@@ -210,10 +208,12 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       "beta · main",
     ]);
     expect(container.querySelector(".workspace-agent-group")?.getAttribute("data-current")).toBe("true");
-    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Zeta task"]);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Zeta task"]);
+    expect(container.querySelector('[data-status="waiting"] .workspace-agent-status-label')?.textContent).toBe("Waiting for input");
+    expect(container.querySelector('[data-status="idle"] .workspace-agent-status-label')).toBeNull();
     const alphaGroup = container.querySelectorAll<HTMLButtonElement>(".workspace-agent-group-heading>button")[1];
     await act(async () => alphaGroup?.click());
-    expect([...container.querySelectorAll(".workspace-agent-row")].map((row) => row.textContent)).toEqual(["Zeta task", "Alpha task"]);
+    expect([...container.querySelectorAll(".workspace-agent-row strong")].map((name) => name.textContent)).toEqual(["Zeta task", "Alpha task"]);
 
     await act(async () => root.unmount());
   });
@@ -308,12 +308,16 @@ describe("WorkspaceSidebar Spaces", () => {
     expect(container.querySelectorAll(".workspace-worktree-button")).toHaveLength(0);
     const repo = container.querySelector<HTMLButtonElement>(".workspace-project-row");
     expect(repo?.getAttribute("aria-label")).toBe("repo, main");
+    expect(repo?.querySelector(".workspace-project-mark")).not.toBeNull();
     expect(repo?.title).toBe("/repo");
     await act(async () => repo?.click());
     expect(props.onSelectProject).toHaveBeenCalledWith("/repo");
     expect(props.onSelectWorktree).not.toHaveBeenCalled();
-    const archive = container.querySelector<HTMLButtonElement>(".workspace-project-archive");
-    expect(archive?.getAttribute("aria-label")).toBe("Archive other");
+    const menus = container.querySelectorAll<HTMLButtonElement>(".workspace-project-menu-trigger");
+    expect(menus).toHaveLength(2);
+    await act(async () => menus[1]?.click());
+    const archive = document.body.querySelector<HTMLElement>('[aria-label="Archive other"]');
+    expect(archive).not.toBeNull();
     await act(async () => archive?.click());
     expect(props.onArchiveProject).toHaveBeenCalledWith(snapshot.projects[1]);
     const spacesDisclosure = container.querySelector<HTMLButtonElement>(".workspace-spaces-disclosure");
@@ -454,19 +458,25 @@ describe("WorkspaceSidebar Spaces", () => {
     const props = sidebarProps(linkedSnapshot);
     await act(async () => root.render(<WorkspaceSidebar {...props} activeProjectId="/repo" activeWorktreeId="/repo-feature" />));
 
-    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Create worktree in repo"]');
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="More actions for repo"]');
     expect(trigger).not.toBeNull();
     await act(async () => trigger?.click());
+    const createItem = document.body.querySelector<HTMLElement>('[aria-label="Create worktree in repo"]');
+    expect(createItem).not.toBeNull();
+    await act(async () => createItem?.click());
     const form = container.querySelector<HTMLFormElement>('form[aria-label="Create worktree in repo"]');
     const input = form?.querySelector<HTMLInputElement>('input[name="branch"]');
     expect(form?.textContent).toContain("Starts from feature");
     expect(document.activeElement).toBe(input);
+    expect([...container.querySelectorAll<HTMLButtonElement>(".workspace-project-menu-trigger")].every((button) => button.disabled)).toBe(true);
 
     await act(async () => input?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    expect(container.querySelector('[aria-label="Create worktree in repo"]:not(button)')).toBeNull();
+    expect(container.querySelector('form[aria-label="Create worktree in repo"]')).toBeNull();
     expect(document.activeElement).toBe(trigger);
 
     await act(async () => trigger?.click());
+    const reopenedCreateItem = document.body.querySelector<HTMLElement>('[aria-label="Create worktree in repo"]');
+    await act(async () => reopenedCreateItem?.click());
     const reopenedForm = container.querySelector<HTMLFormElement>('form[aria-label="Create worktree in repo"]');
     await act(async () => reopenedForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(reopenedForm?.querySelector('[role="alert"]')?.textContent).toBe("Enter a branch name.");

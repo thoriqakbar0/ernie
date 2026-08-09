@@ -8,6 +8,7 @@ import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import type { AgentStatus, WorkspaceAgent, WorkspaceCatalogEvent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../shared/workspace";
 
@@ -108,6 +109,8 @@ export class WorkspaceCatalog extends Context.Service<WorkspaceCatalog, {
   readonly refresh: Effect.Effect<WorkspaceSnapshot, WorkspaceCatalogError>;
   /** Add one normalized directory, persist it, and publish the refreshed workspace. */
   readonly addProject: (path: string) => Effect.Effect<WorkspaceSnapshot, WorkspaceCatalogError>;
+  /** Remove one catalog-owned secondary project without deleting its files or sessions. */
+  readonly archiveProject: (projectId: string) => Effect.Effect<WorkspaceSnapshot, WorkspaceCatalogError>;
 }>()("@ernie/main/WorkspaceCatalog") {}
 
 function bounded(value: string, limit: number): string {
@@ -261,6 +264,17 @@ function makeSnapshot(
   return { projects, worktrees, agents, updatedAt: new Date().toISOString() };
 }
 
+function snapshotWithoutProject(snapshot: WorkspaceSnapshot, projectId: string): WorkspaceSnapshot {
+  const projects = snapshot.projects.filter((project) => project.id !== projectId);
+  const authorizedWorktreeIds = new Set(projects.flatMap((project) => project.worktreeIds));
+  return {
+    projects,
+    worktrees: snapshot.worktrees.filter((worktree) => authorizedWorktreeIds.has(worktree.id)),
+    agents: snapshot.agents.filter((agent) => authorizedWorktreeIds.has(agent.worktreeId)),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 const MAX_PROJECTS = 32;
 
 function projectError(operation: string, message: string, cause?: unknown): WorkspaceCatalogProjectError {
@@ -305,6 +319,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
   const projectPaths = yield* Ref.make<readonly string[]>(initialPaths.length > 0 ? initialPaths : [repositoryPath]);
   const state = yield* Ref.make<WorkspaceSnapshot>({ projects: [], worktrees: [], agents: [], updatedAt: new Date(0).toISOString() });
   const notifications = yield* PubSub.unbounded<WorkspaceCatalogEvent>();
+  const mutationMutex = yield* Semaphore.make(1);
   const current = Ref.get(state);
   const events = Stream.fromPubSub(notifications);
 
@@ -317,7 +332,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
         : Effect.fail(error)),
     );
 
-  const refresh = Effect.fn("WorkspaceCatalog.refresh")(function* () {
+  const refreshUnlocked = Effect.fn("WorkspaceCatalog.refreshUnlocked")(function* () {
     const paths = yield* Ref.get(projectPaths);
     const [primeOutput, discovered] = yield* Effect.all([
       runCommand(nodePath, [primeAgentCliPath, "list", "--json"], paths[0] ?? repositoryPath, environment, "prime-agent-list"),
@@ -331,6 +346,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
     yield* PubSub.publish(notifications, { kind: "snapshot", snapshot } satisfies WorkspaceCatalogEvent).pipe(Effect.asVoid);
     return snapshot;
   })();
+  const refresh = mutationMutex.withPermits(1)(refreshUnlocked);
 
   const persistProjects = (paths: readonly string[]) => projectStorePath === undefined
     ? Effect.void
@@ -345,7 +361,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
       catch: (cause) => projectError("save-projects", "Could not save project directories", cause),
     });
 
-  const addProject = Effect.fn("WorkspaceCatalog.addProject")(function* (path: string) {
+  const addProjectUnlocked = Effect.fn("WorkspaceCatalog.addProject")(function* (path: string) {
     const normalized = yield* Effect.tryPromise({
       try: async () => {
         const candidate = await realpath(path);
@@ -355,13 +371,30 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
       catch: (cause) => projectError("add-project", "Unable to open this folder. Choose a directory that exists and you can access.", cause),
     });
     const currentPaths = yield* Ref.get(projectPaths);
-    if (currentPaths.includes(normalized)) return yield* refresh;
+    if (currentPaths.includes(normalized)) return yield* refreshUnlocked;
     if (currentPaths.length >= MAX_PROJECTS) return yield* projectError("add-project", `Unable to open another folder. A workspace can contain at most ${MAX_PROJECTS} projects.`);
     const next = [...currentPaths, normalized];
     yield* persistProjects(next);
     yield* Ref.set(projectPaths, next);
-    return yield* refresh;
+    return yield* refreshUnlocked;
   });
+  const addProject = (path: string) => mutationMutex.withPermits(1)(addProjectUnlocked(path));
+
+  const archiveProjectUnlocked = Effect.fn("WorkspaceCatalog.archiveProject")(function* (projectId: string) {
+    const currentPaths = yield* Ref.get(projectPaths);
+    if (projectId === repositoryPath) return yield* projectError("archive-project", "Ernie's primary Space cannot be archived.");
+    if (!currentPaths.includes(projectId)) return yield* projectError("archive-project", "This Space is no longer in the workspace catalog.");
+    let currentSnapshot = yield* Ref.get(state);
+    if (!currentSnapshot.projects.some((project) => project.id === projectId)) currentSnapshot = yield* refreshUnlocked;
+    const next = currentPaths.filter((path) => path !== projectId);
+    yield* persistProjects(next);
+    yield* Ref.set(projectPaths, next);
+    const snapshot = snapshotWithoutProject(currentSnapshot, projectId);
+    yield* Ref.set(state, snapshot);
+    yield* PubSub.publish(notifications, { kind: "snapshot", snapshot } satisfies WorkspaceCatalogEvent).pipe(Effect.asVoid);
+    return snapshot;
+  });
+  const archiveProject = (projectId: string) => mutationMutex.withPermits(1)(archiveProjectUnlocked(projectId));
 
   const interval = options.refreshIntervalMs ?? 2_000;
   const start = interval === false
@@ -378,7 +411,7 @@ export const make = (options: WorkspaceCatalogOptions) => Effect.gen(function* (
       ),
     );
 
-  return WorkspaceCatalog.of({ current, events, start, refresh, addProject });
+  return WorkspaceCatalog.of({ current, events, start, refresh, addProject, archiveProject });
 });
 
 /** Dependency-preserving WorkspaceCatalog layer. */

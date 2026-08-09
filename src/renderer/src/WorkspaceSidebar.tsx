@@ -74,15 +74,18 @@ function WorktreeRow({ projectId, worktree, active, working, onSelect }: {
   </li>;
 }
 
-function SpaceRow({ project, rootWorktree, linkedWorktrees, activeProjectId, activeWorktreeId, workingWorktreeIds, onSelectProject, onSelectWorktree }: {
+function SpaceRow({ project, rootWorktree, linkedWorktrees, archivable, archiving, activeProjectId, activeWorktreeId, workingWorktreeIds, onSelectProject, onSelectWorktree, onArchiveProject }: {
   readonly project: WorkspaceProject;
   readonly rootWorktree: WorkspaceWorktree | undefined;
   readonly linkedWorktrees: readonly WorkspaceWorktree[];
+  readonly archivable: boolean;
+  readonly archiving: boolean;
   readonly activeProjectId: string | undefined;
   readonly activeWorktreeId: string | undefined;
   readonly workingWorktreeIds: ReadonlySet<string>;
   readonly onSelectProject: (projectId: string) => void;
   readonly onSelectWorktree: (projectId: string, worktreeId: string) => void;
+  readonly onArchiveProject: (project: WorkspaceProject) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const worktreeListId = useId();
@@ -103,6 +106,7 @@ function SpaceRow({ project, rootWorktree, linkedWorktrees, activeProjectId, act
         </span>
         <small>{rootContext}</small>
       </button>
+      {archivable && <button type="button" className="workspace-project-archive" aria-label={`Archive ${project.label}`} title={`Archive ${project.label}`} disabled={archiving} onClick={() => onArchiveProject(project)}><Icon name="archive" /></button>}
       {hasLinkedWorktrees && <button
         type="button"
         className={`workspace-project-disclosure ${expanded ? "expanded" : ""}`}
@@ -266,7 +270,7 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
-export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, openError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onOpenAgent, onOpenDirectory }: {
+export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, archivingProjectId, openError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onArchiveProject, onOpenAgent, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly activeProjectId: string | undefined;
   readonly activeWorktreeId: string | undefined;
@@ -274,6 +278,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   readonly loading: boolean;
   readonly failed: boolean;
   readonly opening: boolean;
+  readonly archivingProjectId: string | undefined;
   readonly openError: string | undefined;
   readonly compact: boolean;
   readonly open: boolean;
@@ -283,6 +288,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   readonly onClose: () => void;
   readonly onSelectProject: (projectId: string) => void;
   readonly onSelectWorktree: (projectId: string, worktreeId: string) => void;
+  readonly onArchiveProject: (project: WorkspaceProject) => void;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
   readonly onOpenDirectory: () => void;
 }) {
@@ -340,7 +346,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         <strong id="workspace-navigation-title">ernie <span className="workspace-product-stage">dev mode</span></strong>
         <div className="workspace-sidebar-actions">
           {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
-          <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar" onClick={onClose}><Icon name="sidebar-close" /></button>
+          <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar (⌘B)" onClick={onClose}><Icon name="sidebar-close" /></button>
         </div>
       </div>
     </header>
@@ -365,11 +371,14 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
               project={project}
               rootWorktree={rootWorktree}
               linkedWorktrees={linkedWorktrees}
+              archivable={snapshot.projects[0]?.id !== project.id}
+              archiving={archivingProjectId === project.id}
               activeProjectId={activeProjectId}
               activeWorktreeId={activeWorktreeId}
               workingWorktreeIds={workingWorktreeIds}
               onSelectProject={onSelectProject}
               onSelectWorktree={onSelectWorktree}
+              onArchiveProject={onArchiveProject}
             />;
           })}</ul>
         </div>

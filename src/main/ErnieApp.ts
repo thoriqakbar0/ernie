@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import type { CommandResult, OpenProjectResult } from "../shared/contract";
+import type { ArchiveProjectResult, CommandResult, OpenProjectResult } from "../shared/contract";
 import { SpaceCommandSchema, SpaceIdSchema, StartSpaceSchema } from "./IpcProtocol";
 import { ErnieWindow, hardenElectron } from "./ErnieWindow";
 import { SpaceRuntimeRegistry } from "./SpaceRuntimeRegistry";
@@ -80,6 +80,18 @@ export const program = Effect.scoped(Effect.gen(function* () {
           Effect.catch((error) => Effect.succeed({ ok: false, error: error.message } satisfies OpenProjectResult)),
         );
       })));
+      ipcMain.handle("workspace:archive-project", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const projectId = yield* Schema.decodeUnknownEffect(SpaceIdSchema)(input);
+        const current = yield* catalog.current;
+        const project = current.projects.find((candidate) => candidate.id === projectId);
+        if (project === undefined) return { ok: false, error: "This Space is no longer available." } satisfies ArchiveProjectResult;
+        return yield* catalog.archiveProject(projectId).pipe(
+          Effect.tap(() => Effect.forEach(new Set([project.id, ...project.worktreeIds]), (spaceId) => runtimes.closeSpace(spaceId), { discard: true })),
+          Effect.map((snapshot) => ({ ok: true, snapshot } satisfies ArchiveProjectResult)),
+          Effect.catch((error) => Effect.succeed({ ok: false, error: error.message } satisfies ArchiveProjectResult)),
+        );
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, error: "Invalid Space archive request." } satisfies ArchiveProjectResult)))));
       ipcMain.handle("session-transcript:select", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         const activeSessionId = yield* Schema.decodeUnknownEffect(Schema.String)(input);
@@ -133,6 +145,7 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.removeHandler("space:command");
       ipcMain.removeHandler("workspace:get-snapshot");
       ipcMain.removeHandler("workspace:open-project");
+      ipcMain.removeHandler("workspace:archive-project");
       ipcMain.removeHandler("session-transcript:select");
       ipcMain.removeHandler("session-transcript:detach");
       ipcMain.removeHandler("dev-server:refresh");

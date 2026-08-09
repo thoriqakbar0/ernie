@@ -82,6 +82,10 @@ export type OpenProjectResult =
   | { readonly ok: true; readonly cancelled: false; readonly snapshot: WorkspaceSnapshot }
   | { readonly ok: false; readonly error: string };
 
+export type ArchiveProjectResult =
+  | { readonly ok: true; readonly snapshot: WorkspaceSnapshot }
+  | { readonly ok: false; readonly error: string };
+
 export interface ErnieApi {
   /** Get or lazily create the runtime authorized by this catalog Space. */
   getSpaceState(spaceId: string): Promise<SpaceRuntimeState>;
@@ -94,6 +98,7 @@ export interface ErnieApi {
   onWorkspaceEvent(listener: (event: WorkspaceEvent) => void): () => void;
   getWorkspace(): Promise<WorkspaceSnapshot>;
   openProjectDirectory(): Promise<OpenProjectResult>;
+  archiveProject(projectId: string): Promise<ArchiveProjectResult>;
   refreshDevServers(worktreeId: string): Promise<DevServerSnapshot>;
   openDevServer(worktreeId: string, port: number, url: string): Promise<CommandResult>;
   copyText(text: string): Promise<CommandResult>;

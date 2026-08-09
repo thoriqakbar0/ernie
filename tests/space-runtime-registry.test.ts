@@ -122,4 +122,17 @@ describe("SpaceRuntimeRegistry", () => {
     expect(records[1]?.configured).toEqual([{ message: "New thread", model: { provider: "provider", id: "m" }, thinkingLevel: "off" }]);
   });
 
+  it("stops only the archived Space runtime and can authorize it again while cataloged", async () => {
+    const records: OpenRecord[] = [];
+    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      const registry = yield* make({ snapshot: Effect.succeed(snapshot), runtimeFactory: fakeFactory(records) });
+      yield* registry.state("space-a");
+      yield* registry.state("worktree-a");
+      yield* registry.closeSpace("space-a");
+      expect(records.map(({ stopped }) => stopped)).toEqual([true, false]);
+      yield* registry.state("space-a");
+    })));
+    expect(records.map(({ cwd }) => cwd)).toEqual(["/catalog/a", "/catalog/a-worktree", "/catalog/a"]);
+  });
+
 });

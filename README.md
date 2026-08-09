@@ -51,6 +51,7 @@ pnpm ensure:electron
 - Each cataloged project root or linked worktree owns at most one Ernie-managed Prime Agent RPC client. Its path is resolved and authorized in the Electron main process; the renderer never supplies a working directory.
 - Ernie keeps at most **three resident runtime clients**. At capacity it evicts only the least-recently-used idle client. It never evicts a working, compacting, queued, switching, or in-flight runtime.
 - Model and thinking-level preferences are stored per worktree. Prompt drafts are intentionally not persisted.
+- `Cmd–B` toggles workspace navigation without placing a redundant open control in the main titlebar. Secondary Spaces expose an Archive action that removes the directory from Ernie, stops its owned runtime, and preserves files and saved sessions; reopening the folder restores it.
 - Prime Agent `0.7.1` does not expose live RLM-depth mutation in RPC mode. The launch surface currently requests root-only depth `0`; the main-process registry still applies creation-time `RLM_MAX_DEPTH` safely before setting the model and thinking level and admitting the first prompt.
 - On macOS, `Cmd–W` closes only the window. The main-process registry and active work continue, and reopening Ernie restores the attached runtime state. `Cmd–Q` shuts down Ernie-owned RPC process trees with bounded TERM/KILL cleanup; saved Prime Agent sessions remain discoverable.
 - Closing a session tab closes only its view. It does not stop or delete the underlying session.

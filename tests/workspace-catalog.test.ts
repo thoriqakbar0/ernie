@@ -56,7 +56,7 @@ describe("WorkspaceCatalog", () => {
     expect(JSON.stringify(result.refreshed)).not.toMatch(/sessionFile|workerPid|spawnCode/u);
   });
 
-  it("adds and restores user-opened project directories", async () => {
+  it("adds, archives, and restores user-opened project directories", async () => {
     const temporary = mkdtempSync(join(tmpdir(), "ernie-projects-"));
     const selected = join(temporary, "second-project");
     const store = join(temporary, "projects.json");
@@ -80,6 +80,19 @@ describe("WorkspaceCatalog", () => {
         return yield* catalog.refresh;
       }).pipe(Effect.provide(catalogLayer())));
       expect(restored.projects.map((project) => project.path)).toEqual([root, normalizedSelected]);
+
+      const archived = await Effect.runPromise(Effect.gen(function* () {
+        const catalog = yield* WorkspaceCatalog;
+        return yield* catalog.archiveProject(normalizedSelected);
+      }).pipe(Effect.provide(catalogLayer())));
+      expect(archived.projects.map((project) => project.path)).toEqual([root]);
+      expect(readFileSync(store, "utf8")).toBe(JSON.stringify({ version: 1, paths: [root] }, null, 2));
+
+      const primaryError = await Effect.runPromise(Effect.gen(function* () {
+        const catalog = yield* WorkspaceCatalog;
+        return yield* Effect.flip(catalog.archiveProject(root));
+      }).pipe(Effect.provide(catalogLayer())));
+      expect(primaryError.message).toBe("Ernie's primary Space cannot be archived.");
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }

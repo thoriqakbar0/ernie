@@ -53,6 +53,8 @@ export class SpaceRuntimeRegistry extends Context.Service<SpaceRuntimeRegistry, 
   readonly getRlmMaxDepth: (spaceId: string) => Effect.Effect<number, SpaceRuntimeRegistryError | PrimeAgentRpcError>;
   readonly command: (spaceId: string, command: AgentCommand) => Effect.Effect<{ readonly cancelled?: boolean }, SpaceRuntimeRegistryError | PrimeAgentRpcError>;
   readonly startSpace: (input: StartSpaceInput) => Effect.Effect<void, SpaceRuntimeRegistryError | PrimeAgentRpcError>;
+  /** Stop and forget one owned runtime without affecting saved Prime Agent sessions. */
+  readonly closeSpace: (spaceId: string) => Effect.Effect<void>;
   readonly close: Effect.Effect<void>;
 }>()("@ernie/main/SpaceRuntimeRegistry") {}
 
@@ -175,13 +177,23 @@ export const make = (options: SpaceRuntimeRegistryOptions) => Effect.gen(functio
     })),
   ));
 
+  const closeSpace = (spaceId: string) => mutex.withPermits(1)(Effect.gen(function* () {
+    const current = yield* Ref.get(residents);
+    const entry = current.get(spaceId);
+    if (entry === undefined) return;
+    const next = new Map(current);
+    next.delete(spaceId);
+    yield* Ref.set(residents, next);
+    yield* closeEntry(entry);
+  }));
+
   const close = mutex.withPermits(1)(Effect.gen(function* () {
     const current = yield* Ref.getAndSet(residents, new Map());
     yield* Effect.forEach(current.values(), closeEntry, { discard: true });
   }));
   yield* Effect.addFinalizer(() => close);
 
-  return SpaceRuntimeRegistry.of({ events: Stream.fromPubSub(notifications), state, availableCommands, availableModels, getRlmMaxDepth, command, startSpace, close });
+  return SpaceRuntimeRegistry.of({ events: Stream.fromPubSub(notifications), state, availableCommands, availableModels, getRlmMaxDepth, command, startSpace, closeSpace, close });
 });
 
 /** Production registry layer deriving each runtime cwd exclusively from WorkspaceCatalog. */

@@ -26,16 +26,12 @@ function isCommandableAgent(agent: WorkspaceAgent, sessionId: string): boolean {
     && (agent.sessionId === sessionId || agent.id === sessionId || agent.activeSessionId === sessionId);
 }
 
-function SessionTabs({ snapshot, locationLabel, openAgentIds, activeAgentId, navigationOpen, showNavigationToggle, navigationToggleRef, emptyFocusRef, onToggleNavigation, onSelect, onClose }: {
+function SessionTabs({ snapshot, locationLabel, openAgentIds, activeAgentId, emptyFocusRef, onSelect, onClose }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly locationLabel: string | undefined;
   readonly openAgentIds: readonly string[];
   readonly activeAgentId: string | undefined;
-  readonly navigationOpen: boolean;
-  readonly showNavigationToggle: boolean;
-  readonly navigationToggleRef: RefObject<HTMLButtonElement | null>;
   readonly emptyFocusRef: RefObject<HTMLElement | null>;
-  readonly onToggleNavigation: () => void;
   readonly onSelect: (agentId: string) => void;
   readonly onClose: (agentId: string) => void;
 }) {
@@ -62,7 +58,6 @@ function SessionTabs({ snapshot, locationLabel, openAgentIds, activeAgentId, nav
     else requestAnimationFrame(() => emptyFocusRef.current?.focus());
   };
   return <div className="focused-titlebar-tabs">
-    {showNavigationToggle && <button ref={navigationToggleRef} type="button" className="workspace-navigation-toggle" aria-label="Open workspace navigation" aria-controls="workspace-navigation" aria-expanded={navigationOpen} onClick={onToggleNavigation}><Icon name="sidebar" /></button>}
     <div className="focused-tabstrip" role="tablist" aria-label={locationLabel ? `Open sessions in ${locationLabel}` : "Open sessions"}>
     {openAgentIds.map((agentId) => {
       const agent = snapshot.agents.find((candidate) => candidate.id === agentId);
@@ -355,20 +350,19 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   const [spacePromptDrafts, setSpacePromptDrafts] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [spaceTabs, setSpaceTabs] = useState(emptySpaceSessionTabs);
   const [opening, setOpening] = useState(false);
+  const [archivingProjectId, setArchivingProjectId] = useState<string | undefined>();
   const [openError, setOpenError] = useState<string | undefined>();
   const compactNavigation = useMediaQuery("(max-width: 700px)");
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [performanceEnabled, setPerformanceEnabled] = useState(false);
   const [agentRevealRequest, setAgentRevealRequest] = useState<{ readonly agentId: string; readonly requestId: number }>();
-  const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const emptySessionFocusRef = useRef<HTMLElement>(null);
   const initialized = useRef(false);
   const sidebarOpen = compactNavigation ? navigationOpen : desktopSidebarOpen;
   const closeNavigation = () => {
     if (compactNavigation) setNavigationOpen(false);
     else setDesktopSidebarOpen(false);
-    requestAnimationFrame(() => requestAnimationFrame(() => navigationToggleRef.current?.focus()));
   };
   const openNavigation = () => {
     if (compactNavigation) setNavigationOpen(true);
@@ -379,13 +373,24 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   const activeAgentId = activeSpaceTabs.activeAgentId;
 
   useEffect(() => {
+    const toggleNavigationShortcut = (event: globalThis.KeyboardEvent) => {
+      if (event.repeat || event.key.toLocaleLowerCase() !== "b" || (!event.metaKey && !event.ctrlKey) || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      if (compactNavigation) setNavigationOpen((current) => !current);
+      else setDesktopSidebarOpen((current) => !current);
+    };
+    window.addEventListener("keydown", toggleNavigationShortcut);
+    return () => window.removeEventListener("keydown", toggleNavigationShortcut);
+  }, [compactNavigation]);
+
+  useEffect(() => {
     if (compactNavigation) setPerformanceEnabled(false);
     else setNavigationOpen(false);
   }, [compactNavigation]);
   useLayoutEffect(() => {
     if (sidebarOpen) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest("#workspace-navigation")) navigationToggleRef.current?.focus();
+    if (active instanceof HTMLElement && active.closest("#workspace-navigation")) emptySessionFocusRef.current?.focus();
   }, [sidebarOpen]);
   useEffect(() => {
     if (!compactNavigation || !navigationOpen) return;
@@ -502,6 +507,21 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
       }
     } finally { setOpening(false); }
   };
+  const archiveProject = async (project: WorkspaceProject) => {
+    const confirmed = window.confirm(`Archive “${project.label}”?
+
+This removes it from Spaces and stops any Ernie-managed work for it. Files and saved sessions stay on disk; open the folder again to restore it.`);
+    if (!confirmed) return;
+    setArchivingProjectId(project.id);
+    setOpenError(undefined);
+    try {
+      const result = await window.ernie.archiveProject(project.id);
+      if (!result.ok) { setOpenError(result.error); return; }
+      onSnapshot(result.snapshot);
+    } catch {
+      setOpenError(`Unable to archive ${project.label}. Try again.`);
+    } finally { setArchivingProjectId(undefined); }
+  };
   const locationLabel = activeProject && activeWorktree
     ? activeWorktree.id === (rootWorktreeFor(activeProject)?.id) ? activeProject.label : `${activeProject.label} · ${activeWorktree.label}`
     : activeProject?.label;
@@ -509,13 +529,13 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   return <PerformanceHud enabled={import.meta.env.DEV && performanceEnabled}>
     <div className={`focused-workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
       <PerformanceProfiler area="sidebar">
-        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} openError={openError} compact={compactNavigation} open={sidebarOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
+        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} archivingProjectId={archivingProjectId} openError={openError} compact={compactNavigation} open={sidebarOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onArchiveProject={(project) => { void archiveProject(project); }} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
       </PerformanceProfiler>
       {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
       <PerformanceProfiler area="main">
         <section className="focused-main-column" aria-hidden={compactNavigation && navigationOpen} inert={compactNavigation && navigationOpen ? true : undefined}>
           <div className="focused-titlebar-drag" aria-hidden="true" />
-          <SessionTabs snapshot={workspace} locationLabel={locationLabel} openAgentIds={openAgentIds} activeAgentId={activeAgentId} navigationOpen={sidebarOpen} showNavigationToggle={!sidebarOpen} navigationToggleRef={navigationToggleRef} emptyFocusRef={emptySessionFocusRef} onToggleNavigation={openNavigation} onSelect={selectAgent} onClose={closeAgent} />
+          <SessionTabs snapshot={workspace} locationLabel={locationLabel} openAgentIds={openAgentIds} activeAgentId={activeAgentId} emptyFocusRef={emptySessionFocusRef} onSelect={selectAgent} onClose={closeAgent} />
           <section ref={emptySessionFocusRef} tabIndex={-1} id="selected-session-panel" className="selected-session-panel" role="tabpanel" aria-labelledby={activeAgentId ? `session-tab-${encodeURIComponent(activeAgentId)}` : undefined} aria-label={activeAgentId ? undefined : "Session workspace"}>
             <SessionSurface snapshot={workspace} agentId={activeAgentId} loading={loading} activeProject={activeProject} activeWorktree={activeWorktree} runtimeState={runtimeState} liveItems={liveItems} opening={opening} openError={openError} spacePromptDraft={activeSpacePromptDraft} onSpacePromptDraftChange={setActiveSpacePromptDraft} onAppendLiveUser={onAppendLiveUser} onRuntimeState={onRuntimeState} onStarted={started} onShowAgentHierarchy={showAgentHierarchy} onSelectProject={selectProject} onOpenDirectory={() => { void openDirectory(); }} />
           </section>

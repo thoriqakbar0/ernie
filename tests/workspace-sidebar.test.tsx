@@ -39,6 +39,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       loading={false}
       failed={false}
       opening={false}
+      archivingProjectId={undefined}
       openError={undefined}
       compact={false}
       open
@@ -48,6 +49,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       onClose={vi.fn()}
       onSelectProject={vi.fn()}
       onSelectWorktree={vi.fn()}
+      onArchiveProject={vi.fn()}
       onOpenAgent={vi.fn()}
       onOpenDirectory={vi.fn()}
     />));
@@ -109,6 +111,7 @@ function sidebarProps(snapshotValue: WorkspaceSnapshot) {
     loading: false,
     failed: false,
     opening: false,
+    archivingProjectId: undefined,
     openError: undefined,
     compact: false,
     open: true,
@@ -118,6 +121,7 @@ function sidebarProps(snapshotValue: WorkspaceSnapshot) {
     onClose: vi.fn(),
     onSelectProject: vi.fn(),
     onSelectWorktree: vi.fn(),
+    onArchiveProject: vi.fn(),
     onOpenAgent: vi.fn(),
     onOpenDirectory: vi.fn(),
   } as const;
@@ -139,6 +143,10 @@ describe("WorkspaceSidebar Spaces", () => {
     await act(async () => repo?.click());
     expect(props.onSelectProject).toHaveBeenCalledWith("/repo");
     expect(props.onSelectWorktree).not.toHaveBeenCalled();
+    const archive = container.querySelector<HTMLButtonElement>(".workspace-project-archive");
+    expect(archive?.getAttribute("aria-label")).toBe("Archive other");
+    await act(async () => archive?.click());
+    expect(props.onArchiveProject).toHaveBeenCalledWith(snapshot.projects[1]);
 
     await act(async () => root.unmount());
   });

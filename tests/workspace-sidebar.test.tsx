@@ -63,10 +63,10 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     const priority = container.querySelector<HTMLButtonElement>("#priority-tab");
     await act(async () => priority?.click());
     expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-motion")).toBe("horizontal");
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("backward");
+    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("forward");
     const grouped = container.querySelector<HTMLButtonElement>("#all-agents-tab");
     await act(async () => grouped?.click());
-    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("forward");
+    expect(container.querySelector(".workspace-agent-pane")?.getAttribute("data-direction")).toBe("backward");
 
     await act(async () => disclosure?.click());
     expect(disclosure?.getAttribute("aria-expanded")).toBe("false");

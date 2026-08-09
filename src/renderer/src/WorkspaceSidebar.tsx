@@ -233,7 +233,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeAgentId, loa
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
     setAgentPaneMotion("horizontal");
-    setAgentViewDirection(next === "priority" ? "backward" : "forward");
+    setAgentViewDirection(next === "priority" ? "forward" : "backward");
     setAgentView(next);
   };
   const toggleAgentsExpanded = () => {

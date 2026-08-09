@@ -62,6 +62,7 @@ describe("WorkspaceSidebar Agents disclosure", () => {
     />));
 
     const disclosure = container.querySelector<HTMLButtonElement>(".workspace-agents-disclosure");
+    expect(container.querySelector("#agents-panel")?.firstElementChild?.classList.contains("agent-heading")).toBe(true);
     expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
     expect(container.querySelector("#agent-list-panel")).not.toBeNull();
     let rows = container.querySelectorAll<HTMLElement>(".workspace-agent-list .focused-session-row");
@@ -109,14 +110,18 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       ],
     } satisfies WorkspaceSnapshot;
     const props = sidebarProps(activeSnapshot);
-    await act(async () => root.render(<WorkspaceSidebar {...props} activeAgentId="child" />));
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" activeAgentId="child" />));
 
     expect(container.querySelector(".workspace-idle-subagents-disclosure")).toBeNull();
-    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Rootrepo · main", "Child1repo · main", "Working child1repo · main", "Otherother · main"]);
+    expect([...container.querySelectorAll(".workspace-agent-group-heading")].map((heading) => heading.textContent)).toEqual(["repo · mainActive", "other · main"]);
+    expect(container.querySelector(".workspace-agent-group")?.getAttribute("data-active")).toBe("true");
+    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Root", "Child1", "Working child1", "Other"]);
+    expect(container.querySelector(".focused-session-row.active .focused-status")?.classList.contains("idle")).toBe(true);
+    expect(container.querySelector("[data-status='working'] .focused-status")?.classList.contains("working")).toBe(true);
 
-    await act(async () => root.render(<WorkspaceSidebar {...props} />));
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeWorktreeId="/repo" />));
     expect(container.querySelector(".workspace-idle-subagents-disclosure")?.textContent).toBe("1 idle subagent");
-    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Rootrepo · main", "Working child1repo · main", "Otherother · main"]);
+    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Root", "Working child1", "Other"]);
     const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces, Settled worktrees, and Agents"]');
     await act(async () => {
       if (!search) return;
@@ -124,7 +129,42 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       search.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(container.querySelector(".workspace-idle-subagents-disclosure")?.getAttribute("aria-expanded")).toBe("true");
-    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Rootrepo · main", "Working child1repo · main", "Child1repo · main"]);
+    expect([...container.querySelectorAll(".focused-session-row")].map((row) => row.textContent)).toEqual(["Root", "Working child1", "Child1"]);
+
+    await act(async () => root.unmount());
+  });
+
+  it("keeps an empty active worktree first so the current context never disappears", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const emptyWorktreeSnapshot = {
+      ...snapshot,
+      projects: [{ ...snapshot.projects[0], worktreeIds: ["/repo-empty", "/repo"] }, snapshot.projects[1]],
+      worktrees: [{ id: "/repo-empty", path: "/trees/empty", label: "empty" }, ...snapshot.worktrees],
+    } satisfies WorkspaceSnapshot;
+    await act(async () => root.render(<WorkspaceSidebar {...sidebarProps(emptyWorktreeSnapshot)} activeProjectId="/repo" activeWorktreeId="/repo-empty" />));
+
+    const groups = [...container.querySelectorAll(".workspace-agent-group")];
+    expect(groups[0]?.querySelector(".workspace-agent-group-heading")?.textContent).toBe("repo · emptyActive");
+    expect(groups[0]?.textContent).toContain("No agents yet");
+    expect(groups[1]?.querySelector(".workspace-agent-group-heading")?.textContent).toBe("repo · main");
+
+    await act(async () => root.unmount());
+  });
+
+  it("does not repeat a worktree label that matches its project", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const duplicateLabelSnapshot = {
+      projects: [{ id: "/same", path: "/same", label: "same", worktreeIds: ["/same"] }],
+      worktrees: [{ id: "/same", path: "/same", label: "same" }],
+      settledWorktrees: [],
+      agents: [{ id: "same-agent", sessionId: "same-session", worktreeId: "/same", name: "Same", summary: "", status: "idle", runtimeKind: "root" }],
+      updatedAt: "2026-08-08T00:00:00.000Z",
+    } satisfies WorkspaceSnapshot;
+    await act(async () => root.render(<WorkspaceSidebar {...sidebarProps(duplicateLabelSnapshot)} />));
+
+    expect(container.querySelector(".workspace-agent-group-heading")?.textContent).toBe("same");
 
     await act(async () => root.unmount());
   });

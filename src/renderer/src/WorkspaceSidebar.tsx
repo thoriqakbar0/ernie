@@ -5,7 +5,7 @@ import { prioritizeRootAgents } from "./agentPriority";
 import { horizontalTabStep } from "./tabKeyboardNavigation";
 import { flattenAgentHierarchy } from "./ProjectSidebar";
 import { Icon } from "./WorkspaceIcon";
-import { projectForAgent, statusText } from "./workspaceAgentPresentation";
+import { agentDisplayName, projectForAgent, statusText } from "./workspaceAgentPresentation";
 
 const SUBAGENT_ICONS = ["subagent-fork", "subagent-workflow", "subagent-network", "subagent-waypoints"] as const;
 type SettledWorktree = NonNullable<WorkspaceSnapshot["settledWorktrees"]>[number];
@@ -20,7 +20,7 @@ function SubagentMark({ agentId, depth }: { readonly agentId: string; readonly d
 function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOpen }: {
   readonly agent: WorkspaceAgent;
   readonly active: boolean;
-  readonly context: string;
+  readonly context?: string;
   readonly depth?: number;
   readonly entranceOrder?: number;
   readonly onOpen: (agent: WorkspaceAgent) => void;
@@ -29,6 +29,7 @@ function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOp
   const isSubagent = agent.runtimeKind === "subagent";
   const subagentDepth = isSubagent ? Math.max(1, depth) : 0;
   const fullLabel = [agent.name, isSubagent ? `Subagent, depth ${subagentDepth}` : undefined, status, context].filter(Boolean).join(" — ");
+  const displayName = agentDisplayName(agent.name);
   return <button
     id={`workspace-agent-${encodeURIComponent(agent.id)}`}
     type="button"
@@ -36,12 +37,13 @@ function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOp
     aria-current={active ? "page" : undefined}
     aria-label={fullLabel}
     title={fullLabel}
+    data-status={agent.status}
     style={{ animationDelay: `calc(${entranceOrder} * var(--agent-row-stagger))` }}
     onClick={() => onOpen(agent)}
   >
     <span className="focused-session-copy">
-      <span className="focused-session-title"><strong>{agent.name}</strong>{isSubagent && <SubagentMark agentId={agent.id} depth={subagentDepth} />}</span>
-      <small>{context}</small>
+      <span className="focused-session-title"><span className={`focused-status ${agent.status}`} aria-hidden="true" /><strong>{displayName}</strong>{isSubagent && <SubagentMark agentId={agent.id} depth={subagentDepth} />}</span>
+      {context && <small>{context}</small>}
     </span>
   </button>;
 }
@@ -57,6 +59,8 @@ function WorktreeRow({ projectId, worktree, active, working, busy, disabled, onS
   readonly onArchive: (projectId: string, worktree: WorkspaceWorktree) => void;
 }) {
   const label = `${worktree.label}${working ? ", working" : ""}`;
+  const pathParts = worktree.path.split("/").filter(Boolean);
+  const displayPath = pathParts.length <= 2 ? worktree.path : `…/${pathParts.slice(-2).join("/")}`;
   return <li className="workspace-worktree-connector-row">
     <div className={`workspace-worktree-control ${active ? "active" : ""}`} aria-busy={busy || undefined}>
       <button
@@ -74,7 +78,7 @@ function WorktreeRow({ projectId, worktree, active, working, busy, disabled, onS
             <strong>{worktree.label}</strong>
             <span className={`workspace-worktree-mark ${working ? "working" : ""}`} aria-hidden="true" />
           </span>
-          <small>{worktree.path}</small>
+          <small>{displayPath}</small>
         </span>
       </button>
       <button
@@ -218,6 +222,7 @@ function SpaceRow({ project, rootWorktree, linkedWorktrees, forceExpanded, archi
   const rootWorking = workingWorktreeIds.has(rootRuntimeId);
   const activeRoot = project.id === activeProjectId && (activeWorktreeId === undefined || activeWorktreeId === rootRuntimeId);
   const rootContext = rootWorktree?.label ?? "Local directory";
+  const visibleRootContext = rootContext === project.label ? undefined : rootContext;
   const rootLabel = `${project.label}, ${rootContext}${rootWorking ? ", working" : ""}`;
   const activeLinkedWorktree = linkedWorktrees.find((worktree) => worktree.id === activeWorktreeId);
   const hasLinkedWorktrees = linkedWorktrees.length > 0;
@@ -240,9 +245,9 @@ function SpaceRow({ project, rootWorktree, linkedWorktrees, forceExpanded, archi
       <button id={`workspace-project-${encodeURIComponent(project.id)}`} type="button" className="workspace-project-row" aria-current={activeRoot ? "page" : undefined} aria-label={rootLabel} title={rootWorktree?.path ?? project.path} onClick={() => onSelectProject(project.id)}>
         <span className="workspace-project-title">
           <strong>{project.label}</strong>
+          {visibleRootContext && <small>{visibleRootContext}</small>}
           <span className={`workspace-project-mark ${rootWorking ? "working" : ""}`} aria-hidden="true" />
         </span>
-        <small>{rootContext}</small>
       </button>
       {sourceWorktree && <button
         ref={createTriggerRef}
@@ -370,18 +375,17 @@ function agentContext(snapshot: WorkspaceSnapshot, agent: WorkspaceAgent): strin
 
 interface AgentTreeNode {
   readonly agent: WorkspaceAgent;
-  readonly context: string;
   readonly depth: number;
   readonly entranceOrder: number;
   readonly children: AgentTreeNode[];
 }
 
-function agentTree(agents: readonly WorkspaceAgent[], contextForAgent: (agent: WorkspaceAgent) => string): readonly AgentTreeNode[] {
+function agentTree(agents: readonly WorkspaceAgent[]): readonly AgentTreeNode[] {
   const roots: AgentTreeNode[] = [];
   const stack: AgentTreeNode[] = [];
   const flattened = flattenAgentHierarchy(agents);
   for (const { agent, depth } of flattened) {
-    const node: AgentTreeNode = { agent, context: contextForAgent(agent), depth, entranceOrder: 0, children: [] };
+    const node: AgentTreeNode = { agent, depth, entranceOrder: 0, children: [] };
     if (depth === 0) roots.push(node);
     else stack[depth - 1]?.children.push(node);
     stack.length = depth;
@@ -422,7 +426,7 @@ function AgentTreeRow({ node, activeAgentId, expandIdleSubagents, onOpenAgent }:
   const visibleChildren = node.children.filter((child) => !foldedChildren.includes(child));
   const showFoldedChildren = expandIdleSubagents || idleExpanded;
   return <li>
-    <SessionRow agent={node.agent} context={node.context} depth={node.depth} entranceOrder={node.entranceOrder} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
+    <SessionRow agent={node.agent} depth={node.depth} entranceOrder={node.entranceOrder} active={node.agent.id === activeAgentId} onOpen={onOpenAgent} />
     {node.children.length > 0 && <ul className="workspace-agent-children" aria-label={`Subagents of ${node.agent.name}`}>
       {visibleChildren.map((child) => <AgentTreeRow key={child.agent.id} node={child} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}
       {foldedChildren.length > 0 && <li className="workspace-idle-subagents">
@@ -460,27 +464,43 @@ function agentIdsWithAncestors(agents: readonly WorkspaceAgent[], matches: reado
   return included;
 }
 
-function AgentPane({ snapshot, view, activeAgentId, expandIdleSubagents, emptyMessage, onOpenAgent }: {
+function AgentPane({ snapshot, view, activeWorktreeId, activeAgentId, expandIdleSubagents, showActiveWorktree, emptyMessage, onOpenAgent }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly view: AgentView;
+  readonly activeWorktreeId: string | undefined;
   readonly activeAgentId: string | undefined;
   readonly expandIdleSubagents: boolean;
+  readonly showActiveWorktree: boolean;
   readonly emptyMessage: string | undefined;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   if (view === "priority") {
     const agents = prioritizeRootAgents(snapshot.agents);
     if (agents.length === 0) return <p className="focused-message">{emptyMessage ?? "Nothing needs attention right now."}</p>;
-    return <ul className="workspace-agent-list">{agents.map((agent, index) => <li key={agent.id}>
+    return <ul className="workspace-agent-list workspace-agent-priority-list">{agents.map((agent, index) => <li key={agent.id}>
       <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={0} entranceOrder={agents.length - index - 1} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
     </li>)}</ul>;
   }
-  const trees = orderAgentTreeEntrances(snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
+  const groups = snapshot.projects.flatMap((project) => project.worktreeIds.flatMap((worktreeId) => {
     const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
-    return worktree ? agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId), () => `${project.label} · ${worktree.label}`) : [];
-  })));
-  if (trees.length === 0) return <p className="focused-message">{emptyMessage ?? "No agents are available yet."}</p>;
-  return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}</ul>;
+    if (!worktree) return [];
+    const trees = agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId));
+    const active = worktreeId === activeWorktreeId;
+    const label = project.label === worktree.label ? project.label : `${project.label} · ${worktree.label}`;
+    return trees.length > 0 || (showActiveWorktree && active) ? [{ id: worktreeId, label, active, trees }] : [];
+  }));
+  const orderedGroups = [...groups].sort((left, right) => Number(right.active) - Number(left.active));
+  const orderedTrees = orderAgentTreeEntrances(orderedGroups.flatMap((group) => group.trees));
+  if (orderedGroups.length === 0) return <p className="focused-message">{emptyMessage ?? "No agents are available yet."}</p>;
+  return <ul className="workspace-agent-groups">{orderedGroups.map((group) => {
+    const trees = orderedTrees.filter((node) => node.agent.worktreeId === group.id);
+    return <li key={group.id} className="workspace-agent-group" data-active={group.active || undefined}>
+      <h3 className="workspace-agent-group-heading"><span>{group.label}</span>{group.active && <small>Active</small>}</h3>
+      {trees.length > 0
+        ? <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} expandIdleSubagents={expandIdleSubagents} onOpenAgent={onOpenAgent} />)}</ul>
+        : <p className="workspace-agent-group-empty">No agents yet</p>}
+    </li>;
+  })}</ul>;
 }
 
 export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, archivingProjectId, openError, worktreeBusyOwner, worktreeError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onArchiveProject, onCreateWorktree, onArchiveWorktree, onRestoreWorktree, onRemoveWorktree, onOpenAgent, onOpenDirectory }: {
@@ -739,7 +759,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         </header>
         {agentsExpanded && <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
-            <AgentPane snapshot={visibleSnapshot} view={agentView} activeAgentId={activeAgentId} expandIdleSubagents={normalizedQuery !== ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
+            <AgentPane snapshot={visibleSnapshot} view={agentView} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} expandIdleSubagents={normalizedQuery !== ""} showActiveWorktree={normalizedQuery === ""} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
           </div>
         </div>}
       </section>

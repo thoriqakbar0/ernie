@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceAgent } from "../src/shared/workspace";
-import { countAgentDescendants, countEngagedAgentDescendants, countWorkingAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
+import { agentDisplayName, countAgentDescendants, countEngagedAgentDescendants, countWorkingAgentDescendants } from "../src/renderer/src/workspaceAgentPresentation";
 
 function agent(id: string, parentAgentId?: string, status: WorkspaceAgent["status"] = "idle"): WorkspaceAgent {
   return {
@@ -14,6 +14,14 @@ function agent(id: string, parentAgentId?: string, status: WorkspaceAgent["statu
     runtimeKind: parentAgentId ? "subagent" : "root",
   };
 }
+
+describe("agentDisplayName", () => {
+  it("removes URL tails, normalizes whitespace, and shortens at word boundaries", () => {
+    expect(agentDisplayName("  install   my agentation fork here: https://example.com/package  ")).toBe("install my agentation fork here");
+    expect(agentDisplayName("using attune, can you add agentation onboarding to the complete development environment")).toBe("using attune, can you add…");
+    expect(agentDisplayName("   ")).toBe("Untitled agent");
+  });
+});
 
 describe("countAgentDescendants", () => {
   it("counts direct and nested subagents independent of catalog order", () => {

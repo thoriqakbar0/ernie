@@ -343,6 +343,7 @@ svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-l
 .workspace-section-heading{height:44px;display:flex;align-items:center;gap:8px;padding-inline:18px 6px;border-block-end:1px solid rgba(255,255,255,.045)}
 .workspace-section-heading h2{min-width:0;margin:0;display:flex;align-items:center;color:var(--secondary);font-size:11.5px;font-weight:650;letter-spacing:.025em}
 .workspace-spaces-disclosure,.workspace-agents-disclosure{height:40px;display:flex;align-items:center;gap:7px;margin-inline-start:-6px;padding-inline:6px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit}
+.workspace-agents-disclosure{margin-inline-start:-7px}
 .workspace-spaces-disclosure:hover,.workspace-agents-disclosure:hover{color:var(--text)}
 .workspace-spaces-disclosure svg:first-child{width:15px;height:15px;stroke-width:1.7}
 .workspace-spaces-disclosure svg:last-child,.workspace-agents-disclosure svg{width:12px;height:12px;transition:transform 140ms ease}

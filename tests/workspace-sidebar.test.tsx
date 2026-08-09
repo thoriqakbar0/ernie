@@ -207,4 +207,44 @@ describe("WorkspaceSidebar Spaces", () => {
 
     await act(async () => root.unmount());
   });
+  it("filters Spaces and Agents from the titlebar search and clears with Escape", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const props = sidebarProps(snapshot);
+    await act(async () => root.render(<WorkspaceSidebar {...props} />));
+
+    expect(container.querySelector("#workspace-navigation-title")?.textContent).toBe("Ernie Dev");
+    const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces and Agents"]');
+    expect(search).not.toBeNull();
+    await act(async () => {
+      if (!search) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "other");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect([...container.querySelectorAll(".workspace-project-row")].map((row) => row.textContent)).toEqual(["othermain"]);
+    const agentRows = [...container.querySelectorAll(".focused-session-row")];
+    expect(agentRows).toHaveLength(1);
+    expect(agentRows[0]?.textContent).toContain("Other");
+    search?.focus();
+    await act(async () => search?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(container.querySelectorAll(".workspace-project-row")).toHaveLength(2);
+    expect(document.activeElement).toBe(search);
+
+    await act(async () => {
+      if (!search) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "child");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelectorAll(".focused-session-row")).toHaveLength(2);
+    expect(container.querySelector(".workspace-agent-children .focused-session-row")?.textContent).toContain("Child");
+    expect(container.querySelector(".workspace-sidebar>.sr-only[role='status']")?.textContent).toContain("1 Agent");
+    await act(async () => container.querySelector<HTMLButtonElement>("#priority-tab")?.click());
+    expect(container.querySelectorAll(".focused-session-row")).toHaveLength(0);
+    expect(container.querySelector(".workspace-sidebar>.sr-only[role='status']")?.textContent).toContain("0 Agents");
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
 });

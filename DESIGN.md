@@ -53,7 +53,8 @@ The Spaces mode answers, “Where can agents work?”
 - The selected Space uses a quiet filled state. Its supporting line identifies the worktree context, while an aggregate semantic status mark indicates live work without embedding agent rows.
 - Selecting a Space changes only the active Space and restores its local tabs. Agent discovery and root/subagent hierarchy remain exclusively in the independent Agents section.
 - **Open folder** is a compact action in the Spaces heading. When there are no spaces, the same action is also explained by one focused empty-state card.
-- Reserve the macOS title-bar safe area above the Ernie title. The title surface is draggable; every control remains non-draggable.
+- A single titlebar search filters both Spaces and Agents while preserving their independent sections. Escape clears the query, empty results name the inventory with no matches, and filtering never changes the underlying selection.
+- Reserve the leading macOS traffic-light region inside the titlebar row. Place the sidebar close control immediately after it, followed by the single **Ernie Dev** title; the title surface stays draggable and every control remains non-draggable.
 
 #### Agents and Priority
 
@@ -65,7 +66,7 @@ The Agents section contains a compact **Grouped** / **Priority** switch in its h
 - A row shows the agent name, explicit textual status, location or priority reason, a redundant semantic state mark, and an indeterminate activity bar only while working. Root/subagent relationships use nested list semantics rather than indentation alone.
 - Missing or cyclic parent relationships fail open as top-level agents instead of hiding work.
 - A newly commandable RPC conversation may appear before it has a persisted catalog record; render it as **New conversation** and reconcile it when identity becomes available.
-- At narrow effective widths—including zoomed desktop windows—the sidebar becomes a modal off-canvas drawer. It traps focus while open, keeps the session inert, and closes from its internal close control, Escape, the pointer scrim, or agent selection before restoring focus to the title-bar navigation control.
+- At narrow effective widths—including zoomed desktop windows—the sidebar becomes a modal off-canvas drawer. It traps focus while open, keeps the session inert, and closes from its internal close control, Escape, the pointer scrim, or agent selection before restoring focus to the session workspace.
 
 ### Session workspace
 

@@ -249,15 +249,35 @@ function AgentTreeRow({ node, activeAgentId, onOpenAgent }: {
   </li>;
 }
 
-function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
+function matchesSearch(query: string, values: readonly (string | undefined)[]): boolean {
+  return values.some((value) => value?.toLocaleLowerCase().includes(query));
+}
+
+function agentIdsWithAncestors(agents: readonly WorkspaceAgent[], matches: readonly WorkspaceAgent[]): ReadonlySet<string> {
+  const byId = new Map(agents.map((agent) => [agent.id, agent]));
+  const included = new Set(matches.map((agent) => agent.id));
+  for (const match of matches) {
+    let current = match;
+    for (let depth = 0; depth < agents.length && current.parentAgentId !== undefined; depth += 1) {
+      const parent = byId.get(current.parentAgentId);
+      if (parent === undefined || included.has(parent.id)) break;
+      included.add(parent.id);
+      current = parent;
+    }
+  }
+  return included;
+}
+
+function AgentPane({ snapshot, view, activeAgentId, emptyMessage, onOpenAgent }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly view: AgentView;
   readonly activeAgentId: string | undefined;
+  readonly emptyMessage: string | undefined;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
 }) {
   if (view === "priority") {
     const agents = prioritizeRootAgents(snapshot.agents);
-    if (agents.length === 0) return <p className="focused-message">Nothing needs attention right now.</p>;
+    if (agents.length === 0) return <p className="focused-message">{emptyMessage ?? "Nothing needs attention right now."}</p>;
     return <ul className="workspace-agent-list">{agents.map((agent, index) => <li key={agent.id}>
       <SessionRow agent={agent} context={agentContext(snapshot, agent)} depth={0} entranceOrder={agents.length - index - 1} active={agent.id === activeAgentId} onOpen={onOpenAgent} />
     </li>)}</ul>;
@@ -266,7 +286,7 @@ function AgentPane({ snapshot, view, activeAgentId, onOpenAgent }: {
     const worktree = snapshot.worktrees.find((candidate) => candidate.id === worktreeId);
     return worktree ? agentTree(snapshot.agents.filter((agent) => agent.worktreeId === worktreeId), () => `${project.label} · ${worktree.label}`) : [];
   })));
-  if (trees.length === 0) return <p className="focused-message">No agents are available yet.</p>;
+  if (trees.length === 0) return <p className="focused-message">{emptyMessage ?? "No agents are available yet."}</p>;
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
@@ -296,6 +316,24 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
   const [agentPaneMotion, setAgentPaneMotion] = useState<"horizontal" | "vertical">("vertical");
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const visibleProjects = normalizedQuery === "" ? snapshot.projects : snapshot.projects.filter((project) => {
+    const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
+    return matchesSearch(normalizedQuery, [project.label, project.path, ...worktrees.flatMap((worktree) => [worktree.label, worktree.path])]);
+  });
+  const matchingAgents = normalizedQuery === "" ? snapshot.agents : snapshot.agents.filter((agent) => {
+    const project = projectForAgent(snapshot, agent);
+    const worktree = snapshot.worktrees.find((candidate) => candidate.id === agent.worktreeId);
+    return matchesSearch(normalizedQuery, [agent.name, agent.summary, statusText(agent.status), project?.label, project?.path, worktree?.label, worktree?.path]);
+  });
+  const visibleAgentIds = normalizedQuery === "" ? new Set(snapshot.agents.map((agent) => agent.id)) : agentIdsWithAncestors(snapshot.agents, matchingAgents);
+  const groupedAgents = normalizedQuery === "" ? snapshot.agents : snapshot.agents.filter((agent) => visibleAgentIds.has(agent.id));
+  const priorityAgents = prioritizeRootAgents(matchingAgents);
+  const visibleAgents = agentView === "priority" ? matchingAgents : groupedAgents;
+  const visibleSnapshot = normalizedQuery === "" ? snapshot : { ...snapshot, agents: visibleAgents };
+  const visibleAgentMatchCount = agentView === "priority" ? priorityAgents.length : matchingAgents.length;
+  const searchResultStatus = `${visibleProjects.length} ${visibleProjects.length === 1 ? "Space" : "Spaces"} and ${visibleAgentMatchCount} ${visibleAgentMatchCount === 1 ? "Agent" : "Agents"} match your search.`;
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
     setAgentPaneMotion("horizontal");
@@ -306,7 +344,12 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
     if (!agentsExpanded) setAgentPaneMotion("vertical");
     setAgentsExpanded((current) => !current);
   };
+  const clearSearch = () => {
+    setSearchQuery("");
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  };
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const handledRevealRequestRef = useRef<number | undefined>(undefined);
   useLayoutEffect(() => {
     if (!compact || !open) return;
@@ -326,7 +369,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
     });
     return () => cancelAnimationFrame(frame);
   }, [agentView, agentsExpanded, open, revealAgent]);
-  const priorityCount = prioritizeRootAgents(snapshot.agents).length;
+  const priorityCount = priorityAgents.length;
   const workingWorktreeIds = new Set<string>();
   for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
   return <aside
@@ -343,26 +386,32 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   >
     <header className="workspace-sidebar-title">
       <div className="workspace-sidebar-toolbar">
-        <strong id="workspace-navigation-title">ernie <span className="workspace-product-stage">dev mode</span></strong>
+        <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar (⌘B)" onClick={onClose}><Icon name="sidebar-close" /></button>
+        <strong id="workspace-navigation-title">Ernie Dev</strong>
         <div className="workspace-sidebar-actions">
           {import.meta.env.DEV && !compact && <button type="button" className="performance-toggle" aria-pressed={performanceEnabled} aria-label={`${performanceEnabled ? "Hide" : "Show"} performance diagnostics`} title="Performance diagnostics" onClick={onTogglePerformance}><span aria-hidden="true" /></button>}
-          <button ref={closeButtonRef} type="button" className="workspace-sidebar-close" aria-label="Close workspace navigation" title="Close sidebar (⌘B)" onClick={onClose}><Icon name="sidebar-close" /></button>
         </div>
       </div>
+      <div className="workspace-sidebar-search">
+        <Icon name="search" />
+        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search Spaces and Agents" placeholder="Search" spellCheck={false} onChange={(event) => setSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
+        {searchQuery !== "" && <button type="button" aria-label="Clear search" title="Clear search" onClick={clearSearch}><Icon name="close" /></button>}
+      </div>
     </header>
-    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">Workspace status: {loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}</div>
+    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{normalizedQuery === "" ? `Workspace status: ${loading ? "Loading spaces" : failed ? "Spaces unavailable; retrying automatically" : "Spaces available"}` : searchResultStatus}</div>
     <div className="workspace-sidebar-body" data-agents-expanded={agentsExpanded}>
       <section id="spaces-panel" className="workspace-projects" aria-labelledby="spaces-heading">
         <header className="workspace-section-heading">
-          <h2 id="spaces-heading">Spaces</h2>
+          <h2 id="spaces-heading"><Icon name="folder" /><span>Spaces</span></h2>
           <button type="button" aria-label="Open folder" title="Open folder" disabled={opening} onClick={onOpenDirectory}><Icon name="folder-add" /></button>
         </header>
         <div className="workspace-project-scroll">
           {failed && <p className="focused-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
           {openError && <p className="focused-message error" role="alert">{openError}</p>}
           {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
-          {!loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
-          <ul className="workspace-project-list">{snapshot.projects.map((project) => {
+          {normalizedQuery === "" && !loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
+          {normalizedQuery !== "" && visibleProjects.length === 0 && <p className="focused-message">No spaces match your search.</p>}
+          <ul className="workspace-project-list">{visibleProjects.map((project) => {
             const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
             const rootWorktree = worktrees.find((worktree) => worktree.id === project.id) ?? worktrees[0];
             const linkedWorktrees = worktrees.filter((worktree) => worktree.id !== rootWorktree?.id);
@@ -391,7 +440,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         </header>
         {agentsExpanded && <div id="agent-list-panel" className="workspace-session-scroll" role="tabpanel" aria-labelledby={agentView === "agents" ? "all-agents-tab" : "priority-tab"}>
           <div key={agentView} className="workspace-agent-pane" data-direction={agentViewDirection} data-motion={agentPaneMotion}>
-            <AgentPane snapshot={snapshot} view={agentView} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />
+            <AgentPane snapshot={visibleSnapshot} view={agentView} activeAgentId={activeAgentId} emptyMessage={normalizedQuery === "" ? undefined : "No agents match your search."} onOpenAgent={onOpenAgent} />
           </div>
         </div>}
       </section>

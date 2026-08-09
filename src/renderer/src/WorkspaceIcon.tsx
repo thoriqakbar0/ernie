@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 
-export type IconName = "archive" | "chevron" | "close" | "folder-add" | "sidebar-close" | "subagent-fork" | "subagent-network" | "subagent-waypoints" | "subagent-workflow";
+export type IconName = "archive" | "chevron" | "folder" | "close" | "folder-add" | "search" | "sidebar-close" | "subagent-fork" | "subagent-network" | "subagent-waypoints" | "subagent-workflow";
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   archive: <><rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8m-10 4h4" /></>,
+  folder: <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />,
+  search: <><path d="m21 21-4.35-4.35" /><circle cx="11" cy="11" r="8" /></>,
   chevron: <path d="m9 18 6-6-6-6" />,
   close: <path d="m6 6 8 8m0-8-8 8" />,
   "folder-add": <path d="M12 10v6m-3-3h6m5 7a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />,

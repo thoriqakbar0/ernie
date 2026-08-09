@@ -7,6 +7,7 @@ if (failOnceFile && !fs.existsSync(failOnceFile)) {
   process.exit(1);
 }
 const root = process.env.ERNIE_FIXTURE_ROOT;
+const staleParentActive = process.env.ERNIE_FIXTURE_STALE_PARENT_ACTIVE === "1";
 if (process.env.ERNIE_FIXTURE_EMPTY === "1") {
   process.stdout.write(JSON.stringify({ sessions: [] }));
   process.exit(0);
@@ -29,14 +30,14 @@ const extraAgents = process.env.ERNIE_FIXTURE_MANY_AGENTS === "1"
 process.stdout.write(JSON.stringify({ sessions: [
   {
     id: "root-active", lifecycle: "live", activity: "idle", isSessionActive: false,
-    activeSessionId: "root-active", sessionId: "root-session", sessionName: "Root",
+    activeSessionId: staleParentActive ? undefined : "root-active", sessionId: "root-session", sessionName: "Root",
     cwd: root, isStreaming: false, taskState: "needs_input", runtimeKind: "top-level",
     lastActivityAt: "2026-01-02T00:00:00.000Z"
   },
   {
     id: "child-session", lifecycle: "live", activity: "working", isSessionActive: true,
     activeSessionId: "child-active", sessionId: "child-session", sessionName: "Child", cwd: "/tmp/ernie-feature",
-    isStreaming: true, runtimeKind: "subagent", parentActiveSessionId: "root-active",
+    isStreaming: true, runtimeKind: "subagent", parentActiveSessionId: staleParentActive ? "stale-parent-active" : "root-active",
     parentSessionId: "root-session", rlmChildId: "sub-child", summary: "Implementing"
   },
   {

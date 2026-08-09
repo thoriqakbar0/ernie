@@ -11,7 +11,7 @@ const root = resolve(import.meta.dirname, "..");
 const gitPath = resolve(import.meta.dirname, "fixtures/workspace-git.mjs");
 const primeAgentCliPath = resolve(import.meta.dirname, "fixtures/workspace-prime-agent.mjs");
 
-function provideCatalog<A, E>(effect: Effect.Effect<A, E, WorkspaceCatalog>, malformed = false) {
+function provideCatalog<A, E>(effect: Effect.Effect<A, E, WorkspaceCatalog>, malformed = false, environment: Readonly<Record<string, string>> = {}) {
   return effect.pipe(Effect.provide(layer({
     repositoryPath: root,
     gitPath,
@@ -21,6 +21,7 @@ function provideCatalog<A, E>(effect: Effect.Effect<A, E, WorkspaceCatalog>, mal
     environment: {
       ERNIE_FIXTURE_ROOT: root,
       ...(malformed ? { ERNIE_FIXTURE_MALFORMED: "1" } : {}),
+      ...environment,
     },
   })));
 }
@@ -31,6 +32,17 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 describe("WorkspaceCatalog", () => {
+  it("keeps every child attached when its persisted parent runtime id is stale", async () => {
+    const snapshot = await Effect.runPromise(provideCatalog(Effect.gen(function* () {
+      const catalog = yield* WorkspaceCatalog;
+      return yield* catalog.refresh;
+    }), false, { ERNIE_FIXTURE_STALE_PARENT_ACTIVE: "1" }));
+
+    expect(snapshot.agents).toHaveLength(2);
+    expect(snapshot.agents.find((agent) => agent.sessionId === "root-session")?.id).toBe("root-session");
+    expect(snapshot.agents.find((agent) => agent.sessionId === "child-session")?.parentAgentId).toBe("root-session");
+  });
+
   it("joins only repository worktrees and sessions into renderer-safe parent relationships", async () => {
     const result = await Effect.runPromise(provideCatalog(Effect.scoped(Effect.gen(function* () {
       const catalog = yield* WorkspaceCatalog;

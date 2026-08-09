@@ -359,7 +359,9 @@ function makeSnapshot(discovered: readonly ProjectWorktrees[], sessions: readonl
   const idBySession = new Map(located.map(({ session }) => [session.sessionId, session.activeSessionId ?? session.sessionId]));
   const worktreeByAgent = new Map(located.map(({ session, worktreeId }) => [session.activeSessionId ?? session.sessionId, worktreeId]));
   const agents: WorkspaceAgent[] = located.map(({ session, worktreeId }) => {
-    const parentAgentId = session.parentActiveSessionId ?? (session.parentSessionId === undefined ? undefined : idBySession.get(session.parentSessionId) ?? session.parentSessionId);
+    const parentAgentId = session.parentSessionId === undefined
+      ? session.parentActiveSessionId
+      : idBySession.get(session.parentSessionId) ?? session.parentActiveSessionId ?? session.parentSessionId;
     const name = bounded(session.sessionName || session.firstMessage || (session.runtimeKind === "subagent" ? "Subagent" : "Agent"), 120);
     return {
       id: session.activeSessionId ?? session.sessionId,

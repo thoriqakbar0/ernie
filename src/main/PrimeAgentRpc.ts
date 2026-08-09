@@ -24,17 +24,56 @@ const REQUEST_TIMEOUT = "30 seconds";
 const STARTUP_TIMEOUT = "45 seconds";
 const EXECUTION_TARGET_TIMEOUT = "10 minutes";
 
-function signalProcessTree(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
+function runTaskkill(pid: number, force: boolean): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const killer = spawn("taskkill", ["/pid", String(pid), "/T", ...(force ? ["/F"] : [])], { windowsHide: true, stdio: "ignore" });
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (error === undefined) resolve(); else reject(error);
+    };
+    const timeout = setTimeout(() => {
+      killer.kill("SIGKILL");
+      finish(new Error("taskkill did not exit within 2 seconds"));
+    }, 2_000);
+    timeout.unref();
+    killer.once("error", (cause) => finish(cause));
+    killer.once("close", (code) => code === 0 ? finish() : finish(new Error(`taskkill exited with ${code ?? "unknown"}`)));
+  });
+}
+
+async function signalProcessTree(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): Promise<void> {
   if (child.pid === undefined) throw new Error("Prime Agent child has no process ID");
-  try {
-    if (process.platform === "win32") {
-      if (child.exitCode === null && child.signalCode === null) child.kill(signal);
-      return;
-    }
-    process.kill(-child.pid, signal);
-  } catch (cause) {
+  if (process.platform === "win32") {
+    await runTaskkill(child.pid, signal === "SIGKILL");
+    return;
+  }
+  try { process.kill(-child.pid, signal); }
+  catch (cause) {
     if (!(cause instanceof Error && "code" in cause && cause.code === "ESRCH")) throw cause;
   }
+}
+
+function processTreeAlive(child: ChildProcessWithoutNullStreams): boolean {
+  if (child.pid === undefined) return false;
+  if (process.platform === "win32") return child.exitCode === null && child.signalCode === null;
+  try { process.kill(-child.pid, 0); return true; }
+  catch (cause) {
+    if (cause instanceof Error && "code" in cause && (cause.code === "ESRCH" || cause.code === "EPERM")) return false;
+    throw cause;
+  }
+}
+
+function awaitProcessTreeExit(child: ChildProcessWithoutNullStreams) {
+  return Effect.gen(function* () {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (!processTreeAlive(child)) return;
+      yield* Effect.sleep("100 millis");
+    }
+    return yield* Effect.fail(new PrimeAgentRpcError({ operation: "stop", message: "Prime Agent process tree did not exit after SIGKILL" }));
+  });
 }
 
 export class PrimeAgentRpcError extends Schema.TaggedErrorClass<PrimeAgentRpcError>()(
@@ -598,7 +637,8 @@ export const make = (options: Options) => Effect.gen(function* () {
     yield* failAllPending(error);
     yield* failExecutionTargetSwitch(error);
     yield* setConnection("failed", error.message);
-    const current = yield* Ref.get(child); if (Option.isSome(current)) signalProcessTree(current.value, "SIGTERM");
+    const current = yield* Ref.get(child);
+    if (Option.isSome(current)) yield* Effect.tryPromise(() => signalProcessTree(current.value, "SIGTERM")).pipe(Effect.ignore);
   });
 
   const consume = Stream.fromQueue(messages).pipe(Stream.runForEach((message) => Effect.gen(function* () {
@@ -613,24 +653,28 @@ export const make = (options: Options) => Effect.gen(function* () {
   })));
 
   const stop = Effect.gen(function* () {
-    const current = yield* Ref.getAndSet(child, Option.none());
-    const exitSignal = yield* Ref.getAndSet(processExit, Option.none());
-    if (Option.isNone(current)) return;
+    const current = yield* Ref.get(child);
+    const exitSignal = yield* Ref.get(processExit);
+    if (Option.isNone(current)) { yield* Ref.set(processExit, Option.none()); return; }
     const agentProcess = current.value;
-    if (!agentProcess.stdin.destroyed) agentProcess.stdin.end();
     const error = rpcError("stop", "Prime Agent stopped");
     yield* failAllPending(error);
     yield* failExecutionTargetSwitch(error);
     if (agentProcess.exitCode === null && agentProcess.signalCode === null) {
-      yield* Effect.try({ try: () => signalProcessTree(agentProcess, "SIGTERM"), catch: (cause) => rpcError("stop", "Could not terminate Prime Agent", cause) });
+      yield* Effect.tryPromise({ try: () => signalProcessTree(agentProcess, "SIGTERM"), catch: (cause) => rpcError("stop", "Could not terminate Prime Agent", cause) }).pipe(
+        Effect.catch((gracefulError) => process.platform === "win32"
+          ? Effect.tryPromise({ try: () => signalProcessTree(agentProcess, "SIGKILL"), catch: (cause) => rpcError("stop", "Could not force-kill Prime Agent process tree", cause) })
+          : Effect.fail(gracefulError)),
+      );
     }
+    if (!agentProcess.stdin.destroyed) agentProcess.stdin.end();
     if (Option.isSome(exitSignal)) {
       const terminated = yield* Deferred.await(exitSignal.value).pipe(
         Effect.as(true),
         Effect.raceFirst(Effect.sleep("2 seconds").pipe(Effect.as(false))),
       );
       if (!terminated && agentProcess.exitCode === null && agentProcess.signalCode === null) {
-        yield* Effect.try({ try: () => signalProcessTree(agentProcess, "SIGKILL"), catch: (cause) => rpcError("stop", "Could not kill Prime Agent", cause) });
+        yield* Effect.tryPromise({ try: () => signalProcessTree(agentProcess, "SIGKILL"), catch: (cause) => rpcError("stop", "Could not kill Prime Agent", cause) });
         const reaped = yield* Deferred.await(exitSignal.value).pipe(
           Effect.as(true),
           Effect.raceFirst(Effect.sleep("2 seconds").pipe(Effect.as(false))),
@@ -638,6 +682,12 @@ export const make = (options: Options) => Effect.gen(function* () {
         if (!reaped) return yield* rpcError("stop", "Prime Agent did not exit after SIGKILL");
       }
     }
+    if (process.platform !== "win32" || processTreeAlive(agentProcess)) {
+      yield* Effect.tryPromise({ try: () => signalProcessTree(agentProcess, "SIGKILL"), catch: (cause) => rpcError("stop", "Could not kill Prime Agent process tree", cause) });
+    }
+    yield* awaitProcessTreeExit(agentProcess);
+    yield* Ref.set(child, Option.none());
+    yield* Ref.set(processExit, Option.none());
     yield* setConnection("closed", "Prime Agent stopped");
     agentProcess.stdout.removeAllListeners();
     agentProcess.stderr.removeAllListeners();

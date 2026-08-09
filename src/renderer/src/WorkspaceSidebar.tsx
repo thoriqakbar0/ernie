@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
 import { prioritizeRootAgents } from "./agentPriority";
 import { horizontalTabStep } from "./tabKeyboardNavigation";
@@ -8,6 +8,7 @@ import { Icon } from "./WorkspaceIcon";
 import { projectForAgent, statusText } from "./workspaceAgentPresentation";
 
 const SUBAGENT_ICONS = ["subagent-fork", "subagent-workflow", "subagent-network", "subagent-waypoints"] as const;
+type SettledWorktree = NonNullable<WorkspaceSnapshot["settledWorktrees"]>[number];
 
 function SubagentMark({ agentId, depth }: { readonly agentId: string; readonly depth: number }) {
   let hash = 0;
@@ -45,50 +46,174 @@ function SessionRow({ agent, active, context, depth = 0, entranceOrder = 0, onOp
   </button>;
 }
 
-function WorktreeRow({ projectId, worktree, active, working, onSelect }: {
+function WorktreeRow({ projectId, worktree, active, working, busy, disabled, onSelect, onArchive }: {
   readonly projectId: string;
   readonly worktree: WorkspaceWorktree;
   readonly active: boolean;
   readonly working: boolean;
+  readonly busy: boolean;
+  readonly disabled: boolean;
   readonly onSelect: (projectId: string, worktreeId: string) => void;
+  readonly onArchive: (projectId: string, worktree: WorkspaceWorktree) => void;
 }) {
   const label = `${worktree.label}${working ? ", working" : ""}`;
   return <li className="workspace-worktree-connector-row">
-    <button
-      type="button"
-      className={`workspace-worktree-button ${active ? "active" : ""}`}
-      aria-current={active ? "page" : undefined}
-      aria-label={label}
-      title={worktree.path}
-      onClick={() => onSelect(projectId, worktree.id)}
-    >
-      <span className="workspace-worktree-connector" aria-hidden="true" />
-      <span className="workspace-worktree-copy">
-        <span className="workspace-worktree-title">
-          <strong>{worktree.label}</strong>
-          <span className={`workspace-worktree-mark ${working ? "working" : ""}`} aria-hidden="true" />
+    <div className={`workspace-worktree-control ${active ? "active" : ""}`} aria-busy={busy || undefined}>
+      <button
+        id={`workspace-worktree-${encodeURIComponent(worktree.id)}`}
+        type="button"
+        className="workspace-worktree-button"
+        aria-current={active ? "page" : undefined}
+        aria-label={label}
+        title={worktree.path}
+        onClick={() => onSelect(projectId, worktree.id)}
+      >
+        <span className="workspace-worktree-connector" aria-hidden="true" />
+        <span className="workspace-worktree-copy">
+          <span className="workspace-worktree-title">
+            <strong>{worktree.label}</strong>
+            <span className={`workspace-worktree-mark ${working ? "working" : ""}`} aria-hidden="true" />
+          </span>
+          <small>{worktree.path}</small>
         </span>
-        <small>{worktree.path}</small>
-      </span>
-    </button>
+      </button>
+      <button
+        type="button"
+        className="workspace-worktree-archive"
+        aria-label={`Archive ${worktree.label}`}
+        title={`Move ${worktree.label} to Settled`}
+        disabled={disabled}
+        onClick={() => onArchive(projectId, worktree)}
+      ><Icon name="archive" /></button>
+    </div>
   </li>;
 }
 
-function SpaceRow({ project, rootWorktree, linkedWorktrees, archivable, archiving, activeProjectId, activeWorktreeId, workingWorktreeIds, onSelectProject, onSelectWorktree, onArchiveProject }: {
+function CreateWorktreeForm({ id, project, sourceWorktree, busy, error, onCreate, onCancel }: {
+  readonly id: string;
+  readonly project: WorkspaceProject;
+  readonly sourceWorktree: WorkspaceWorktree;
+  readonly busy: boolean;
+  readonly error: string | undefined;
+  readonly onCreate: (projectId: string, sourceWorktreeId: string, branch: string) => void;
+  readonly onCancel: (restoreFocus: boolean) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [branch, setBranch] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [validationError, setValidationError] = useState<string>();
+  const errorId = useId();
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = branch.trim();
+    if (trimmed === "") {
+      setValidationError("Enter a branch name.");
+      inputRef.current?.focus();
+      return;
+    }
+    setValidationError(undefined);
+    setSubmitted(true);
+    onCreate(project.id, sourceWorktree.id, trimmed);
+  };
+  const visibleError = validationError ?? (submitted ? error : undefined);
+  return <form id={id} className="workspace-create-worktree" aria-label={`Create worktree in ${project.label}`} aria-busy={busy || undefined} onSubmit={submit} onKeyDown={(event) => {
+    if (event.key !== "Escape" || busy) return;
+    event.preventDefault();
+    onCancel(true);
+  }}>
+    <label htmlFor={`worktree-branch-${encodeURIComponent(project.id)}`}>Branch name</label>
+    <input
+      ref={inputRef}
+      id={`worktree-branch-${encodeURIComponent(project.id)}`}
+      name="branch"
+      value={branch}
+      placeholder="feature/name"
+      autoComplete="off"
+      spellCheck={false}
+      disabled={busy}
+      aria-invalid={visibleError ? true : undefined}
+      aria-describedby={visibleError ? errorId : undefined}
+      onChange={(event) => { setBranch(event.currentTarget.value); setSubmitted(false); setValidationError(undefined); }}
+    />
+    <small>Starts from {sourceWorktree.label}</small>
+    {visibleError && <p id={errorId} role="alert">{visibleError}</p>}
+    <footer>
+      <button type="button" disabled={busy} onClick={() => onCancel(true)}>Cancel</button>
+      <button type="submit" disabled={busy}><Icon name="branch-add" /><span>{busy ? "Creating…" : "Create worktree"}</span></button>
+    </footer>
+  </form>;
+}
+
+interface SettledWorktreeEntry {
+  readonly project: WorkspaceProject;
+  readonly worktree: SettledWorktree;
+}
+
+function SettledWorktreeRow({ entry, busy, disabled, onRestore, onRemove }: {
+  readonly entry: SettledWorktreeEntry;
+  readonly busy: boolean;
+  readonly disabled: boolean;
+  readonly onRestore: (projectId: string, worktree: SettledWorktree) => void;
+  readonly onRemove: (projectId: string, worktree: SettledWorktree) => void;
+}) {
+  const { project, worktree } = entry;
+  const context = `${project.label} · ${worktree.label}`;
+  const removable = worktree.managed === true && worktree.checkoutPresent !== false;
+  return <li className="workspace-settled-row" aria-busy={busy || undefined} data-removable={removable}>
+    <span className="workspace-settled-copy" title={`${context} — ${worktree.path}`}>
+      <strong>{context}</strong>
+      <small>{worktree.checkoutPresent === false ? "Checkout removed" : worktree.path}</small>
+    </span>
+    <button
+      id={`workspace-settled-restore-${encodeURIComponent(worktree.id)}`}
+      type="button"
+      aria-label={`Restore ${worktree.label} to ${project.label}`}
+      title={`Restore ${worktree.label}`}
+      disabled={disabled}
+      onClick={() => onRestore(project.id, worktree)}
+    ><Icon name="restore" /></button>
+    {removable && <button
+      type="button"
+      className="workspace-settled-remove"
+      aria-label={`Remove checkout ${worktree.label} from ${project.label}`}
+      title={`Remove checkout ${worktree.label}`}
+      disabled={disabled}
+      onClick={() => onRemove(project.id, worktree)}
+    ><Icon name="trash" /></button>}
+  </li>;
+}
+
+function SpaceRow({ project, rootWorktree, linkedWorktrees, forceExpanded, archivable, archiving, activeProjectId, activeWorktreeId, workingWorktreeIds, createOpen, worktreeBusyOwner, worktreeInteractionLocked, createError, onOpenCreate, onCloseCreate, onCreateWorktree, onSelectProject, onSelectWorktree, onArchiveProject, onArchiveWorktree }: {
   readonly project: WorkspaceProject;
   readonly rootWorktree: WorkspaceWorktree | undefined;
   readonly linkedWorktrees: readonly WorkspaceWorktree[];
+  readonly forceExpanded: boolean;
   readonly archivable: boolean;
   readonly archiving: boolean;
   readonly activeProjectId: string | undefined;
   readonly activeWorktreeId: string | undefined;
   readonly workingWorktreeIds: ReadonlySet<string>;
+  readonly createOpen: boolean;
+  readonly worktreeBusyOwner: string | undefined;
+  readonly worktreeInteractionLocked: boolean;
+  readonly createError: string | undefined;
+  readonly onOpenCreate: (projectId: string) => void;
+  readonly onCloseCreate: (projectId: string, restoreFocus: boolean) => void;
+  readonly onCreateWorktree: (projectId: string, sourceWorktreeId: string, branch: string) => void;
   readonly onSelectProject: (projectId: string) => void;
   readonly onSelectWorktree: (projectId: string, worktreeId: string) => void;
   readonly onArchiveProject: (project: WorkspaceProject) => void;
+  readonly onArchiveWorktree: (projectId: string, worktree: WorkspaceWorktree) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const worktreeListId = useId();
+  const createFormId = useId();
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
+  const createWasBusyRef = useRef(false);
   const rootRuntimeId = rootWorktree?.id ?? project.id;
   const rootWorking = workingWorktreeIds.has(rootRuntimeId);
   const activeRoot = project.id === activeProjectId && (activeWorktreeId === undefined || activeWorktreeId === rootRuntimeId);
@@ -96,29 +221,65 @@ function SpaceRow({ project, rootWorktree, linkedWorktrees, archivable, archivin
   const rootLabel = `${project.label}, ${rootContext}${rootWorking ? ", working" : ""}`;
   const activeLinkedWorktree = linkedWorktrees.find((worktree) => worktree.id === activeWorktreeId);
   const hasLinkedWorktrees = linkedWorktrees.length > 0;
+  const displayedExpanded = forceExpanded || expanded;
+  const sourceWorktree = project.id === activeProjectId
+    ? linkedWorktrees.find((worktree) => worktree.id === activeWorktreeId) ?? rootWorktree
+    : rootWorktree;
+  const createBusy = createOpen && worktreeBusyOwner === project.id;
+  const mutationBusy = worktreeInteractionLocked;
+  useLayoutEffect(() => {
+    if (!createOpen) { createWasBusyRef.current = false; return; }
+    if (createBusy) { createWasBusyRef.current = true; return; }
+    if (!createWasBusyRef.current || createError !== undefined) return;
+    createWasBusyRef.current = false;
+    onCloseCreate(project.id, false);
+  }, [createBusy, createError, createOpen, onCloseCreate, project.id]);
 
   return <li className="workspace-project-node">
     <div className={`workspace-project-control ${activeRoot ? "active" : ""}`}>
-      <button type="button" className="workspace-project-row" aria-current={activeRoot ? "page" : undefined} aria-label={rootLabel} title={rootWorktree?.path ?? project.path} onClick={() => onSelectProject(project.id)}>
+      <button id={`workspace-project-${encodeURIComponent(project.id)}`} type="button" className="workspace-project-row" aria-current={activeRoot ? "page" : undefined} aria-label={rootLabel} title={rootWorktree?.path ?? project.path} onClick={() => onSelectProject(project.id)}>
         <span className="workspace-project-title">
           <strong>{project.label}</strong>
           <span className={`workspace-project-mark ${rootWorking ? "working" : ""}`} aria-hidden="true" />
         </span>
         <small>{rootContext}</small>
       </button>
-      {archivable && <button type="button" className="workspace-project-archive" aria-label={`Archive ${project.label}`} title={`Archive ${project.label}`} disabled={archiving} onClick={() => onArchiveProject(project)}><Icon name="archive" /></button>}
+      {sourceWorktree && <button
+        ref={createTriggerRef}
+        type="button"
+        className="workspace-project-create"
+        aria-label={`Create worktree in ${project.label}`}
+        title={`Create worktree in ${project.label}`}
+        aria-expanded={createOpen}
+        aria-controls={createFormId}
+        disabled={createBusy || (mutationBusy && !createOpen)}
+        onClick={() => createOpen ? onCloseCreate(project.id, true) : onOpenCreate(project.id)}
+      ><Icon name="branch-add" /></button>}
+      {archivable && <button type="button" className="workspace-project-archive" aria-label={`Archive ${project.label}`} title={`Archive ${project.label}`} disabled={archiving || mutationBusy} onClick={() => onArchiveProject(project)}><Icon name="archive" /></button>}
       {hasLinkedWorktrees && <button
         type="button"
-        className={`workspace-project-disclosure ${expanded ? "expanded" : ""}`}
-        aria-expanded={expanded}
+        className={`workspace-project-disclosure ${displayedExpanded ? "expanded" : ""}`}
+        aria-expanded={displayedExpanded}
         aria-controls={worktreeListId}
-        aria-label={`${expanded ? "Hide" : "Show"} linked worktrees for ${project.label}`}
-        title={`${expanded ? "Hide" : "Show"} linked worktrees`}
+        aria-label={`${displayedExpanded ? "Hide" : "Show"} linked worktrees for ${project.label}`}
+        title={`${displayedExpanded ? "Hide" : "Show"} linked worktrees`}
         onClick={() => setExpanded((current) => !current)}
       ><Icon name="chevron" /></button>}
     </div>
-    {hasLinkedWorktrees && <div id={worktreeListId} hidden={!expanded}>
-      {expanded && <ul
+    {createOpen && sourceWorktree && <CreateWorktreeForm
+      id={createFormId}
+      project={project}
+      sourceWorktree={sourceWorktree}
+      busy={createBusy}
+      error={createError}
+      onCreate={onCreateWorktree}
+      onCancel={(restoreFocus) => {
+        onCloseCreate(project.id, restoreFocus);
+        if (restoreFocus) requestAnimationFrame(() => createTriggerRef.current?.focus());
+      }}
+    />}
+    {hasLinkedWorktrees && <div id={worktreeListId} hidden={!displayedExpanded}>
+      {displayedExpanded && <ul
         className="workspace-worktree-list workspace-linked-worktree-list"
         aria-label={`Linked worktrees for ${project.label}`}
       >
@@ -128,11 +289,14 @@ function SpaceRow({ project, rootWorktree, linkedWorktrees, archivable, archivin
           worktree={worktree}
           active={project.id === activeProjectId && worktree.id === activeWorktreeId}
           working={workingWorktreeIds.has(worktree.id)}
+          busy={worktreeBusyOwner === worktree.id}
+          disabled={mutationBusy}
           onSelect={onSelectWorktree}
+          onArchive={onArchiveWorktree}
         />)}
       </ul>}
     </div>}
-    {!expanded && activeLinkedWorktree && <ul
+    {!displayedExpanded && activeLinkedWorktree && <ul
       className="workspace-worktree-list workspace-linked-worktree-list workspace-active-worktree-context"
       aria-label={`Active worktree in ${project.label}`}
       data-collapsed="true"
@@ -142,7 +306,10 @@ function SpaceRow({ project, rootWorktree, linkedWorktrees, archivable, archivin
         worktree={activeLinkedWorktree}
         active
         working={workingWorktreeIds.has(activeLinkedWorktree.id)}
+        busy={worktreeBusyOwner === activeLinkedWorktree.id}
+        disabled={mutationBusy}
         onSelect={onSelectWorktree}
+        onArchive={onArchiveWorktree}
       />
     </ul>}
   </li>;
@@ -290,7 +457,7 @@ function AgentPane({ snapshot, view, activeAgentId, emptyMessage, onOpenAgent }:
   return <ul className="workspace-agent-list">{trees.map((node) => <AgentTreeRow key={node.agent.id} node={node} activeAgentId={activeAgentId} onOpenAgent={onOpenAgent} />)}</ul>;
 }
 
-export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, archivingProjectId, openError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onArchiveProject, onOpenAgent, onOpenDirectory }: {
+export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, activeAgentId, loading, failed, opening, archivingProjectId, openError, worktreeBusyOwner, worktreeError, compact, open, revealAgent, performanceEnabled, onTogglePerformance, onClose, onSelectProject, onSelectWorktree, onArchiveProject, onCreateWorktree, onArchiveWorktree, onRestoreWorktree, onRemoveWorktree, onOpenAgent, onOpenDirectory }: {
   readonly snapshot: WorkspaceSnapshot;
   readonly activeProjectId: string | undefined;
   readonly activeWorktreeId: string | undefined;
@@ -300,6 +467,8 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   readonly opening: boolean;
   readonly archivingProjectId: string | undefined;
   readonly openError: string | undefined;
+  readonly worktreeBusyOwner: string | undefined;
+  readonly worktreeError: string | undefined;
   readonly compact: boolean;
   readonly open: boolean;
   readonly revealAgent: { readonly agentId: string; readonly requestId: number } | undefined;
@@ -309,6 +478,10 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   readonly onSelectProject: (projectId: string) => void;
   readonly onSelectWorktree: (projectId: string, worktreeId: string) => void;
   readonly onArchiveProject: (project: WorkspaceProject) => void;
+  readonly onCreateWorktree: (projectId: string, sourceWorktreeId: string, branch: string) => void;
+  readonly onArchiveWorktree: (projectId: string, worktree: WorkspaceWorktree) => void;
+  readonly onRestoreWorktree: (projectId: string, worktree: SettledWorktree) => void;
+  readonly onRemoveWorktree: (projectId: string, worktree: SettledWorktree) => void;
   readonly onOpenAgent: (agent: WorkspaceAgent) => void;
   readonly onOpenDirectory: () => void;
 }) {
@@ -318,11 +491,23 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const [agentViewDirection, setAgentViewDirection] = useState<"forward" | "backward">("forward");
   const [agentPaneMotion, setAgentPaneMotion] = useState<"horizontal" | "vertical">("vertical");
   const [searchQuery, setSearchQuery] = useState("");
+  const [createProjectId, setCreateProjectId] = useState<string>();
+  const [settledExpanded, setSettledExpanded] = useState(true);
+  const settledShelfId = useId();
+  const settledHeaderRef = useRef<HTMLButtonElement>(null);
+  const pendingSettledFocusRef = useRef<{ readonly id: string; readonly index: number; readonly kind: "restore" | "remove" } | undefined>(undefined);
+  const pendingArchiveFocusRef = useRef<{ readonly projectId: string; readonly worktreeId: string } | undefined>(undefined);
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-  const visibleProjects = normalizedQuery === "" ? snapshot.projects : snapshot.projects.filter((project) => {
-    const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
-    return matchesSearch(normalizedQuery, [project.label, project.path, ...worktrees.flatMap((worktree) => [worktree.label, worktree.path])]);
+  const settledEntries: readonly SettledWorktreeEntry[] = (snapshot.settledWorktrees ?? []).flatMap((worktree) => {
+    const project = snapshot.projects.find((candidate) => candidate.id === worktree.projectId);
+    return project === undefined ? [] : [{ project, worktree }];
   });
+  const visibleProjects = normalizedQuery === "" ? snapshot.projects : snapshot.projects.filter((project) => {
+    const activeWorktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
+    return matchesSearch(normalizedQuery, [project.label, project.path, ...activeWorktrees.flatMap((worktree) => [worktree.label, worktree.path])]);
+  });
+  const visibleSettledEntries = normalizedQuery === "" ? settledEntries : settledEntries.filter(({ project, worktree }) =>
+    matchesSearch(normalizedQuery, [project.label, project.path, worktree.label, worktree.path]));
   const matchingAgents = normalizedQuery === "" ? snapshot.agents : snapshot.agents.filter((agent) => {
     const project = projectForAgent(snapshot, agent);
     const worktree = snapshot.worktrees.find((candidate) => candidate.id === agent.worktreeId);
@@ -334,7 +519,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const visibleAgents = agentView === "priority" ? matchingAgents : groupedAgents;
   const visibleSnapshot = normalizedQuery === "" ? snapshot : { ...snapshot, agents: visibleAgents };
   const visibleAgentMatchCount = agentView === "priority" ? priorityAgents.length : matchingAgents.length;
-  const searchResultStatus = `${visibleProjects.length} ${visibleProjects.length === 1 ? "Space" : "Spaces"} and ${visibleAgentMatchCount} ${visibleAgentMatchCount === 1 ? "Agent" : "Agents"} match your search.`;
+  const searchResultStatus = `${visibleProjects.length} ${visibleProjects.length === 1 ? "Space" : "Spaces"}, ${visibleSettledEntries.length} settled ${visibleSettledEntries.length === 1 ? "worktree" : "worktrees"}, and ${visibleAgentMatchCount} ${visibleAgentMatchCount === 1 ? "Agent" : "Agents"} match your search.`;
   const changeAgentView = (next: AgentView) => {
     if (next === agentView) return;
     setAgentPaneMotion("horizontal");
@@ -348,6 +533,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
   const changeSearchQuery = (value: string) => {
     setSearchQuery(value);
     if (value.trim() === "") return;
+    setCreateProjectId(undefined);
     setSpacesExpanded(true);
     if (!agentsExpanded) { setAgentPaneMotion("vertical"); setAgentsExpanded(true); }
   };
@@ -376,6 +562,50 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
     });
     return () => cancelAnimationFrame(frame);
   }, [agentView, agentsExpanded, open, revealAgent]);
+  useLayoutEffect(() => {
+    if (createProjectId === undefined || snapshot.projects.some((project) => project.id === createProjectId)) return;
+    setCreateProjectId(undefined);
+  }, [createProjectId, snapshot.projects]);
+  useLayoutEffect(() => {
+    const pending = pendingArchiveFocusRef.current;
+    if (pending === undefined || worktreeBusyOwner !== undefined) return;
+    pendingArchiveFocusRef.current = undefined;
+    if (snapshot.worktrees.some((worktree) => worktree.id === pending.worktreeId)) return;
+    const frame = requestAnimationFrame(() => document.getElementById(`workspace-project-${encodeURIComponent(pending.projectId)}`)?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [snapshot.worktrees, worktreeBusyOwner]);
+  useLayoutEffect(() => {
+    const pending = pendingSettledFocusRef.current;
+    if (pending === undefined || worktreeBusyOwner !== undefined) return;
+    pendingSettledFocusRef.current = undefined;
+    const target = settledEntries.find((entry) => entry.worktree.id === pending.id);
+    if (target !== undefined) {
+      if (pending.kind !== "remove" || target.worktree.checkoutPresent !== false) return;
+      const frame = requestAnimationFrame(() => document.getElementById(`workspace-settled-restore-${encodeURIComponent(target.worktree.id)}`)?.focus());
+      return () => cancelAnimationFrame(frame);
+    }
+    const candidates = [...settledEntries.slice(pending.index), ...settledEntries.slice(0, pending.index)].map((entry) => entry.worktree.id);
+    const frame = requestAnimationFrame(() => {
+      for (const id of candidates) {
+        const button = document.getElementById(`workspace-settled-restore-${encodeURIComponent(id)}`);
+        if (button instanceof HTMLButtonElement) { button.focus(); return; }
+      }
+      settledHeaderRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [settledEntries, worktreeBusyOwner]);
+  const archiveWorktree = (projectId: string, worktree: WorkspaceWorktree) => {
+    pendingArchiveFocusRef.current = { projectId, worktreeId: worktree.id };
+    onArchiveWorktree(projectId, worktree);
+  };
+  const restoreWorktree = (projectId: string, worktree: SettledWorktree) => {
+    pendingSettledFocusRef.current = { id: worktree.id, index: settledEntries.findIndex((entry) => entry.worktree.id === worktree.id), kind: "restore" };
+    onRestoreWorktree(projectId, worktree);
+  };
+  const removeWorktree = (projectId: string, worktree: SettledWorktree) => {
+    pendingSettledFocusRef.current = { id: worktree.id, index: settledEntries.findIndex((entry) => entry.worktree.id === worktree.id), kind: "remove" };
+    onRemoveWorktree(projectId, worktree);
+  };
   const priorityCount = priorityAgents.length;
   const workingWorktreeIds = new Set<string>();
   for (const agent of snapshot.agents) if (agent.status === "working") workingWorktreeIds.add(agent.worktreeId);
@@ -401,7 +631,7 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
       </div>
       <div className="workspace-sidebar-search">
         <Icon name="search" />
-        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search Spaces and Agents" placeholder="Search" spellCheck={false} onChange={(event) => changeSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
+        <input ref={searchInputRef} type="search" value={searchQuery} aria-label="Search Spaces, Settled worktrees, and Agents" placeholder="Search" spellCheck={false} onChange={(event) => changeSearchQuery(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape" && searchQuery !== "") { event.preventDefault(); clearSearch(); } }} />
         {searchQuery !== "" && <button type="button" aria-label="Clear search" title="Clear search" onClick={clearSearch}><Icon name="close" /></button>}
       </div>
     </header>
@@ -415,28 +645,64 @@ export function WorkspaceSidebar({ snapshot, activeProjectId, activeWorktreeId, 
         {spacesExpanded && <div id="spaces-list-panel" className="workspace-project-scroll">
           {failed && <p className="focused-message error" role="alert">Spaces are temporarily unavailable. Ernie will retry automatically.</p>}
           {openError && <p className="focused-message error" role="alert">{openError}</p>}
+          {worktreeError && createProjectId === undefined && <p className="focused-message error" role="alert">{worktreeError}</p>}
           {loading && snapshot.projects.length === 0 && <p className="focused-message" role="status">Loading spaces…</p>}
           {normalizedQuery === "" && !loading && snapshot.projects.length === 0 && <FirstSpacePrompt opening={opening} onOpen={onOpenDirectory} />}
           {normalizedQuery !== "" && visibleProjects.length === 0 && <p className="focused-message">No spaces match your search.</p>}
           <ul className="workspace-project-list">{visibleProjects.map((project) => {
             const worktrees = project.worktreeIds.flatMap((id) => snapshot.worktrees.find((worktree) => worktree.id === id) ?? []);
             const rootWorktree = worktrees.find((worktree) => worktree.id === project.id) ?? worktrees[0];
-            const linkedWorktrees = worktrees.filter((worktree) => worktree.id !== rootWorktree?.id);
+            const projectMatches = normalizedQuery !== "" && matchesSearch(normalizedQuery, [project.label, project.path]);
+            const visibleWorktrees = normalizedQuery === "" || projectMatches
+              ? worktrees
+              : worktrees.filter((worktree) => matchesSearch(normalizedQuery, [worktree.label, worktree.path]));
+            const linkedWorktrees = visibleWorktrees.filter((worktree) => worktree.id !== rootWorktree?.id);
             return <SpaceRow
               key={project.id}
               project={project}
               rootWorktree={rootWorktree}
               linkedWorktrees={linkedWorktrees}
+              forceExpanded={normalizedQuery !== "" && linkedWorktrees.length > 0}
               archivable={snapshot.projects[0]?.id !== project.id}
               archiving={archivingProjectId === project.id}
               activeProjectId={activeProjectId}
               activeWorktreeId={activeWorktreeId}
               workingWorktreeIds={workingWorktreeIds}
+              createOpen={createProjectId === project.id}
+              worktreeBusyOwner={worktreeBusyOwner}
+              worktreeInteractionLocked={worktreeBusyOwner !== undefined || createProjectId !== undefined}
+              createError={createProjectId === project.id ? worktreeError : undefined}
+              onOpenCreate={setCreateProjectId}
+              onCloseCreate={(projectId) => setCreateProjectId((current) => current === projectId ? undefined : current)}
+              onCreateWorktree={onCreateWorktree}
               onSelectProject={onSelectProject}
               onSelectWorktree={onSelectWorktree}
               onArchiveProject={onArchiveProject}
+              onArchiveWorktree={archiveWorktree}
             />;
           })}</ul>
+          {visibleSettledEntries.length > 0 && <section className="workspace-settled" aria-labelledby="settled-heading">
+            <h3 id="settled-heading">
+              <button
+                ref={settledHeaderRef}
+                type="button"
+                className="workspace-settled-disclosure"
+                aria-expanded={normalizedQuery !== "" || settledExpanded}
+                aria-controls={settledShelfId}
+                onClick={() => { if (normalizedQuery === "") setSettledExpanded((current) => !current); }}
+              ><Icon name="archive" /><span>Settled</span><small aria-label={`${visibleSettledEntries.length} ${visibleSettledEntries.length === 1 ? "worktree" : "worktrees"}`}>{visibleSettledEntries.length}</small><Icon name="chevron" /></button>
+            </h3>
+            <ul id={settledShelfId} className="workspace-settled-list" hidden={normalizedQuery === "" && !settledExpanded}>
+              {(normalizedQuery !== "" || settledExpanded) && visibleSettledEntries.map((entry) => <SettledWorktreeRow
+                key={entry.worktree.id}
+                entry={entry}
+                busy={worktreeBusyOwner === entry.worktree.id}
+                disabled={worktreeBusyOwner !== undefined || createProjectId !== undefined}
+                onRestore={restoreWorktree}
+                onRemove={removeWorktree}
+              />)}
+            </ul>
+          </section>}
         </div>}
       </section>
       <div className="workspace-section-divider" aria-hidden="true" />

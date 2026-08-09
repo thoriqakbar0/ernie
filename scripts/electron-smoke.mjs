@@ -26,21 +26,24 @@ try {
   await window.waitForLoadState("domcontentloaded");
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setContentSize(1470, 923));
   await window.waitForTimeout(100);
-  const canvas = window.getByRole("main", { name: "Ernie interface canvas" });
-  const sidebar = window.getByRole("complementary", { name: /project$/ });
+  const canvas = window.getByRole("main", { name: "Ernie workspace" });
+  const sidebar = window.getByRole("complementary", { name: "Workspace navigation" });
   await canvas.waitFor({ state: "visible" });
   await sidebar.waitFor({ state: "visible" });
-  assert.equal(await window.locator("form, textarea, dialog, webview").count(), 0);
-  assert.equal(await window.getByRole("button", { name: "Close sidebar" }).count(), 1);
-  assert.equal(await window.getByRole("button", { name: "Open sidebar" }).isVisible(), false);
+  assert.equal(await window.locator("dialog, webview").count(), 0);
+  assert.equal(await window.getByRole("button", { name: "Close workspace navigation" }).count(), 1);
+  assert.equal(await window.getByRole("button", { name: "Open workspace navigation" }).isVisible(), false);
   assert.deepEqual(await window.evaluate(() => ({
     processType: typeof globalThis.process,
     requireType: typeof globalThis.require,
     nodeIntegration: typeof globalThis.Buffer,
   })), { processType: "undefined", requireType: "undefined", nodeIntegration: "undefined" });
   assert.deepEqual((await window.evaluate(() => Object.keys(window.ernie).sort())), [
-    "command", "copyText", "detachSessionTranscript", "getCommands", "getState", "getWorkspace",
-    "onAgentEvent", "onSessionTranscriptEvent", "openDevServer", "platform", "refreshDevServers", "selectSessionTranscript",
+    "archiveProject", "archiveWorktree", "copyText", "createWorktree", "detachSessionTranscript",
+    "getRendererPerformance", "getSpaceCommands", "getSpaceModels", "getSpaceRlmMaxDepth", "getSpaceState",
+    "getWorkspace", "onSessionTranscriptEvent", "onSpaceEvent", "onWorkspaceEvent", "openDevServer",
+    "openProjectDirectory", "platform", "refreshDevServers", "removeWorktreeCheckout", "restoreWorktree",
+    "selectSessionTranscript", "spaceCommand", "startSpace",
   ]);
   const copyResult = await window.evaluate(() => window.ernie.copyText("Ernie clipboard smoke"));
   assert.equal(copyResult.ok, true);
@@ -53,29 +56,28 @@ try {
     return rect.x === 0 && rect.y === 0 && rect.width === innerWidth && rect.height === innerHeight;
   }), true);
   const sidebarBox = await sidebar.boundingBox();
-  assert.ok(sidebarBox && Math.abs(sidebarBox.x) <= 1 && Math.abs(sidebarBox.y) <= 1 && Math.abs(sidebarBox.width - 272) <= 1 && Math.abs(sidebarBox.height - 923) <= 1);
-  const worktree = window.getByRole("button", { name: /feat\/worktree-workspace/u });
-  await worktree.waitFor({ state: "visible" });
-  assert.equal(await worktree.getAttribute("aria-expanded"), "true");
-  await worktree.click();
-  assert.equal(await worktree.getAttribute("aria-expanded"), "false");
-  await worktree.click();
-  assert.equal(await worktree.getAttribute("aria-expanded"), "true");
+  assert.ok(sidebarBox && Math.abs(sidebarBox.x) <= 1 && Math.abs(sidebarBox.y) <= 1 && Math.abs(sidebarBox.width - 268) <= 1 && Math.abs(sidebarBox.height - 923) <= 1);
+  const worktrees = window.getByRole("button", { name: "Hide linked worktrees for ernie" });
+  await worktrees.waitFor({ state: "visible" });
+  assert.equal(await worktrees.getAttribute("aria-expanded"), "true");
+  await worktrees.click();
+  const collapsedWorktrees = window.getByRole("button", { name: "Show linked worktrees for ernie" });
+  assert.equal(await collapsedWorktrees.getAttribute("aria-expanded"), "false");
+  await collapsedWorktrees.click();
+  assert.equal(await worktrees.getAttribute("aria-expanded"), "true");
 
-  await window.getByRole("button", { name: "Close sidebar" }).click();
+  await window.getByRole("button", { name: "Close workspace navigation" }).click();
   await sidebar.waitFor({ state: "hidden" });
-  const openSidebar = window.getByRole("button", { name: "Open sidebar" });
-  await openSidebar.waitFor({ state: "visible" });
-  assert.equal(await window.locator("#project-sidebar").getAttribute("aria-hidden"), "true");
-  await openSidebar.click();
+  assert.match(await window.locator(".focused-workspace").getAttribute("class") ?? "", /sidebar-collapsed/u);
+  await window.keyboard.press("Meta+b");
   await sidebar.waitFor({ state: "visible" });
-  assert.equal(await window.locator("#project-sidebar").getAttribute("aria-hidden"), "false");
+  assert.doesNotMatch(await window.locator(".focused-workspace").getAttribute("class") ?? "", /sidebar-collapsed/u);
 
   await window.setViewportSize({ width: 820, height: 520 });
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(4));
   await window.waitForTimeout(100);
   assert.equal(await window.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
-  assert.equal(await window.locator("form, textarea").count(), 0);
+  assert.equal(await window.locator("dialog, webview").count(), 0);
   process.stdout.write("Electron sidebar-shell smoke test passed.\n");
 } finally {
   await electronApp.close();

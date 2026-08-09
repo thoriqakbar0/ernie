@@ -36,3 +36,8 @@ export const StartSpaceSchema = Schema.Struct({
   thinkingLevel: ThinkingLevel,
   rlmMaxDepth: NonNegativeDepth,
 });
+
+
+const BoundedBranch = Schema.String.check(Schema.isLengthBetween(1, 240));
+/** Parser for managed worktree creation. Paths and base refs are intentionally absent. */
+export const CreateWorktreeSchema = Schema.Struct({ sourceWorktreeId: BoundedSpaceId, branch: BoundedBranch });

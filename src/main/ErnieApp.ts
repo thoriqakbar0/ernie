@@ -2,11 +2,11 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import type { ArchiveProjectResult, CommandResult, OpenProjectResult } from "../shared/contract";
-import { SpaceCommandSchema, SpaceIdSchema, StartSpaceSchema } from "./IpcProtocol";
+import type { ArchiveProjectResult, CommandResult, OpenProjectResult, WorktreeCommandResult } from "../shared/contract";
+import { CreateWorktreeSchema, SpaceCommandSchema, SpaceIdSchema, StartSpaceSchema } from "./IpcProtocol";
 import { ErnieWindow, hardenElectron } from "./ErnieWindow";
 import { SpaceRuntimeRegistry } from "./SpaceRuntimeRegistry";
-import { WorkspaceCatalog } from "./WorkspaceCatalog";
+import { WorkspaceCatalog, WorkspaceCatalogWorktreeError } from "./WorkspaceCatalog";
 import { DevServerCatalog } from "./DevServerCatalog";
 import { SessionTranscriptStream } from "./SessionTranscriptStream";
 import { ClipboardWriter } from "./ClipboardWriter";
@@ -36,6 +36,14 @@ export const program = Effect.scoped(Effect.gen(function* () {
   const commandResult = <A extends { readonly cancelled?: boolean }>(effect: Effect.Effect<A, { readonly message: string }>) => effect.pipe(
     Effect.map((result): CommandResult => ({ ok: true, ...result })),
     Effect.catch((error) => Effect.succeed({ ok: false, error: error.message } satisfies CommandResult)),
+  );
+  const worktreeResult = (worktreeId: string, effect: Effect.Effect<import("../shared/workspace").WorkspaceSnapshot, { readonly message: string }>) => effect.pipe(
+    Effect.map((snapshot): WorktreeCommandResult => ({ ok: true, snapshot, worktreeId })),
+    Effect.catch((error) => Effect.succeed({
+      ok: false,
+      code: error instanceof WorkspaceCatalogWorktreeError ? error.reason : "worktree_command_failed",
+      error: error.message,
+    } satisfies WorktreeCommandResult)),
   );
 
   yield* Effect.acquireRelease(
@@ -86,12 +94,44 @@ export const program = Effect.scoped(Effect.gen(function* () {
         const current = yield* catalog.current;
         const project = current.projects.find((candidate) => candidate.id === projectId);
         if (project === undefined) return { ok: false, error: "This Space is no longer available." } satisfies ArchiveProjectResult;
-        return yield* catalog.archiveProject(projectId).pipe(
-          Effect.tap(() => Effect.forEach(new Set([project.id, ...project.worktreeIds]), (spaceId) => runtimes.closeSpace(spaceId), { discard: true })),
+        const runtimeIds = new Set([
+          project.id,
+          ...project.worktreeIds,
+          ...(current.settledWorktrees ?? []).filter((worktree) => worktree.projectId === project.id).map((worktree) => worktree.id),
+        ]);
+        return yield* Effect.forEach(runtimeIds, (spaceId) => runtimes.closeSpaceStrict(spaceId), { discard: true }).pipe(
+          Effect.andThen(catalog.archiveProject(projectId)),
           Effect.map((snapshot) => ({ ok: true, snapshot } satisfies ArchiveProjectResult)),
           Effect.catch((error) => Effect.succeed({ ok: false, error: error.message } satisfies ArchiveProjectResult)),
         );
       }).pipe(Effect.catch(() => Effect.succeed({ ok: false, error: "Invalid Space archive request." } satisfies ArchiveProjectResult)))));
+      ipcMain.handle("workspace:create-worktree", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const parsed = yield* Schema.decodeUnknownEffect(CreateWorktreeSchema)(input);
+        return yield* catalog.createWorktree(parsed.sourceWorktreeId, parsed.branch).pipe(
+          Effect.map(({ snapshot, worktreeId }): WorktreeCommandResult => ({ ok: true, snapshot, worktreeId })),
+          Effect.catch((error) => Effect.succeed({ ok: false, code: error instanceof WorkspaceCatalogWorktreeError ? error.reason : "worktree_command_failed", error: error.message } satisfies WorktreeCommandResult)),
+        );
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, code: "invalid_request", error: "Invalid worktree creation request." } satisfies WorktreeCommandResult)))));
+      ipcMain.handle("workspace:archive-worktree", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const worktreeId = yield* Schema.decodeUnknownEffect(SpaceIdSchema)(input);
+        return yield* worktreeResult(worktreeId, runtimes.closeSpaceStrict(worktreeId).pipe(
+          Effect.andThen(catalog.archiveWorktree(worktreeId)),
+        ));
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, code: "invalid_request", error: "Invalid worktree archive request." } satisfies WorktreeCommandResult)))));
+      ipcMain.handle("workspace:restore-worktree", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const worktreeId = yield* Schema.decodeUnknownEffect(SpaceIdSchema)(input);
+        return yield* worktreeResult(worktreeId, catalog.restoreWorktree(worktreeId));
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, code: "invalid_request", error: "Invalid worktree restore request." } satisfies WorktreeCommandResult)))));
+      ipcMain.handle("workspace:remove-worktree-checkout", (event, input: unknown) => runEffect(Effect.gen(function* () {
+        if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
+        const worktreeId = yield* Schema.decodeUnknownEffect(SpaceIdSchema)(input);
+        const current = yield* catalog.current;
+        if ((current.settledWorktrees ?? []).some((worktree) => worktree.id === worktreeId)) yield* runtimes.closeSpaceStrict(worktreeId);
+        return yield* worktreeResult(worktreeId, catalog.removeWorktreeCheckout(worktreeId));
+      }).pipe(Effect.catch(() => Effect.succeed({ ok: false, code: "invalid_request", error: "Invalid remove-checkout request." } satisfies WorktreeCommandResult)))));
       ipcMain.handle("session-transcript:select", (event, input: unknown) => runEffect(Effect.gen(function* () {
         if (!(yield* window.trustedSender(event))) return yield* Effect.die(new Error("Untrusted IPC sender"));
         const activeSessionId = yield* Schema.decodeUnknownEffect(Schema.String)(input);
@@ -146,6 +186,10 @@ export const program = Effect.scoped(Effect.gen(function* () {
       ipcMain.removeHandler("workspace:get-snapshot");
       ipcMain.removeHandler("workspace:open-project");
       ipcMain.removeHandler("workspace:archive-project");
+      ipcMain.removeHandler("workspace:create-worktree");
+      ipcMain.removeHandler("workspace:archive-worktree");
+      ipcMain.removeHandler("workspace:restore-worktree");
+      ipcMain.removeHandler("workspace:remove-worktree-checkout");
       ipcMain.removeHandler("session-transcript:select");
       ipcMain.removeHandler("session-transcript:detach");
       ipcMain.removeHandler("dev-server:refresh");

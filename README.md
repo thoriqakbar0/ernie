@@ -1,6 +1,6 @@
 # Ernie Dev
 
-Ernie Dev is a secure, multi-directory Electron workbench for Prime Agent. It presents independent **Spaces** and **Agents** inventories, preserves worktree-local session tabs, and combines interactive owned runtimes with read-only attachment to discovered root and subagent sessions.
+Ernie Dev is a secure, multi-directory Electron workbench for Prime Agent. It presents independent **Spaces** and **Agents** inventories, preserves worktree-local session tabs, supports recoverable managed-worktree workflows, and combines interactive owned runtimes with read-only attachment to discovered root and subagent sessions.
 
 An empty worktree opens a functional start surface with a first prompt plus dedicated provider-qualified model and model-aware thinking-effort dropdowns. Thinking defaults to `low` when supported, and new threads launch at RLM depth `0` (root only). Development builds include React Grab and Agentation for source-aware and persistent visual feedback.
 
@@ -77,7 +77,7 @@ Prime Agent credentials are never bundled. The app reuses the user's normal Prim
 
 - `src/main/PrimeAgentRpc.ts` — scoped adapter for one pinned RPC child, with bounded framing/backpressure, provider-qualified models, serialized mutations, and whole-process-tree cleanup.
 - `src/main/SpaceRuntimeRegistry.ts` — catalog-authorized project/worktree ownership, a three-client idle-LRU resource limit, runtime-tagged events, and atomic depth/model/thinking/first-prompt sequencing.
-- `src/main/WorkspaceCatalog.ts` — read-only Effect service joining Git worktrees with schema-decoded Prime Agent session metadata.
+- `src/main/WorkspaceCatalog.ts` — catalog-authorized Effect service joining Git worktrees with schema-decoded Prime Agent sessions and serializing managed create, settle, restore, and clean-only checkout removal.
 - `src/main/SessionTranscriptStream.ts` — read-only daemon protocol-v7 attachment for bounded selected-session snapshots and live message/tool streams.
 - `src/main/RendererPerformanceSampler.ts` — trusted, rate-limited projection of renderer CPU and working-set metrics for the opt-in diagnostics HUD.
 - `src/main/DevServerCatalog.ts` — serialized, worktree-scoped discovery of allowlisted local development-server listeners.

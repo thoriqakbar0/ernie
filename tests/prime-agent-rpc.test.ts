@@ -54,10 +54,11 @@ describe("PrimeAgentRpc", () => {
         const pid = Number.parseInt(yield* Effect.promise(() => readFile(pidFile, "utf8")), 10);
         descendantPid = pid;
         process.kill(pid, 0);
+        yield* Effect.sleep("100 millis");
         yield* rpc.stop;
         yield* Effect.sleep("100 millis");
         expect(() => process.kill(pid, 0)).toThrow();
-      })), { ERNIE_FAKE_DESCENDANT_PID_FILE: pidFile }));
+      })), { ERNIE_FAKE_DESCENDANT_PID_FILE: pidFile, ERNIE_FAKE_DESCENDANT_IGNORE_TERM: "1" }));
     } finally {
       if (descendantPid !== undefined) {
         try { process.kill(descendantPid, "SIGKILL"); }

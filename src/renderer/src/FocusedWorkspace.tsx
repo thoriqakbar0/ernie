@@ -275,9 +275,12 @@ export function SessionSurface({ snapshot, agentId, loading, activeProject, acti
   const assistantSubagentCount = assistantSubagents.working;
   const assistantRunningSubagentCount = assistantSubagents.working;
   const state = runtimeState?.agent;
-  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(agent.worktreeId, text, steered)} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
+  const locationLabel = activeProject === undefined ? "Unavailable Space"
+    : activeWorktree === undefined || activeWorktree.id === activeProject.id ? activeProject.label
+    : `${activeProject.label} · ${activeWorktree.label}`;
+  if (agent.id.startsWith("rpc:") && state) return <LiveSessionChatSurface agent={agent} locationLabel={locationLabel} state={state} items={liveItems} onAppendUser={(text, steered) => onAppendLiveUser(agent.worktreeId, text, steered)} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
   const interactive = state !== undefined && isCommandableAgent(agent, state.sessionId);
-  return <SessionChatSurface agent={agent} state={state} interactive={interactive} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
+  return <SessionChatSurface agent={agent} locationLabel={locationLabel} state={state} interactive={interactive} spaceId={agent.worktreeId} assistantSubagentCount={assistantSubagentCount} assistantRunningSubagentCount={assistantRunningSubagentCount} onShowAssistantHierarchy={() => onShowAgentHierarchy(agent.id)} />;
 }
 
 function useMediaQuery(query: string): boolean {
@@ -339,7 +342,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
     if (!project) return undefined;
     const rootId = project.worktreeIds.find((id) => id === project.id) ?? project.worktreeIds[0] ?? project.id;
     return workspace.worktrees.find((worktree) => worktree.id === rootId)
-      ?? { id: project.id, path: project.path, label: "Local directory" };
+      ?? { id: project.id, path: project.path, label: "Local directory", branch: null, managed: false, checkoutPresent: true };
   };
   const initialProject = snapshot.projects[0];
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(initialProject?.id);
@@ -351,6 +354,8 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   const [spaceTabs, setSpaceTabs] = useState(emptySpaceSessionTabs);
   const [opening, setOpening] = useState(false);
   const [archivingProjectId, setArchivingProjectId] = useState<string | undefined>();
+  const [worktreeBusyOwner, setWorktreeBusyOwner] = useState<string | undefined>();
+  const [worktreeError, setWorktreeError] = useState<string | undefined>();
   const [openError, setOpenError] = useState<string | undefined>();
   const compactNavigation = useMediaQuery("(max-width: 700px)");
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -390,7 +395,7 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
   useLayoutEffect(() => {
     if (sidebarOpen) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest("#workspace-navigation")) emptySessionFocusRef.current?.focus();
+    if (active instanceof HTMLElement && (active.closest("#workspace-navigation") || active.classList.contains("workspace-navigation-scrim"))) emptySessionFocusRef.current?.focus();
   }, [sidebarOpen]);
   useEffect(() => {
     if (!compactNavigation || !navigationOpen) return;
@@ -507,6 +512,72 @@ export function FocusedWorkspace({ snapshot, runtimeStates, liveItemsBySpace, on
       }
     } finally { setOpening(false); }
   };
+  const createWorktree = async (projectId: string, sourceWorktreeId: string, branch: string) => {
+    setWorktreeBusyOwner(projectId);
+    setWorktreeError(undefined);
+    try {
+      const result = await window.ernie.createWorktree({ sourceWorktreeId, branch });
+      if (!result.ok) { setWorktreeError(result.error); return; }
+      onSnapshot(result.snapshot);
+      setActiveProjectId(projectId);
+      setActiveWorktreeId(result.worktreeId);
+      if (compactNavigation) closeNavigation();
+      else requestAnimationFrame(() => document.getElementById(`workspace-worktree-${encodeURIComponent(result.worktreeId)}`)?.focus());
+    } catch {
+      setWorktreeError("Unable to create this worktree. Try again.");
+    } finally { setWorktreeBusyOwner(undefined); }
+  };
+  const archiveWorktree = async (projectId: string, worktree: WorkspaceWorktree) => {
+    const confirmed = window.confirm(`Archive “${worktree.label}”?
+
+This moves it to Settled and stops Ernie-managed work. The checkout, branch, files, and saved sessions stay on disk.`);
+    if (!confirmed) return;
+    setWorktreeBusyOwner(worktree.id);
+    setWorktreeError(undefined);
+    try {
+      const result = await window.ernie.archiveWorktree(worktree.id);
+      if (!result.ok) { setWorktreeError(result.error); return; }
+      onSnapshot(result.snapshot);
+      if (activeWorktreeId === worktree.id) {
+        const project = result.snapshot.projects.find((candidate) => candidate.id === projectId);
+        setActiveProjectId(projectId);
+        setActiveWorktreeId(project?.worktreeIds.find((id) => id === project.id) ?? project?.worktreeIds[0] ?? projectId);
+      }
+    } catch {
+      setWorktreeError(`Unable to archive ${worktree.label}. Try again.`);
+    } finally { setWorktreeBusyOwner(undefined); }
+  };
+  const restoreWorktree = async (projectId: string, worktree: WorkspaceWorktree) => {
+    setWorktreeBusyOwner(worktree.id);
+    setWorktreeError(undefined);
+    try {
+      const result = await window.ernie.restoreWorktree(worktree.id);
+      if (!result.ok) { setWorktreeError(result.error); return; }
+      onSnapshot(result.snapshot);
+      setActiveProjectId(projectId);
+      setActiveWorktreeId(result.worktreeId);
+      if (compactNavigation) closeNavigation();
+      else requestAnimationFrame(() => document.getElementById(`workspace-worktree-${encodeURIComponent(result.worktreeId)}`)?.focus());
+    } catch {
+      setWorktreeError(`Unable to restore ${worktree.label}. Try again.`);
+    } finally { setWorktreeBusyOwner(undefined); }
+  };
+  const removeWorktreeCheckout = async (projectId: string, worktree: WorkspaceWorktree) => {
+    const confirmed = window.confirm(`Remove checkout “${worktree.label}”?
+
+This deletes ${worktree.path} from disk. The branch and saved sessions remain.`);
+    if (!confirmed) return;
+    setWorktreeBusyOwner(worktree.id);
+    setWorktreeError(undefined);
+    try {
+      const result = await window.ernie.removeWorktreeCheckout(worktree.id);
+      if (!result.ok) { setWorktreeError(result.error); return; }
+      onSnapshot(result.snapshot);
+      setActiveProjectId((current) => current ?? projectId);
+    } catch {
+      setWorktreeError(`Unable to remove ${worktree.label}. Commit or stash changes, then try again.`);
+    } finally { setWorktreeBusyOwner(undefined); }
+  };
   const archiveProject = async (project: WorkspaceProject) => {
     const confirmed = window.confirm(`Archive “${project.label}”?
 
@@ -529,7 +600,7 @@ This removes it from Spaces and stops any Ernie-managed work for it. Files and s
   return <PerformanceHud enabled={import.meta.env.DEV && performanceEnabled}>
     <div className={`focused-workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
       <PerformanceProfiler area="sidebar">
-        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} archivingProjectId={archivingProjectId} openError={openError} compact={compactNavigation} open={sidebarOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onArchiveProject={(project) => { void archiveProject(project); }} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
+        <WorkspaceSidebar snapshot={workspace} activeProjectId={activeProjectId} activeWorktreeId={activeWorktreeId} activeAgentId={activeAgentId} loading={loading} failed={failed} opening={opening} archivingProjectId={archivingProjectId} openError={openError} worktreeBusyOwner={worktreeBusyOwner} worktreeError={worktreeError} compact={compactNavigation} open={sidebarOpen} revealAgent={agentRevealRequest} performanceEnabled={performanceEnabled} onTogglePerformance={() => setPerformanceEnabled((current) => !current)} onClose={closeNavigation} onSelectProject={selectProject} onSelectWorktree={selectWorktree} onArchiveProject={(project) => { void archiveProject(project); }} onCreateWorktree={(projectId, sourceWorktreeId, branch) => { void createWorktree(projectId, sourceWorktreeId, branch); }} onArchiveWorktree={(projectId, worktree) => { void archiveWorktree(projectId, worktree); }} onRestoreWorktree={(projectId, worktree) => { void restoreWorktree(projectId, worktree); }} onRemoveWorktree={(projectId, worktree) => { void removeWorktreeCheckout(projectId, worktree); }} onOpenAgent={openAgent} onOpenDirectory={() => { void openDirectory(); }} />
       </PerformanceProfiler>
       {compactNavigation && navigationOpen && <button type="button" tabIndex={-1} aria-hidden="true" className="workspace-navigation-scrim" onClick={closeNavigation} />}
       <PerformanceProfiler area="main">

@@ -139,8 +139,9 @@ function ChatComposer({ spaceId, state, connectionReady = true, onAppendUser, on
   </div>;
 }
 
-export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
+export function LiveSessionChatSurface({ agent, locationLabel, state, items, onAppendUser, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
   readonly agent: WorkspaceAgent;
+  readonly locationLabel: string;
   readonly state: AgentState;
   readonly items: readonly ThreadItem[];
   readonly onAppendUser: (text: string, steered: boolean) => void;
@@ -153,6 +154,7 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spac
   const viewState = runtimeUnavailable ? "unavailable" : state.connection === "starting" ? "loading" : "ready";
   return <SessionTranscriptView
     agent={agent}
+    locationLabel={locationLabel}
     items={items}
     state={viewState}
     interactive={state.connection === "ready"}
@@ -162,8 +164,9 @@ export function LiveSessionChatSurface({ agent, state, items, onAppendUser, spac
   />;
 }
 
-export function SessionChatSurface({ agent, state, interactive, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
+export function SessionChatSurface({ agent, locationLabel, state, interactive, spaceId, assistantSubagentCount, assistantRunningSubagentCount, onShowAssistantHierarchy }: {
   readonly agent: WorkspaceAgent;
+  readonly locationLabel: string;
   readonly state: AgentState | undefined;
   readonly interactive: boolean;
   readonly spaceId: string | undefined;
@@ -237,6 +240,7 @@ export function SessionChatSurface({ agent, state, interactive, spaceId, assista
   const surfaceState = runtimeUnavailable ? "unavailable" : streamState;
   return <SessionTranscriptView
     agent={agent}
+    locationLabel={locationLabel}
     items={items}
     state={surfaceState}
     interactive={interactive && !runtimeUnavailable}

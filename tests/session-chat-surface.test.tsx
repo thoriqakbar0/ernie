@@ -47,6 +47,7 @@ describe("SessionChatSurface daemon grace", () => {
     const root = createRoot(container);
     await act(async () => root.render(<SessionChatSurface
       agent={agent}
+      locationLabel="Ernie"
       state={undefined}
       interactive={false}
       spaceId={undefined}

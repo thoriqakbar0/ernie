@@ -86,6 +86,17 @@ export type ArchiveProjectResult =
   | { readonly ok: true; readonly snapshot: WorkspaceSnapshot }
   | { readonly ok: false; readonly error: string };
 
+/** Authorized request to create a managed worktree from an active checkout's HEAD. */
+export interface CreateWorktreeInput {
+  readonly sourceWorktreeId: string;
+  readonly branch: string;
+}
+
+/** Stable result for worktree lifecycle commands. */
+export type WorktreeCommandResult =
+  | { readonly ok: true; readonly snapshot: WorkspaceSnapshot; readonly worktreeId: string }
+  | { readonly ok: false; readonly code: string; readonly error: string };
+
 export interface ErnieApi {
   /** Get or lazily create the runtime authorized by this catalog Space. */
   getSpaceState(spaceId: string): Promise<SpaceRuntimeState>;
@@ -99,6 +110,10 @@ export interface ErnieApi {
   getWorkspace(): Promise<WorkspaceSnapshot>;
   openProjectDirectory(): Promise<OpenProjectResult>;
   archiveProject(projectId: string): Promise<ArchiveProjectResult>;
+  createWorktree(input: CreateWorktreeInput): Promise<WorktreeCommandResult>;
+  archiveWorktree(worktreeId: string): Promise<WorktreeCommandResult>;
+  restoreWorktree(worktreeId: string): Promise<WorktreeCommandResult>;
+  removeWorktreeCheckout(worktreeId: string): Promise<WorktreeCommandResult>;
   refreshDevServers(worktreeId: string): Promise<DevServerSnapshot>;
   openDevServer(worktreeId: string, port: number, url: string): Promise<CommandResult>;
   copyText(text: string): Promise<CommandResult>;

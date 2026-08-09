@@ -17,6 +17,7 @@ const snapshot = {
     { id: "/repo", path: "/repo", label: "main" },
     { id: "/other", path: "/other", label: "main" },
   ],
+  settledWorktrees: [],
   agents: [
     { id: "root", sessionId: "root-session", worktreeId: "/repo", name: "Root", summary: "", status: "idle", runtimeKind: "root" },
     { id: "child", sessionId: "child-session", worktreeId: "/repo", parentAgentId: "root", name: "Child", summary: "", status: "idle", runtimeKind: "subagent" },
@@ -41,6 +42,8 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       opening={false}
       archivingProjectId={undefined}
       openError={undefined}
+      worktreeBusyOwner={undefined}
+      worktreeError={undefined}
       compact={false}
       open
       revealAgent={{ agentId: "missing-agent", requestId: 1 }}
@@ -50,6 +53,10 @@ describe("WorkspaceSidebar Agents disclosure", () => {
       onSelectProject={vi.fn()}
       onSelectWorktree={vi.fn()}
       onArchiveProject={vi.fn()}
+      onCreateWorktree={vi.fn()}
+      onArchiveWorktree={vi.fn()}
+      onRestoreWorktree={vi.fn()}
+      onRemoveWorktree={vi.fn()}
       onOpenAgent={vi.fn()}
       onOpenDirectory={vi.fn()}
     />));
@@ -96,10 +103,19 @@ const linkedSnapshot = {
     { id: "/repo-fix", path: "/trees/fix", label: "fix" },
     { id: "/fallback-main", path: "/fallback", label: "trunk" },
   ],
+  settledWorktrees: [],
   agents: [
     { id: "feature-agent", sessionId: "feature-session", worktreeId: "/repo-feature", name: "Feature", summary: "", status: "working", runtimeKind: "root" },
   ],
   updatedAt: "2026-08-08T00:00:00.000Z",
+} satisfies WorkspaceSnapshot;
+
+const settledSnapshot = {
+  ...linkedSnapshot,
+  settledWorktrees: [
+    { id: "/trees/old", path: "/trees/old", label: "old", branch: "feature/old", managed: true, checkoutPresent: true, locked: false, projectId: "/repo", settledAt: "2026-08-07T00:00:00.000Z" },
+    { id: "/trees/gone", path: "/trees/gone", label: "gone", branch: "feature/gone", managed: true, checkoutPresent: false, locked: false, projectId: "/fallback", settledAt: "2026-08-06T00:00:00.000Z" },
+  ],
 } satisfies WorkspaceSnapshot;
 
 function sidebarProps(snapshotValue: WorkspaceSnapshot) {
@@ -113,6 +129,8 @@ function sidebarProps(snapshotValue: WorkspaceSnapshot) {
     opening: false,
     archivingProjectId: undefined,
     openError: undefined,
+    worktreeBusyOwner: undefined,
+    worktreeError: undefined,
     compact: false,
     open: true,
     revealAgent: undefined,
@@ -122,6 +140,10 @@ function sidebarProps(snapshotValue: WorkspaceSnapshot) {
     onSelectProject: vi.fn(),
     onSelectWorktree: vi.fn(),
     onArchiveProject: vi.fn(),
+    onCreateWorktree: vi.fn(),
+    onArchiveWorktree: vi.fn(),
+    onRestoreWorktree: vi.fn(),
+    onRemoveWorktree: vi.fn(),
     onOpenAgent: vi.fn(),
     onOpenDirectory: vi.fn(),
   } as const;
@@ -178,6 +200,11 @@ describe("WorkspaceSidebar Spaces", () => {
     expect(worktreeRows[0]?.querySelector(".workspace-worktree-mark")?.classList.contains("working")).toBe(true);
     await act(async () => worktreeRows[1]?.click());
     expect(props.onSelectWorktree).toHaveBeenCalledWith("/repo", "/repo-fix");
+    const archiveActions = container.querySelectorAll<HTMLButtonElement>(".workspace-worktree-archive");
+    expect(archiveActions).toHaveLength(2);
+    expect(archiveActions[0]?.getAttribute("aria-label")).toBe("Archive feature");
+    await act(async () => archiveActions[0]?.click());
+    expect(props.onArchiveWorktree).toHaveBeenCalledWith("/repo", linkedSnapshot.worktrees[0]);
 
     await act(async () => root.unmount());
   });
@@ -211,6 +238,20 @@ describe("WorkspaceSidebar Spaces", () => {
     expect(container.querySelectorAll(".workspace-worktree-button")).toHaveLength(0);
     expect(disclosure?.getAttribute("aria-expanded")).toBe("false");
 
+    const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces, Settled worktrees, and Agents"]');
+    await act(async () => {
+      if (!search) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "feature");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const matchingRows = container.querySelectorAll<HTMLButtonElement>(".workspace-worktree-button");
+    expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
+    expect(matchingRows).toHaveLength(1);
+    expect(matchingRows[0]?.textContent).toContain("feature");
+    expect(matchingRows[0]?.textContent).not.toContain("fix");
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Clear search"]')?.click());
+    expect(disclosure?.getAttribute("aria-expanded")).toBe("false");
+
     await act(async () => root.unmount());
   });
   it("filters Spaces and Agents from the titlebar search and clears with Escape", async () => {
@@ -221,7 +262,7 @@ describe("WorkspaceSidebar Spaces", () => {
     await act(async () => root.render(<WorkspaceSidebar {...props} />));
 
     expect(container.querySelector("#workspace-navigation-title")?.textContent).toBe("Ernie Dev");
-    const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces and Agents"]');
+    const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces, Settled worktrees, and Agents"]');
     expect(search).not.toBeNull();
     const spacesDisclosure = container.querySelector<HTMLButtonElement>(".workspace-spaces-disclosure");
     await act(async () => spacesDisclosure?.click());
@@ -255,6 +296,101 @@ describe("WorkspaceSidebar Spaces", () => {
 
     await act(async () => root.unmount());
     container.remove();
+  });
+
+  it("creates from the selected checkout, keeps failures inline, and restores trigger focus on cancel", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const props = sidebarProps(linkedSnapshot);
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeProjectId="/repo" activeWorktreeId="/repo-feature" />));
+
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Create worktree in repo"]');
+    expect(trigger).not.toBeNull();
+    await act(async () => trigger?.click());
+    const form = container.querySelector<HTMLFormElement>('form[aria-label="Create worktree in repo"]');
+    const input = form?.querySelector<HTMLInputElement>('input[name="branch"]');
+    expect(form?.textContent).toContain("Starts from feature");
+    expect(document.activeElement).toBe(input);
+
+    await act(async () => input?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(container.querySelector('[aria-label="Create worktree in repo"]:not(button)')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () => trigger?.click());
+    const reopenedForm = container.querySelector<HTMLFormElement>('form[aria-label="Create worktree in repo"]');
+    await act(async () => reopenedForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(reopenedForm?.querySelector('[role="alert"]')?.textContent).toBe("Enter a branch name.");
+    const reopenedInput = reopenedForm?.querySelector<HTMLInputElement>('input[name="branch"]');
+    await act(async () => {
+      if (!reopenedInput) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(reopenedInput, " feature/new ");
+      reopenedInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => reopenedForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(props.onCreateWorktree).toHaveBeenCalledWith("/repo", "/repo-feature", "feature/new");
+
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeProjectId="/repo" activeWorktreeId="/repo-feature" worktreeBusyOwner="/repo" />));
+    expect(container.querySelector('form[aria-label="Create worktree in repo"]')?.getAttribute("aria-busy")).toBe("true");
+    expect(container.querySelector('form[aria-label="Create worktree in repo"]')?.textContent).toContain("Creating…");
+    await act(async () => root.render(<WorkspaceSidebar {...props} activeProjectId="/repo" activeWorktreeId="/repo-feature" worktreeError="Branch already exists." />));
+    expect(container.querySelector('form[aria-label="Create worktree in repo"] [role="alert"]')?.textContent).toBe("Branch already exists.");
+
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders a searchable Settled shelf and moves focus after a restored row leaves", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const props = sidebarProps(settledSnapshot);
+    await act(async () => root.render(<WorkspaceSidebar {...props} worktreeError="Commit or stash changes, then try again." />));
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Commit or stash changes");
+
+    const disclosure = container.querySelector<HTMLButtonElement>(".workspace-settled-disclosure");
+    expect(disclosure?.textContent).toContain("Settled");
+    expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelectorAll(".workspace-settled-row")).toHaveLength(2);
+    expect(container.querySelector(".workspace-settled-row")?.textContent).toContain("repo · old");
+    expect(container.querySelectorAll(".workspace-settled-remove")).toHaveLength(1);
+
+    await act(async () => disclosure?.click());
+    expect(container.querySelector<HTMLElement>(".workspace-settled-list")?.hidden).toBe(true);
+    const search = container.querySelector<HTMLInputElement>('[aria-label="Search Spaces, Settled worktrees, and Agents"]');
+    await act(async () => {
+      if (!search) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "old");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector<HTMLElement>(".workspace-settled-list")?.hidden).toBe(false);
+    expect(container.querySelectorAll(".workspace-settled-row")).toHaveLength(1);
+    expect(container.querySelector(".workspace-sidebar>.sr-only[role='status']")?.textContent).toContain("1 settled worktree");
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Clear search"]')?.click());
+    expect(container.querySelector<HTMLElement>(".workspace-settled-list")?.hidden).toBe(true);
+    await act(async () => disclosure?.click());
+
+    const remove = container.querySelector<HTMLButtonElement>('[aria-label="Remove checkout old from repo"]');
+    await act(async () => remove?.click());
+    expect(props.onRemoveWorktree).toHaveBeenCalledWith("/repo", settledSnapshot.settledWorktrees[0]);
+    const restore = container.querySelector<HTMLButtonElement>('[aria-label="Restore old to repo"]');
+    await act(async () => restore?.click());
+    expect(props.onRestoreWorktree).toHaveBeenCalledWith("/repo", settledSnapshot.settledWorktrees[0]);
+
+    await act(async () => root.render(<WorkspaceSidebar {...props} worktreeBusyOwner="/trees/old" />));
+    const afterRestore = { ...settledSnapshot, settledWorktrees: settledSnapshot.settledWorktrees.slice(1) } satisfies WorkspaceSnapshot;
+    await act(async () => root.render(<WorkspaceSidebar {...sidebarProps(afterRestore)} />));
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Restore gone to fallback");
+
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
   });
 
 });

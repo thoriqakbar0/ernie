@@ -28,7 +28,8 @@ Workspace
 
 - A **workspace** is the complete Ernie window.
 - A **space** is a user-opened local project directory. Spaces persist across launches.
-- A **worktree** is a Git checkout within a space. A non-Git space behaves as a single directory-backed worktree.
+- A **worktree** is a Git checkout within a space. An active worktree can own runtime work; a **Settled** worktree is retained without runtime authority and can be restored. A non-Git space behaves as a single directory-backed worktree.
+- **Archive worktree** moves a linked checkout to Settled without deleting its branch, files, or saved sessions. **Remove checkout** is a separate clean-only action that removes an Ernie-managed checkout while preserving its branch and saved sessions.
 - An **agent** is a root Prime Agent or subagent operating in one worktree and represented by its session.
 - A **session** is the persisted conversation and activity history belonging to an agent.
 - A **subagent** is an agent with an explicit parent-agent relationship.
@@ -49,7 +50,9 @@ The leading sidebar follows Herdr’s quiet, divided structure without borrowing
 
 The Spaces mode answers, “Where can agents work?”
 
-- Show every user-opened Space as one compact identity row; Spaces do not disclose or duplicate the Agents inventory.
+- Show every user-opened Space as one compact identity row; linked active worktrees disclose beneath it without duplicating the Agents inventory.
+- A compact per-Space action creates an Ernie-managed worktree from the selected active checkout’s `HEAD`, then focuses it. Branch names are the only renderer-supplied Git input; checkout paths and base commits remain main-process authority.
+- Archived linked worktrees appear in one searchable **Settled** shelf. Restore makes a checkout active again; **Remove checkout** is separately confirmed, clean-only, and never deletes its branch or saved sessions.
 - The selected Space uses a quiet filled state. Its supporting line identifies the worktree context, while an aggregate semantic status mark indicates live work without embedding agent rows.
 - Selecting a Space changes only the active Space and restores its local tabs. Agent discovery and root/subagent hierarchy remain exclusively in the independent Agents section.
 - **Open folder** is a compact action in the Spaces heading. When there are no spaces, the same action is also explained by one focused empty-state card.
@@ -77,7 +80,7 @@ The main column answers, “What am I working on now?”
 - Switching Spaces restores the destination Space’s tabs without closing or moving tabs from the previous Space.
 - Tab sets use one roving tab stop, wrapping arrow/Home/End navigation, Delete or Backspace to close the focused tab, a pointer close affordance, and deterministic focus restoration after close.
 - Closing the active tab selects the nearest remaining tab in the same Space. Closing that Space’s final tab returns focus to the session workspace empty state.
-- The transcript heading integrates space, worktree, and authority (`Interactive` or `Read only`) as one supporting line. Do not repeat this provenance as a separate badge stack.
+- The transcript heading integrates location as `Space · Worktree / Session`, omitting the worktree segment for a Space’s primary checkout. Keep authority and live status semantic rather than repeating provenance as a badge stack.
 - A detached tab explains that its session is unavailable and that closing the view will not delete saved work.
 - Until targeted daemon-backed commands exist, non-root session surfaces remain read-only.
 - A transient daemon disconnect keeps the transcript visible, marks and politely announces **Reconnecting**, disables the composer, and resumes from an authoritative snapshot. Only an exhausted reconnect or daemon `session_closed` event becomes a terminal connection loss.

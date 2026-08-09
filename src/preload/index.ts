@@ -4,7 +4,7 @@ import type { WorkspaceSnapshot } from "../shared/workspace";
 import type { DevServerSnapshot } from "../shared/devServer";
 import type { RendererPerformanceSample } from "../shared/performance";
 import type { SessionTranscriptEvent, SessionTranscriptSnapshot } from "../shared/sessionTranscript";
-import type { AgentCommand, ArchiveProjectResult, CommandResult, ErnieApi, OpenProjectResult, WorkspaceEvent } from "../shared/contract";
+import type { AgentCommand, ArchiveProjectResult, CommandResult, CreateWorktreeInput, ErnieApi, OpenProjectResult, WorktreeCommandResult, WorkspaceEvent } from "../shared/contract";
 import type { AgentModelOption, SpaceAgentEvent, SpaceRuntimeState, StartSpaceInput } from "../shared/spaceRuntime";
 
 const api: ErnieApi = Object.freeze({
@@ -23,6 +23,10 @@ const api: ErnieApi = Object.freeze({
   getWorkspace: () => ipcRenderer.invoke("workspace:get-snapshot") as Promise<WorkspaceSnapshot>,
   openProjectDirectory: () => ipcRenderer.invoke("workspace:open-project") as Promise<OpenProjectResult>,
   archiveProject: (projectId: string) => ipcRenderer.invoke("workspace:archive-project", projectId) as Promise<ArchiveProjectResult>,
+  createWorktree: (input: CreateWorktreeInput) => ipcRenderer.invoke("workspace:create-worktree", input) as Promise<WorktreeCommandResult>,
+  archiveWorktree: (worktreeId: string) => ipcRenderer.invoke("workspace:archive-worktree", worktreeId) as Promise<WorktreeCommandResult>,
+  restoreWorktree: (worktreeId: string) => ipcRenderer.invoke("workspace:restore-worktree", worktreeId) as Promise<WorktreeCommandResult>,
+  removeWorktreeCheckout: (worktreeId: string) => ipcRenderer.invoke("workspace:remove-worktree-checkout", worktreeId) as Promise<WorktreeCommandResult>,
   refreshDevServers: (worktreeId: string) => ipcRenderer.invoke("dev-server:refresh", worktreeId) as Promise<DevServerSnapshot>,
   openDevServer: (worktreeId: string, port: number, url: string) => ipcRenderer.invoke("dev-server:open", { worktreeId, port, url }) as Promise<CommandResult>,
   copyText: (text: string) => ipcRenderer.invoke("clipboard:write-text", text) as Promise<CommandResult>,

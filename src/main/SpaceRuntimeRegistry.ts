@@ -55,6 +55,8 @@ export class SpaceRuntimeRegistry extends Context.Service<SpaceRuntimeRegistry, 
   readonly startSpace: (input: StartSpaceInput) => Effect.Effect<void, SpaceRuntimeRegistryError | PrimeAgentRpcError>;
   /** Stop and forget one owned runtime without affecting saved Prime Agent sessions. */
   readonly closeSpace: (spaceId: string) => Effect.Effect<void>;
+  /** Strict variant used before catalog/filesystem lifecycle mutations. */
+  readonly closeSpaceStrict: (spaceId: string) => Effect.Effect<void, PrimeAgentRpcError>;
   readonly close: Effect.Effect<void>;
 }>()("@ernie/main/SpaceRuntimeRegistry") {}
 
@@ -83,10 +85,10 @@ export const make = (options: SpaceRuntimeRegistryOptions) => Effect.gen(functio
   const mutex = yield* Semaphore.make(1);
   const maxResident = options.maxResident ?? DEFAULT_MAX_RESIDENT;
 
-  const closeEntry = (entry: ResidentRuntime) => entry.runtime.stop.pipe(
-    Effect.ignore,
+  const closeEntryStrict = (entry: ResidentRuntime) => entry.runtime.stop.pipe(
     Effect.andThen(Scope.close(entry.scope, Exit.void)),
   );
+  const closeEntry = (entry: ResidentRuntime) => closeEntryStrict(entry).pipe(Effect.ignore);
 
   const claim = (spaceId: string, requestedDepth?: number) => mutex.withPermits(1)(Effect.gen(function* () {
     const snapshot = yield* options.snapshot;
@@ -177,15 +179,16 @@ export const make = (options: SpaceRuntimeRegistryOptions) => Effect.gen(functio
     })),
   ));
 
-  const closeSpace = (spaceId: string) => mutex.withPermits(1)(Effect.gen(function* () {
+  const closeSpaceStrict = (spaceId: string) => mutex.withPermits(1)(Effect.gen(function* () {
     const current = yield* Ref.get(residents);
     const entry = current.get(spaceId);
     if (entry === undefined) return;
+    yield* closeEntryStrict(entry);
     const next = new Map(current);
     next.delete(spaceId);
     yield* Ref.set(residents, next);
-    yield* closeEntry(entry);
   }));
+  const closeSpace = (spaceId: string) => closeSpaceStrict(spaceId).pipe(Effect.ignore);
 
   const close = mutex.withPermits(1)(Effect.gen(function* () {
     const current = yield* Ref.getAndSet(residents, new Map());
@@ -193,7 +196,7 @@ export const make = (options: SpaceRuntimeRegistryOptions) => Effect.gen(functio
   }));
   yield* Effect.addFinalizer(() => close);
 
-  return SpaceRuntimeRegistry.of({ events: Stream.fromPubSub(notifications), state, availableCommands, availableModels, getRlmMaxDepth, command, startSpace, closeSpace, close });
+  return SpaceRuntimeRegistry.of({ events: Stream.fromPubSub(notifications), state, availableCommands, availableModels, getRlmMaxDepth, command, startSpace, closeSpace, closeSpaceStrict, close });
 });
 
 /** Production registry layer deriving each runtime cwd exclusively from WorkspaceCatalog. */

@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { AgentState } from "../src/shared/contract";
 import type { WorkspaceSnapshot } from "../src/shared/workspace";
-import type { PrimeAgentRpcInstance } from "../src/main/PrimeAgentRpc";
+import { PrimeAgentRpcError, type PrimeAgentRpcInstance } from "../src/main/PrimeAgentRpc";
 import { make, SpaceRuntimeRegistryError } from "../src/main/SpaceRuntimeRegistry";
 
 const readyState = (overrides: Partial<AgentState> = {}): AgentState => ({
@@ -24,7 +24,7 @@ const snapshot: WorkspaceSnapshot = {
     { id: "space-a", path: "/catalog/a-root-worktree", label: "A root" },
     { id: "worktree-a", path: "/catalog/a-worktree", label: "A branch" },
     { id: "orphan-worktree", path: "/catalog/orphan", label: "Orphan" },
-  ], agents: [], updatedAt: "2026-01-01T00:00:00.000Z",
+  ], settledWorktrees: [], agents: [], updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
 interface OpenRecord { readonly cwd: string; readonly depth: number; stopped: boolean; state: AgentState; configured: unknown[] }
@@ -122,13 +122,44 @@ describe("SpaceRuntimeRegistry", () => {
     expect(records[1]?.configured).toEqual([{ message: "New thread", model: { provider: "provider", id: "m" }, thinkingLevel: "off" }]);
   });
 
+  it("retains a resident runtime when strict shutdown fails so cleanup can be retried", async () => {
+    const records: OpenRecord[] = [];
+    let stopAttempts = 0;
+    const baseFactory = fakeFactory(records);
+    const runtimeFactory = {
+      open: (cwd: string, depth: number) => baseFactory.open(cwd, depth).pipe(
+        Effect.map((runtime): PrimeAgentRpcInstance => ({
+          ...runtime,
+          stop: Effect.suspend(() => {
+            stopAttempts += 1;
+            return stopAttempts === 1
+              ? Effect.fail(new PrimeAgentRpcError({ operation: "stop", message: "simulated shutdown failure" }))
+              : runtime.stop;
+          }),
+        })),
+      ),
+    };
+    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      const registry = yield* make({ snapshot: Effect.succeed(snapshot), runtimeFactory });
+      yield* registry.state("space-a");
+      const failure = yield* registry.closeSpaceStrict("space-a").pipe(Effect.flip);
+      expect(failure).toBeInstanceOf(PrimeAgentRpcError);
+      yield* registry.state("space-a");
+      expect(records).toHaveLength(1);
+      yield* registry.closeSpaceStrict("space-a");
+      expect(records[0]?.stopped).toBe(true);
+      yield* registry.state("space-a");
+      expect(records).toHaveLength(2);
+    })));
+  });
+
   it("stops only the archived Space runtime and can authorize it again while cataloged", async () => {
     const records: OpenRecord[] = [];
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
       const registry = yield* make({ snapshot: Effect.succeed(snapshot), runtimeFactory: fakeFactory(records) });
       yield* registry.state("space-a");
       yield* registry.state("worktree-a");
-      yield* registry.closeSpace("space-a");
+      yield* registry.closeSpaceStrict("space-a");
       expect(records.map(({ stopped }) => stopped)).toEqual([true, false]);
       yield* registry.state("space-a");
     })));

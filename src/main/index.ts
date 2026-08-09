@@ -39,6 +39,7 @@ const catalogLayer = WorkspaceCatalog.layer({
   nodePath: agentNodePath,
   primeAgentCliPath: catalogAgentCliPath,
   projectStorePath: join(app.getPath("userData"), "projects.json"),
+  managedWorktreeRoot: join(app.getPath("userData"), "worktrees"),
   ...(process.env["ERNIE_CATALOG_GIT_PATH"] ? { gitPath: process.env["ERNIE_CATALOG_GIT_PATH"] } : {}),
 });
 

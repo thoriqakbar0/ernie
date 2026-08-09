@@ -4,6 +4,7 @@ import type { WorkspaceAgent } from "../../shared/workspace";
 import type { ThreadItem } from "./transcript";
 import { AccessibleTranscriptDialog } from "./AccessibleTranscriptDialog";
 import { VirtualTranscript } from "./VirtualTranscript";
+import { Icon } from "./WorkspaceIcon";
 
 function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string {
   if (agent.status === "working") return "Working";
@@ -16,8 +17,9 @@ function sessionStateLabel(agent: WorkspaceAgent, interactive: boolean): string 
 }
 
 /** Live transcript surface with an optional interactive composer for the commandable root session. */
-export function SessionTranscriptView({ agent, items, state, onRetry, renderItem, interactive = false, footer }: {
+export function SessionTranscriptView({ agent, locationLabel, items, state, onRetry, renderItem, interactive = false, footer }: {
   readonly agent: WorkspaceAgent;
+  readonly locationLabel: string;
   readonly items: readonly ThreadItem[];
   readonly state: "loading" | "reconnecting" | "ready" | "error" | "unavailable";
   readonly onRetry: () => void;
@@ -83,6 +85,11 @@ export function SessionTranscriptView({ agent, items, state, onRetry, renderItem
   >
     {isSubagentSource && <p id={sourceDescriptionId} className="sr-only">Source: {agent.name}, subagent session.</p>}
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{state === "error" ? "" : `Session status: ${statusLabel}`}</div>
+    <header className="session-location" aria-label={`Current location: ${locationLabel} / ${agent.name}`}>
+      <span className="session-location-space" title={locationLabel}><Icon name="folder" /><span>{locationLabel}</span></span>
+      <span className="session-location-separator" aria-hidden="true">/</span>
+      <strong className="session-location-session" title={agent.name}>{agent.name}</strong>
+    </header>
     <div className="session-transcript-body">
       <VirtualTranscript items={items} scrollRef={scrollRef} busy={state === "ready" && agent.status === "working"} onScroll={onScroll} onWheel={onWheel} renderItem={renderItem} empty={empty} />
       {!following && <button type="button" className="jump-latest session-jump-latest" onClick={followLatest}>Jump to latest</button>}

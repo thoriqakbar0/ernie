@@ -6,7 +6,7 @@ import type { WorkspaceSnapshot } from "../../shared/workspace";
 import { FocusedWorkspace } from "./FocusedWorkspace";
 import { useSpaceTranscripts } from "./useSpaceTranscripts";
 
-const EMPTY_WORKSPACE: WorkspaceSnapshot = { projects: [], worktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
+const EMPTY_WORKSPACE: WorkspaceSnapshot = { projects: [], worktrees: [], settledWorktrees: [], agents: [], updatedAt: new Date(0).toISOString() };
 const EMPTY_AGENT_STATE: AgentState = {
   connection: "starting", detail: "Launching Prime Agent", executionTarget: "local", sessionId: "", sessionName: "",
   provider: "", modelId: "", modelName: "", thinkingLevel: "", isStreaming: false, isCompacting: false,

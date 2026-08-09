@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+node_version="v24.19.0"
+node_archive="node-${node_version}-linux-x64.tar.xz"
+node_sha256="14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647"
+pnpm_version="10.26.2"
+toolchain_root="$HOME/.local/share/ernie-orb"
+node_home="$toolchain_root/node-${node_version}"
+pnpm_prefix="$toolchain_root/pnpm-${pnpm_version}"
+
+step() {
+  printf '[setup] %s\n' "$1"
+  SECONDS=0
+}
+
+done_step() {
+  printf '[setup] completed in %ss\n' "$SECONDS"
+}
+
+step "Checking base tools"
+missing_packages=()
+command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
+command -v tar >/dev/null 2>&1 || missing_packages+=(tar)
+command -v xz >/dev/null 2>&1 || missing_packages+=(xz-utils)
+command -v sha256sum >/dev/null 2>&1 || missing_packages+=(coreutils)
+if ((${#missing_packages[@]})); then
+  sudo apt-get update
+  sudo apt-get install -y ca-certificates "${missing_packages[@]}"
+fi
+done_step
+
+step "Installing Node ${node_version}"
+if [[ ! -x "$node_home/bin/node" ]]; then
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' EXIT
+  curl -fsSL "https://nodejs.org/dist/${node_version}/${node_archive}" -o "$temp_dir/$node_archive"
+  printf '%s  %s\n' "$node_sha256" "$temp_dir/$node_archive" | sha256sum --check --status
+  mkdir -p "$node_home"
+  tar -xJf "$temp_dir/$node_archive" --strip-components=1 -C "$node_home"
+  rm -rf "$temp_dir"
+  trap - EXIT
+fi
+done_step
+
+export PATH="$pnpm_prefix/bin:$node_home/bin:$PATH"
+
+step "Installing pnpm ${pnpm_version}"
+if [[ ! -x "$pnpm_prefix/bin/pnpm" ]] || [[ "$($pnpm_prefix/bin/pnpm --version)" != "$pnpm_version" ]]; then
+  rm -rf "$pnpm_prefix"
+  "$node_home/bin/npm" install --global --prefix "$pnpm_prefix" "pnpm@${pnpm_version}"
+fi
+done_step
+
+step "Configuring login shells"
+profile_marker="# ernie orb toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<EOF
+
+$profile_marker
+if [[ "\${PWD}" == "$repo_root" || "\${PWD}" == "$repo_root/"* ]]; then
+  export PATH="$pnpm_prefix/bin:$node_home/bin:\$PATH"
+fi
+EOF
+fi
+done_step
+
+step "Linking the development runtime Node"
+ln -sfn "$node_home/bin/node" "$repo_root/assets/runtime/node"
+done_step
+
+step "Installing repository dependencies"
+cd "$repo_root"
+pnpm install --frozen-lockfile
+done_step
+
+printf '[setup] Ready: Node %s, pnpm %s\n' "$(node --version)" "$(pnpm --version)"

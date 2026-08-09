@@ -4,11 +4,11 @@ import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWork
 import { prioritizeRootAgents } from "../agentPriority";
 import { Icon } from "../WorkspaceIcon";
 import { projectForAgent, statusText } from "../workspaceAgentPresentation";
-import { AgentViewTabs, GroupedAgentPane, PriorityAgentPane } from "./AgentPanes";
-import type { AgentView } from "./AgentPanes";
-import { agentIdsWithAncestors, matchesSearch } from "./filterWorkspace";
-import { FirstSpaceEmptyState, SettledWorktreeRow, SpaceRow } from "./SpaceRows";
-import type { SettledWorktree, SettledWorktreeEntry } from "./SpaceRows";
+import { AgentViewTabs, GroupedAgentPane, PriorityAgentPane } from "./agent-panes";
+import type { AgentView } from "./agent-panes";
+import { agentIdsWithAncestors, matchesSearch } from "./filter-workspace";
+import { FirstSpaceEmptyState, SettledWorktreeRow, SpaceRow } from "./space-rows";
+import type { SettledWorktree, SettledWorktreeEntry } from "./space-rows";
 
 function trapDrawerFocus(event: KeyboardEvent<HTMLElement>): void {
   if (event.key !== "Tab") return;

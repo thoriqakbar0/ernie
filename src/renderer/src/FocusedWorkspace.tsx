@@ -5,7 +5,7 @@ import type { AgentModelOption, AgentThinkingLevel, SpaceRuntimeState } from "..
 import type { WorkspaceAgent, WorkspaceProject, WorkspaceSnapshot, WorkspaceWorktree } from "../../shared/workspace";
 import { LiveSessionChatSurface, SessionChatSurface } from "./SessionChatSurface";
 import { SpaceLaunchpad } from "./SpaceLaunchpad";
-import { WorkspaceSidebar } from "./WorkspaceSidebar";
+import { WorkspaceSidebar } from "./workspace-sidebar";
 import { PerformanceHud, PerformanceProfiler } from "./PerformanceHud";
 import { Icon } from "./WorkspaceIcon";
 import { summarizeAgentDescendantActivity, projectForAgent, statusText } from "./workspaceAgentPresentation";

@@ -424,6 +424,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     async function updateRlmDepth(): Promise<void> {
       setSavingRlmDepth(true);
+      setStatus(`Changing RLM depth to ${maxDepth}…`);
       try {
         const rawResult = await window.ernie.setPrimeAgentRlmDepth({
           activeSessionId,

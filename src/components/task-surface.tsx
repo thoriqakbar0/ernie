@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -126,12 +127,22 @@ export function TaskSurface(): React.JSX.Element {
             }
             onValueChange={workspace.changeRlmDepth}
           >
+            <SelectLabel className="sr-only">
+              Multitask, RLM maximum depth
+            </SelectLabel>
             <SelectTrigger
               className="w-auto rounded-full px-4 text-sm"
-              aria-label="RLM maximum depth"
               disabled={workspace.busy || workspace.rlmDepth === null}
             >
               <span>Multitask</span>
+              {workspace.rlmDepth === null ? null : (
+                <>
+                  <span aria-hidden="true" className="text-muted-foreground">
+                    ·
+                  </span>
+                  <SelectValue className="flex-none tabular-nums text-muted-foreground" />
+                </>
+              )}
             </SelectTrigger>
             <SelectContent align="start" alignItemWithTrigger={false}>
               <SelectGroup>

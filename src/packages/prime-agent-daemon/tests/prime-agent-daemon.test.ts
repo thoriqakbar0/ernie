@@ -222,9 +222,13 @@ test('reads local branches through the Git process', async (context) => {
   const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-'));
   context.after(() => rm(cwd, { force: true, recursive: true }));
   await createGitRepository(cwd);
-  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/second'], {
-    encoding: 'utf8',
-  });
+  await Promise.all(
+    ['feature/second', 'main', 'staging'].map((name) =>
+      execFileAsync('git', ['-C', cwd, 'branch', name], {
+        encoding: 'utf8',
+      }),
+    ),
+  );
 
   const result = await readLocalGitBranches(cwd);
 
@@ -233,7 +237,7 @@ test('reads local branches through the Git process', async (context) => {
     value: {
       cwd,
       current: 'feature/local',
-      names: ['feature/local', 'feature/second'],
+      names: ['main', 'staging', 'feature/local', 'feature/second'],
     },
   });
 });

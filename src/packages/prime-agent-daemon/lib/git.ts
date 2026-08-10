@@ -10,6 +10,16 @@ import { parseGitBranchSelection, parseWorkspaceCwd } from './protocol';
 
 const execFileAsync = promisify(execFile);
 const gitTimeoutMs = 3_000;
+const preferredGitBranches = new Map([
+  ['main', 0],
+  ['staging', 1],
+]);
+
+function compareGitBranches(left: string, right: string): number {
+  const leftPriority = preferredGitBranches.get(left) ?? 2;
+  const rightPriority = preferredGitBranches.get(right) ?? 2;
+  return leftPriority - rightPriority || left.localeCompare(right);
+}
 
 function errorCode(error: unknown): string | number | null {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
@@ -80,10 +90,10 @@ export async function readLocalGitBranches(
     const names = namesResult.stdout
       .split(/\r?\n/u)
       .map((name) => name.trim())
-      .filter((name) => name.length > 0)
-      .sort((left, right) => left.localeCompare(right));
+      .filter((name) => name.length > 0);
 
-    if (current !== null && !names.includes(current)) names.unshift(current);
+    if (current !== null && !names.includes(current)) names.push(current);
+    names.sort(compareGitBranches);
 
     return {
       ok: true,

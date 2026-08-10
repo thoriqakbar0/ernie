@@ -505,21 +505,25 @@ export const createLocalGitWorktree = Effect.fn('Git.createLocalGitWorktree')(
         );
       }
 
-      const branches = yield* readLocalGitBranches(repositoryRoot);
-      if (!branches.ok) return branches;
-
-      const hasCommit = yield* tryExternal(() =>
-        execFileAsync(
-          'git',
-          ['-C', repositoryRoot, 'rev-parse', '--verify', 'HEAD'],
-          { encoding: 'utf8', timeout: gitTimeoutMs },
-        ),
-      ).pipe(
-        Effect.match({
-          onFailure: () => false,
-          onSuccess: () => true,
-        }),
+      const [branches, hasCommit] = yield* Effect.all(
+        [
+          readLocalGitBranches(repositoryRoot),
+          tryExternal(() =>
+            execFileAsync(
+              'git',
+              ['-C', repositoryRoot, 'rev-parse', '--verify', 'HEAD'],
+              { encoding: 'utf8', timeout: gitTimeoutMs },
+            ),
+          ).pipe(
+            Effect.match({
+              onFailure: () => false,
+              onSuccess: () => true,
+            }),
+          ),
+        ],
+        { concurrency: 'unbounded' },
       );
+      if (!branches.ok) return branches;
       if (!hasCommit) {
         return {
           ok: false as const,

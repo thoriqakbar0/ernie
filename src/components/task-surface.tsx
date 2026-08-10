@@ -1,6 +1,7 @@
-import { ArrowUpIcon, CpuIcon, GitForkIcon } from 'lucide-react';
+import { MicIcon, PlusIcon } from 'lucide-react';
 
 import { CurrentWorkspace } from '@/components/current-workspace';
+import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   InputGroup,
@@ -29,24 +30,35 @@ export function TaskSurface(): React.JSX.Element {
 
   return (
     <div className="w-full self-center">
-      <div className="mx-auto mb-10 max-w-[27.5625rem] text-center">
-        <h1 className="text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Move {workspace.repoName} forward.
-        </h1>
-      </div>
-
-      <Field className="relative z-10 mx-auto max-w-[43rem]">
+      <Field className="mx-auto max-w-[50rem] gap-3">
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
         </FieldLabel>
-        <InputGroup className="min-h-25">
+
+        <CurrentWorkspace
+          folders={workspace.folders}
+          loadingWorkspace={workspace.loadingWorkspace}
+          selectedCwd={workspace.selectedCwd}
+          changeFolder={workspace.changeFolder}
+        />
+
+        <InputGroup className="min-h-50 rounded-2xl bg-card">
           <InputGroupTextarea
             id="task"
-            rows={2}
-            placeholder="Give Ernie a task…"
+            rows={4}
+            className="px-4 pt-4 text-lg placeholder:text-lg"
+            placeholder="Plan, Build, / for skills, @ for context"
           />
-          <InputGroupAddon align="block-end" className="justify-between">
-            <div className="flex min-w-0 items-center gap-1.5">
+          <InputGroupAddon align="block-end" className="px-4 pb-4">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <InputGroupButton
+                size="icon-sm"
+                className="size-10 rounded-full bg-muted text-foreground"
+                aria-label="Add context"
+              >
+                <PlusIcon />
+              </InputGroupButton>
+
               <Select
                 items={workspace.models.map((model) => ({
                   label: model.name,
@@ -57,11 +69,10 @@ export function TaskSurface(): React.JSX.Element {
               >
                 <SelectTrigger
                   size="sm"
-                  className="max-w-48"
+                  className="max-w-56 border-0 bg-transparent px-2 text-base shadow-none"
                   aria-label="Model"
                   disabled={workspace.busy || workspace.models.length === 0}
                 >
-                  <CpuIcon />
                   <SelectValue placeholder="No model" />
                 </SelectTrigger>
                 <SelectContent align="start" alignItemWithTrigger={false}>
@@ -75,50 +86,50 @@ export function TaskSurface(): React.JSX.Element {
                 </SelectContent>
               </Select>
 
-              <Select
-                items={rlmDepthChoices}
-                value={
-                  workspace.rlmDepth === null
-                    ? null
-                    : String(workspace.rlmDepth)
-                }
-                onValueChange={workspace.changeRlmDepth}
-              >
-                <SelectTrigger
-                  size="sm"
-                  aria-label="RLM maximum depth"
-                  disabled={workspace.busy || workspace.rlmDepth === null}
-                >
-                  <GitForkIcon />
-                  <SelectValue placeholder="RLM" />
-                </SelectTrigger>
-                <SelectContent align="start" alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {rlmDepthChoices.map((choice) => (
-                      <SelectItem key={choice.value} value={choice.value}>
-                        {choice.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
             </div>
 
-            <InputGroupButton size="icon-sm" aria-label="Start agent">
-              <ArrowUpIcon />
+            <InputGroupButton
+              size="icon-sm"
+              className="size-10 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
+              aria-label="Use voice input"
+            >
+              <MicIcon />
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-      </Field>
 
-      <div className="relative z-0 -mt-2.5">
-        <CurrentWorkspace
-          folders={workspace.folders}
-          loadingWorkspace={workspace.loadingWorkspace}
-          selectedCwd={workspace.selectedCwd}
-          changeFolder={workspace.changeFolder}
-        />
-      </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="rounded-full text-base font-normal">
+            Plan New Idea
+            <span className="text-muted-foreground">⇧Tab</span>
+          </Button>
+
+          <Select
+            items={rlmDepthChoices}
+            value={
+              workspace.rlmDepth === null ? null : String(workspace.rlmDepth)
+            }
+            onValueChange={workspace.changeRlmDepth}
+          >
+            <SelectTrigger
+              className="w-auto rounded-full px-4 text-base"
+              aria-label="RLM maximum depth"
+              disabled={workspace.busy || workspace.rlmDepth === null}
+            >
+              <span>Multitask</span>
+            </SelectTrigger>
+            <SelectContent align="start" alignItemWithTrigger={false}>
+              <SelectGroup>
+                {rlmDepthChoices.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      </Field>
 
       <p className="sr-only" aria-live="polite">
         {workspace.status}

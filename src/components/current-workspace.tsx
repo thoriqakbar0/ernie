@@ -1,6 +1,7 @@
-import { FolderIcon } from 'lucide-react';
+import { GitBranchIcon, LaptopIcon } from 'lucide-react';
 
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Select,
   SelectContent,
@@ -21,7 +22,7 @@ type CurrentWorkspaceProps = Pick<
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
 
-/** Environment controls shown behind Ernie's primary task input. */
+/** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
   folders,
   loadingWorkspace,
@@ -29,41 +30,45 @@ export function CurrentWorkspace({
   changeFolder,
 }: CurrentWorkspaceProps): React.JSX.Element {
   return (
-    <section
-      className="mx-auto w-full max-w-xl rounded-b-xl bg-muted px-1 pt-3 pb-1"
-      aria-label="Task environment"
-    >
-      <FieldGroup className="h-10 flex-row items-center gap-2">
-        <Field className="min-w-0 flex-1">
-          <FieldLabel htmlFor="workspace-folder" className="sr-only">
-            Folder location
-          </FieldLabel>
-          <Select
-            items={folders}
-            value={selectedCwd}
-            onValueChange={changeFolder}
+    <section className="flex h-9 items-center gap-1" aria-label="Task environment">
+      <Field className="w-auto min-w-0">
+        <FieldLabel htmlFor="workspace-folder" className="sr-only">
+          Folder location
+        </FieldLabel>
+        <Select
+          items={folders}
+          value={selectedCwd}
+          onValueChange={changeFolder}
+        >
+          <SelectTrigger
+            id="workspace-folder"
+            size="sm"
+            className="max-w-48 border-0 bg-transparent px-2 text-base shadow-none"
+            disabled={loadingWorkspace || folders.length === 0}
           >
-            <SelectTrigger
-              id="workspace-folder"
-              size="sm"
-              className="w-full"
-              disabled={loadingWorkspace || folders.length === 0}
-            >
-              <FolderIcon />
-              <SelectValue placeholder="Workspace" />
-            </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false}>
-              <SelectGroup>
-                {folders.map((folder) => (
-                  <SelectItem key={folder.value} value={folder.value}>
-                    {folder.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-      </FieldGroup>
+            <SelectValue placeholder="Workspace" />
+          </SelectTrigger>
+          <SelectContent align="start" alignItemWithTrigger={false}>
+            <SelectGroup>
+              {folders.map((folder) => (
+                <SelectItem key={folder.value} value={folder.value}>
+                  {folder.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Button variant="ghost" className="px-2 text-base font-normal text-muted-foreground">
+        <GitBranchIcon />
+        Select branch
+      </Button>
+
+      <Button variant="ghost" className="px-2 text-base font-normal text-muted-foreground">
+        <LaptopIcon />
+        This Mac
+      </Button>
     </section>
   );
 }

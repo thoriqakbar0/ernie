@@ -29,8 +29,8 @@ export function TaskSurface(): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
 
   return (
-    <div className="w-full self-center">
-      <Field className="mx-auto max-w-[50rem] gap-3">
+    <div className="w-full translate-y-[1.8125rem] self-center">
+      <Field className="mx-auto max-w-[50rem] gap-[1.375rem]">
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
         </FieldLabel>
@@ -42,7 +42,7 @@ export function TaskSurface(): React.JSX.Element {
           changeFolder={workspace.changeFolder}
         />
 
-        <InputGroup className="min-h-50 rounded-2xl bg-card">
+        <InputGroup className="min-h-40 rounded-2xl bg-card">
           <InputGroupTextarea
             id="task"
             rows={4}

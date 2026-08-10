@@ -14,6 +14,10 @@ const {
 const rendererReadyTimeoutMs = 5_000;
 const reloadButtonSelector = 'button[aria-label="Reload renderer"]';
 const sidebarRailSelector = '[data-sidebar="rail"]';
+const workspaceFolderTriggerSelector = '#workspace-folder';
+const workspaceSearchSelector =
+  'input[aria-label="Search workspace directories"]';
+const newDirectorySelector = 'button[aria-label="New directory"]';
 
 function waitForRendererReady(window, startedAt) {
   return new Promise((resolve, reject) => {
@@ -106,6 +110,50 @@ async function checkAgentation() {
     })()`);
     const [, reloadReadyMs] = await Promise.all([reloaded, reloadReady]);
     const reloadMs = Math.round(performance.now() - reloadStartedAt);
+
+    const workspacePickerOpened = await window.webContents.executeJavaScript(`(() => {
+      const trigger = document.querySelector(${JSON.stringify(workspaceFolderTriggerSelector)});
+      if (!(trigger instanceof HTMLButtonElement)) return false;
+      trigger.click();
+      return true;
+    })()`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const workspacePicker = await window.webContents.executeJavaScript(`(() => {
+      const search = document.querySelector(${JSON.stringify(workspaceSearchSelector)});
+      const list = document.querySelector('[role="listbox"]');
+      const newDirectory = document.querySelector(${JSON.stringify(newDirectorySelector)});
+      if (!(list instanceof HTMLElement)) {
+        return {
+          apiExists: typeof window.ernie.chooseWorkspaceDirectory === 'function',
+          searchExists: search instanceof HTMLInputElement,
+          scrollContained: false,
+          newDirectoryExists: newDirectory instanceof HTMLButtonElement,
+        };
+      }
+      const style = getComputedStyle(list);
+      return {
+        apiExists: typeof window.ernie.chooseWorkspaceDirectory === 'function',
+        searchExists: search instanceof HTMLInputElement,
+        scrollContained:
+          style.maxHeight !== 'none' &&
+          (style.overflowY === 'auto' || style.overflowY === 'scroll'),
+        newDirectoryExists: newDirectory instanceof HTMLButtonElement,
+      };
+    })()`);
+    const workspacePickerReady =
+      workspacePickerOpened &&
+      workspacePicker.apiExists &&
+      workspacePicker.searchExists &&
+      workspacePicker.scrollContained &&
+      workspacePicker.newDirectoryExists;
+
+    if (!workspacePickerReady) {
+      process.stdout.write(
+        `${JSON.stringify({ workspacePickerOpened, ...workspacePicker })}\n`,
+      );
+      app.exit(1);
+      return;
+    }
 
     const sidebarBeforeResize = await window.webContents.executeJavaScript(`(() => {
       const rail = document.querySelector(${JSON.stringify(sidebarRailSelector)});
@@ -211,9 +259,12 @@ async function checkAgentation() {
         revealReadyMs,
         reloadMs,
         reloadReadyMs,
+        workspacePickerReady,
       })}\n`,
     );
-    app.exit(state.toolbarVisible && sidebarResizable ? 0 : 1);
+    app.exit(
+      state.toolbarVisible && sidebarResizable && workspacePickerReady ? 0 : 1,
+    );
   } finally {
     window.destroy();
   }

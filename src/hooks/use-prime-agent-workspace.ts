@@ -34,12 +34,27 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedModelKey: string | null;
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
+  readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
   readonly deleteGitBranch: (name: string) => void;
   readonly renameGitBranch: (currentName: string, newName: string) => void;
   readonly initializeGitRepository: () => void;
   readonly changeModel: (modelKey: string | null) => void;
   readonly changeRlmDepth: (maxDepth: string | null) => void;
+}
+
+type WorkspaceDirectorySelection =
+  | { readonly ok: true; readonly value: string | null }
+  | { readonly ok: false };
+
+function parseWorkspaceDirectorySelection(
+  value: unknown,
+): WorkspaceDirectorySelection {
+  if (value === null) return { ok: true, value: null };
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return { ok: true, value };
+  }
+  return { ok: false };
 }
 
 function folderName(cwd: string): string {
@@ -57,6 +72,7 @@ function newestSession(
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
 export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
+  const [addedCwds, setAddedCwds] = useState<readonly string[]>([]);
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
@@ -67,6 +83,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [rlmDepth, setRlmDepth] = useState<number | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
+  const [choosingDirectory, setChoosingDirectory] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [gitBranchBusy, setGitBranchBusy] = useState(false);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
@@ -214,13 +231,17 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }, [selectedSessionId]);
 
   const folders = useMemo(() => {
-    if (workspace === null) return [];
     const paths = new Set([
-      workspace.currentCwd,
-      ...workspace.sessions.map((session) => session.cwd),
+      ...(workspace === null
+        ? []
+        : [
+            workspace.currentCwd,
+            ...workspace.sessions.map((session) => session.cwd),
+          ]),
+      ...addedCwds,
     ]);
     return [...paths].map((cwd) => ({ label: folderName(cwd), value: cwd }));
-  }, [workspace]);
+  }, [addedCwds, workspace]);
 
   const agents = useMemo(
     () =>
@@ -236,8 +257,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     null;
 
   function changeFolder(cwd: string | null): void {
-    if (cwd === null || workspace === null) return;
-    const session = newestSession(workspace.sessions, cwd);
+    if (cwd === null) return;
+    const session =
+      workspace === null ? null : newestSession(workspace.sessions, cwd);
     setSelectedCwd(cwd);
     setSelectedSessionId(session?.activeSessionId ?? null);
     setStatus(
@@ -245,6 +267,45 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         ? 'No connected agent in this workspace.'
         : 'Connected to Prime Agent.',
     );
+  }
+
+  function chooseWorkspaceDirectory(): void {
+    async function chooseDirectory(): Promise<void> {
+      setChoosingDirectory(true);
+      setStatus('Choosing a workspace directory…');
+      try {
+        const rawSelection = await window.ernie.chooseWorkspaceDirectory();
+        const selection = parseWorkspaceDirectorySelection(rawSelection);
+        if (!selection.ok) {
+          setStatus('Ernie received an invalid directory selection.');
+          return;
+        }
+        if (selection.value === null) {
+          setStatus('Directory selection canceled.');
+          return;
+        }
+
+        const cwd = selection.value;
+        setAddedCwds((current) =>
+          current.includes(cwd) ? current : [...current, cwd],
+        );
+        const session =
+          workspace === null ? null : newestSession(workspace.sessions, cwd);
+        setSelectedCwd(cwd);
+        setSelectedSessionId(session?.activeSessionId ?? null);
+        setStatus(
+          session === null
+            ? 'Workspace selected. No connected agent in this directory.'
+            : 'Connected to Prime Agent.',
+        );
+      } catch {
+        setStatus('Ernie could not open the directory picker.');
+      } finally {
+        setChoosingDirectory(false);
+      }
+    }
+
+    void chooseDirectory();
   }
 
   function changeModel(modelKey: string | null): void {
@@ -452,6 +513,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     busy:
       loadingWorkspace ||
       loadingSession ||
+      choosingDirectory ||
       savingModel ||
       savingRlmDepth ||
       gitBranchBusy,
@@ -467,6 +529,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedModelKey,
     status,
     changeFolder,
+    chooseWorkspaceDirectory,
     changeGitBranch,
     deleteGitBranch,
     renameGitBranch,

@@ -1,7 +1,7 @@
 import path from 'node:path';
 
-import { app, BrowserWindow, ipcMain } from 'electron';
-import type { IpcMainEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import type { IpcMainEvent, OpenDialogOptions } from 'electron';
 
 import {
   deleteLocalGitBranch,
@@ -12,6 +12,7 @@ import {
 } from './packages/prime-agent-daemon/git-server';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
 import {
+  chooseWorkspaceDirectoryChannel,
   primeAgentGitBranchesChannel,
   primeAgentInitializeGitChannel,
   primeAgentDeleteGitBranchChannel,
@@ -106,6 +107,18 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(primeAgentInitializeGitChannel, (_event, cwd: unknown) =>
     initializeLocalGitRepository(cwd),
   );
+  ipcMain.handle(chooseWorkspaceDirectoryChannel, async () => {
+    const options: OpenDialogOptions = {
+      buttonLabel: 'Choose',
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Choose workspace directory',
+    };
+    const result =
+      mainWindow === null
+        ? await dialog.showOpenDialog(options)
+        : await dialog.showOpenDialog(mainWindow, options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
 }
 
 function waitForRendererReady(window: BrowserWindow): Promise<void> {

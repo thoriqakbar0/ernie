@@ -42,6 +42,10 @@ export const primeAgentRenameGitBranchChannel =
 export const primeAgentInitializeGitChannel =
   'ernie:prime-agent:initialize-git';
 
+/** IPC channel that opens the native workspace directory picker. */
+export const chooseWorkspaceDirectoryChannel =
+  'ernie:workspace:choose-directory';
+
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
@@ -63,6 +67,7 @@ export type ErnieRendererApi = Readonly<{
     rename: PrimeAgentGitBranchRename,
   ) => Promise<unknown>;
   initializePrimeAgentGit: (cwd: string) => Promise<unknown>;
+  chooseWorkspaceDirectory: () => Promise<unknown>;
 }>;
 
 declare global {

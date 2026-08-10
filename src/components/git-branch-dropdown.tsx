@@ -5,6 +5,7 @@ import {
   ChevronRightIcon,
   GitBranchIcon,
   GitBranchPlusIcon,
+  LoaderCircleIcon,
   PencilLineIcon,
   Trash2Icon,
 } from 'lucide-react';
@@ -13,6 +14,7 @@ interface GitBranchDropdownProps {
   readonly branches: readonly string[];
   readonly disabled: boolean;
   readonly loading: boolean;
+  readonly statusId: string;
   readonly currentBranch: string | null;
   readonly changeBranch: (name: string) => void;
   readonly deleteBranch: (name: string) => void;
@@ -32,6 +34,7 @@ export function GitBranchDropdown({
   branches,
   disabled,
   loading,
+  statusId,
   currentBranch,
   changeBranch,
   deleteBranch,
@@ -63,7 +66,8 @@ export function GitBranchDropdown({
     <Menu.Root>
       <Menu.Trigger
         className="relative inline-flex h-8 min-w-[106px] max-w-[180px] items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-normal text-foreground outline-none transition-opacity select-none after:absolute after:inset-x-0 after:-inset-y-1 hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-pressed:bg-muted data-[loading=true]:opacity-50 disabled:pointer-events-none disabled:opacity-50"
-        aria-label={`Git branch: ${branchLabel}`}
+        aria-label={`Git branch: ${branchLabel}${loading ? ', loading' : ''}`}
+        aria-describedby={statusId}
         aria-busy={loading}
         data-loading={loading}
         disabled={disabled}
@@ -76,10 +80,17 @@ export function GitBranchDropdown({
         <span className="min-w-0 flex-1 truncate text-left">
           {branchLabel}
         </span>
-        <ChevronDownIcon
-          aria-hidden="true"
-          className="size-3.5 shrink-0 text-muted-foreground"
-        />
+        {loading ? (
+          <LoaderCircleIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
+          />
+        ) : (
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-muted-foreground"
+          />
+        )}
       </Menu.Trigger>
 
       <Menu.Portal>
@@ -91,7 +102,10 @@ export function GitBranchDropdown({
           <Menu.Popup className={popupClass}>
             {branches.length === 0 ? (
               <Menu.Item className={itemClass} onClick={initializeGit}>
-                <GitBranchPlusIcon className="size-4 shrink-0" />
+                <GitBranchPlusIcon
+                  aria-hidden="true"
+                  className="size-4 shrink-0"
+                />
                 <span>Initialize Git with main</span>
               </Menu.Item>
             ) : (
@@ -101,11 +115,15 @@ export function GitBranchDropdown({
                     <Menu.Item
                       key={name}
                       className={itemClass}
+                      aria-current={name === currentBranch ? 'true' : undefined}
                       onClick={() => changeBranch(name)}
                     >
                       <span className="min-w-0 flex-1 truncate">{name}</span>
                       {name === currentBranch ? (
-                        <CheckIcon className="size-4 shrink-0" />
+                        <CheckIcon
+                          aria-hidden="true"
+                          className="size-4 shrink-0"
+                        />
                       ) : null}
                     </Menu.Item>
                   ))}
@@ -117,9 +135,15 @@ export function GitBranchDropdown({
                     className={itemClass}
                     disabled={renameableBranches.length === 0}
                   >
-                    <PencilLineIcon className="size-4 shrink-0" />
+                    <PencilLineIcon
+                      aria-hidden="true"
+                      className="size-4 shrink-0"
+                    />
                     <span className="flex-1">Rename branch</span>
-                    <ChevronRightIcon className="size-4 shrink-0" />
+                    <ChevronRightIcon
+                      aria-hidden="true"
+                      className="size-4 shrink-0"
+                    />
                   </Menu.SubmenuTrigger>
                   <Menu.Portal>
                     <Menu.Positioner
@@ -135,7 +159,10 @@ export function GitBranchDropdown({
                               className={itemClass}
                               onClick={() => requestRename(name)}
                             >
-                              <PencilLineIcon className="size-4 shrink-0" />
+                              <PencilLineIcon
+                                aria-hidden="true"
+                                className="size-4 shrink-0"
+                              />
                               <span className="min-w-0 flex-1 truncate">
                                 {name}
                               </span>
@@ -151,9 +178,15 @@ export function GitBranchDropdown({
                     className={`${itemClass} text-destructive data-highlighted:text-destructive`}
                     disabled={deletableBranches.length === 0}
                   >
-                    <Trash2Icon className="size-4 shrink-0" />
+                    <Trash2Icon
+                      aria-hidden="true"
+                      className="size-4 shrink-0"
+                    />
                     <span className="flex-1">Delete branch</span>
-                    <ChevronRightIcon className="size-4 shrink-0" />
+                    <ChevronRightIcon
+                      aria-hidden="true"
+                      className="size-4 shrink-0"
+                    />
                   </Menu.SubmenuTrigger>
                   <Menu.Portal>
                     <Menu.Positioner
@@ -169,7 +202,10 @@ export function GitBranchDropdown({
                               className={`${itemClass} text-destructive data-highlighted:text-destructive`}
                               onClick={() => confirmDelete(name)}
                             >
-                              <Trash2Icon className="size-4 shrink-0" />
+                              <Trash2Icon
+                                aria-hidden="true"
+                                className="size-4 shrink-0"
+                              />
                               <span className="min-w-0 flex-1 truncate">
                                 {name}
                               </span>

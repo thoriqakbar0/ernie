@@ -39,6 +39,7 @@ export function TaskSurface(): React.JSX.Element {
           busy={workspace.busy}
           folders={workspace.folders}
           gitBranch={workspace.gitBranch}
+          gitBranchBusy={workspace.gitBranchBusy}
           gitBranches={workspace.gitBranches}
           loadingWorkspace={workspace.loadingWorkspace}
           selectedCwd={workspace.selectedCwd}
@@ -145,7 +146,7 @@ export function TaskSurface(): React.JSX.Element {
         </div>
       </Field>
 
-      <p className="sr-only" aria-live="polite">
+      <p id="workspace-status" className="sr-only" role="status">
         {workspace.status}
       </p>
     </div>

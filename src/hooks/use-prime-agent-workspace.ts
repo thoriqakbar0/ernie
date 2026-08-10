@@ -24,6 +24,7 @@ export interface PrimeAgentWorkspaceController {
   readonly busy: boolean;
   readonly folders: readonly PrimeAgentFolderChoice[];
   readonly gitBranch: string | null;
+  readonly gitBranchBusy: boolean;
   readonly gitBranches: readonly string[];
   readonly loadingWorkspace: boolean;
   readonly models: readonly PrimeAgentModel[];
@@ -67,14 +68,15 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
-  const [savingGitBranch, setSavingGitBranch] = useState(false);
+  const [gitBranchBusy, setGitBranchBusy] = useState(false);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
-  const [status, setStatus] = useState('Connecting to Prime Agent…');
+  const [status, setStatus] = useState('');
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadWorkspace(): Promise<void> {
+      setStatus('Connecting to Prime Agent…');
       try {
         const rawResult = await window.ernie.listPrimeAgentWorkspace();
         if (cancelled) return;
@@ -116,6 +118,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (selectedCwd === null) {
       setGitBranch(null);
       setGitBranches([]);
+      setGitBranchBusy(false);
       return;
     }
 
@@ -123,19 +126,41 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     let cancelled = false;
 
     async function loadGitBranches(): Promise<void> {
+      setGitBranchBusy(true);
+      setStatus('Loading local Git branches…');
       try {
         const rawResult = await window.ernie.listPrimeAgentGitBranches(cwd);
         if (cancelled) return;
 
         const result = parsePrimeAgentGitBranchesResult(rawResult);
-        setGitBranch(result.ok ? result.value.current : null);
-        setGitBranches(result.ok ? result.value.names : []);
-        if (!result.ok) setStatus(result.error.message);
+        if (!result.ok) {
+          setGitBranch(null);
+          setGitBranches([]);
+          setStatus(result.error.message);
+          return;
+        }
+
+        setGitBranch(result.value.current);
+        setGitBranches(result.value.names);
+        if (result.value.names.length === 0) {
+          setStatus('No local Git repository found.');
+        } else if (result.value.current === null) {
+          setStatus(
+            `Loaded ${result.value.names.length} local Git branches. No branch is active.`,
+          );
+        } else {
+          setStatus(
+            `Loaded ${result.value.names.length} local Git branches. Current branch is ${result.value.current}.`,
+          );
+        }
       } catch {
         if (!cancelled) {
           setGitBranch(null);
           setGitBranches([]);
+          setStatus('Ernie could not load local Git branches.');
         }
+      } finally {
+        if (!cancelled) setGitBranchBusy(false);
       }
     }
 
@@ -274,7 +299,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const branchName = name;
 
     async function switchGitBranch(): Promise<void> {
-      setSavingGitBranch(true);
+      setGitBranchBusy(true);
+      setStatus(`Switching to local Git branch ${branchName}…`);
       try {
         const rawResult = await window.ernie.switchPrimeAgentGitBranch({
           cwd,
@@ -292,7 +318,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       } catch {
         setStatus('Ernie could not connect to local Git.');
       } finally {
-        setSavingGitBranch(false);
+        setGitBranchBusy(false);
       }
     }
 
@@ -304,7 +330,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const cwd = selectedCwd;
 
     async function deleteBranch(): Promise<void> {
-      setSavingGitBranch(true);
+      setGitBranchBusy(true);
+      setStatus(`Deleting local Git branch ${name}…`);
       try {
         const rawResult = await window.ernie.deletePrimeAgentGitBranch({
           cwd,
@@ -322,7 +349,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       } catch {
         setStatus('Ernie could not connect to local Git.');
       } finally {
-        setSavingGitBranch(false);
+        setGitBranchBusy(false);
       }
     }
 
@@ -334,7 +361,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const cwd = selectedCwd;
 
     async function renameBranch(): Promise<void> {
-      setSavingGitBranch(true);
+      setGitBranchBusy(true);
+      setStatus(`Renaming local Git branch ${currentName}…`);
       try {
         const rawResult = await window.ernie.renamePrimeAgentGitBranch({
           cwd,
@@ -353,7 +381,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       } catch {
         setStatus('Ernie could not connect to local Git.');
       } finally {
-        setSavingGitBranch(false);
+        setGitBranchBusy(false);
       }
     }
 
@@ -365,7 +393,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const cwd = selectedCwd;
 
     async function initializeGit(): Promise<void> {
-      setSavingGitBranch(true);
+      setGitBranchBusy(true);
+      setStatus('Initializing local Git repository with main…');
       try {
         const rawResult = await window.ernie.initializePrimeAgentGit(cwd);
         const result = parsePrimeAgentGitBranchesResult(rawResult);
@@ -380,7 +409,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       } catch {
         setStatus('Ernie could not connect to local Git.');
       } finally {
-        setSavingGitBranch(false);
+        setGitBranchBusy(false);
       }
     }
 
@@ -424,9 +453,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       loadingSession ||
       savingModel ||
       savingRlmDepth ||
-      savingGitBranch,
+      gitBranchBusy,
     folders,
     gitBranch,
+    gitBranchBusy,
     gitBranches,
     loadingWorkspace,
     models,

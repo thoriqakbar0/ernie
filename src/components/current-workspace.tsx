@@ -20,6 +20,7 @@ type CurrentWorkspaceProps = Pick<
   PrimeAgentWorkspaceController,
   | 'busy'
   | 'gitBranch'
+  | 'gitBranchBusy'
   | 'gitBranches'
   | 'loadingWorkspace'
   | 'selectedCwd'
@@ -37,6 +38,7 @@ export function CurrentWorkspace({
   busy,
   folders,
   gitBranch,
+  gitBranchBusy,
   gitBranches,
   loadingWorkspace,
   selectedCwd,
@@ -84,7 +86,8 @@ export function CurrentWorkspace({
         branches={gitBranches}
         currentBranch={gitBranch}
         disabled={busy || loadingWorkspace || selectedCwd === null}
-        loading={busy || loadingWorkspace}
+        loading={gitBranchBusy}
+        statusId="workspace-status"
         changeBranch={changeGitBranch}
         deleteBranch={deleteGitBranch}
         renameBranch={renameGitBranch}

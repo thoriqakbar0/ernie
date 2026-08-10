@@ -29,7 +29,7 @@ export function TaskSurface(): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
 
   return (
-    <div className="w-full translate-y-[1.8125rem] self-center">
+    <div className="my-auto w-full">
       <Field className="mx-auto max-w-[50rem] gap-[1.375rem]">
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
@@ -98,8 +98,11 @@ export function TaskSurface(): React.JSX.Element {
           </InputGroupAddon>
         </InputGroup>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="rounded-full text-base font-normal">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            className="rounded-full text-base font-normal"
+          >
             Plan New Idea
             <span className="text-muted-foreground">⇧Tab</span>
           </Button>

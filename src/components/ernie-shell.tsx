@@ -107,7 +107,7 @@ export function ErnieShell({
         <SidebarInset className="min-w-0 overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
             <SidebarTrigger className="md:hidden" />
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ms-auto flex items-center gap-2">
               <Field orientation="horizontal" className="w-auto">
                 <FieldLabel htmlFor="agentation">annotate</FieldLabel>
                 <Switch
@@ -129,12 +129,8 @@ export function ErnieShell({
             </div>
           </header>
 
-          <section className="relative grid min-h-0 flex-1 grid-rows-[minmax(7rem,0.55fr)_auto_minmax(10rem,1fr)] px-6 sm:px-10">
-            <div aria-hidden="true" />
-
+          <section className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-[clamp(1.5rem,6vh,4rem)] sm:px-10">
             <TaskSurface />
-
-            <div aria-hidden="true" />
           </section>
         </SidebarInset>
       </SidebarProvider>

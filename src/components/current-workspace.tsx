@@ -30,7 +30,10 @@ export function CurrentWorkspace({
   changeFolder,
 }: CurrentWorkspaceProps): React.JSX.Element {
   return (
-    <section className="flex h-9 items-center gap-1" aria-label="Task environment">
+    <section
+      className="flex min-h-9 flex-wrap items-center gap-3"
+      aria-label="Task environment"
+    >
       <Field className="w-auto min-w-0">
         <FieldLabel htmlFor="workspace-folder" className="sr-only">
           Folder location
@@ -43,7 +46,7 @@ export function CurrentWorkspace({
           <SelectTrigger
             id="workspace-folder"
             size="sm"
-            className="max-w-48 border-0 bg-transparent px-2 text-base shadow-none"
+            className="max-w-48 bg-card px-3 text-base"
             disabled={loadingWorkspace || folders.length === 0}
           >
             <SelectValue placeholder="Workspace" />
@@ -60,12 +63,18 @@ export function CurrentWorkspace({
         </Select>
       </Field>
 
-      <Button variant="ghost" className="px-2 text-base font-normal text-muted-foreground">
+      <Button
+        variant="outline"
+        className="bg-card px-3 text-base font-normal text-muted-foreground"
+      >
         <GitBranchIcon />
         Select branch
       </Button>
 
-      <Button variant="ghost" className="px-2 text-base font-normal text-muted-foreground">
+      <Button
+        variant="outline"
+        className="bg-card px-3 text-base font-normal text-muted-foreground"
+      >
         <LaptopIcon />
         This Mac
       </Button>

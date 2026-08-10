@@ -62,7 +62,7 @@ export function CurrentWorkspace({
         >
           <SelectTrigger
             id="workspace-folder"
-            size="sm"
+            size="default"
             className="max-w-48 bg-card px-3 text-sm"
             disabled={loadingWorkspace || folders.length === 0}
           >

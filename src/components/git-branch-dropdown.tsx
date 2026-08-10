@@ -34,6 +34,8 @@ export function GitBranchDropdown({
   renameBranch,
   initializeGit,
 }: GitBranchDropdownProps): React.JSX.Element {
+  const branchLabel =
+    branches.length === 0 ? 'No Git' : (currentBranch ?? 'No branch');
   const renameableBranches = branches.filter(
     (name) => name !== 'main' && name !== 'staging',
   );
@@ -56,15 +58,22 @@ export function GitBranchDropdown({
   return (
     <Menu.Root>
       <Menu.Trigger
-        className="flex h-[30px] w-[106px] items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm text-muted-foreground outline-none select-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-pressed:bg-muted disabled:pointer-events-none disabled:opacity-50"
-        aria-label="Git branch"
+        className="relative inline-flex h-8 min-w-[106px] max-w-[180px] items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-normal text-foreground outline-none select-none after:absolute after:inset-x-0 after:-inset-y-1 hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-pressed:bg-muted disabled:pointer-events-none disabled:opacity-50"
+        aria-label={`Git branch: ${branchLabel}`}
         disabled={busy}
+        title={branchLabel}
       >
-        <GitBranchIcon className="size-4 shrink-0" />
+        <GitBranchIcon
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-muted-foreground"
+        />
         <span className="min-w-0 flex-1 truncate text-left">
-          {branches.length === 0 ? 'No Git' : (currentBranch ?? 'No branch')}
+          {branchLabel}
         </span>
-        <ChevronDownIcon className="size-4 shrink-0" />
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-muted-foreground"
+        />
       </Menu.Trigger>
 
       <Menu.Portal>

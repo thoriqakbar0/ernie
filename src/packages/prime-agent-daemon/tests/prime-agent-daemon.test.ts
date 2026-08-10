@@ -14,6 +14,7 @@ import {
 import {
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
+  parsePrimeAgentTaskReceiptResult,
   parsePrimeAgentWorkspaceResult,
 } from '../client';
 import {
@@ -205,6 +206,18 @@ test('parses live RLM depth after IPC', () => {
   assert.deepEqual(result, {
     ok: true,
     value: { maxDepth: 2, source: 'chat' },
+  });
+});
+
+test('parses a task receipt after IPC', () => {
+  const result = parsePrimeAgentTaskReceiptResult({
+    ok: true,
+    value: { accepted: true },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: { accepted: true },
   });
 });
 

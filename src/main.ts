@@ -24,6 +24,7 @@ import {
   primeAgentRenameGitBranchChannel,
   primeAgentSetModelChannel,
   primeAgentSetRlmDepthChannel,
+  primeAgentSubmitTaskChannel,
   primeAgentSwitchGitBranchChannel,
   primeAgentWorkspaceChannel,
   rendererReadyChannel,
@@ -95,6 +96,9 @@ function registerPrimeAgentHandlers(): void {
   );
   ipcMain.handle(primeAgentSetRlmDepthChannel, (_event, selection: unknown) =>
     Effect.runPromise(daemon.setRlmDepth(selection)),
+  );
+  ipcMain.handle(primeAgentSubmitTaskChannel, (_event, submission: unknown) =>
+    Effect.runPromise(daemon.submitTask(submission)),
   );
   ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: unknown) =>
     Effect.runPromise(readLocalGitBranches(cwd)),

@@ -12,6 +12,8 @@ import type {
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSession,
+  PrimeAgentTaskReceipt,
+  PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
 } from '../types';
 
@@ -355,6 +357,10 @@ function parseGitWorktree(value: unknown): PrimeAgentGitWorktree | null {
   return cwd === null || branchName === null ? null : { cwd, branchName };
 }
 
+function parseTaskReceipt(value: unknown): PrimeAgentTaskReceipt | null {
+  return isRecord(value) && value.accepted === true ? { accepted: true } : null;
+}
+
 /** Parse a workspace path received from the isolated renderer. */
 export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
   const cwd = nonEmptyString(value);
@@ -428,6 +434,28 @@ export function parseGitWorktreeCreation(
   return cwd === null || branchName === null
     ? failure('invalid_request', 'The Git worktree request is invalid.')
     : { ok: true, value: { cwd, branchName } };
+}
+
+/** Parse a task submission received from the isolated renderer. */
+export function parseTaskSubmission(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentTaskSubmission> {
+  if (!isRecord(value)) {
+    return failure('invalid_request', 'The task submission is invalid.');
+  }
+
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  const message = nonEmptyString(value.message);
+  return activeSessionId === null || message === null
+    ? failure('invalid_request', 'The task submission is invalid.')
+    : { ok: true, value: { activeSessionId, message } };
+}
+
+/** Parse a task receipt after it crosses the Electron IPC boundary. */
+export function parseTaskReceiptResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentTaskReceipt> {
+  return parseResult(value, parseTaskReceipt);
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */

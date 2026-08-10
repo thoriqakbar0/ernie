@@ -2,6 +2,7 @@ import {
   parseModelResult,
   parseModelsResult,
   parseRlmDepthResult,
+  parseTaskReceiptResult,
   parseWorkspaceResult,
 } from './lib/protocol';
 
@@ -12,6 +13,8 @@ import type {
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSession,
+  PrimeAgentTaskReceipt,
+  PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
 } from './types';
 
@@ -43,6 +46,8 @@ export type {
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSession,
+  PrimeAgentTaskReceipt,
+  PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
 };
 
@@ -75,4 +80,11 @@ export function parsePrimeAgentRlmDepthResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentRlmDepth> {
   return parseRlmDepthResult(value);
+}
+
+/** Parse a task receipt received from Electron's main process. */
+export function parsePrimeAgentTaskReceiptResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentTaskReceipt> {
+  return parseTaskReceiptResult(value);
 }

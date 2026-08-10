@@ -1,4 +1,4 @@
-import { MicIcon, PlusIcon } from 'lucide-react';
+import { ArrowUpIcon, PlusIcon } from 'lucide-react';
 
 import { CurrentWorkspace } from '@/components/current-workspace';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,11 @@ const rlmDepthChoices = Array.from({ length: 9 }, (_, maxDepth) => ({
 export function TaskSurface(): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
 
+  function submitTask(event: React.FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    workspace.submitTask();
+  }
+
   return (
     <div className="my-auto w-full">
       <Field className="mx-auto max-w-[50rem] gap-2">
@@ -53,65 +58,86 @@ export function TaskSurface(): React.JSX.Element {
           createGitWorktree={workspace.createGitWorktree}
         />
 
-        <InputGroup className="min-h-40 rounded-2xl bg-card">
-          <InputGroupTextarea
-            id="task"
-            rows={4}
-            className="select-text px-4 pt-4 text-base"
-            placeholder="Plan, Build, / for skills, @ for context"
-          />
-          <InputGroupAddon align="block-end" className="px-4 pb-[13px]">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+        <form onSubmit={submitTask}>
+          <InputGroup className="min-h-40 rounded-2xl bg-card">
+            <InputGroupTextarea
+              id="task"
+              rows={4}
+              value={workspace.taskDraft}
+              className="select-text px-4 pt-4 text-base"
+              placeholder="Plan, Build, / for skills, @ for context"
+              onChange={(event) => workspace.changeTaskDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== 'Enter' ||
+                  event.shiftKey ||
+                  event.nativeEvent.isComposing
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }}
+            />
+            <InputGroupAddon align="block-end" className="px-4 pb-[13px]">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <InputGroupButton
+                  size="icon-sm"
+                  className="size-9 rounded-full bg-muted text-foreground"
+                  aria-label="Add context"
+                >
+                  <PlusIcon />
+                </InputGroupButton>
+
+                <Select
+                  items={workspace.models.map((model) => ({
+                    label: model.name,
+                    value: model.key,
+                  }))}
+                  value={workspace.selectedModelKey}
+                  onValueChange={workspace.changeModel}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
+                    aria-label="Model"
+                    disabled={workspace.busy || workspace.models.length === 0}
+                  >
+                    <SelectValue placeholder="No model" />
+                  </SelectTrigger>
+                  <SelectContent
+                    className="max-h-72"
+                    align="start"
+                    alignItemWithTrigger={false}
+                  >
+                    <SelectGroup>
+                      {workspace.models.map((model) => (
+                        <SelectItem key={model.key} value={model.key}>
+                          {model.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <InputGroupButton
+                type="submit"
                 size="icon-sm"
-                className="size-9 rounded-full bg-muted text-foreground"
-                aria-label="Add context"
+                className="size-9 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
+                aria-label="Send task"
+                title="Send task (Enter)"
+                disabled={
+                  !workspace.canSubmitTask ||
+                  workspace.taskDraft.trim().length === 0 ||
+                  workspace.submittingTask
+                }
               >
-                <PlusIcon />
+                <ArrowUpIcon />
               </InputGroupButton>
-
-              <Select
-                items={workspace.models.map((model) => ({
-                  label: model.name,
-                  value: model.key,
-                }))}
-                value={workspace.selectedModelKey}
-                onValueChange={workspace.changeModel}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
-                  aria-label="Model"
-                  disabled={workspace.busy || workspace.models.length === 0}
-                >
-                  <SelectValue placeholder="No model" />
-                </SelectTrigger>
-                <SelectContent
-                  className="max-h-72"
-                  align="start"
-                  alignItemWithTrigger={false}
-                >
-                  <SelectGroup>
-                    {workspace.models.map((model) => (
-                      <SelectItem key={model.key} value={model.key}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-            </div>
-
-            <InputGroupButton
-              size="icon-sm"
-              className="size-9 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
-              aria-label="Use voice input"
-            >
-              <MicIcon />
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
+            </InputGroupAddon>
+          </InputGroup>
+        </form>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button

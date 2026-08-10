@@ -17,6 +17,7 @@ import {
   parseRlmDepthData,
   parseRlmDepthSelection,
   parseSessionListData,
+  parseTaskSubmission,
 } from './protocol';
 
 const connectTimeoutMs = 3_000;
@@ -233,11 +234,41 @@ export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
     },
   );
 
+  const submitTask = Effect.fn('PrimeAgentDaemon.submitTask')(
+    (submission: unknown) => {
+      const parsedSubmission = parseTaskSubmission(submission);
+      if (!parsedSubmission.ok) return Effect.succeed(parsedSubmission);
+
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          client.request(
+            {
+              type: 'prompt',
+              activeSessionId: parsedSubmission.value.activeSessionId,
+              message: parsedSubmission.value.message,
+              queueIfBusy: true,
+              source: 'interactive',
+            },
+            requestTimeoutMs,
+          ),
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok
+              ? { ok: true as const, value: { accepted: true as const } }
+              : response,
+          ),
+        ),
+      );
+    },
+  );
+
   return {
     listWorkspace,
     listModels,
     setModel,
     getRlmDepth,
     setRlmDepth,
+    submitTask,
   };
 }

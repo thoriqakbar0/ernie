@@ -9,6 +9,7 @@ import {
   parsePrimeAgentModelResult,
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
+  parsePrimeAgentTaskReceiptResult,
   parsePrimeAgentWorkspaceResult,
   type PrimeAgentModel,
   type PrimeAgentSession,
@@ -24,6 +25,7 @@ export interface PrimeAgentFolderChoice {
 /** Live state and actions used by Ernie's task and environment controls. */
 export interface PrimeAgentWorkspaceController {
   readonly busy: boolean;
+  readonly canSubmitTask: boolean;
   readonly folders: readonly PrimeAgentFolderChoice[];
   readonly gitBranch: string | null;
   readonly gitBranchBusy: boolean;
@@ -36,6 +38,8 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedCwd: string | null;
   readonly selectedModelKey: string | null;
   readonly status: string;
+  readonly submittingTask: boolean;
+  readonly taskDraft: string;
   readonly changeFolder: (cwd: string | null) => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
@@ -45,6 +49,8 @@ export interface PrimeAgentWorkspaceController {
   readonly createGitWorktree: (branchName: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
   readonly changeRlmDepth: (maxDepth: string | null) => void;
+  readonly changeTaskDraft: (message: string) => void;
+  readonly submitTask: () => void;
 }
 
 type WorkspaceDirectorySelection =
@@ -93,6 +99,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [gitWorktreeError, setGitWorktreeError] = useState<string | null>(null);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
   const [status, setStatus] = useState('');
+  const [submittingTask, setSubmittingTask] = useState(false);
+  const [taskDraft, setTaskDraft] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -682,6 +690,48 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
+  function submitTask(): void {
+    const submittedDraft = taskDraft;
+    const message = submittedDraft.trim();
+    if (selectedSessionId === null || message.length === 0 || submittingTask) {
+      return;
+    }
+    const activeSessionId = selectedSessionId;
+
+    const submit = Effect.fn('Workspace.submitTask')(function* () {
+      yield* Effect.sync(() => {
+        setSubmittingTask(true);
+        setStatus('Sending task to Prime Agent…');
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.submitPrimeAgentTask({ activeSessionId, message }),
+      );
+      const result = parsePrimeAgentTaskReceiptResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        setTaskDraft((currentDraft) =>
+          currentDraft === submittedDraft ? '' : currentDraft,
+        );
+        setStatus('Task sent to Prime Agent.');
+      });
+    });
+
+    Effect.runFork(
+      submit().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not send the task to Prime Agent.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setSubmittingTask(false))),
+      ),
+    );
+  }
+
   return {
     busy:
       loadingWorkspace ||
@@ -689,7 +739,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       choosingDirectory ||
       savingModel ||
       savingRlmDepth ||
+      submittingTask ||
       gitBranchBusy,
+    canSubmitTask: selectedSessionId !== null,
     folders,
     gitBranch,
     gitBranchBusy,
@@ -702,6 +754,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedCwd,
     selectedModelKey,
     status,
+    submittingTask,
+    taskDraft,
     changeFolder,
     chooseWorkspaceDirectory,
     changeGitBranch,
@@ -711,5 +765,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     createGitWorktree,
     changeModel,
     changeRlmDepth,
+    changeTaskDraft: setTaskDraft,
+    submitTask,
   };
 }

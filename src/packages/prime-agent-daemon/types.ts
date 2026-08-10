@@ -98,6 +98,17 @@ export interface PrimeAgentRlmDepthSelection {
   readonly maxDepth: number;
 }
 
+/** One task submitted to a connected Prime Agent session. */
+export interface PrimeAgentTaskSubmission {
+  readonly activeSessionId: string;
+  readonly message: string;
+}
+
+/** Confirmation that Prime Agent accepted one task for execution. */
+export interface PrimeAgentTaskReceipt {
+  readonly accepted: true;
+}
+
 /** The daemon operations owned by Ernie's Electron main process. */
 export interface PrimeAgentDaemon {
   readonly listWorkspace: () => Effect.Effect<
@@ -115,5 +126,8 @@ export interface PrimeAgentDaemon {
   readonly setRlmDepth: (
     selection: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentRlmDepth>>;
+  readonly submitTask: (
+    submission: unknown,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentTaskReceipt>>;
 }
 import type { Effect } from 'effect';

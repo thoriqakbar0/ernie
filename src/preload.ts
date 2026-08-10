@@ -10,6 +10,7 @@ const primeAgentModelsChannel = 'ernie:prime-agent:models';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
+const primeAgentSubmitTaskChannel = 'ernie:prime-agent:submit-task';
 const primeAgentGitBranchesChannel = 'ernie:prime-agent:git-branches';
 const primeAgentSwitchGitBranchChannel =
   'ernie:prime-agent:switch-git-branch';
@@ -40,6 +41,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   setPrimeAgentRlmDepth(selection) {
     return ipcRenderer.invoke(primeAgentSetRlmDepthChannel, selection);
+  },
+  submitPrimeAgentTask(submission) {
+    return ipcRenderer.invoke(primeAgentSubmitTaskChannel, submission);
   },
   listPrimeAgentGitBranches(cwd) {
     return ipcRenderer.invoke(primeAgentGitBranchesChannel, cwd);

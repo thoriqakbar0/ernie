@@ -1,0 +1,40 @@
+import type {
+  PrimeAgentModelSelection,
+  PrimeAgentRlmDepthSelection,
+} from './packages/prime-agent-daemon/types';
+
+/** IPC channel emitted after the renderer has painted its required surface. */
+export const rendererReadyChannel = 'ernie:renderer-ready';
+
+/** IPC channel that lists live sessions from the Prime Agent daemon. */
+export const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
+
+/** IPC channel that lists configured models for one Prime Agent session. */
+export const primeAgentModelsChannel = 'ernie:prime-agent:models';
+
+/** IPC channel that changes the model for one Prime Agent session. */
+export const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
+
+/** IPC channel that reads RLM maximum depth for one Prime Agent session. */
+export const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
+
+/** IPC channel that changes RLM maximum depth for one Prime Agent session. */
+export const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
+
+/** Minimal preload API exposed to the isolated renderer context. */
+export type ErnieRendererApi = Readonly<{
+  signalReady: () => void;
+  listPrimeAgentWorkspace: () => Promise<unknown>;
+  listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
+  setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;
+  getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<unknown>;
+  setPrimeAgentRlmDepth: (
+    selection: PrimeAgentRlmDepthSelection,
+  ) => Promise<unknown>;
+}>;
+
+declare global {
+  interface Window {
+    readonly ernie: ErnieRendererApi;
+  }
+}

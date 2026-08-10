@@ -11,10 +11,15 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "moduleResolution": "Node16",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "sourceMap": true,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "vite.config.mts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.mts"]
 }

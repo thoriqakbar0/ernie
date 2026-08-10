@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   GitBranchIcon,
+  PencilLineIcon,
   Trash2Icon,
 } from 'lucide-react';
 
@@ -13,6 +14,7 @@ interface GitBranchDropdownProps {
   readonly currentBranch: string | null;
   readonly changeBranch: (name: string) => void;
   readonly deleteBranch: (name: string) => void;
+  readonly renameBranch: (currentName: string, newName: string) => void;
 }
 
 const popupClass =
@@ -20,14 +22,18 @@ const popupClass =
 const itemClass =
   'relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground';
 
-/** Select, inspect, and safely delete local Git branches. */
+/** Switch, rename, and safely delete local Git branches. */
 export function GitBranchDropdown({
   branches,
   busy,
   currentBranch,
   changeBranch,
   deleteBranch,
+  renameBranch,
 }: GitBranchDropdownProps): React.JSX.Element {
+  const renameableBranches = branches.filter(
+    (name) => name !== 'main' && name !== 'staging',
+  );
   const deletableBranches = branches.filter(
     (name) =>
       name !== currentBranch && name !== 'main' && name !== 'staging',
@@ -35,6 +41,13 @@ export function GitBranchDropdown({
 
   function confirmDelete(name: string): void {
     if (window.confirm(`Delete local branch "${name}"?`)) deleteBranch(name);
+  }
+
+  function requestRename(name: string): void {
+    const newName = window.prompt('Rename local branch:', name)?.trim();
+    if (newName !== undefined && newName.length > 0 && newName !== name) {
+      renameBranch(name, newName);
+    }
   }
 
   return (
@@ -72,6 +85,36 @@ export function GitBranchDropdown({
             ))}
 
             <Menu.Separator className="-mx-1 my-1 h-px bg-border" />
+            <Menu.SubmenuRoot>
+              <Menu.SubmenuTrigger
+                className={itemClass}
+                disabled={renameableBranches.length === 0}
+              >
+                <PencilLineIcon className="size-4 shrink-0" />
+                <span className="flex-1">Rename branch</span>
+                <ChevronRightIcon className="size-4 shrink-0" />
+              </Menu.SubmenuTrigger>
+              <Menu.Portal>
+                <Menu.Positioner
+                  className="isolate z-50 outline-hidden"
+                  sideOffset={4}
+                  alignOffset={-4}
+                >
+                  <Menu.Popup className={popupClass}>
+                    {renameableBranches.map((name) => (
+                      <Menu.Item
+                        key={name}
+                        className={itemClass}
+                        onClick={() => requestRename(name)}
+                      >
+                        <PencilLineIcon className="size-4 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{name}</span>
+                      </Menu.Item>
+                    ))}
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.SubmenuRoot>
             <Menu.SubmenuRoot>
               <Menu.SubmenuTrigger
                 className={`${itemClass} text-destructive data-highlighted:text-destructive`}

@@ -1,4 +1,5 @@
 import type {
+  PrimeAgentGitBranchRename,
   PrimeAgentGitBranchSelection,
   PrimeAgentModelSelection,
   PrimeAgentRlmDepthSelection,
@@ -33,6 +34,10 @@ export const primeAgentSwitchGitBranchChannel =
 export const primeAgentDeleteGitBranchChannel =
   'ernie:prime-agent:delete-git-branch';
 
+/** IPC channel that renames one local branch. */
+export const primeAgentRenameGitBranchChannel =
+  'ernie:prime-agent:rename-git-branch';
+
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
@@ -49,6 +54,9 @@ export type ErnieRendererApi = Readonly<{
   ) => Promise<unknown>;
   deletePrimeAgentGitBranch: (
     selection: PrimeAgentGitBranchSelection,
+  ) => Promise<unknown>;
+  renamePrimeAgentGitBranch: (
+    rename: PrimeAgentGitBranchRename,
   ) => Promise<unknown>;
 }>;
 

@@ -21,6 +21,7 @@ import {
 import {
   deleteLocalGitBranch,
   readLocalGitBranches,
+  renameLocalGitBranch,
   switchLocalGitBranch,
 } from '../git-server';
 
@@ -371,6 +372,73 @@ test('keeps an unmerged local Git branch', async (context) => {
     { encoding: 'utf8' },
   );
   assert.equal(branchResult.stdout.trim(), 'feature/unmerged');
+});
+
+test('renames the current local Git branch', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-rename-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+
+  const result = await renameLocalGitBranch({
+    cwd,
+    currentName: 'feature/local',
+    newName: 'feature/renamed',
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      cwd,
+      current: 'feature/renamed',
+      names: ['feature/renamed'],
+    },
+  });
+});
+
+test('refuses to overwrite an existing local Git branch', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-rename-conflict-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/existing'], {
+    encoding: 'utf8',
+  });
+
+  const result = await renameLocalGitBranch({
+    cwd,
+    currentName: 'feature/local',
+    newName: 'feature/existing',
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'invalid_request',
+      message: 'The new local Git branch already exists.',
+    },
+  });
+});
+
+test('protects the main local Git branch from renaming', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-rename-protected-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+  await execFileAsync('git', ['-C', cwd, 'branch', 'main'], {
+    encoding: 'utf8',
+  });
+
+  const result = await renameLocalGitBranch({
+    cwd,
+    currentName: 'main',
+    newName: 'renamed-main',
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'invalid_request',
+      message: 'The selected local Git branch is protected.',
+    },
+  });
 });
 
 test('returns no branch for a directory outside a Git repository', async (context) => {

@@ -2,6 +2,7 @@ import type {
   PrimeAgentFailure,
   PrimeAgentFailureCode,
   PrimeAgentGitBranches,
+  PrimeAgentGitBranchRename,
   PrimeAgentGitBranchSelection,
   PrimeAgentModel,
   PrimeAgentModelSelection,
@@ -379,6 +380,22 @@ export function parseGitBranchSelection(
   return cwd === null || name === null
     ? failure('invalid_request', 'The Git branch selection is invalid.')
     : { ok: true, value: { cwd, name } };
+}
+
+/** Parse a local Git branch rename from the isolated renderer. */
+export function parseGitBranchRename(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitBranchRename> {
+  if (!isRecord(value)) {
+    return failure('invalid_request', 'The Git branch rename is invalid.');
+  }
+
+  const cwd = nonEmptyString(value.cwd);
+  const currentName = nonEmptyString(value.currentName);
+  const newName = nonEmptyString(value.newName);
+  return cwd === null || currentName === null || newName === null
+    ? failure('invalid_request', 'The Git branch rename is invalid.')
+    : { ok: true, value: { cwd, currentName, newName } };
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */

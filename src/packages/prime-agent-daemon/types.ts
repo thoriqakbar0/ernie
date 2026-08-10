@@ -34,6 +34,13 @@ export interface PrimeAgentGitBranchSelection {
   readonly name: string;
 }
 
+/** The local Git branch rename requested for one workspace. */
+export interface PrimeAgentGitBranchRename {
+  readonly cwd: string;
+  readonly currentName: string;
+  readonly newName: string;
+}
+
 /** Stable failure categories returned across the Electron IPC boundary. */
 export type PrimeAgentFailureCode =
   | 'invalid_request'

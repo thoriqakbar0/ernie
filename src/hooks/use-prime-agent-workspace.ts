@@ -35,6 +35,7 @@ export interface PrimeAgentWorkspaceController {
   readonly changeFolder: (cwd: string | null) => void;
   readonly changeGitBranch: (name: string | null) => void;
   readonly deleteGitBranch: (name: string) => void;
+  readonly renameGitBranch: (currentName: string, newName: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
   readonly changeRlmDepth: (maxDepth: string | null) => void;
 }
@@ -327,6 +328,37 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     void deleteBranch();
   }
 
+  function renameGitBranch(currentName: string, newName: string): void {
+    if (selectedCwd === null || currentName === newName) return;
+    const cwd = selectedCwd;
+
+    async function renameBranch(): Promise<void> {
+      setSavingGitBranch(true);
+      try {
+        const rawResult = await window.ernie.renamePrimeAgentGitBranch({
+          cwd,
+          currentName,
+          newName,
+        });
+        const result = parsePrimeAgentGitBranchesResult(rawResult);
+        if (!result.ok) {
+          setStatus(result.error.message);
+          return;
+        }
+
+        setGitBranch(result.value.current);
+        setGitBranches(result.value.names);
+        setStatus(`Renamed local Git branch to ${newName}.`);
+      } catch {
+        setStatus('Ernie could not connect to local Git.');
+      } finally {
+        setSavingGitBranch(false);
+      }
+    }
+
+    void renameBranch();
+  }
+
   function changeRlmDepth(value: string | null): void {
     if (value === null || selectedSession === null) return;
     const maxDepth = Number(value);
@@ -378,6 +410,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     changeFolder,
     changeGitBranch,
     deleteGitBranch,
+    renameGitBranch,
     changeModel,
     changeRlmDepth,
   };

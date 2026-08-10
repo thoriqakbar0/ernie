@@ -6,7 +6,11 @@ import type {
   PrimeAgentGitBranches,
   PrimeAgentResult,
 } from '../types';
-import { parseGitBranchSelection, parseWorkspaceCwd } from './protocol';
+import {
+  parseGitBranchRename,
+  parseGitBranchSelection,
+  parseWorkspaceCwd,
+} from './protocol';
 
 const execFileAsync = promisify(execFile);
 const gitTimeoutMs = 3_000;
@@ -205,6 +209,81 @@ export async function deleteLocalGitBranch(
       error: {
         code: 'request_failed',
         message: 'Git could not delete the local branch.',
+      },
+    };
+  }
+}
+
+/** Rename one local branch without overwriting another branch. */
+export async function renameLocalGitBranch(
+  rename: unknown,
+): Promise<PrimeAgentResult<PrimeAgentGitBranches>> {
+  const parsedRename = parseGitBranchRename(rename);
+  if (!parsedRename.ok) return parsedRename;
+
+  const branches = await readLocalGitBranches(parsedRename.value.cwd);
+  if (!branches.ok) return branches;
+  if (
+    parsedRename.value.currentName === 'main' ||
+    parsedRename.value.currentName === 'staging'
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_request',
+        message: 'The selected local Git branch is protected.',
+      },
+    };
+  }
+  if (parsedRename.value.currentName === parsedRename.value.newName) {
+    return branches;
+  }
+
+  const hasCurrentName = branches.value.names.includes(
+    parsedRename.value.currentName,
+  );
+  const hasNewName = branches.value.names.includes(parsedRename.value.newName);
+  if (!hasCurrentName && hasNewName) return branches;
+  if (!hasCurrentName) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_request',
+        message: 'The selected local Git branch does not exist.',
+      },
+    };
+  }
+  if (hasNewName) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_request',
+        message: 'The new local Git branch already exists.',
+      },
+    };
+  }
+
+  try {
+    await execFileAsync(
+      'git',
+      [
+        '-C',
+        parsedRename.value.cwd,
+        'branch',
+        '--move',
+        parsedRename.value.currentName,
+        parsedRename.value.newName,
+      ],
+      { encoding: 'utf8', timeout: gitTimeoutMs },
+    );
+    return readLocalGitBranches(parsedRename.value.cwd);
+  } catch (error) {
+    reportGitFailure(error);
+    return {
+      ok: false,
+      error: {
+        code: 'request_failed',
+        message: 'Git could not rename the local branch.',
       },
     };
   }

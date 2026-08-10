@@ -105,7 +105,6 @@ export function ErnieShell({
     <TooltipProvider>
       <SidebarProvider
         defaultOpen
-        style={{ '--sidebar-width': '16.4375rem' } as React.CSSProperties}
       >
         <AgentSidebar />
 

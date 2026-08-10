@@ -13,6 +13,7 @@ const {
 
 const rendererReadyTimeoutMs = 5_000;
 const reloadButtonSelector = 'button[aria-label="Reload renderer"]';
+const sidebarRailSelector = '[data-sidebar="rail"]';
 
 function waitForRendererReady(window, startedAt) {
   return new Promise((resolve, reject) => {
@@ -106,6 +107,75 @@ async function checkAgentation() {
     const [, reloadReadyMs] = await Promise.all([reloaded, reloadReady]);
     const reloadMs = Math.round(performance.now() - reloadStartedAt);
 
+    const sidebarBeforeResize = await window.webContents.executeJavaScript(`(() => {
+      const rail = document.querySelector(${JSON.stringify(sidebarRailSelector)});
+      const sidebar = document.querySelector('[data-slot="sidebar"]');
+      const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]');
+      if (!(rail instanceof HTMLElement) || !(wrapper instanceof HTMLElement)) {
+        return null;
+      }
+
+      const bounds = rail.getBoundingClientRect();
+      return {
+        x: Math.round(bounds.left + bounds.width / 2),
+        y: Math.round(bounds.top + bounds.height / 2),
+        state: sidebar instanceof HTMLElement ? sidebar.dataset.state : null,
+        width: Number.parseFloat(
+          getComputedStyle(wrapper).getPropertyValue('--sidebar-width'),
+        ),
+      };
+    })()`);
+
+    if (sidebarBeforeResize === null) {
+      process.stdout.write(`${JSON.stringify({ sidebarResizable: false })}\n`);
+      app.exit(1);
+      return;
+    }
+
+    window.webContents.focus();
+    window.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: sidebarBeforeResize.x,
+      y: sidebarBeforeResize.y,
+    });
+    window.webContents.sendInputEvent({
+      type: 'mouseDown',
+      x: sidebarBeforeResize.x,
+      y: sidebarBeforeResize.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    window.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: sidebarBeforeResize.x + 48,
+      y: sidebarBeforeResize.y,
+      button: 'left',
+    });
+    window.webContents.sendInputEvent({
+      type: 'mouseUp',
+      x: sidebarBeforeResize.x + 48,
+      y: sidebarBeforeResize.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const sidebarAfterResize = await window.webContents.executeJavaScript(`(() => {
+      const sidebar = document.querySelector('[data-slot="sidebar"]');
+      const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]');
+      if (!(wrapper instanceof HTMLElement)) return null;
+      return {
+        state: sidebar instanceof HTMLElement ? sidebar.dataset.state : null,
+        width: Number.parseFloat(
+          getComputedStyle(wrapper).getPropertyValue('--sidebar-width'),
+        ),
+      };
+    })()`);
+    const sidebarResizable =
+      sidebarAfterResize !== null &&
+      sidebarAfterResize.state === 'expanded' &&
+      sidebarAfterResize.width >= sidebarBeforeResize.width + 40;
+
     const state = await window.webContents.executeJavaScript(`(() => {
       const toolbar = document.querySelector('[data-agentation-toolbar]');
       if (!(toolbar instanceof HTMLElement)) {
@@ -133,6 +203,9 @@ async function checkAgentation() {
       `${JSON.stringify({
         ...state,
         reloadButtonExists,
+        sidebarResizable,
+        sidebarWidthBefore: sidebarBeforeResize.width,
+        sidebarWidthAfter: sidebarAfterResize?.width ?? null,
         loadMs,
         readyMs,
         revealReadyMs,
@@ -140,7 +213,7 @@ async function checkAgentation() {
         reloadReadyMs,
       })}\n`,
     );
-    app.exit(state.toolbarVisible ? 0 : 1);
+    app.exit(state.toolbarVisible && sidebarResizable ? 0 : 1);
   } finally {
     window.destroy();
   }

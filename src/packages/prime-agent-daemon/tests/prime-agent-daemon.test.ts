@@ -5,6 +5,7 @@ import {
   parsePrimeAgentGitBranchResult,
 } from '../git-client';
 import {
+  parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentWorkspaceResult,
 } from '../client';
@@ -83,6 +84,37 @@ test('keeps models from configured daemon providers', () => {
       },
     ],
   });
+});
+
+test('orders GPT models from the largest version first in the renderer', () => {
+  const result = parsePrimeAgentModelsResult({
+    ok: true,
+    value: [
+      {
+        key: 'claude',
+        id: 'claude-opus',
+        name: 'Claude Opus',
+        provider: 'anthropic',
+      },
+      {
+        key: 'gpt-5.4',
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+        provider: 'openai-codex',
+      },
+      {
+        key: 'gpt-5.6',
+        id: 'gpt-5.6',
+        name: 'GPT-5.6 Sol',
+        provider: 'openai-codex',
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    result.ok ? result.value.map((model) => model.name) : result,
+    ['GPT-5.6 Sol', 'GPT-5.4', 'Claude Opus'],
+  );
 });
 
 test('rejects malformed workspace data after IPC', () => {

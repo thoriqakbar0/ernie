@@ -70,7 +70,7 @@ export function TaskSurface(): React.JSX.Element {
               >
                 <SelectTrigger
                   size="sm"
-                  className="max-w-56 border-0 bg-transparent px-2 text-base shadow-none"
+                  className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
                   aria-label="Model"
                   disabled={workspace.busy || workspace.models.length === 0}
                 >

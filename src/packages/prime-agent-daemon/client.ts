@@ -15,6 +15,27 @@ import type {
   PrimeAgentWorkspace,
 } from './types';
 
+const modelNameCollator = new Intl.Collator('en', {
+  numeric: true,
+  sensitivity: 'base',
+});
+
+function isGptModel(model: PrimeAgentModel): boolean {
+  return /^gpt(?:[-\s]|$)/iu.test(model.name);
+}
+
+function orderModels(
+  models: readonly PrimeAgentModel[],
+): readonly PrimeAgentModel[] {
+  return [...models].sort((left, right) => {
+    const leftIsGpt = isGptModel(left);
+    const rightIsGpt = isGptModel(right);
+    if (leftIsGpt !== rightIsGpt) return leftIsGpt ? -1 : 1;
+    if (!leftIsGpt) return 0;
+    return modelNameCollator.compare(right.name, left.name);
+  });
+}
+
 export type {
   PrimeAgentModel,
   PrimeAgentModelSelection,
@@ -36,7 +57,10 @@ export function parsePrimeAgentWorkspaceResult(
 export function parsePrimeAgentModelsResult(
   value: unknown,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
-  return parseModelsResult(value);
+  const result = parseModelsResult(value);
+  return result.ok
+    ? { ok: true, value: orderModels(result.value) }
+    : result;
 }
 
 /** Parse a model-change response received from Electron's main process. */

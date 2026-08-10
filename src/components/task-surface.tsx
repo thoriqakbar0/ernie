@@ -1,7 +1,6 @@
 import { CurrentWorkspace } from '@/components/current-workspace';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import { TaskComposer } from '@/components/task-composer';
-import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 
@@ -43,14 +42,6 @@ export function TaskSurface(): React.JSX.Element {
         />
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            className="rounded-full text-sm font-normal"
-          >
-            Plan New Idea
-            <span className="text-muted-foreground">⇧Tab</span>
-          </Button>
-
           <RlmDepthPicker
             busy={workspace.busy}
             depth={workspace.rlmDepth}

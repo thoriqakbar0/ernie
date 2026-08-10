@@ -2,6 +2,7 @@ import { Combobox } from '@base-ui/react/combobox';
 import {
   CheckIcon,
   ChevronDownIcon,
+  CloudIcon,
   FolderPlusIcon,
   LaptopIcon,
   SearchIcon,
@@ -9,8 +10,14 @@ import {
 import { useState } from 'react';
 
 import { GitBranchDropdown } from '@/components/git-branch-dropdown';
-import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select';
 import type {
   PrimeAgentFolderChoice,
   PrimeAgentWorkspaceController,
@@ -35,6 +42,11 @@ type CurrentWorkspaceProps = Pick<
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
+
+const executionTargets = [
+  { label: 'This Mac', value: 'local' },
+  { label: 'Cloud', value: 'cloud' },
+];
 
 /** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
@@ -170,13 +182,39 @@ export function CurrentWorkspace({
         createWorktree={createGitWorktree}
       />
 
-      <Button
-        variant="outline"
-        className="bg-card px-3 text-sm font-normal text-muted-foreground"
-      >
-        <LaptopIcon />
-        This Mac
-      </Button>
+      <Select items={executionTargets} value="local">
+        <SelectTrigger
+          aria-label="Execution location"
+          className="bg-card px-3 text-sm font-normal text-muted-foreground"
+        >
+          <LaptopIcon aria-hidden="true" />
+          <span>This Mac</span>
+        </SelectTrigger>
+        <SelectContent
+          align="start"
+          alignItemWithTrigger={false}
+          sideOffset={6}
+          className="w-44"
+        >
+          <SelectGroup>
+            <SelectItem value="local">
+              <LaptopIcon aria-hidden="true" />
+              This Mac
+            </SelectItem>
+            <SelectItem
+              value="cloud"
+              disabled
+              aria-label="Cloud, coming soon"
+            >
+              <CloudIcon aria-hidden="true" />
+              <span className="flex flex-1 items-center justify-between gap-3">
+                Cloud
+                <span className="text-xs text-muted-foreground">Soon</span>
+              </span>
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
 
       {gitWorktreeError === null ? null : (
         <p

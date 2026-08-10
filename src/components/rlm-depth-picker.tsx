@@ -1,6 +1,6 @@
 import { NumberField } from '@base-ui/react/number-field';
 import { MinusIcon, PlusIcon } from 'lucide-react';
-import { memo, useId, useState } from 'react';
+import { memo, useId, useRef, useState } from 'react';
 
 interface RlmDepthPickerProps {
   readonly busy: boolean;
@@ -17,6 +17,8 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
   onDepthChange,
 }: RlmDepthPickerProps): React.JSX.Element {
   const [draftDepth, setDraftDepth] = useState<number | null>(depth);
+  const [keyboardFocusWithin, setKeyboardFocusWithin] = useState(false);
+  const pointerInteraction = useRef(false);
   const labelId = useId();
   const descriptionId = useId();
 
@@ -46,15 +48,42 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
       disabled={busy || depth === null}
       onValueChange={setDraftDepth}
       onValueCommitted={commitDepth}
+      onPointerDownCapture={() => {
+        pointerInteraction.current = true;
+        setKeyboardFocusWithin(false);
+      }}
+      onPointerUpCapture={() => {
+        pointerInteraction.current = false;
+      }}
+      onPointerCancelCapture={() => {
+        pointerInteraction.current = false;
+      }}
+      onKeyDownCapture={() => {
+        pointerInteraction.current = false;
+      }}
+      onFocusCapture={() => {
+        if (!pointerInteraction.current) setKeyboardFocusWithin(true);
+      }}
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (
+          !(nextTarget instanceof Node) ||
+          !event.currentTarget.contains(nextTarget)
+        ) {
+          setKeyboardFocusWithin(false);
+        }
+      }}
       className="transition-opacity data-disabled:opacity-50 motion-reduce:transition-none"
     >
-      <NumberField.Group className="inline-flex h-8 items-center overflow-hidden rounded-full border border-border bg-background text-sm shadow-[0_1px_2px_oklch(0_0_0/0.04)] [&:has(:focus-visible)]:border-ring [&:has(:focus-visible)]:ring-3 [&:has(:focus-visible)]:ring-ring/50 dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)]">
+      <NumberField.Group
+        className={`inline-flex h-8 items-center overflow-hidden rounded-full border bg-background text-sm shadow-[0_1px_2px_oklch(0_0_0/0.04)] dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)] ${keyboardFocusWithin ? 'border-ring ring-3 ring-ring/50' : 'border-border'}`}
+      >
         <span id={labelId} className="pr-2 pl-3 whitespace-nowrap select-none">
           <span translate="no">RLM</span> depth
         </span>
         <NumberField.Decrement
           aria-label="Decrease RLM depth"
-          className="relative flex h-full w-8 items-center justify-center border-l border-border text-muted-foreground outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transition-none"
+          className="relative flex h-full w-8 items-center justify-center border-l border-border text-muted-foreground outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transition-none"
         >
           <MinusIcon aria-hidden="true" className="size-3.5" />
         </NumberField.Decrement>
@@ -72,7 +101,7 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
         />
         <NumberField.Increment
           aria-label="Increase RLM depth"
-          className="relative flex h-full w-8 items-center justify-center text-muted-foreground/45 outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted/50 hover:text-muted-foreground active:bg-muted disabled:cursor-not-allowed disabled:opacity-25 motion-reduce:transition-none"
+          className="relative flex h-full w-8 items-center justify-center text-muted-foreground/45 outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted/50 hover:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-25 motion-reduce:transition-none"
         >
           <PlusIcon aria-hidden="true" className="size-3.5" />
         </NumberField.Increment>

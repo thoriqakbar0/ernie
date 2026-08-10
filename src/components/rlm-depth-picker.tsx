@@ -1,18 +1,7 @@
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select';
-
-const rlmDepthChoices = Array.from({ length: 9 }, (_, maxDepth) => ({
-  label:
-    maxDepth === 0
-      ? 'RLM depth 0, no recursion'
-      : `RLM depth ${maxDepth}`,
-  value: String(maxDepth),
-}));
+import { NumberField } from '@base-ui/react/number-field';
+import { Popover } from '@base-ui/react/popover';
+import { ChevronDownIcon, MinusIcon, PlusIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface RlmDepthPickerProps {
   readonly busy: boolean;
@@ -26,16 +15,31 @@ export function RlmDepthPicker({
   depth,
   onDepthChange,
 }: RlmDepthPickerProps): React.JSX.Element {
-  const depthLabel = depth === null ? 'Unavailable' : `Depth ${depth}`;
+  const [draftDepth, setDraftDepth] = useState<number | null>(depth);
+
+  useEffect(() => {
+    setDraftDepth(depth);
+  }, [depth]);
+
+  function commitDepth(nextDepth: number | null): void {
+    if (
+      nextDepth === null ||
+      !Number.isSafeInteger(nextDepth) ||
+      nextDepth < 0
+    ) {
+      setDraftDepth(depth);
+      return;
+    }
+    if (nextDepth !== depth) {
+      onDepthChange(String(nextDepth));
+      setDraftDepth(depth);
+    }
+  }
 
   return (
-    <Select
-      items={rlmDepthChoices}
-      value={depth === null ? null : String(depth)}
-      onValueChange={onDepthChange}
-    >
-      <SelectTrigger
-        className="group/depth-trigger h-8 w-auto rounded-full border-border bg-background py-0 pr-2.5 pl-3 text-sm font-normal shadow-[0_1px_2px_oklch(0_0_0/0.04)] transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-muted hover:shadow-[0_0_0_1px_oklch(0_0_0/0.04),0_2px_4px_oklch(0_0_0/0.06)] active:scale-[0.96] motion-reduce:transition-none dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)]"
+    <Popover.Root>
+      <Popover.Trigger
+        className="group/depth-trigger flex h-8 items-center justify-between gap-1.5 rounded-full border border-border bg-background py-0 pr-2.5 pl-3 text-sm font-normal whitespace-nowrap outline-none select-none shadow-[0_1px_2px_oklch(0_0_0/0.04)] transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-muted hover:shadow-[0_0_0_1px_oklch(0_0_0/0.04),0_2px_4px_oklch(0_0_0/0.06)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)]"
         disabled={busy || depth === null}
       >
         <span>
@@ -44,49 +48,59 @@ export function RlmDepthPicker({
         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs leading-none tabular-nums text-muted-foreground transition-colors duration-150 ease-out group-hover/depth-trigger:bg-background motion-reduce:transition-none">
           {depth === null ? '–' : depth}
         </span>
-      </SelectTrigger>
+        <ChevronDownIcon aria-hidden="true" className="size-3.5 text-muted-foreground" />
+      </Popover.Trigger>
 
-      <SelectContent
-        align="start"
-        alignItemWithTrigger={false}
-        sideOffset={8}
-        className="w-[19rem] rounded-xl p-1"
-      >
-        <SelectGroup className="grid grid-cols-9 gap-1 p-2">
-          <div className="col-span-9 px-1 pb-2">
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="text-sm font-medium">
-                <span translate="no">RLM</span> depth
-              </p>
-              <p className="text-xs tabular-nums text-muted-foreground">
-                {depthLabel}
-              </p>
-            </div>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              Set the maximum recursion depth for this chat.
-            </p>
-          </div>
+      <Popover.Portal>
+        <Popover.Positioner
+          align="start"
+          sideOffset={8}
+          className="isolate z-50"
+        >
+          <Popover.Popup className="w-[18rem] rounded-xl bg-popover p-4 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none transition-opacity duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+            <Popover.Title className="text-sm font-medium">
+              <span translate="no">RLM</span> depth
+            </Popover.Title>
+            <Popover.Description className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Set the maximum recursive agent levels for this task.
+            </Popover.Description>
 
-          {rlmDepthChoices.map((choice) => (
-            <SelectItem
-              key={choice.value}
-              value={choice.value}
-              aria-label={choice.label}
-              className="h-8 justify-center rounded-md p-0 text-xs tabular-nums transition-[background-color,color,scale] duration-150 ease-out hover:bg-muted active:scale-[0.96] data-selected:bg-foreground data-selected:text-background data-selected:focus:text-background data-selected:focus:**:text-background motion-reduce:transition-none [&>span:first-child]:justify-center [&>span:last-child]:hidden"
+            <NumberField.Root
+              value={draftDepth}
+              min={0}
+              step={1}
+              largeStep={4}
+              disabled={busy}
+              onValueChange={setDraftDepth}
+              onValueCommitted={commitDepth}
+              className="mt-4 transition-opacity data-disabled:opacity-60 motion-reduce:transition-none"
             >
-              {choice.value}
-            </SelectItem>
-          ))}
+              <NumberField.Group className="grid h-11 grid-cols-[2.75rem_1fr_2.75rem] overflow-hidden rounded-lg border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+                <NumberField.Decrement
+                  aria-label="Decrease RLM depth"
+                  className="flex items-center justify-center border-r border-input text-muted-foreground outline-none select-none transition-colors hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
+                >
+                  <MinusIcon aria-hidden="true" className="size-4" />
+                </NumberField.Decrement>
+                <NumberField.Input
+                  aria-label="RLM maximum depth"
+                  className="min-w-0 bg-transparent px-3 text-center text-base font-medium tabular-nums outline-none"
+                />
+                <NumberField.Increment
+                  aria-label="Increase RLM depth"
+                  className="flex items-center justify-center border-l border-input text-muted-foreground outline-none select-none transition-colors hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
+                >
+                  <PlusIcon aria-hidden="true" className="size-4" />
+                </NumberField.Increment>
+              </NumberField.Group>
+            </NumberField.Root>
 
-          <div
-            aria-hidden="true"
-            className="col-span-9 flex justify-between px-1 pt-1 text-[0.6875rem] text-muted-foreground"
-          >
-            <span>No recursion</span>
-            <span>Maximum</span>
-          </div>
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              0 disables recursion. Use arrow keys for precise changes.
+            </p>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

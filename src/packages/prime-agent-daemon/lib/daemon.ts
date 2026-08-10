@@ -2,6 +2,7 @@ import type {
   DaemonClient,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
+import { Effect } from 'effect';
 
 import type {
   PrimeAgentDaemon,
@@ -49,32 +50,51 @@ function reportOperationalFailure(scope: string, error: unknown): void {
   console.error(scope, errorMetadata(error));
 }
 
-async function withClient<T>(
-  operation: (client: DaemonClient) => Promise<PrimeAgentResult<T>>,
-): Promise<PrimeAgentResult<T>> {
-  let client: DaemonClient | null = null;
+function withClient<T>(
+  operation: (
+    client: DaemonClient,
+  ) => Effect.Effect<PrimeAgentResult<T>, unknown>,
+): Effect.Effect<PrimeAgentResult<T>> {
   let connected = false;
-  try {
-    const { DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath } =
-      await import('prime-agent');
-    client = new DaemonClientConstructor(defaultDaemonSocketPath());
-    await client.connect(connectTimeoutMs);
-    connected = true;
-    return await operation(client);
-  } catch (error) {
-    reportOperationalFailure(
-      connected ? 'Prime Agent request failed.' : 'Prime Agent connection failed.',
-      error,
-    );
-    return connected
-      ? failure('request_failed', 'Prime Agent could not complete the request.')
-      : failure(
-          'daemon_unavailable',
-          'The Prime Agent daemon is not available.',
+  return Effect.tryPromise(() => import('prime-agent')).pipe(
+    Effect.map(
+      ({ DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath }) =>
+        new DaemonClientConstructor(defaultDaemonSocketPath()),
+    ),
+    Effect.flatMap((client) =>
+      Effect.acquireUseRelease(
+        Effect.succeed(client),
+        (activeClient) =>
+          Effect.gen(function* () {
+            yield* Effect.tryPromise(() =>
+              activeClient.connect(connectTimeoutMs),
+            );
+            connected = true;
+            return yield* operation(activeClient);
+          }),
+        (activeClient) => Effect.sync(() => activeClient.close()),
+      ),
+    ),
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        reportOperationalFailure(
+          connected
+            ? 'Prime Agent request failed.'
+            : 'Prime Agent connection failed.',
+          error,
         );
-  } finally {
-    client?.close();
-  }
+        return connected
+          ? failure(
+              'request_failed',
+              'Prime Agent could not complete the request.',
+            )
+          : failure(
+              'daemon_unavailable',
+              'The Prime Agent daemon is not available.',
+            );
+      }),
+    ),
+  );
 }
 
 /** Create the Prime Agent daemon adapter owned by Electron's main process. */
@@ -84,53 +104,68 @@ export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
     throw new Error('The current workspace path must not be empty.');
   }
 
-  return {
-    listWorkspace: () =>
-      withClient(async (client) => {
-        const response = responseData(
-          await client.request({ type: 'list' }, requestTimeoutMs),
-        );
-        if (!response.ok) return response;
+  const listWorkspace = Effect.fn('PrimeAgentDaemon.listWorkspace')(() =>
+    withClient((client) =>
+      Effect.tryPromise(() =>
+        client.request({ type: 'list' }, requestTimeoutMs),
+      ).pipe(
+        Effect.map(responseData),
+        Effect.map((response) => {
+          if (!response.ok) return response;
 
-        const sessions = parseSessionListData(response.value);
-        if (!sessions.ok) return sessions;
+          const sessions = parseSessionListData(response.value);
+          if (!sessions.ok) return sessions;
 
-        const ordered = [...sessions.value].sort((left, right) => {
-          const leftLocal = left.cwd === normalizedCwd ? 1 : 0;
-          const rightLocal = right.cwd === normalizedCwd ? 1 : 0;
-          if (leftLocal !== rightLocal) return rightLocal - leftLocal;
-          return (right.modifiedAt ?? '').localeCompare(left.modifiedAt ?? '');
-        });
+          const ordered = [...sessions.value].sort((left, right) => {
+            const leftLocal = left.cwd === normalizedCwd ? 1 : 0;
+            const rightLocal = right.cwd === normalizedCwd ? 1 : 0;
+            if (leftLocal !== rightLocal) return rightLocal - leftLocal;
+            return (right.modifiedAt ?? '').localeCompare(
+              left.modifiedAt ?? '',
+            );
+          });
 
-        return {
-          ok: true,
-          value: { currentCwd: normalizedCwd, sessions: ordered },
-        };
-      }),
-    listModels: (activeSessionId) => {
+          return {
+            ok: true,
+            value: { currentCwd: normalizedCwd, sessions: ordered },
+          };
+        }),
+      ),
+    ),
+  );
+
+  const listModels = Effect.fn('PrimeAgentDaemon.listModels')(
+    (activeSessionId: unknown) => {
       const parsedSessionId = parseActiveSessionId(activeSessionId);
-      if (!parsedSessionId.ok) return Promise.resolve(parsedSessionId);
+      if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
-      return withClient(async (client) => {
-        const response = responseData(
-          await client.request(
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          client.request(
             {
               type: 'get_model_catalog',
               activeSessionId: parsedSessionId.value,
             },
             requestTimeoutMs,
           ),
-        );
-        return response.ok ? parseModelCatalogData(response.value) : response;
-      });
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok ? parseModelCatalogData(response.value) : response,
+          ),
+        ),
+      );
     },
-    setModel: (selection) => {
-      const parsedSelection = parseModelSelection(selection);
-      if (!parsedSelection.ok) return Promise.resolve(parsedSelection);
+  );
 
-      return withClient(async (client) => {
-        const response = responseData(
-          await client.request(
+  const setModel = Effect.fn('PrimeAgentDaemon.setModel')(
+    (selection: unknown) => {
+      const parsedSelection = parseModelSelection(selection);
+      if (!parsedSelection.ok) return Effect.succeed(parsedSelection);
+
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          client.request(
             {
               type: 'set_model',
               activeSessionId: parsedSelection.value.activeSessionId,
@@ -139,34 +174,48 @@ export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
             },
             requestTimeoutMs,
           ),
-        );
-        return response.ok ? parseModelData(response.value) : response;
-      });
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok ? parseModelData(response.value) : response,
+          ),
+        ),
+      );
     },
-    getRlmDepth: (activeSessionId) => {
-      const parsedSessionId = parseActiveSessionId(activeSessionId);
-      if (!parsedSessionId.ok) return Promise.resolve(parsedSessionId);
+  );
 
-      return withClient(async (client) => {
-        const response = responseData(
-          await client.request(
+  const getRlmDepth = Effect.fn('PrimeAgentDaemon.getRlmDepth')(
+    (activeSessionId: unknown) => {
+      const parsedSessionId = parseActiveSessionId(activeSessionId);
+      if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
+
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          client.request(
             {
               type: 'get_rlm_max_depth_status',
               activeSessionId: parsedSessionId.value,
             },
             requestTimeoutMs,
           ),
-        );
-        return response.ok ? parseRlmDepthData(response.value) : response;
-      });
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok ? parseRlmDepthData(response.value) : response,
+          ),
+        ),
+      );
     },
-    setRlmDepth: (selection) => {
-      const parsedSelection = parseRlmDepthSelection(selection);
-      if (!parsedSelection.ok) return Promise.resolve(parsedSelection);
+  );
 
-      return withClient(async (client) => {
-        const response = responseData(
-          await client.request(
+  const setRlmDepth = Effect.fn('PrimeAgentDaemon.setRlmDepth')(
+    (selection: unknown) => {
+      const parsedSelection = parseRlmDepthSelection(selection);
+      if (!parsedSelection.ok) return Effect.succeed(parsedSelection);
+
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          client.request(
             {
               type: 'set_rlm_max_depth',
               activeSessionId: parsedSelection.value.activeSessionId,
@@ -174,9 +223,21 @@ export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
             },
             requestTimeoutMs,
           ),
-        );
-        return response.ok ? parseRlmDepthData(response.value) : response;
-      });
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok ? parseRlmDepthData(response.value) : response,
+          ),
+        ),
+      );
     },
+  );
+
+  return {
+    listWorkspace,
+    listModels,
+    setModel,
+    getRlmDepth,
+    setRlmDepth,
   };
 }

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
+import { Effect } from 'effect';
 
 import {
   parsePrimeAgentGitBranchesResult,
@@ -28,15 +29,16 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-async function createGitRepository(cwd: string): Promise<void> {
-  await execFileAsync(
-    'git',
-    ['init', '--initial-branch', 'feature/local', cwd],
-    { encoding: 'utf8' },
+function runGit(args: readonly string[]) {
+  return Effect.tryPromise(() =>
+    execFileAsync('git', [...args], { encoding: 'utf8' }),
   );
-  await execFileAsync(
-    'git',
-    [
+}
+
+const createGitRepository = Effect.fn('Test.createGitRepository')(
+  function* (cwd: string) {
+    yield* runGit(['init', '--initial-branch', 'feature/local', cwd]);
+    yield* runGit([
       '-C',
       cwd,
       '-c',
@@ -47,9 +49,31 @@ async function createGitRepository(cwd: string): Promise<void> {
       '--allow-empty',
       '-m',
       'Initial commit',
-    ],
-    { encoding: 'utf8' },
+    ]);
+  },
+);
+
+function testInTempDirectory(
+  name: string,
+  prefix: string,
+  use: (cwd: string) => Effect.Effect<void, unknown>,
+): void {
+  test(name, () =>
+    Effect.runPromise(
+      Effect.acquireUseRelease(
+        Effect.tryPromise(() => mkdtemp(join(tmpdir(), prefix))),
+        use,
+        (cwd) =>
+          Effect.tryPromise(() => rm(cwd, { force: true, recursive: true })).pipe(
+            Effect.orDie,
+          ),
+      ),
+    ),
   );
+}
+
+function testEffect(name: string, effect: Effect.Effect<void, unknown>): void {
+  test(name, () => Effect.runPromise(effect));
 }
 
 test('keeps only connected top-level daemon sessions', () => {
@@ -221,268 +245,255 @@ test('rejects inconsistent local Git branches after IPC', () => {
   });
 });
 
-test('reads local branches through the Git process', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await Promise.all(
-    ['feature/second', 'main', 'staging'].map((name) =>
-      execFileAsync('git', ['-C', cwd, 'branch', name], {
-        encoding: 'utf8',
-      }),
-    ),
-  );
+testInTempDirectory(
+  'reads local branches through the Git process',
+  'ernie-git-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* Effect.all(
+        ['feature/second', 'main', 'staging'].map((name) =>
+          runGit(['-C', cwd, 'branch', name]),
+        ),
+        { concurrency: 'unbounded', discard: true },
+      );
 
-  const result = await readLocalGitBranches(cwd);
+      const result = yield* readLocalGitBranches(cwd);
+      assert.deepEqual(result, {
+        ok: true,
+        value: {
+          cwd,
+          current: 'feature/local',
+          names: ['feature/local', 'feature/second', 'main', 'staging'],
+        },
+      });
+    }),
+);
 
-  assert.deepEqual(result, {
-    ok: true,
-    value: {
-      cwd,
-      current: 'feature/local',
-      names: ['feature/local', 'feature/second', 'main', 'staging'],
-    },
-  });
-});
+testInTempDirectory(
+  'initializes a local Git repository with main',
+  'ernie-git-init-',
+  (cwd) =>
+    Effect.gen(function* () {
+      const firstResult = yield* initializeLocalGitRepository(cwd);
+      const retryResult = yield* initializeLocalGitRepository(cwd);
+      const expected = {
+        ok: true,
+        value: { cwd, current: 'main', names: ['main'] },
+      };
+      assert.deepEqual(firstResult, expected);
+      assert.deepEqual(retryResult, expected);
+    }),
+);
 
-test('initializes a local Git repository with main', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-init-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
+testInTempDirectory(
+  'switches to an existing local Git branch',
+  'ernie-git-switch-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'feature/second']);
+      const result = yield* switchLocalGitBranch({
+        cwd,
+        name: 'feature/second',
+      });
+      assert.deepEqual(result, {
+        ok: true,
+        value: {
+          cwd,
+          current: 'feature/second',
+          names: ['feature/local', 'feature/second'],
+        },
+      });
+    }),
+);
 
-  const firstResult = await initializeLocalGitRepository(cwd);
-  const retryResult = await initializeLocalGitRepository(cwd);
+testInTempDirectory(
+  'rejects a local Git branch that does not exist',
+  'ernie-git-missing-branch-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      const result = yield* switchLocalGitBranch({ cwd, name: 'missing' });
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'invalid_request',
+          message: 'The selected local Git branch does not exist.',
+        },
+      });
+    }),
+);
 
-  const expected = {
-    ok: true,
-    value: {
-      cwd,
-      current: 'main',
-      names: ['main'],
-    },
-  };
-  assert.deepEqual(firstResult, expected);
-  assert.deepEqual(retryResult, expected);
-});
+testInTempDirectory(
+  'deletes an existing merged local Git branch',
+  'ernie-git-delete-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'feature/merged']);
+      const result = yield* deleteLocalGitBranch({
+        cwd,
+        name: 'feature/merged',
+      });
+      assert.deepEqual(result, {
+        ok: true,
+        value: { cwd, current: 'feature/local', names: ['feature/local'] },
+      });
+    }),
+);
 
-test('switches to an existing local Git branch', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-switch-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/second'], {
-    encoding: 'utf8',
-  });
+testInTempDirectory(
+  'protects the main local Git branch from deletion',
+  'ernie-git-protected-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'main']);
+      const result = yield* deleteLocalGitBranch({ cwd, name: 'main' });
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'invalid_request',
+          message: 'The selected local Git branch is protected.',
+        },
+      });
+    }),
+);
 
-  const result = await switchLocalGitBranch({
-    cwd,
-    name: 'feature/second',
-  });
+testInTempDirectory(
+  'keeps an unmerged local Git branch',
+  'ernie-git-unmerged-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'switch', '--create', 'feature/unmerged']);
+      yield* runGit([
+        '-C',
+        cwd,
+        '-c',
+        'user.name=Ernie Test',
+        '-c',
+        'user.email=ernie@example.invalid',
+        'commit',
+        '--allow-empty',
+        '-m',
+        'Unmerged commit',
+      ]);
+      yield* runGit(['-C', cwd, 'switch', 'feature/local']);
 
-  assert.deepEqual(result, {
-    ok: true,
-    value: {
-      cwd,
-      current: 'feature/second',
-      names: ['feature/local', 'feature/second'],
-    },
-  });
-});
+      const result = yield* deleteLocalGitBranch({
+        cwd,
+        name: 'feature/unmerged',
+      });
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'request_failed',
+          message: 'Git could not delete the local branch.',
+        },
+      });
+      const branchResult = yield* runGit([
+        '-C',
+        cwd,
+        'branch',
+        '--list',
+        'feature/unmerged',
+      ]);
+      assert.equal(branchResult.stdout.trim(), 'feature/unmerged');
+    }),
+);
 
-test('rejects a local Git branch that does not exist', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-missing-branch-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
+testInTempDirectory(
+  'renames the current local Git branch',
+  'ernie-git-rename-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      const result = yield* renameLocalGitBranch({
+        cwd,
+        currentName: 'feature/local',
+        newName: 'feature/renamed',
+      });
+      assert.deepEqual(result, {
+        ok: true,
+        value: {
+          cwd,
+          current: 'feature/renamed',
+          names: ['feature/renamed'],
+        },
+      });
+    }),
+);
 
-  const result = await switchLocalGitBranch({ cwd, name: 'missing' });
+testInTempDirectory(
+  'refuses to overwrite an existing local Git branch',
+  'ernie-git-rename-conflict-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'feature/existing']);
+      const result = yield* renameLocalGitBranch({
+        cwd,
+        currentName: 'feature/local',
+        newName: 'feature/existing',
+      });
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'invalid_request',
+          message: 'The new local Git branch already exists.',
+        },
+      });
+    }),
+);
 
-  assert.deepEqual(result, {
-    ok: false,
-    error: {
-      code: 'invalid_request',
-      message: 'The selected local Git branch does not exist.',
-    },
-  });
-});
+testInTempDirectory(
+  'protects the main local Git branch from renaming',
+  'ernie-git-rename-protected-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'main']);
+      const result = yield* renameLocalGitBranch({
+        cwd,
+        currentName: 'main',
+        newName: 'renamed-main',
+      });
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'invalid_request',
+          message: 'The selected local Git branch is protected.',
+        },
+      });
+    }),
+);
 
-test('deletes an existing merged local Git branch', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-delete-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/merged'], {
-    encoding: 'utf8',
-  });
+testInTempDirectory(
+  'returns no branch for a directory outside a Git repository',
+  'ernie-no-git-',
+  (cwd) =>
+    Effect.gen(function* () {
+      const result = yield* readLocalGitBranches(cwd);
+      assert.deepEqual(result, {
+        ok: true,
+        value: { cwd, current: null, names: [] },
+      });
+    }),
+);
 
-  const result = await deleteLocalGitBranch({
-    cwd,
-    name: 'feature/merged',
-  });
-
-  assert.deepEqual(result, {
-    ok: true,
-    value: {
-      cwd,
-      current: 'feature/local',
-      names: ['feature/local'],
-    },
-  });
-});
-
-test('protects the main local Git branch from deletion', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-protected-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await execFileAsync('git', ['-C', cwd, 'branch', 'main'], {
-    encoding: 'utf8',
-  });
-
-  const result = await deleteLocalGitBranch({ cwd, name: 'main' });
-
-  assert.deepEqual(result, {
-    ok: false,
-    error: {
-      code: 'invalid_request',
-      message: 'The selected local Git branch is protected.',
-    },
-  });
-});
-
-test('keeps an unmerged local Git branch', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-unmerged-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await execFileAsync(
-    'git',
-    ['-C', cwd, 'switch', '--create', 'feature/unmerged'],
-    { encoding: 'utf8' },
-  );
-  await execFileAsync(
-    'git',
-    [
-      '-C',
-      cwd,
-      '-c',
-      'user.name=Ernie Test',
-      '-c',
-      'user.email=ernie@example.invalid',
-      'commit',
-      '--allow-empty',
-      '-m',
-      'Unmerged commit',
-    ],
-    { encoding: 'utf8' },
-  );
-  await execFileAsync('git', ['-C', cwd, 'switch', 'feature/local'], {
-    encoding: 'utf8',
-  });
-
-  const result = await deleteLocalGitBranch({
-    cwd,
-    name: 'feature/unmerged',
-  });
-
-  assert.deepEqual(result, {
-    ok: false,
-    error: {
-      code: 'request_failed',
-      message: 'Git could not delete the local branch.',
-    },
-  });
-  const branchResult = await execFileAsync(
-    'git',
-    ['-C', cwd, 'branch', '--list', 'feature/unmerged'],
-    { encoding: 'utf8' },
-  );
-  assert.equal(branchResult.stdout.trim(), 'feature/unmerged');
-});
-
-test('renames the current local Git branch', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-rename-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-
-  const result = await renameLocalGitBranch({
-    cwd,
-    currentName: 'feature/local',
-    newName: 'feature/renamed',
-  });
-
-  assert.deepEqual(result, {
-    ok: true,
-    value: {
-      cwd,
-      current: 'feature/renamed',
-      names: ['feature/renamed'],
-    },
-  });
-});
-
-test('refuses to overwrite an existing local Git branch', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-rename-conflict-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/existing'], {
-    encoding: 'utf8',
-  });
-
-  const result = await renameLocalGitBranch({
-    cwd,
-    currentName: 'feature/local',
-    newName: 'feature/existing',
-  });
-
-  assert.deepEqual(result, {
-    ok: false,
-    error: {
-      code: 'invalid_request',
-      message: 'The new local Git branch already exists.',
-    },
-  });
-});
-
-test('protects the main local Git branch from renaming', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-rename-protected-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-  await createGitRepository(cwd);
-  await execFileAsync('git', ['-C', cwd, 'branch', 'main'], {
-    encoding: 'utf8',
-  });
-
-  const result = await renameLocalGitBranch({
-    cwd,
-    currentName: 'main',
-    newName: 'renamed-main',
-  });
-
-  assert.deepEqual(result, {
-    ok: false,
-    error: {
-      code: 'invalid_request',
-      message: 'The selected local Git branch is protected.',
-    },
-  });
-});
-
-test('returns no branch for a directory outside a Git repository', async (context) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'ernie-no-git-'));
-  context.after(() => rm(cwd, { force: true, recursive: true }));
-
-  const result = await readLocalGitBranches(cwd);
-
-  assert.deepEqual(result, {
-    ok: true,
-    value: { cwd, current: null, names: [] },
-  });
-});
-
-test('rejects a missing workspace path before starting Git', async () => {
-  const cwd = join(tmpdir(), 'ernie-missing-workspace');
-
-  const result = await readLocalGitBranches(cwd);
-
-  assert.deepEqual(result, {
-    ok: false,
-    error: {
-      code: 'invalid_request',
-      message: 'The workspace path is invalid.',
-    },
-  });
-});
+testEffect(
+  'rejects a missing workspace path before starting Git',
+  Effect.gen(function* () {
+    const cwd = join(tmpdir(), 'ernie-missing-workspace');
+    const result = yield* readLocalGitBranches(cwd);
+    assert.deepEqual(result, {
+      ok: false,
+      error: {
+        code: 'invalid_request',
+        message: 'The workspace path is invalid.',
+      },
+    });
+  }),
+);

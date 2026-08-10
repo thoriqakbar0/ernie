@@ -24,37 +24,37 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
     ipcRenderer.send(rendererReadyChannel);
   },
-  async listPrimeAgentWorkspace(): Promise<unknown> {
+  listPrimeAgentWorkspace() {
     return ipcRenderer.invoke(primeAgentWorkspaceChannel);
   },
-  async listPrimeAgentModels(activeSessionId): Promise<unknown> {
+  listPrimeAgentModels(activeSessionId) {
     return ipcRenderer.invoke(primeAgentModelsChannel, activeSessionId);
   },
-  async setPrimeAgentModel(selection): Promise<unknown> {
+  setPrimeAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);
   },
-  async getPrimeAgentRlmDepth(activeSessionId): Promise<unknown> {
+  getPrimeAgentRlmDepth(activeSessionId) {
     return ipcRenderer.invoke(primeAgentRlmDepthChannel, activeSessionId);
   },
-  async setPrimeAgentRlmDepth(selection): Promise<unknown> {
+  setPrimeAgentRlmDepth(selection) {
     return ipcRenderer.invoke(primeAgentSetRlmDepthChannel, selection);
   },
-  async listPrimeAgentGitBranches(cwd): Promise<unknown> {
+  listPrimeAgentGitBranches(cwd) {
     return ipcRenderer.invoke(primeAgentGitBranchesChannel, cwd);
   },
-  async switchPrimeAgentGitBranch(selection): Promise<unknown> {
+  switchPrimeAgentGitBranch(selection) {
     return ipcRenderer.invoke(primeAgentSwitchGitBranchChannel, selection);
   },
-  async deletePrimeAgentGitBranch(selection): Promise<unknown> {
+  deletePrimeAgentGitBranch(selection) {
     return ipcRenderer.invoke(primeAgentDeleteGitBranchChannel, selection);
   },
-  async renamePrimeAgentGitBranch(rename): Promise<unknown> {
+  renamePrimeAgentGitBranch(rename) {
     return ipcRenderer.invoke(primeAgentRenameGitBranchChannel, rename);
   },
-  async initializePrimeAgentGit(cwd): Promise<unknown> {
+  initializePrimeAgentGit(cwd) {
     return ipcRenderer.invoke(primeAgentInitializeGitChannel, cwd);
   },
-  async chooseWorkspaceDirectory(): Promise<unknown> {
+  chooseWorkspaceDirectory() {
     return ipcRenderer.invoke(chooseWorkspaceDirectoryChannel);
   },
 });

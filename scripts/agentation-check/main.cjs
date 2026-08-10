@@ -1,7 +1,7 @@
-const { once } = require('node:events');
 const path = require('node:path');
 
 const { app, BrowserWindow, ipcMain } = require('electron');
+const { Effect, Fiber } = require('effect');
 const {
   primeAgentModelsChannel,
   primeAgentRlmDepthChannel,
@@ -20,7 +20,7 @@ const workspaceSearchSelector =
 const newDirectorySelector = 'button[aria-label="New directory"]';
 
 function waitForRendererReady(window, startedAt) {
-  return new Promise((resolve, reject) => {
+  return Effect.async((resume) => {
     const cleanup = () => {
       clearTimeout(timeoutId);
       ipcMain.off(rendererReadyChannel, onReady);
@@ -30,26 +30,43 @@ function waitForRendererReady(window, startedAt) {
     const onReady = (event) => {
       if (event.sender !== window.webContents) return;
       cleanup();
-      resolve(Math.round(performance.now() - startedAt));
+      resume(Effect.succeed(Math.round(performance.now() - startedAt)));
     };
 
     const onClosed = () => {
       cleanup();
-      reject(new Error('Window closed before renderer readiness.'));
+      resume(Effect.fail(new Error('Window closed before renderer readiness.')));
     };
 
     const timeoutId = setTimeout(() => {
       cleanup();
-      reject(new Error('Renderer readiness timed out.'));
+      resume(Effect.fail(new Error('Renderer readiness timed out.')));
     }, rendererReadyTimeoutMs);
 
     ipcMain.on(rendererReadyChannel, onReady);
     window.once('closed', onClosed);
+
+    return Effect.sync(cleanup);
   });
 }
 
-async function checkAgentation() {
-  await app.whenReady();
+function waitForEvent(emitter, eventName) {
+  return Effect.async((resume) => {
+    const onEvent = (...args) => {
+      emitter.off(eventName, onEvent);
+      resume(Effect.succeed(args));
+    };
+    emitter.once(eventName, onEvent);
+    return Effect.sync(() => emitter.off(eventName, onEvent));
+  });
+}
+
+function executeJavaScript(window, source) {
+  return Effect.tryPromise(() => window.webContents.executeJavaScript(source));
+}
+
+const checkAgentation = Effect.fn('Agentation.check')(function* () {
+  yield* Effect.tryPromise(() => app.whenReady());
 
   ipcMain.handle(primeAgentWorkspaceChannel, () => ({
     ok: true,
@@ -78,47 +95,57 @@ async function checkAgentation() {
       sandbox: true,
     },
   });
-  try {
+  return yield* Effect.gen(function* () {
     const startedAt = performance.now();
     const rendererReady = waitForRendererReady(window, startedAt);
-    const readyToShow = once(window, 'ready-to-show');
-    await window.loadFile(path.resolve('.build/renderer/index.html'));
+    const readyToShow = waitForEvent(window, 'ready-to-show');
+    const rendererReadyFiber = yield* Effect.fork(rendererReady);
+    const readyToShowFiber = yield* Effect.fork(readyToShow);
+    yield* Effect.tryPromise(() =>
+      window.loadFile(path.resolve('.build/renderer/index.html')),
+    );
     const loadMs = Math.round(performance.now() - startedAt);
-    const readyMs = await rendererReady;
-    await readyToShow;
+    const [readyMs] = yield* Effect.all([
+      Fiber.join(rendererReadyFiber),
+      Fiber.join(readyToShowFiber),
+    ]);
     const revealReadyMs = Math.round(performance.now() - startedAt);
 
-    const reloadButtonExists = await window.webContents.executeJavaScript(`(() => {
+    const reloadButtonExists = yield* executeJavaScript(window, `(() => {
       const reloadButton = document.querySelector(${JSON.stringify(reloadButtonSelector)});
       return reloadButton instanceof HTMLButtonElement;
     })()`);
 
     if (!reloadButtonExists) {
       process.stdout.write(`${JSON.stringify({ reloadButtonExists })}\n`);
-      app.exit(1);
-      return;
+      return 1;
     }
 
     const reloadStartedAt = performance.now();
-    const reloaded = once(window.webContents, 'did-finish-load');
+    const reloaded = waitForEvent(window.webContents, 'did-finish-load');
     const reloadReady = waitForRendererReady(window, reloadStartedAt);
-    await window.webContents.executeJavaScript(`(() => {
+    const reloadedFiber = yield* Effect.fork(reloaded);
+    const reloadReadyFiber = yield* Effect.fork(reloadReady);
+    yield* executeJavaScript(window, `(() => {
       const reloadButton = document.querySelector(${JSON.stringify(reloadButtonSelector)});
       if (!(reloadButton instanceof HTMLButtonElement)) return false;
       reloadButton.click();
       return true;
     })()`);
-    const [, reloadReadyMs] = await Promise.all([reloaded, reloadReady]);
+    const [, reloadReadyMs] = yield* Effect.all([
+      Fiber.join(reloadedFiber),
+      Fiber.join(reloadReadyFiber),
+    ]);
     const reloadMs = Math.round(performance.now() - reloadStartedAt);
 
-    const workspacePickerOpened = await window.webContents.executeJavaScript(`(() => {
+    const workspacePickerOpened = yield* executeJavaScript(window, `(() => {
       const trigger = document.querySelector(${JSON.stringify(workspaceFolderTriggerSelector)});
       if (!(trigger instanceof HTMLButtonElement)) return false;
       trigger.click();
       return true;
     })()`);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const workspacePicker = await window.webContents.executeJavaScript(`(() => {
+    yield* Effect.sleep(50);
+    const workspacePicker = yield* executeJavaScript(window, `(() => {
       const search = document.querySelector(${JSON.stringify(workspaceSearchSelector)});
       const list = document.querySelector('[role="listbox"]');
       const newDirectory = document.querySelector(${JSON.stringify(newDirectorySelector)});
@@ -151,11 +178,10 @@ async function checkAgentation() {
       process.stdout.write(
         `${JSON.stringify({ workspacePickerOpened, ...workspacePicker })}\n`,
       );
-      app.exit(1);
-      return;
+      return 1;
     }
 
-    const sidebarBeforeResize = await window.webContents.executeJavaScript(`(() => {
+    const sidebarBeforeResize = yield* executeJavaScript(window, `(() => {
       const rail = document.querySelector(${JSON.stringify(sidebarRailSelector)});
       const sidebar = document.querySelector('[data-slot="sidebar"]');
       const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]');
@@ -176,8 +202,7 @@ async function checkAgentation() {
 
     if (sidebarBeforeResize === null) {
       process.stdout.write(`${JSON.stringify({ sidebarResizable: false })}\n`);
-      app.exit(1);
-      return;
+      return 1;
     }
 
     window.webContents.focus();
@@ -206,9 +231,9 @@ async function checkAgentation() {
       button: 'left',
       clickCount: 1,
     });
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    yield* Effect.sleep(100);
 
-    const sidebarAfterResize = await window.webContents.executeJavaScript(`(() => {
+    const sidebarAfterResize = yield* executeJavaScript(window, `(() => {
       const sidebar = document.querySelector('[data-slot="sidebar"]');
       const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]');
       if (!(wrapper instanceof HTMLElement)) return null;
@@ -224,7 +249,7 @@ async function checkAgentation() {
       sidebarAfterResize.state === 'expanded' &&
       sidebarAfterResize.width >= sidebarBeforeResize.width + 40;
 
-    const state = await window.webContents.executeJavaScript(`(() => {
+    const state = yield* executeJavaScript(window, `(() => {
       const toolbar = document.querySelector('[data-agentation-toolbar]');
       if (!(toolbar instanceof HTMLElement)) {
         return { toolbarExists: false, toolbarVisible: false };
@@ -262,15 +287,20 @@ async function checkAgentation() {
         workspacePickerReady,
       })}\n`,
     );
-    app.exit(
-      state.toolbarVisible && sidebarResizable && workspacePickerReady ? 0 : 1,
-    );
-  } finally {
-    window.destroy();
-  }
-}
-
-checkAgentation().catch((error) => {
-  process.stderr.write(`${String(error)}\n`);
-  app.exit(2);
+    return state.toolbarVisible && sidebarResizable && workspacePickerReady
+      ? 0
+      : 1;
+  }).pipe(Effect.ensuring(Effect.sync(() => window.destroy())));
 });
+
+Effect.runFork(
+  checkAgentation().pipe(
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        process.stderr.write(`${String(error)}\n`);
+        return 2;
+      }),
+    ),
+    Effect.tap((exitCode) => Effect.sync(() => app.exit(exitCode))),
+  ),
+);

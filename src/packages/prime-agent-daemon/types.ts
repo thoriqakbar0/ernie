@@ -88,17 +88,20 @@ export interface PrimeAgentRlmDepthSelection {
 
 /** The daemon operations owned by Ernie's Electron main process. */
 export interface PrimeAgentDaemon {
-  readonly listWorkspace: () => Promise<PrimeAgentResult<PrimeAgentWorkspace>>;
+  readonly listWorkspace: () => Effect.Effect<
+    PrimeAgentResult<PrimeAgentWorkspace>
+  >;
   readonly listModels: (
     activeSessionId: unknown,
-  ) => Promise<PrimeAgentResult<readonly PrimeAgentModel[]>>;
+  ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentModel[]>>;
   readonly setModel: (
     selection: unknown,
-  ) => Promise<PrimeAgentResult<PrimeAgentModel>>;
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentModel>>;
   readonly getRlmDepth: (
     activeSessionId: unknown,
-  ) => Promise<PrimeAgentResult<PrimeAgentRlmDepth>>;
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentRlmDepth>>;
   readonly setRlmDepth: (
     selection: unknown,
-  ) => Promise<PrimeAgentResult<PrimeAgentRlmDepth>>;
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentRlmDepth>>;
 }
+import type { Effect } from 'effect';

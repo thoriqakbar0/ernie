@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import type { IpcMainEvent, OpenDialogOptions } from 'electron';
+import { Effect } from 'effect';
 
 import {
   deleteLocalGitBranch,
@@ -74,67 +75,91 @@ function readDevelopmentRendererUrl(): URL | null {
 function registerPrimeAgentHandlers(): void {
   const daemon = createPrimeAgentDaemon(process.cwd());
 
-  ipcMain.handle(primeAgentWorkspaceChannel, () => daemon.listWorkspace());
+  ipcMain.handle(primeAgentWorkspaceChannel, () =>
+    Effect.runPromise(daemon.listWorkspace()),
+  );
   ipcMain.handle(
     primeAgentModelsChannel,
-    (_event, activeSessionId: unknown) => daemon.listModels(activeSessionId),
+    (_event, activeSessionId: unknown) =>
+      Effect.runPromise(daemon.listModels(activeSessionId)),
   );
   ipcMain.handle(primeAgentSetModelChannel, (_event, selection: unknown) =>
-    daemon.setModel(selection),
+    Effect.runPromise(daemon.setModel(selection)),
   );
   ipcMain.handle(
     primeAgentRlmDepthChannel,
-    (_event, activeSessionId: unknown) => daemon.getRlmDepth(activeSessionId),
+    (_event, activeSessionId: unknown) =>
+      Effect.runPromise(daemon.getRlmDepth(activeSessionId)),
   );
   ipcMain.handle(primeAgentSetRlmDepthChannel, (_event, selection: unknown) =>
-    daemon.setRlmDepth(selection),
+    Effect.runPromise(daemon.setRlmDepth(selection)),
   );
   ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: unknown) =>
-    readLocalGitBranches(cwd),
+    Effect.runPromise(readLocalGitBranches(cwd)),
   );
   ipcMain.handle(
     primeAgentSwitchGitBranchChannel,
-    (_event, selection: unknown) => switchLocalGitBranch(selection),
+    (_event, selection: unknown) =>
+      Effect.runPromise(switchLocalGitBranch(selection)),
   );
   ipcMain.handle(
     primeAgentDeleteGitBranchChannel,
-    (_event, selection: unknown) => deleteLocalGitBranch(selection),
+    (_event, selection: unknown) =>
+      Effect.runPromise(deleteLocalGitBranch(selection)),
   );
   ipcMain.handle(
     primeAgentRenameGitBranchChannel,
-    (_event, rename: unknown) => renameLocalGitBranch(rename),
+    (_event, rename: unknown) =>
+      Effect.runPromise(renameLocalGitBranch(rename)),
   );
   ipcMain.handle(primeAgentInitializeGitChannel, (_event, cwd: unknown) =>
-    initializeLocalGitRepository(cwd),
+    Effect.runPromise(initializeLocalGitRepository(cwd)),
   );
-  ipcMain.handle(chooseWorkspaceDirectoryChannel, async () => {
+  ipcMain.handle(chooseWorkspaceDirectoryChannel, () => {
     const options: OpenDialogOptions = {
       buttonLabel: 'Choose',
       properties: ['openDirectory', 'createDirectory'],
       title: 'Choose workspace directory',
     };
-    const result =
-      mainWindow === null
-        ? await dialog.showOpenDialog(options)
-        : await dialog.showOpenDialog(mainWindow, options);
-    return result.canceled ? null : (result.filePaths[0] ?? null);
+    return Effect.runPromise(
+      Effect.tryPromise(() =>
+        mainWindow === null
+          ? dialog.showOpenDialog(options)
+          : dialog.showOpenDialog(mainWindow, options),
+      ).pipe(
+        Effect.map((result) =>
+          result.canceled ? null : (result.filePaths[0] ?? null),
+        ),
+      ),
+    );
   });
 }
 
-function waitForRendererReady(window: BrowserWindow): Promise<void> {
-  return new Promise((resolve, reject) => {
+function waitForRendererReady(
+  window: BrowserWindow,
+): Effect.Effect<void, RendererReadyTimeoutError | WindowClosedBeforeReadyError> {
+  return Effect.async((resume) => {
     let settled = false;
 
-    const finish = (complete: () => void): void => {
+    const cleanup = (): void => {
+      clearTimeout(timeoutId);
+      ipcMain.off(rendererReadyChannel, onRendererReady);
+      window.off('closed', onWindowClosed);
+    };
+
+    const finish = (
+      result: Effect.Effect<
+        void,
+        RendererReadyTimeoutError | WindowClosedBeforeReadyError
+      >,
+    ): void => {
       if (settled) {
         return;
       }
 
       settled = true;
-      clearTimeout(timeoutId);
-      ipcMain.off(rendererReadyChannel, onRendererReady);
-      window.off('closed', onWindowClosed);
-      complete();
+      cleanup();
+      resume(result);
     };
 
     const onRendererReady = (event: IpcMainEvent): void => {
@@ -142,24 +167,28 @@ function waitForRendererReady(window: BrowserWindow): Promise<void> {
         return;
       }
 
-      finish(resolve);
+      finish(Effect.void);
     };
 
     const onWindowClosed = (): void => {
-      finish(() => reject(new WindowClosedBeforeReadyError()));
+      finish(Effect.fail(new WindowClosedBeforeReadyError()));
     };
 
     const timeoutId = setTimeout(() => {
-      finish(() => reject(new RendererReadyTimeoutError()));
+      finish(Effect.fail(new RendererReadyTimeoutError()));
     }, rendererReadyTimeoutMs);
 
     ipcMain.on(rendererReadyChannel, onRendererReady);
     window.once('closed', onWindowClosed);
+
+    return Effect.sync(cleanup);
   });
 }
 
-function waitForReadyToShow(window: BrowserWindow): Promise<void> {
-  return new Promise((resolve, reject) => {
+function waitForReadyToShow(
+  window: BrowserWindow,
+): Effect.Effect<void, WindowClosedBeforeReadyError> {
+  return Effect.async((resume) => {
     const cleanup = (): void => {
       window.off('ready-to-show', onReadyToShow);
       window.off('closed', onWindowClosed);
@@ -167,20 +196,22 @@ function waitForReadyToShow(window: BrowserWindow): Promise<void> {
 
     const onReadyToShow = (): void => {
       cleanup();
-      resolve();
+      resume(Effect.void);
     };
 
     const onWindowClosed = (): void => {
       cleanup();
-      reject(new WindowClosedBeforeReadyError());
+      resume(Effect.fail(new WindowClosedBeforeReadyError()));
     };
 
     window.once('ready-to-show', onReadyToShow);
     window.once('closed', onWindowClosed);
+
+    return Effect.sync(cleanup);
   });
 }
 
-async function createWindow(): Promise<BrowserWindow> {
+const createWindow = Effect.fn('Ernie.createWindow')(function* () {
   const developmentRendererUrl = readDevelopmentRendererUrl();
   const iconPath = path.join(__dirname, '../renderer/ernie-logo.png');
   const window = new BrowserWindow({
@@ -210,44 +241,51 @@ async function createWindow(): Promise<BrowserWindow> {
   const readyToShow = waitForReadyToShow(window);
   const rendererReady = waitForRendererReady(window);
 
-  try {
-    await Promise.all([
-      developmentRendererUrl === null
-        ? window.loadFile(path.join(__dirname, '../renderer/index.html'))
-        : window.loadURL(developmentRendererUrl.href),
-      readyToShow,
-      rendererReady,
-    ]);
-  } catch (error) {
-    if (!window.isDestroyed()) {
-      window.destroy();
-    }
+  const loadRenderer = Effect.tryPromise(() =>
+    developmentRendererUrl === null
+      ? window.loadFile(path.join(__dirname, '../renderer/index.html'))
+      : window.loadURL(developmentRendererUrl.href),
+  );
 
-    throw error;
-  }
+  yield* Effect.all([loadRenderer, readyToShow, rendererReady], {
+    concurrency: 'unbounded',
+    discard: true,
+  }).pipe(
+    Effect.onError(() =>
+      Effect.sync(() => {
+        if (!window.isDestroyed()) window.destroy();
+      }),
+    ),
+  );
 
   window.show();
   return window;
-}
+});
 
 function reportStartupFailure(error: unknown): void {
   console.error('Ernie could not open its main window.', error);
   app.quit();
 }
 
-async function startApplication(): Promise<void> {
-  await app.whenReady();
+const startApplication = Effect.fn('Ernie.startApplication')(function* () {
+  yield* Effect.tryPromise(() => app.whenReady());
   registerPrimeAgentHandlers();
 
   if (process.platform === 'darwin' && app.dock !== undefined) {
     app.dock.setIcon(path.join(__dirname, '../renderer/ernie-logo.png'));
   }
 
-  await createWindow();
+  yield* createWindow();
 
   app.on('activate', () => {
     if (mainWindow === null || mainWindow.isDestroyed()) {
-      void createWindow().catch(reportStartupFailure);
+      Effect.runFork(
+        createWindow().pipe(
+          Effect.catchAll((error) =>
+            Effect.sync(() => reportStartupFailure(error)),
+          ),
+        ),
+      );
       return;
     }
 
@@ -255,7 +293,7 @@ async function startApplication(): Promise<void> {
     mainWindow.show();
     mainWindow.focus();
   });
-}
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -263,4 +301,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-void startApplication().catch(reportStartupFailure);
+Effect.runFork(
+  startApplication().pipe(
+    Effect.catchAll((error) => Effect.sync(() => reportStartupFailure(error))),
+  ),
+);

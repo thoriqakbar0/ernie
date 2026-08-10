@@ -1,3 +1,4 @@
+import { Effect, Fiber } from 'effect';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -90,27 +91,28 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [status, setStatus] = useState('');
 
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
+    const loadWorkspace = Effect.fn('Workspace.load')(function* () {
+      yield* Effect.sync(() => setStatus('Connecting to Prime Agent…'));
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.listPrimeAgentWorkspace(),
+      );
+      if (!active) return;
 
-    async function loadWorkspace(): Promise<void> {
-      setStatus('Connecting to Prime Agent…');
-      try {
-        const rawResult = await window.ernie.listPrimeAgentWorkspace();
-        if (cancelled) return;
+      const result = parsePrimeAgentWorkspaceResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
 
-        const result = parsePrimeAgentWorkspaceResult(rawResult);
-        if (!result.ok) {
-          setStatus(result.error.message);
-          return;
-        }
-
+      const initialCwd = result.value.sessions.some(
+        (session) => session.cwd === result.value.currentCwd,
+      )
+        ? result.value.currentCwd
+        : (result.value.sessions[0]?.cwd ?? result.value.currentCwd);
+      const initialSession = newestSession(result.value.sessions, initialCwd);
+      yield* Effect.sync(() => {
         setWorkspace(result.value);
-        const initialCwd = result.value.sessions.some(
-          (session) => session.cwd === result.value.currentCwd,
-        )
-          ? result.value.currentCwd
-          : (result.value.sessions[0]?.cwd ?? result.value.currentCwd);
-        const initialSession = newestSession(result.value.sessions, initialCwd);
         setSelectedCwd(initialCwd);
         setSelectedSessionId(initialSession?.activeSessionId ?? null);
         setStatus(
@@ -118,16 +120,26 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             ? 'No connected agent in this workspace.'
             : 'Connected to Prime Agent.',
         );
-      } catch {
-        if (!cancelled) setStatus('The Prime Agent daemon is not available.');
-      } finally {
-        if (!cancelled) setLoadingWorkspace(false);
-      }
-    }
+      });
+    });
+    const fiber = Effect.runFork(
+      loadWorkspace().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() => {
+            if (active) setStatus('The Prime Agent daemon is not available.');
+          }),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (active) setLoadingWorkspace(false);
+          }),
+        ),
+      ),
+    );
 
-    void loadWorkspace();
     return () => {
-      cancelled = true;
+      active = false;
+      Effect.runFork(Fiber.interrupt(fiber));
     };
   }, []);
 
@@ -140,50 +152,66 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     }
 
     const cwd = selectedCwd;
-    let cancelled = false;
-
-    async function loadGitBranches(): Promise<void> {
-      setGitBranchBusy(true);
-      setStatus('Loading local Git branches…');
-      try {
-        const rawResult = await window.ernie.listPrimeAgentGitBranches(cwd);
-        if (cancelled) return;
+    let active = true;
+    const loadGitBranches = Effect.fn('Workspace.loadGitBranches')(
+      function* () {
+        yield* Effect.sync(() => {
+          setGitBranchBusy(true);
+          setStatus('Loading local Git branches…');
+        });
+        const rawResult = yield* Effect.tryPromise(() =>
+          window.ernie.listPrimeAgentGitBranches(cwd),
+        );
+        if (!active) return;
 
         const result = parsePrimeAgentGitBranchesResult(rawResult);
         if (!result.ok) {
-          setGitBranch(null);
-          setGitBranches([]);
-          setStatus(result.error.message);
+          yield* Effect.sync(() => {
+            setGitBranch(null);
+            setGitBranches([]);
+            setStatus(result.error.message);
+          });
           return;
         }
 
-        setGitBranch(result.value.current);
-        setGitBranches(result.value.names);
-        if (result.value.names.length === 0) {
-          setStatus('No local Git repository found.');
-        } else if (result.value.current === null) {
-          setStatus(
-            `Loaded ${result.value.names.length} local Git branches. No branch is active.`,
-          );
-        } else {
-          setStatus(
-            `Loaded ${result.value.names.length} local Git branches. Current branch is ${result.value.current}.`,
-          );
-        }
-      } catch {
-        if (!cancelled) {
-          setGitBranch(null);
-          setGitBranches([]);
-          setStatus('Ernie could not load local Git branches.');
-        }
-      } finally {
-        if (!cancelled) setGitBranchBusy(false);
-      }
-    }
+        yield* Effect.sync(() => {
+          setGitBranch(result.value.current);
+          setGitBranches(result.value.names);
+          if (result.value.names.length === 0) {
+            setStatus('No local Git repository found.');
+          } else if (result.value.current === null) {
+            setStatus(
+              `Loaded ${result.value.names.length} local Git branches. No branch is active.`,
+            );
+          } else {
+            setStatus(
+              `Loaded ${result.value.names.length} local Git branches. Current branch is ${result.value.current}.`,
+            );
+          }
+        });
+      },
+    );
+    const fiber = Effect.runFork(
+      loadGitBranches().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() => {
+            if (!active) return;
+            setGitBranch(null);
+            setGitBranches([]);
+            setStatus('Ernie could not load local Git branches.');
+          }),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (active) setGitBranchBusy(false);
+          }),
+        ),
+      ),
+    );
 
-    void loadGitBranches();
     return () => {
-      cancelled = true;
+      active = false;
+      Effect.runFork(Fiber.interrupt(fiber));
     };
   }, [selectedCwd]);
 
@@ -195,38 +223,55 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     }
 
     const activeSessionId = selectedSessionId;
-    let cancelled = false;
-
-    async function loadSessionControls(): Promise<void> {
-      setLoadingSession(true);
-      try {
-        const [rawModels, rawRlmDepth] = await Promise.all([
-          window.ernie.listPrimeAgentModels(activeSessionId),
-          window.ernie.getPrimeAgentRlmDepth(activeSessionId),
-        ]);
-        if (cancelled) return;
+    let active = true;
+    const loadSessionControls = Effect.fn('Workspace.loadSessionControls')(
+      function* () {
+        yield* Effect.sync(() => setLoadingSession(true));
+        const [rawModels, rawRlmDepth] = yield* Effect.all(
+          [
+            Effect.tryPromise(() =>
+              window.ernie.listPrimeAgentModels(activeSessionId),
+            ),
+            Effect.tryPromise(() =>
+              window.ernie.getPrimeAgentRlmDepth(activeSessionId),
+            ),
+          ],
+          { concurrency: 'unbounded' },
+        );
+        if (!active) return;
 
         const modelResult = parsePrimeAgentModelsResult(rawModels);
         const rlmDepthResult = parsePrimeAgentRlmDepthResult(rawRlmDepth);
-        setModels(modelResult.ok ? modelResult.value : []);
-        setRlmDepth(rlmDepthResult.ok ? rlmDepthResult.value.maxDepth : null);
-        if (!modelResult.ok) setStatus(modelResult.error.message);
-        else if (!rlmDepthResult.ok) setStatus(rlmDepthResult.error.message);
-        else setStatus('Connected to Prime Agent.');
-      } catch {
-        if (!cancelled) {
-          setModels([]);
-          setRlmDepth(null);
-          setStatus('The Prime Agent daemon is not available.');
-        }
-      } finally {
-        if (!cancelled) setLoadingSession(false);
-      }
-    }
+        yield* Effect.sync(() => {
+          setModels(modelResult.ok ? modelResult.value : []);
+          setRlmDepth(rlmDepthResult.ok ? rlmDepthResult.value.maxDepth : null);
+          if (!modelResult.ok) setStatus(modelResult.error.message);
+          else if (!rlmDepthResult.ok) setStatus(rlmDepthResult.error.message);
+          else setStatus('Connected to Prime Agent.');
+        });
+      },
+    );
+    const fiber = Effect.runFork(
+      loadSessionControls().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() => {
+            if (!active) return;
+            setModels([]);
+            setRlmDepth(null);
+            setStatus('The Prime Agent daemon is not available.');
+          }),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (active) setLoadingSession(false);
+          }),
+        ),
+      ),
+    );
 
-    void loadSessionControls();
     return () => {
-      cancelled = true;
+      active = false;
+      Effect.runFork(Fiber.interrupt(fiber));
     };
   }, [selectedSessionId]);
 
@@ -270,27 +315,33 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }
 
   function chooseWorkspaceDirectory(): void {
-    async function chooseDirectory(): Promise<void> {
-      setChoosingDirectory(true);
-      setStatus('Choosing a workspace directory…');
-      try {
-        const rawSelection = await window.ernie.chooseWorkspaceDirectory();
-        const selection = parseWorkspaceDirectorySelection(rawSelection);
-        if (!selection.ok) {
-          setStatus('Ernie received an invalid directory selection.');
-          return;
-        }
-        if (selection.value === null) {
-          setStatus('Directory selection canceled.');
-          return;
-        }
+    const chooseDirectory = Effect.fn('Workspace.chooseDirectory')(function* () {
+      yield* Effect.sync(() => {
+        setChoosingDirectory(true);
+        setStatus('Choosing a workspace directory…');
+      });
+      const rawSelection = yield* Effect.tryPromise(() =>
+        window.ernie.chooseWorkspaceDirectory(),
+      );
+      const selection = parseWorkspaceDirectorySelection(rawSelection);
+      if (!selection.ok) {
+        yield* Effect.sync(() =>
+          setStatus('Ernie received an invalid directory selection.'),
+        );
+        return;
+      }
+      if (selection.value === null) {
+        yield* Effect.sync(() => setStatus('Directory selection canceled.'));
+        return;
+      }
 
-        const cwd = selection.value;
+      const cwd = selection.value;
+      const session =
+        workspace === null ? null : newestSession(workspace.sessions, cwd);
+      yield* Effect.sync(() => {
         setAddedCwds((current) =>
           current.includes(cwd) ? current : [...current, cwd],
         );
-        const session =
-          workspace === null ? null : newestSession(workspace.sessions, cwd);
         setSelectedCwd(cwd);
         setSelectedSessionId(session?.activeSessionId ?? null);
         setStatus(
@@ -298,14 +349,19 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             ? 'Workspace selected. No connected agent in this directory.'
             : 'Connected to Prime Agent.',
         );
-      } catch {
-        setStatus('Ernie could not open the directory picker.');
-      } finally {
-        setChoosingDirectory(false);
-      }
-    }
+      });
+    });
 
-    void chooseDirectory();
+    Effect.runFork(
+      chooseDirectory().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not open the directory picker.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setChoosingDirectory(false))),
+      ),
+    );
   }
 
   function changeModel(modelKey: string | null): void {
@@ -317,20 +373,22 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const provider = model.provider;
     const modelId = model.id;
 
-    async function updateModel(): Promise<void> {
-      setSavingModel(true);
-      try {
-        const rawResult = await window.ernie.setPrimeAgentModel({
+    const updateModel = Effect.fn('Workspace.updateModel')(function* () {
+      yield* Effect.sync(() => setSavingModel(true));
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.setPrimeAgentModel({
           activeSessionId,
           provider,
           modelId,
-        });
-        const result = parsePrimeAgentModelResult(rawResult);
-        if (!result.ok) {
-          setStatus(result.error.message);
-          return;
-        }
+        }),
+      );
+      const result = parsePrimeAgentModelResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
 
+      yield* Effect.sync(() => {
         setWorkspace((current) =>
           current === null
             ? null
@@ -344,14 +402,19 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
               },
         );
         setStatus(`Model changed to ${result.value.name}.`);
-      } catch {
-        setStatus('The Prime Agent daemon is not available.');
-      } finally {
-        setSavingModel(false);
-      }
-    }
+      });
+    });
 
-    void updateModel();
+    Effect.runFork(
+      updateModel().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('The Prime Agent daemon is not available.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setSavingModel(false))),
+      ),
+    );
   }
 
   function changeGitBranch(name: string | null): void {
@@ -359,122 +422,160 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const cwd = selectedCwd;
     const branchName = name;
 
-    async function switchGitBranch(): Promise<void> {
-      setGitBranchBusy(true);
-      setStatus(`Switching to local Git branch ${branchName}…`);
-      try {
-        const rawResult = await window.ernie.switchPrimeAgentGitBranch({
-          cwd,
-          name: branchName,
+    const switchGitBranch = Effect.fn('Workspace.switchGitBranch')(
+      function* () {
+        yield* Effect.sync(() => {
+          setGitBranchBusy(true);
+          setStatus(`Switching to local Git branch ${branchName}…`);
         });
+        const rawResult = yield* Effect.tryPromise(() =>
+          window.ernie.switchPrimeAgentGitBranch({
+            cwd,
+            name: branchName,
+          }),
+        );
         const result = parsePrimeAgentGitBranchesResult(rawResult);
         if (!result.ok) {
-          setStatus(result.error.message);
+          yield* Effect.sync(() => setStatus(result.error.message));
           return;
         }
 
-        setGitBranch(result.value.current);
-        setGitBranches(result.value.names);
-        setStatus(`Git branch changed to ${branchName}.`);
-      } catch {
-        setStatus('Ernie could not connect to local Git.');
-      } finally {
-        setGitBranchBusy(false);
-      }
-    }
+        yield* Effect.sync(() => {
+          setGitBranch(result.value.current);
+          setGitBranches(result.value.names);
+          setStatus(`Git branch changed to ${branchName}.`);
+        });
+      },
+    );
 
-    void switchGitBranch();
+    Effect.runFork(
+      switchGitBranch().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not connect to local Git.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
+      ),
+    );
   }
 
   function deleteGitBranch(name: string): void {
     if (selectedCwd === null || name === gitBranch) return;
     const cwd = selectedCwd;
 
-    async function deleteBranch(): Promise<void> {
-      setGitBranchBusy(true);
-      setStatus(`Deleting local Git branch ${name}…`);
-      try {
-        const rawResult = await window.ernie.deletePrimeAgentGitBranch({
+    const deleteBranch = Effect.fn('Workspace.deleteGitBranch')(function* () {
+      yield* Effect.sync(() => {
+        setGitBranchBusy(true);
+        setStatus(`Deleting local Git branch ${name}…`);
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.deletePrimeAgentGitBranch({
           cwd,
           name,
-        });
-        const result = parsePrimeAgentGitBranchesResult(rawResult);
-        if (!result.ok) {
-          setStatus(result.error.message);
-          return;
-        }
+        }),
+      );
+      const result = parsePrimeAgentGitBranchesResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
 
+      yield* Effect.sync(() => {
         setGitBranch(result.value.current);
         setGitBranches(result.value.names);
         setStatus(`Deleted local Git branch ${name}.`);
-      } catch {
-        setStatus('Ernie could not connect to local Git.');
-      } finally {
-        setGitBranchBusy(false);
-      }
-    }
+      });
+    });
 
-    void deleteBranch();
+    Effect.runFork(
+      deleteBranch().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not connect to local Git.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
+      ),
+    );
   }
 
   function renameGitBranch(currentName: string, newName: string): void {
     if (selectedCwd === null || currentName === newName) return;
     const cwd = selectedCwd;
 
-    async function renameBranch(): Promise<void> {
-      setGitBranchBusy(true);
-      setStatus(`Renaming local Git branch ${currentName}…`);
-      try {
-        const rawResult = await window.ernie.renamePrimeAgentGitBranch({
+    const renameBranch = Effect.fn('Workspace.renameGitBranch')(function* () {
+      yield* Effect.sync(() => {
+        setGitBranchBusy(true);
+        setStatus(`Renaming local Git branch ${currentName}…`);
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.renamePrimeAgentGitBranch({
           cwd,
           currentName,
           newName,
-        });
-        const result = parsePrimeAgentGitBranchesResult(rawResult);
-        if (!result.ok) {
-          setStatus(result.error.message);
-          return;
-        }
+        }),
+      );
+      const result = parsePrimeAgentGitBranchesResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
 
+      yield* Effect.sync(() => {
         setGitBranch(result.value.current);
         setGitBranches(result.value.names);
         setStatus(`Renamed local Git branch to ${newName}.`);
-      } catch {
-        setStatus('Ernie could not connect to local Git.');
-      } finally {
-        setGitBranchBusy(false);
-      }
-    }
+      });
+    });
 
-    void renameBranch();
+    Effect.runFork(
+      renameBranch().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not connect to local Git.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
+      ),
+    );
   }
 
   function initializeGitRepository(): void {
     if (selectedCwd === null || gitBranches.length > 0) return;
     const cwd = selectedCwd;
 
-    async function initializeGit(): Promise<void> {
-      setGitBranchBusy(true);
-      setStatus('Initializing local Git repository with main…');
-      try {
-        const rawResult = await window.ernie.initializePrimeAgentGit(cwd);
-        const result = parsePrimeAgentGitBranchesResult(rawResult);
-        if (!result.ok) {
-          setStatus(result.error.message);
-          return;
-        }
+    const initializeGit = Effect.fn('Workspace.initializeGit')(function* () {
+      yield* Effect.sync(() => {
+        setGitBranchBusy(true);
+        setStatus('Initializing local Git repository with main…');
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.initializePrimeAgentGit(cwd),
+      );
+      const result = parsePrimeAgentGitBranchesResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
 
+      yield* Effect.sync(() => {
         setGitBranch(result.value.current);
         setGitBranches(result.value.names);
         setStatus('Initialized local Git repository with main.');
-      } catch {
-        setStatus('Ernie could not connect to local Git.');
-      } finally {
-        setGitBranchBusy(false);
-      }
-    }
+      });
+    });
 
-    void initializeGit();
+    Effect.runFork(
+      initializeGit().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not connect to local Git.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
+      ),
+    );
   }
 
   function changeRlmDepth(value: string | null): void {
@@ -483,30 +584,39 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) return;
     const activeSessionId = selectedSession.activeSessionId;
 
-    async function updateRlmDepth(): Promise<void> {
-      setSavingRlmDepth(true);
-      setStatus(`Changing RLM depth to ${maxDepth}…`);
-      try {
-        const rawResult = await window.ernie.setPrimeAgentRlmDepth({
+    const updateRlmDepth = Effect.fn('Workspace.updateRlmDepth')(function* () {
+      yield* Effect.sync(() => {
+        setSavingRlmDepth(true);
+        setStatus(`Changing RLM depth to ${maxDepth}…`);
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.setPrimeAgentRlmDepth({
           activeSessionId,
           maxDepth,
-        });
-        const result = parsePrimeAgentRlmDepthResult(rawResult);
-        if (!result.ok) {
-          setStatus(result.error.message);
-          return;
-        }
+        }),
+      );
+      const result = parsePrimeAgentRlmDepthResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
 
+      yield* Effect.sync(() => {
         setRlmDepth(result.value.maxDepth);
         setStatus(`RLM depth changed to ${result.value.maxDepth}.`);
-      } catch {
-        setStatus('The Prime Agent daemon is not available.');
-      } finally {
-        setSavingRlmDepth(false);
-      }
-    }
+      });
+    });
 
-    void updateRlmDepth();
+    Effect.runFork(
+      updateRlmDepth().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('The Prime Agent daemon is not available.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setSavingRlmDepth(false))),
+      ),
+    );
   }
 
   return {

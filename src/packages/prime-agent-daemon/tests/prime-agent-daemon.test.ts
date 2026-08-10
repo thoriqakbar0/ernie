@@ -20,6 +20,7 @@ import {
 } from '../server';
 import {
   deleteLocalGitBranch,
+  initializeLocalGitRepository,
   readLocalGitBranches,
   renameLocalGitBranch,
   switchLocalGitBranch,
@@ -242,6 +243,25 @@ test('reads local branches through the Git process', async (context) => {
       names: ['feature/local', 'feature/second', 'main', 'staging'],
     },
   });
+});
+
+test('initializes a local Git repository with main', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-init-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+
+  const firstResult = await initializeLocalGitRepository(cwd);
+  const retryResult = await initializeLocalGitRepository(cwd);
+
+  const expected = {
+    ok: true,
+    value: {
+      cwd,
+      current: 'main',
+      names: ['main'],
+    },
+  };
+  assert.deepEqual(firstResult, expected);
+  assert.deepEqual(retryResult, expected);
 });
 
 test('switches to an existing local Git branch', async (context) => {

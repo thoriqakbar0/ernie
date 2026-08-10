@@ -1,5 +1,6 @@
 export {
   deleteLocalGitBranch,
+  initializeLocalGitRepository,
   readLocalGitBranches,
   renameLocalGitBranch,
   switchLocalGitBranch,

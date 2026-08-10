@@ -27,6 +27,7 @@ type CurrentWorkspaceProps = Pick<
   | 'changeGitBranch'
   | 'deleteGitBranch'
   | 'renameGitBranch'
+  | 'initializeGitRepository'
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
@@ -43,6 +44,7 @@ export function CurrentWorkspace({
   changeGitBranch,
   deleteGitBranch,
   renameGitBranch,
+  initializeGitRepository,
 }: CurrentWorkspaceProps): React.JSX.Element {
   return (
     <section
@@ -85,6 +87,7 @@ export function CurrentWorkspace({
         changeBranch={changeGitBranch}
         deleteBranch={deleteGitBranch}
         renameBranch={renameGitBranch}
+        initializeGit={initializeGitRepository}
       />
 
       <Button

@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   GitBranchIcon,
+  GitBranchPlusIcon,
   PencilLineIcon,
   Trash2Icon,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ interface GitBranchDropdownProps {
   readonly changeBranch: (name: string) => void;
   readonly deleteBranch: (name: string) => void;
   readonly renameBranch: (currentName: string, newName: string) => void;
+  readonly initializeGit: () => void;
 }
 
 const popupClass =
@@ -30,6 +32,7 @@ export function GitBranchDropdown({
   changeBranch,
   deleteBranch,
   renameBranch,
+  initializeGit,
 }: GitBranchDropdownProps): React.JSX.Element {
   const renameableBranches = branches.filter(
     (name) => name !== 'main' && name !== 'staging',
@@ -55,11 +58,11 @@ export function GitBranchDropdown({
       <Menu.Trigger
         className="flex h-[30px] w-[106px] items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm text-muted-foreground outline-none select-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-pressed:bg-muted disabled:pointer-events-none disabled:opacity-50"
         aria-label="Git branch"
-        disabled={busy || branches.length === 0}
+        disabled={busy}
       >
         <GitBranchIcon className="size-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate text-left">
-          {currentBranch ?? 'No branch'}
+          {branches.length === 0 ? 'No Git' : (currentBranch ?? 'No branch')}
         </span>
         <ChevronDownIcon className="size-4 shrink-0" />
       </Menu.Trigger>
@@ -71,80 +74,93 @@ export function GitBranchDropdown({
           align="start"
         >
           <Menu.Popup className={popupClass}>
-            {branches.map((name) => (
-              <Menu.Item
-                key={name}
-                className={itemClass}
-                onClick={() => changeBranch(name)}
-              >
-                <span className="min-w-0 flex-1 truncate">{name}</span>
-                {name === currentBranch ? (
-                  <CheckIcon className="size-4 shrink-0" />
-                ) : null}
+            {branches.length === 0 ? (
+              <Menu.Item className={itemClass} onClick={initializeGit}>
+                <GitBranchPlusIcon className="size-4 shrink-0" />
+                <span>Initialize Git with main</span>
               </Menu.Item>
-            ))}
+            ) : (
+              <>
+                {branches.map((name) => (
+                  <Menu.Item
+                    key={name}
+                    className={itemClass}
+                    onClick={() => changeBranch(name)}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                    {name === currentBranch ? (
+                      <CheckIcon className="size-4 shrink-0" />
+                    ) : null}
+                  </Menu.Item>
+                ))}
 
-            <Menu.Separator className="-mx-1 my-1 h-px bg-border" />
-            <Menu.SubmenuRoot>
-              <Menu.SubmenuTrigger
-                className={itemClass}
-                disabled={renameableBranches.length === 0}
-              >
-                <PencilLineIcon className="size-4 shrink-0" />
-                <span className="flex-1">Rename branch</span>
-                <ChevronRightIcon className="size-4 shrink-0" />
-              </Menu.SubmenuTrigger>
-              <Menu.Portal>
-                <Menu.Positioner
-                  className="isolate z-50 outline-hidden"
-                  sideOffset={4}
-                  alignOffset={-4}
-                >
-                  <Menu.Popup className={popupClass}>
-                    {renameableBranches.map((name) => (
-                      <Menu.Item
-                        key={name}
-                        className={itemClass}
-                        onClick={() => requestRename(name)}
-                      >
-                        <PencilLineIcon className="size-4 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{name}</span>
-                      </Menu.Item>
-                    ))}
-                  </Menu.Popup>
-                </Menu.Positioner>
-              </Menu.Portal>
-            </Menu.SubmenuRoot>
-            <Menu.SubmenuRoot>
-              <Menu.SubmenuTrigger
-                className={`${itemClass} text-destructive data-highlighted:text-destructive`}
-                disabled={deletableBranches.length === 0}
-              >
-                <Trash2Icon className="size-4 shrink-0" />
-                <span className="flex-1">Delete branch</span>
-                <ChevronRightIcon className="size-4 shrink-0" />
-              </Menu.SubmenuTrigger>
-              <Menu.Portal>
-                <Menu.Positioner
-                  className="isolate z-50 outline-hidden"
-                  sideOffset={4}
-                  alignOffset={-4}
-                >
-                  <Menu.Popup className={popupClass}>
-                    {deletableBranches.map((name) => (
-                      <Menu.Item
-                        key={name}
-                        className={`${itemClass} text-destructive data-highlighted:text-destructive`}
-                        onClick={() => confirmDelete(name)}
-                      >
-                        <Trash2Icon className="size-4 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{name}</span>
-                      </Menu.Item>
-                    ))}
-                  </Menu.Popup>
-                </Menu.Positioner>
-              </Menu.Portal>
-            </Menu.SubmenuRoot>
+                <Menu.Separator className="-mx-1 my-1 h-px bg-border" />
+                <Menu.SubmenuRoot>
+                  <Menu.SubmenuTrigger
+                    className={itemClass}
+                    disabled={renameableBranches.length === 0}
+                  >
+                    <PencilLineIcon className="size-4 shrink-0" />
+                    <span className="flex-1">Rename branch</span>
+                    <ChevronRightIcon className="size-4 shrink-0" />
+                  </Menu.SubmenuTrigger>
+                  <Menu.Portal>
+                    <Menu.Positioner
+                      className="isolate z-50 outline-hidden"
+                      sideOffset={4}
+                      alignOffset={-4}
+                    >
+                      <Menu.Popup className={popupClass}>
+                        {renameableBranches.map((name) => (
+                          <Menu.Item
+                            key={name}
+                            className={itemClass}
+                            onClick={() => requestRename(name)}
+                          >
+                            <PencilLineIcon className="size-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">
+                              {name}
+                            </span>
+                          </Menu.Item>
+                        ))}
+                      </Menu.Popup>
+                    </Menu.Positioner>
+                  </Menu.Portal>
+                </Menu.SubmenuRoot>
+                <Menu.SubmenuRoot>
+                  <Menu.SubmenuTrigger
+                    className={`${itemClass} text-destructive data-highlighted:text-destructive`}
+                    disabled={deletableBranches.length === 0}
+                  >
+                    <Trash2Icon className="size-4 shrink-0" />
+                    <span className="flex-1">Delete branch</span>
+                    <ChevronRightIcon className="size-4 shrink-0" />
+                  </Menu.SubmenuTrigger>
+                  <Menu.Portal>
+                    <Menu.Positioner
+                      className="isolate z-50 outline-hidden"
+                      sideOffset={4}
+                      alignOffset={-4}
+                    >
+                      <Menu.Popup className={popupClass}>
+                        {deletableBranches.map((name) => (
+                          <Menu.Item
+                            key={name}
+                            className={`${itemClass} text-destructive data-highlighted:text-destructive`}
+                            onClick={() => confirmDelete(name)}
+                          >
+                            <Trash2Icon className="size-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">
+                              {name}
+                            </span>
+                          </Menu.Item>
+                        ))}
+                      </Menu.Popup>
+                    </Menu.Positioner>
+                  </Menu.Portal>
+                </Menu.SubmenuRoot>
+              </>
+            )}
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>

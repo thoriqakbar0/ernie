@@ -17,6 +17,7 @@ const primeAgentDeleteGitBranchChannel =
   'ernie:prime-agent:delete-git-branch';
 const primeAgentRenameGitBranchChannel =
   'ernie:prime-agent:rename-git-branch';
+const primeAgentInitializeGitChannel = 'ernie:prime-agent:initialize-git';
 
 const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
@@ -48,6 +49,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   async renamePrimeAgentGitBranch(rename): Promise<unknown> {
     return ipcRenderer.invoke(primeAgentRenameGitBranchChannel, rename);
+  },
+  async initializePrimeAgentGit(cwd): Promise<unknown> {
+    return ipcRenderer.invoke(primeAgentInitializeGitChannel, cwd);
   },
 });
 

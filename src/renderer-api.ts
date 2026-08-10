@@ -38,6 +38,10 @@ export const primeAgentDeleteGitBranchChannel =
 export const primeAgentRenameGitBranchChannel =
   'ernie:prime-agent:rename-git-branch';
 
+/** IPC channel that initializes one local Git repository with main. */
+export const primeAgentInitializeGitChannel =
+  'ernie:prime-agent:initialize-git';
+
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
@@ -58,6 +62,7 @@ export type ErnieRendererApi = Readonly<{
   renamePrimeAgentGitBranch: (
     rename: PrimeAgentGitBranchRename,
   ) => Promise<unknown>;
+  initializePrimeAgentGit: (cwd: string) => Promise<unknown>;
 }>;
 
 declare global {

@@ -5,6 +5,7 @@ import type { IpcMainEvent } from 'electron';
 
 import {
   deleteLocalGitBranch,
+  initializeLocalGitRepository,
   readLocalGitBranches,
   renameLocalGitBranch,
   switchLocalGitBranch,
@@ -12,6 +13,7 @@ import {
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
 import {
   primeAgentGitBranchesChannel,
+  primeAgentInitializeGitChannel,
   primeAgentDeleteGitBranchChannel,
   primeAgentModelsChannel,
   primeAgentRlmDepthChannel,
@@ -100,6 +102,9 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(
     primeAgentRenameGitBranchChannel,
     (_event, rename: unknown) => renameLocalGitBranch(rename),
+  );
+  ipcMain.handle(primeAgentInitializeGitChannel, (_event, cwd: unknown) =>
+    initializeLocalGitRepository(cwd),
   );
 }
 

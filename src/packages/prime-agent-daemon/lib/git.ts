@@ -112,6 +112,38 @@ export async function readLocalGitBranches(
   }
 }
 
+/** Initialize one workspace as a local Git repository with main as its first branch. */
+export async function initializeLocalGitRepository(
+  cwd: unknown,
+): Promise<PrimeAgentResult<PrimeAgentGitBranches>> {
+  const parsedCwd = await parseWorkspaceDirectory(cwd);
+  if (!parsedCwd.ok) return parsedCwd;
+
+  const branches = await readLocalGitBranches(parsedCwd.value);
+  if (!branches.ok) return branches;
+  if (branches.value.current !== null || branches.value.names.length > 0) {
+    return branches;
+  }
+
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', parsedCwd.value, 'init', '--initial-branch=main'],
+      { encoding: 'utf8', timeout: gitTimeoutMs },
+    );
+    return readLocalGitBranches(parsedCwd.value);
+  } catch (error) {
+    reportGitFailure(error);
+    return {
+      ok: false,
+      error: {
+        code: 'request_failed',
+        message: 'Git could not initialize the local repository.',
+      },
+    };
+  }
+}
+
 /** Switch one workspace to an existing local Git branch. */
 export async function switchLocalGitBranch(
   selection: unknown,

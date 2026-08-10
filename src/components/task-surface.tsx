@@ -50,7 +50,7 @@ export function TaskSurface(): React.JSX.Element {
             className="select-text px-4 pt-4 text-base"
             placeholder="Plan, Build, / for skills, @ for context"
           />
-          <InputGroupAddon align="block-end" className="px-4 pb-3.5">
+          <InputGroupAddon align="block-end" className="px-4 pb-[13px]">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <InputGroupButton
                 size="icon-sm"

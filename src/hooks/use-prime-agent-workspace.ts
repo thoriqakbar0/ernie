@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import {
   parsePrimeAgentGitBranchesResult,
+  parsePrimeAgentGitWorktreeResult,
 } from '@/packages/prime-agent-daemon/git-client';
 import {
   parsePrimeAgentModelResult,
@@ -27,6 +28,7 @@ export interface PrimeAgentWorkspaceController {
   readonly gitBranch: string | null;
   readonly gitBranchBusy: boolean;
   readonly gitBranches: readonly string[];
+  readonly gitWorktreeError: string | null;
   readonly loadingWorkspace: boolean;
   readonly models: readonly PrimeAgentModel[];
   readonly repoName: string;
@@ -40,6 +42,7 @@ export interface PrimeAgentWorkspaceController {
   readonly deleteGitBranch: (name: string) => void;
   readonly renameGitBranch: (currentName: string, newName: string) => void;
   readonly initializeGitRepository: () => void;
+  readonly createGitWorktree: (branchName: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
   readonly changeRlmDepth: (maxDepth: string | null) => void;
 }
@@ -87,6 +90,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [gitBranchBusy, setGitBranchBusy] = useState(false);
+  const [gitWorktreeError, setGitWorktreeError] = useState<string | null>(null);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
   const [status, setStatus] = useState('');
 
@@ -307,6 +311,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       workspace === null ? null : newestSession(workspace.sessions, cwd);
     setSelectedCwd(cwd);
     setSelectedSessionId(session?.activeSessionId ?? null);
+    setGitWorktreeError(null);
     setStatus(
       session === null
         ? 'No connected agent in this workspace.'
@@ -426,6 +431,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       function* () {
         yield* Effect.sync(() => {
           setGitBranchBusy(true);
+          setGitWorktreeError(null);
           setStatus(`Switching to local Git branch ${branchName}…`);
         });
         const rawResult = yield* Effect.tryPromise(() =>
@@ -467,6 +473,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const deleteBranch = Effect.fn('Workspace.deleteGitBranch')(function* () {
       yield* Effect.sync(() => {
         setGitBranchBusy(true);
+        setGitWorktreeError(null);
         setStatus(`Deleting local Git branch ${name}…`);
       });
       const rawResult = yield* Effect.tryPromise(() =>
@@ -507,6 +514,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const renameBranch = Effect.fn('Workspace.renameGitBranch')(function* () {
       yield* Effect.sync(() => {
         setGitBranchBusy(true);
+        setGitWorktreeError(null);
         setStatus(`Renaming local Git branch ${currentName}…`);
       });
       const rawResult = yield* Effect.tryPromise(() =>
@@ -548,6 +556,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const initializeGit = Effect.fn('Workspace.initializeGit')(function* () {
       yield* Effect.sync(() => {
         setGitBranchBusy(true);
+        setGitWorktreeError(null);
         setStatus('Initializing local Git repository with main…');
       });
       const rawResult = yield* Effect.tryPromise(() =>
@@ -572,6 +581,60 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           Effect.sync(() =>
             setStatus('Ernie could not connect to local Git.'),
           ),
+        ),
+        Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
+      ),
+    );
+  }
+
+  function createGitWorktree(branchName: string): void {
+    if (selectedCwd === null) return;
+    const cwd = selectedCwd;
+
+    const createWorktree = Effect.fn('Workspace.createGitWorktree')(
+      function* () {
+        yield* Effect.sync(() => {
+          setGitBranchBusy(true);
+          setGitWorktreeError(null);
+          setStatus(`Creating worktree for ${branchName}…`);
+        });
+        const rawResult = yield* Effect.tryPromise(() =>
+          window.ernie.createPrimeAgentGitWorktree({ cwd, branchName }),
+        );
+        const result = parsePrimeAgentGitWorktreeResult(rawResult);
+        if (!result.ok) {
+          yield* Effect.sync(() => {
+            setGitWorktreeError(result.error.message);
+            setStatus(result.error.message);
+          });
+          return;
+        }
+
+        const session =
+          workspace === null
+            ? null
+            : newestSession(workspace.sessions, result.value.cwd);
+        yield* Effect.sync(() => {
+          setAddedCwds((current) =>
+            current.includes(result.value.cwd)
+              ? current
+              : [...current, result.value.cwd],
+          );
+          setSelectedCwd(result.value.cwd);
+          setSelectedSessionId(session?.activeSessionId ?? null);
+          setStatus(`Created worktree for ${result.value.branchName}.`);
+        });
+      },
+    );
+
+    Effect.runFork(
+      createWorktree().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() => {
+            const message = 'Ernie could not connect to local Git.';
+            setGitWorktreeError(message);
+            setStatus(message);
+          }),
         ),
         Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
       ),
@@ -631,6 +694,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     gitBranch,
     gitBranchBusy,
     gitBranches,
+    gitWorktreeError,
     loadingWorkspace,
     models,
     repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),
@@ -644,6 +708,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     deleteGitBranch,
     renameGitBranch,
     initializeGitRepository,
+    createGitWorktree,
     changeModel,
     changeRlmDepth,
   };

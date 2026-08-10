@@ -4,6 +4,8 @@ import type {
   PrimeAgentGitBranches,
   PrimeAgentGitBranchRename,
   PrimeAgentGitBranchSelection,
+  PrimeAgentGitWorktree,
+  PrimeAgentGitWorktreeCreation,
   PrimeAgentModel,
   PrimeAgentModelSelection,
   PrimeAgentResult,
@@ -345,6 +347,14 @@ function parseGitBranches(value: unknown): PrimeAgentGitBranches | null {
   };
 }
 
+function parseGitWorktree(value: unknown): PrimeAgentGitWorktree | null {
+  if (!isRecord(value)) return null;
+
+  const cwd = nonEmptyString(value.cwd);
+  const branchName = nonEmptyString(value.branchName);
+  return cwd === null || branchName === null ? null : { cwd, branchName };
+}
+
 /** Parse a workspace path received from the isolated renderer. */
 export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
   const cwd = nonEmptyString(value);
@@ -365,6 +375,13 @@ export function parseGitBranchesResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentGitBranches> {
   return parseResult(value, parseGitBranches);
+}
+
+/** Parse a created Git worktree after it crosses the Electron IPC boundary. */
+export function parseGitWorktreeResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitWorktree> {
+  return parseResult(value, parseGitWorktree);
 }
 
 /** Parse a local Git branch change from the isolated renderer. */
@@ -396,6 +413,21 @@ export function parseGitBranchRename(
   return cwd === null || currentName === null || newName === null
     ? failure('invalid_request', 'The Git branch rename is invalid.')
     : { ok: true, value: { cwd, currentName, newName } };
+}
+
+/** Parse a Git worktree creation request from the isolated renderer. */
+export function parseGitWorktreeCreation(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitWorktreeCreation> {
+  if (!isRecord(value)) {
+    return failure('invalid_request', 'The Git worktree request is invalid.');
+  }
+
+  const cwd = nonEmptyString(value.cwd);
+  const branchName = nonEmptyString(value.branchName);
+  return cwd === null || branchName === null
+    ? failure('invalid_request', 'The Git worktree request is invalid.')
+    : { ok: true, value: { cwd, branchName } };
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */

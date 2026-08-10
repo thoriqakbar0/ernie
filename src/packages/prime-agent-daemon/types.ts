@@ -41,6 +41,18 @@ export interface PrimeAgentGitBranchRename {
   readonly newName: string;
 }
 
+/** A request to create or reuse one branch-backed Git worktree. */
+export interface PrimeAgentGitWorktreeCreation {
+  readonly cwd: string;
+  readonly branchName: string;
+}
+
+/** A local Git worktree created or reused for one branch. */
+export interface PrimeAgentGitWorktree {
+  readonly cwd: string;
+  readonly branchName: string;
+}
+
 /** Stable failure categories returned across the Electron IPC boundary. */
 export type PrimeAgentFailureCode =
   | 'invalid_request'

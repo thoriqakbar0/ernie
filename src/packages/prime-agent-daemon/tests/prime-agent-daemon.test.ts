@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -9,6 +9,7 @@ import { Effect } from 'effect';
 
 import {
   parsePrimeAgentGitBranchesResult,
+  parsePrimeAgentGitWorktreeResult,
 } from '../git-client';
 import {
   parsePrimeAgentModelsResult,
@@ -20,6 +21,7 @@ import {
   parsePrimeAgentDaemonSessions,
 } from '../server';
 import {
+  createLocalGitWorktree,
   deleteLocalGitBranch,
   initializeLocalGitRepository,
   readLocalGitBranches,
@@ -245,6 +247,24 @@ test('rejects inconsistent local Git branches after IPC', () => {
   });
 });
 
+test('parses a created Git worktree after IPC', () => {
+  const result = parsePrimeAgentGitWorktreeResult({
+    ok: true,
+    value: {
+      cwd: '/workspace/ernie-worktrees/feature/calm-ui',
+      branchName: 'feature/calm-ui',
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      cwd: '/workspace/ernie-worktrees/feature/calm-ui',
+      branchName: 'feature/calm-ui',
+    },
+  });
+});
+
 testInTempDirectory(
   'reads local branches through the Git process',
   'ernie-git-',
@@ -421,6 +441,123 @@ testInTempDirectory(
           cwd,
           current: 'feature/renamed',
           names: ['feature/renamed'],
+        },
+      });
+    }),
+);
+
+testInTempDirectory(
+  'creates and reuses a branch-backed local Git worktree',
+  'ernie-git-worktree-',
+  (root) =>
+    Effect.gen(function* () {
+      const cwd = join(root, 'repository');
+      yield* createGitRepository(cwd);
+
+      const creation = { cwd, branchName: 'feature/calm-ui' };
+      const firstResult = yield* createLocalGitWorktree(creation);
+      const retryResult = yield* createLocalGitWorktree(creation);
+      const canonicalRoot = yield* Effect.tryPromise(() => realpath(root));
+      const worktreeCwd = join(
+        canonicalRoot,
+        'repository-worktrees',
+        'feature',
+        'calm-ui',
+      );
+      const expected = {
+        ok: true,
+        value: { cwd: worktreeCwd, branchName: 'feature/calm-ui' },
+      };
+
+      assert.deepEqual(firstResult, expected);
+      assert.deepEqual(retryResult, expected);
+      const branch = yield* runGit([
+        '-C',
+        worktreeCwd,
+        'branch',
+        '--show-current',
+      ]);
+      assert.equal(branch.stdout.trim(), 'feature/calm-ui');
+
+      const nestedCreation = yield* createLocalGitWorktree({
+        cwd: worktreeCwd,
+        branchName: 'feature/second',
+      });
+      assert.deepEqual(nestedCreation, {
+        ok: true,
+        value: {
+          cwd: join(canonicalRoot, 'repository-worktrees', 'feature', 'second'),
+          branchName: 'feature/second',
+        },
+      });
+    }),
+);
+
+testInTempDirectory(
+  'replaces a prunable local Git worktree instead of returning its missing path',
+  'ernie-git-worktree-prunable-',
+  (root) =>
+    Effect.gen(function* () {
+      const cwd = join(root, 'repository');
+      yield* createGitRepository(cwd);
+
+      const creation = { cwd, branchName: 'feature/stale' };
+      const firstResult = yield* createLocalGitWorktree(creation);
+      assert.equal(firstResult.ok, true);
+      if (!firstResult.ok) return;
+
+      const movedCwd = join(root, 'moved-stale-worktree');
+      yield* Effect.tryPromise(() => rename(firstResult.value.cwd, movedCwd));
+      const replacementResult = yield* createLocalGitWorktree(creation);
+
+      assert.deepEqual(replacementResult, firstResult);
+      const branch = yield* runGit([
+        '-C',
+        firstResult.value.cwd,
+        'branch',
+        '--show-current',
+      ]);
+      assert.equal(branch.stdout.trim(), 'feature/stale');
+    }),
+);
+
+testInTempDirectory(
+  'rejects an invalid Git worktree branch name',
+  'ernie-git-worktree-invalid-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      const result = yield* createLocalGitWorktree({
+        cwd,
+        branchName: 'feature..invalid',
+      });
+
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'invalid_request',
+          message: 'Use a valid Git branch name for the new worktree.',
+        },
+      });
+    }),
+);
+
+testInTempDirectory(
+  'requires a first commit before creating a Git worktree',
+  'ernie-git-worktree-unborn-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* initializeLocalGitRepository(cwd);
+      const result = yield* createLocalGitWorktree({
+        cwd,
+        branchName: 'feature/first',
+      });
+
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'invalid_request',
+          message: 'Create the first commit before adding a worktree.',
         },
       });
     }),

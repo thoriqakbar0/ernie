@@ -1,11 +1,15 @@
-import { parseGitBranchesResult } from './lib/protocol';
+import {
+  parseGitBranchesResult,
+  parseGitWorktreeResult,
+} from './lib/protocol';
 
 import type {
   PrimeAgentGitBranches,
+  PrimeAgentGitWorktree,
   PrimeAgentResult,
 } from './types';
 
-export type { PrimeAgentGitBranches };
+export type { PrimeAgentGitBranches, PrimeAgentGitWorktree };
 
 const preferredGitBranches = new Map([
   ['main', 0],
@@ -32,4 +36,11 @@ export function parsePrimeAgentGitBranchesResult(
         },
       }
     : result;
+}
+
+/** Parse a local Git worktree received from Electron's main process. */
+export function parsePrimeAgentGitWorktreeResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitWorktree> {
+  return parseGitWorktreeResult(value);
 }

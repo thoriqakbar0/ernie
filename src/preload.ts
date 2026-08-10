@@ -18,6 +18,8 @@ const primeAgentDeleteGitBranchChannel =
 const primeAgentRenameGitBranchChannel =
   'ernie:prime-agent:rename-git-branch';
 const primeAgentInitializeGitChannel = 'ernie:prime-agent:initialize-git';
+const primeAgentCreateGitWorktreeChannel =
+  'ernie:prime-agent:create-git-worktree';
 const chooseWorkspaceDirectoryChannel = 'ernie:workspace:choose-directory';
 
 const rendererApi: ErnieRendererApi = Object.freeze({
@@ -53,6 +55,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   initializePrimeAgentGit(cwd) {
     return ipcRenderer.invoke(primeAgentInitializeGitChannel, cwd);
+  },
+  createPrimeAgentGitWorktree(creation) {
+    return ipcRenderer.invoke(primeAgentCreateGitWorktreeChannel, creation);
   },
   chooseWorkspaceDirectory() {
     return ipcRenderer.invoke(chooseWorkspaceDirectoryChannel);

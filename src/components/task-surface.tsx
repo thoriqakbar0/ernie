@@ -41,6 +41,7 @@ export function TaskSurface(): React.JSX.Element {
           gitBranch={workspace.gitBranch}
           gitBranchBusy={workspace.gitBranchBusy}
           gitBranches={workspace.gitBranches}
+          gitWorktreeError={workspace.gitWorktreeError}
           loadingWorkspace={workspace.loadingWorkspace}
           selectedCwd={workspace.selectedCwd}
           changeFolder={workspace.changeFolder}
@@ -49,6 +50,7 @@ export function TaskSurface(): React.JSX.Element {
           deleteGitBranch={workspace.deleteGitBranch}
           renameGitBranch={workspace.renameGitBranch}
           initializeGitRepository={workspace.initializeGitRepository}
+          createGitWorktree={workspace.createGitWorktree}
         />
 
         <InputGroup className="min-h-40 rounded-2xl bg-card">

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { Effect } from 'effect';
 
@@ -10,11 +11,28 @@ import type {
 import {
   parseGitBranchRename,
   parseGitBranchSelection,
+  parseGitWorktreeCreation,
   parseWorkspaceCwd,
 } from './protocol';
 
 const execFileAsync = promisify(execFile);
 const gitTimeoutMs = 3_000;
+const gitWorktreeTimeoutMs = 30_000;
+const gitDiagnosticLengthLimit = 2_000;
+
+type GitOperation =
+  | 'create_worktree'
+  | 'delete_branch'
+  | 'initialize_repository'
+  | 'read_branches'
+  | 'rename_branch'
+  | 'switch_branch';
+
+interface GitWorktreeRecord {
+  readonly cwd: string;
+  readonly branchName: string | null;
+  readonly prunable: boolean;
+}
 
 function tryExternal<A>(
   operation: () => PromiseLike<A>,
@@ -31,11 +49,65 @@ function errorCode(error: unknown): string | number | null {
     : null;
 }
 
-function reportGitFailure(error: unknown): void {
-  console.error('Local Git branch request failed.', {
+function diagnosticText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().replaceAll(/[\u0000-\u001f\u007f]+/gu, ' ');
+  return normalized.length === 0
+    ? null
+    : normalized.slice(0, gitDiagnosticLengthLimit);
+}
+
+function errorField(error: unknown, field: 'stderr'): unknown {
+  return typeof error === 'object' && error !== null && field in error
+    ? error[field]
+    : null;
+}
+
+function reportGitFailure(operation: GitOperation, error: unknown): void {
+  const stderr = diagnosticText(errorField(error, 'stderr'));
+  console.error('Local Git request failed.', {
+    operation,
     name: error instanceof Error ? error.name : 'NonError',
     code: errorCode(error),
+    message:
+      stderr === null
+        ? diagnosticText(error instanceof Error ? error.message : null)
+        : null,
+    stderr,
   });
+}
+
+function parseGitWorktreeList(output: string): readonly GitWorktreeRecord[] {
+  return output
+    .trim()
+    .split(/\r?\n\r?\n/u)
+    .map((block) => {
+      let cwd: string | null = null;
+      let branchName: string | null = null;
+      let prunable = false;
+
+      for (const line of block.split(/\r?\n/u)) {
+        if (line.startsWith('worktree ')) cwd = line.slice('worktree '.length);
+        if (line.startsWith('branch refs/heads/')) {
+          branchName = line.slice('branch refs/heads/'.length);
+        }
+        if (line === 'prunable' || line.startsWith('prunable ')) prunable = true;
+      }
+
+      return cwd === null ? null : { cwd, branchName, prunable };
+    })
+    .filter((record): record is GitWorktreeRecord => record !== null);
+}
+
+function worktreeDestination(
+  repositoryRoot: string,
+  branchName: string,
+): string {
+  return join(
+    dirname(repositoryRoot),
+    `${basename(repositoryRoot)}-worktrees`,
+    ...branchName.split('/'),
+  );
 }
 
 function parseWorkspaceDirectory(
@@ -116,7 +188,7 @@ export const readLocalGitBranches = Effect.fn('Git.readLocalGitBranches')(
             };
           }
 
-          reportGitFailure(error);
+          reportGitFailure('read_branches', error);
           return {
             ok: false as const,
             error: {
@@ -153,7 +225,7 @@ export const initializeLocalGitRepository = Effect.fn(
     Effect.flatMap(() => readLocalGitBranches(parsedCwd.value)),
     Effect.catchAll((error) =>
       Effect.sync(() => {
-        reportGitFailure(error);
+        reportGitFailure('initialize_repository', error);
         return {
           ok: false as const,
           error: {
@@ -201,7 +273,7 @@ export const switchLocalGitBranch = Effect.fn('Git.switchLocalGitBranch')(
       Effect.flatMap(() => readLocalGitBranches(parsedSelection.value.cwd)),
       Effect.catchAll((error) =>
         Effect.sync(() => {
-          reportGitFailure(error);
+          reportGitFailure('switch_branch', error);
           return {
             ok: false as const,
             error: {
@@ -262,7 +334,7 @@ export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
       Effect.flatMap(() => readLocalGitBranches(parsedSelection.value.cwd)),
       Effect.catchAll((error) =>
         Effect.sync(() => {
-          reportGitFailure(error);
+          reportGitFailure('delete_branch', error);
           return {
             ok: false as const,
             error: {
@@ -341,12 +413,158 @@ export const renameLocalGitBranch = Effect.fn('Git.renameLocalGitBranch')(
       Effect.flatMap(() => readLocalGitBranches(parsedRename.value.cwd)),
       Effect.catchAll((error) =>
         Effect.sync(() => {
-          reportGitFailure(error);
+          reportGitFailure('rename_branch', error);
           return {
             ok: false as const,
             error: {
               code: 'request_failed' as const,
               message: 'Git could not rename the local branch.',
+            },
+          };
+        }),
+      ),
+    );
+  },
+);
+
+/** Create or reuse a sibling Git worktree for one local branch. */
+export const createLocalGitWorktree = Effect.fn('Git.createLocalGitWorktree')(
+  function* (creation: unknown) {
+    const parsedCreation = parseGitWorktreeCreation(creation);
+    if (!parsedCreation.ok) return parsedCreation;
+
+    const parsedCwd = yield* parseWorkspaceDirectory(parsedCreation.value.cwd);
+    if (!parsedCwd.ok) return parsedCwd;
+
+    const branchName = parsedCreation.value.branchName;
+    const branchIsValid = yield* tryExternal(() =>
+      execFileAsync(
+        'git',
+        ['-C', parsedCwd.value, 'check-ref-format', '--branch', branchName],
+        { encoding: 'utf8', timeout: gitTimeoutMs },
+      ),
+    ).pipe(
+      Effect.match({
+        onFailure: () => false,
+        onSuccess: () => true,
+      }),
+    );
+    if (!branchIsValid) {
+      return {
+        ok: false as const,
+        error: {
+          code: 'invalid_request' as const,
+          message: 'Use a valid Git branch name for the new worktree.',
+        },
+      };
+    }
+
+    return yield* Effect.gen(function* () {
+      const worktreeListResult = yield* tryExternal(() =>
+        execFileAsync(
+          'git',
+          ['-C', parsedCwd.value, 'worktree', 'list', '--porcelain'],
+          { encoding: 'utf8', timeout: gitTimeoutMs },
+        ),
+      );
+      const worktrees = parseGitWorktreeList(worktreeListResult.stdout);
+      const repositoryRoot = worktrees[0]?.cwd;
+      if (repositoryRoot === undefined) {
+        return {
+          ok: false as const,
+          error: {
+            code: 'request_failed' as const,
+            message: 'Git could not find the primary worktree.',
+          },
+        };
+      }
+
+      const existingWorktree = worktrees.find(
+        (worktree) => worktree.branchName === branchName,
+      );
+      if (existingWorktree !== undefined && !existingWorktree.prunable) {
+        return {
+          ok: true as const,
+          value: { cwd: existingWorktree.cwd, branchName },
+        };
+      }
+      if (existingWorktree?.prunable === true) {
+        yield* tryExternal(() =>
+          execFileAsync(
+            'git',
+            [
+              '-C',
+              repositoryRoot,
+              'worktree',
+              'remove',
+              '--force',
+              existingWorktree.cwd,
+            ],
+            { encoding: 'utf8', timeout: gitTimeoutMs },
+          ),
+        );
+      }
+
+      const branches = yield* readLocalGitBranches(repositoryRoot);
+      if (!branches.ok) return branches;
+
+      const hasCommit = yield* tryExternal(() =>
+        execFileAsync(
+          'git',
+          ['-C', repositoryRoot, 'rev-parse', '--verify', 'HEAD'],
+          { encoding: 'utf8', timeout: gitTimeoutMs },
+        ),
+      ).pipe(
+        Effect.match({
+          onFailure: () => false,
+          onSuccess: () => true,
+        }),
+      );
+      if (!hasCommit) {
+        return {
+          ok: false as const,
+          error: {
+            code: 'invalid_request' as const,
+            message: 'Create the first commit before adding a worktree.',
+          },
+        };
+      }
+
+      const destination = worktreeDestination(repositoryRoot, branchName);
+      yield* tryExternal(() => mkdir(dirname(destination), { recursive: true }));
+      const worktreeArguments = branches.value.names.includes(branchName)
+        ? ['-C', repositoryRoot, 'worktree', 'add', destination, branchName]
+        : [
+            '-C',
+            repositoryRoot,
+            'worktree',
+            'add',
+            '--no-track',
+            '-b',
+            branchName,
+            destination,
+            'HEAD',
+          ];
+      yield* tryExternal(() =>
+        execFileAsync('git', worktreeArguments, {
+          encoding: 'utf8',
+          timeout: gitWorktreeTimeoutMs,
+        }),
+      );
+
+      return {
+        ok: true as const,
+        value: { cwd: destination, branchName },
+      };
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          reportGitFailure('create_worktree', error);
+          return {
+            ok: false as const,
+            error: {
+              code: 'request_failed' as const,
+              message: 'Git could not create the new worktree.',
             },
           };
         }),

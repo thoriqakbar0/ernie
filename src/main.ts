@@ -5,6 +5,7 @@ import type { IpcMainEvent, OpenDialogOptions } from 'electron';
 import { Effect } from 'effect';
 
 import {
+  createLocalGitWorktree,
   deleteLocalGitBranch,
   initializeLocalGitRepository,
   readLocalGitBranches,
@@ -14,6 +15,7 @@ import {
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
 import {
   chooseWorkspaceDirectoryChannel,
+  primeAgentCreateGitWorktreeChannel,
   primeAgentGitBranchesChannel,
   primeAgentInitializeGitChannel,
   primeAgentDeleteGitBranchChannel,
@@ -114,6 +116,11 @@ function registerPrimeAgentHandlers(): void {
   );
   ipcMain.handle(primeAgentInitializeGitChannel, (_event, cwd: unknown) =>
     Effect.runPromise(initializeLocalGitRepository(cwd)),
+  );
+  ipcMain.handle(
+    primeAgentCreateGitWorktreeChannel,
+    (_event, creation: unknown) =>
+      Effect.runPromise(createLocalGitWorktree(creation)),
   );
   ipcMain.handle(chooseWorkspaceDirectoryChannel, () => {
     const options: OpenDialogOptions = {

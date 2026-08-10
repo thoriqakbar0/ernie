@@ -22,6 +22,7 @@ type CurrentWorkspaceProps = Pick<
   | 'gitBranch'
   | 'gitBranchBusy'
   | 'gitBranches'
+  | 'gitWorktreeError'
   | 'loadingWorkspace'
   | 'selectedCwd'
   | 'changeFolder'
@@ -30,6 +31,7 @@ type CurrentWorkspaceProps = Pick<
   | 'deleteGitBranch'
   | 'renameGitBranch'
   | 'initializeGitRepository'
+  | 'createGitWorktree'
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
@@ -41,6 +43,7 @@ export function CurrentWorkspace({
   gitBranch,
   gitBranchBusy,
   gitBranches,
+  gitWorktreeError,
   loadingWorkspace,
   selectedCwd,
   changeFolder,
@@ -49,6 +52,7 @@ export function CurrentWorkspace({
   deleteGitBranch,
   renameGitBranch,
   initializeGitRepository,
+  createGitWorktree,
 }: CurrentWorkspaceProps): React.JSX.Element {
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const selectedFolder =
@@ -91,30 +95,37 @@ export function CurrentWorkspace({
             >
               <Combobox.Popup
                 aria-label="Choose workspace directory"
-                className="relative isolate z-50 w-72 max-w-(--available-width) origin-(--transform-origin) overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+                className="relative isolate z-50 w-72 max-w-(--available-width) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
               >
                 <div className="relative border-b border-border p-2">
-                  <SearchIcon className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <SearchIcon
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
+                  />
                   <Combobox.Input
                     aria-label="Search workspace directories"
                     placeholder="Search directories"
+                    spellCheck={false}
                     className="h-8 w-full rounded-md bg-muted/60 pr-2 pl-8 text-sm outline-none select-text placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                   />
                 </div>
-                <Combobox.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">
+                <Combobox.Empty className="text-center text-sm text-muted-foreground [&:not(:empty)]:px-3 [&:not(:empty)]:py-6">
                   No directories found.
                 </Combobox.Empty>
-                <Combobox.List className="max-h-56 overflow-y-auto overscroll-contain p-1 scroll-py-1 outline-none data-empty:p-0">
+                <Combobox.List className="max-h-52 overflow-y-auto overscroll-contain p-1 scroll-py-1 outline-none [scrollbar-gutter:stable] data-empty:p-0">
                   {(folder: PrimeAgentFolderChoice, index: number) => (
                     <Combobox.Item
                       key={folder.value}
                       value={folder}
                       index={index}
-                      className="relative flex cursor-default items-center gap-2 rounded-md py-2 pr-8 pl-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                      className="relative flex min-h-11 cursor-default items-center gap-2 rounded-md py-1 pr-8 pl-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="truncate">{folder.label}</div>
-                        <div className="truncate text-xs text-muted-foreground">
+                        <div
+                          className="truncate text-xs text-muted-foreground"
+                          title={folder.value}
+                        >
                           {folder.value}
                         </div>
                       </div>
@@ -128,13 +139,16 @@ export function CurrentWorkspace({
                 <button
                   type="button"
                   aria-label="New directory"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
+                  className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 active:bg-accent/80 motion-reduce:transition-none"
                   onClick={() => {
                     setFolderPickerOpen(false);
                     chooseWorkspaceDirectory();
                   }}
                 >
-                  <FolderPlusIcon className="size-4 text-muted-foreground" />
+                  <FolderPlusIcon
+                    aria-hidden="true"
+                    className="size-4 text-muted-foreground"
+                  />
                   New directory…
                 </button>
               </Combobox.Popup>
@@ -153,6 +167,7 @@ export function CurrentWorkspace({
         deleteBranch={deleteGitBranch}
         renameBranch={renameGitBranch}
         initializeGit={initializeGitRepository}
+        createWorktree={createGitWorktree}
       />
 
       <Button
@@ -162,6 +177,16 @@ export function CurrentWorkspace({
         <LaptopIcon />
         This Mac
       </Button>
+
+      {gitWorktreeError === null ? null : (
+        <p
+          className="basis-full text-xs text-destructive"
+          role="alert"
+          aria-atomic="true"
+        >
+          {gitWorktreeError}
+        </p>
+      )}
     </section>
   );
 }

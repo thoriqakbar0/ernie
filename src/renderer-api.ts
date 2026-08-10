@@ -1,6 +1,7 @@
 import type {
   PrimeAgentGitBranchRename,
   PrimeAgentGitBranchSelection,
+  PrimeAgentGitWorktreeCreation,
   PrimeAgentModelSelection,
   PrimeAgentRlmDepthSelection,
 } from './packages/prime-agent-daemon/types';
@@ -42,6 +43,10 @@ export const primeAgentRenameGitBranchChannel =
 export const primeAgentInitializeGitChannel =
   'ernie:prime-agent:initialize-git';
 
+/** IPC channel that creates or reuses one local Git worktree. */
+export const primeAgentCreateGitWorktreeChannel =
+  'ernie:prime-agent:create-git-worktree';
+
 /** IPC channel that opens the native workspace directory picker. */
 export const chooseWorkspaceDirectoryChannel =
   'ernie:workspace:choose-directory';
@@ -67,6 +72,9 @@ export type ErnieRendererApi = Readonly<{
     rename: PrimeAgentGitBranchRename,
   ) => Promise<unknown>;
   initializePrimeAgentGit: (cwd: string) => Promise<unknown>;
+  createPrimeAgentGitWorktree: (
+    creation: PrimeAgentGitWorktreeCreation,
+  ) => Promise<unknown>;
   chooseWorkspaceDirectory: () => Promise<unknown>;
 }>;
 

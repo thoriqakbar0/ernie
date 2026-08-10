@@ -30,7 +30,7 @@ export function CurrentWorkspace({
 }: CurrentWorkspaceProps): React.JSX.Element {
   return (
     <section
-      className="mx-auto w-full max-w-[34.6875rem] rounded-b-xl bg-muted px-1 pt-3 pb-1"
+      className="mx-auto w-full max-w-xl rounded-b-xl bg-muted px-1 pt-3 pb-1"
       aria-label="Task environment"
     >
       <FieldGroup className="h-10 flex-row items-center gap-2">

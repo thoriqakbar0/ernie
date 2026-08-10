@@ -1,21 +1,9 @@
 import { CurrentWorkspace } from '@/components/current-workspace';
+import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import { TaskComposer } from '@/components/task-composer';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
-
-const rlmDepthChoices = Array.from({ length: 9 }, (_, maxDepth) => ({
-  label: `RLM ${maxDepth}`,
-  value: String(maxDepth),
-}));
 
 /** Ernie's primary task input and its connected execution environment. */
 export function TaskSurface(): React.JSX.Element {
@@ -63,38 +51,11 @@ export function TaskSurface(): React.JSX.Element {
             <span className="text-muted-foreground">⇧Tab</span>
           </Button>
 
-          <Select
-            items={rlmDepthChoices}
-            value={
-              workspace.rlmDepth === null ? null : String(workspace.rlmDepth)
-            }
-            onValueChange={workspace.changeRlmDepth}
-          >
-            <SelectTrigger
-              aria-label="RLM maximum depth"
-              className="w-auto rounded-full px-4 text-sm"
-              disabled={workspace.busy || workspace.rlmDepth === null}
-            >
-              <span>Multitask</span>
-              {workspace.rlmDepth === null ? null : (
-                <>
-                  <span aria-hidden="true" className="text-muted-foreground">
-                    ·
-                  </span>
-                  <SelectValue className="flex-none tabular-nums text-muted-foreground" />
-                </>
-              )}
-            </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false}>
-              <SelectGroup>
-                {rlmDepthChoices.map((choice) => (
-                  <SelectItem key={choice.value} value={choice.value}>
-                    {choice.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <RlmDepthPicker
+            busy={workspace.busy}
+            depth={workspace.rlmDepth}
+            onDepthChange={workspace.changeRlmDepth}
+          />
         </div>
       </Field>
 

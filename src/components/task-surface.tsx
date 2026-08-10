@@ -14,7 +14,6 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -127,10 +126,8 @@ export function TaskSurface(): React.JSX.Element {
             }
             onValueChange={workspace.changeRlmDepth}
           >
-            <SelectLabel className="sr-only">
-              Multitask, RLM maximum depth
-            </SelectLabel>
             <SelectTrigger
+              aria-label="RLM maximum depth"
               className="w-auto rounded-full px-4 text-sm"
               disabled={workspace.busy || workspace.rlmDepth === null}
             >

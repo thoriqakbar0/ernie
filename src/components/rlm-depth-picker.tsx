@@ -1,7 +1,7 @@
 import { NumberField } from '@base-ui/react/number-field';
 import { Popover } from '@base-ui/react/popover';
 import { ChevronDownIcon, MinusIcon, PlusIcon } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { memo, useId, useState } from 'react';
 
 interface RlmDepthPickerProps {
   readonly busy: boolean;
@@ -23,7 +23,7 @@ function explainDepth(depth: number | null): string {
 }
 
 /** Select the maximum delegation depth for the active Prime Agent session. */
-export function RlmDepthPicker({
+export const RlmDepthPicker = memo(function RlmDepthPicker({
   busy,
   depth,
   onDepthChange,
@@ -32,10 +32,6 @@ export function RlmDepthPicker({
   const titleId = useId();
   const descriptionId = useId();
   const explanationId = useId();
-
-  useEffect(() => {
-    setDraftDepth(depth);
-  }, [depth]);
 
   function commitDepth(nextDepth: number | null): void {
     if (
@@ -126,4 +122,4 @@ export function RlmDepthPicker({
       </Popover.Portal>
     </Popover.Root>
   );
-}
+});

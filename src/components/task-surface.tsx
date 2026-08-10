@@ -34,7 +34,7 @@ export function TaskSurface(): React.JSX.Element {
         />
 
         <TaskComposer
-          busy={workspace.busy}
+          modelBusy={workspace.modelBusy}
           models={workspace.models}
           selectedModelKey={workspace.selectedModelKey}
           selectedSessionId={workspace.selectedSessionId}
@@ -43,7 +43,8 @@ export function TaskSurface(): React.JSX.Element {
 
         <div className="flex flex-wrap items-center gap-3">
           <RlmDepthPicker
-            busy={workspace.busy}
+            key={workspace.rlmDepth}
+            busy={workspace.rlmDepthBusy}
             depth={workspace.rlmDepth}
             onDepthChange={workspace.changeRlmDepth}
           />

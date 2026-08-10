@@ -1,5 +1,5 @@
 import { Effect, Fiber } from 'effect';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   parsePrimeAgentGitBranchesResult,
@@ -30,9 +30,11 @@ export interface PrimeAgentWorkspaceController {
   readonly gitBranches: readonly string[];
   readonly gitWorktreeError: string | null;
   readonly loadingWorkspace: boolean;
+  readonly modelBusy: boolean;
   readonly models: readonly PrimeAgentModel[];
   readonly repoName: string;
   readonly rlmDepth: number | null;
+  readonly rlmDepthBusy: boolean;
   readonly selectedCwd: string | null;
   readonly selectedModelKey: string | null;
   readonly selectedSessionId: string | null;
@@ -376,7 +378,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function changeModel(modelKey: string | null): void {
+  const changeModel = useCallback(function changeModel(
+    modelKey: string | null,
+  ): void {
     if (modelKey === null || selectedSession === null) return;
     const model = models.find((candidate) => candidate.key === modelKey);
     if (model === undefined) return;
@@ -427,7 +431,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         Effect.ensuring(Effect.sync(() => setSavingModel(false))),
       ),
     );
-  }
+  }, [models, selectedSession]);
 
   function changeGitBranch(name: string | null): void {
     if (name === null || selectedCwd === null || name === gitBranch) return;
@@ -657,7 +661,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function changeRlmDepth(value: string | null): void {
+  const changeRlmDepth = useCallback(function changeRlmDepth(
+    value: string | null,
+  ): void {
     if (value === null || selectedSession === null) return;
     const maxDepth = Number(value);
     if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) return;
@@ -696,15 +702,17 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         Effect.ensuring(Effect.sync(() => setSavingRlmDepth(false))),
       ),
     );
-  }
+  }, [selectedSession]);
+
+  const modelBusy = loadingWorkspace || loadingSession || savingModel;
+  const rlmDepthBusy =
+    loadingWorkspace || loadingSession || savingRlmDepth;
 
   return {
     busy:
-      loadingWorkspace ||
-      loadingSession ||
+      modelBusy ||
+      rlmDepthBusy ||
       choosingDirectory ||
-      savingModel ||
-      savingRlmDepth ||
       gitBranchBusy,
     folders,
     gitBranch,
@@ -712,9 +720,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     gitBranches,
     gitWorktreeError,
     loadingWorkspace,
+    modelBusy,
     models,
     repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),
     rlmDepth,
+    rlmDepthBusy,
     selectedCwd,
     selectedModelKey,
     selectedSessionId,

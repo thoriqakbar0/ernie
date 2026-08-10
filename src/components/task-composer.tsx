@@ -1,4 +1,5 @@
 import { ArrowUpIcon, PlusIcon } from 'lucide-react';
+import { memo } from 'react';
 
 import {
   InputGroup,
@@ -19,7 +20,7 @@ import { usePrimeAgentTask } from '@/hooks/use-prime-agent-task';
 
 type TaskComposerProps = Pick<
   PrimeAgentWorkspaceController,
-  | 'busy'
+  | 'modelBusy'
   | 'models'
   | 'selectedModelKey'
   | 'selectedSessionId'
@@ -27,8 +28,8 @@ type TaskComposerProps = Pick<
 >;
 
 /** Compose and submit one task without rerendering workspace controls. */
-export function TaskComposer({
-  busy,
+export const TaskComposer = memo(function TaskComposer({
+  modelBusy,
   models,
   selectedModelKey,
   selectedSessionId,
@@ -86,7 +87,7 @@ export function TaskComposer({
                   size="sm"
                   className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
                   aria-label="Model"
-                  disabled={busy || models.length === 0}
+                  disabled={modelBusy || models.length === 0}
                 >
                   <SelectValue placeholder="No model" />
                 </SelectTrigger>
@@ -125,4 +126,4 @@ export function TaskComposer({
       </p>
     </>
   );
-}
+});

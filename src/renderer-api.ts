@@ -1,4 +1,5 @@
 import type {
+  PrimeAgentGitBranchSelection,
   PrimeAgentModelSelection,
   PrimeAgentRlmDepthSelection,
 } from './packages/prime-agent-daemon/types';
@@ -21,8 +22,12 @@ export const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 /** IPC channel that changes RLM maximum depth for one Prime Agent session. */
 export const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
 
-/** IPC channel that reads the checked-out branch for one local workspace. */
-export const primeAgentGitBranchChannel = 'ernie:prime-agent:git-branch';
+/** IPC channel that reads local branches for one workspace. */
+export const primeAgentGitBranchesChannel = 'ernie:prime-agent:git-branches';
+
+/** IPC channel that switches one workspace to a local branch. */
+export const primeAgentSwitchGitBranchChannel =
+  'ernie:prime-agent:switch-git-branch';
 
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
@@ -34,7 +39,10 @@ export type ErnieRendererApi = Readonly<{
   setPrimeAgentRlmDepth: (
     selection: PrimeAgentRlmDepthSelection,
   ) => Promise<unknown>;
-  getPrimeAgentGitBranch: (cwd: string) => Promise<unknown>;
+  listPrimeAgentGitBranches: (cwd: string) => Promise<unknown>;
+  switchPrimeAgentGitBranch: (
+    selection: PrimeAgentGitBranchSelection,
+  ) => Promise<unknown>;
 }>;
 
 declare global {

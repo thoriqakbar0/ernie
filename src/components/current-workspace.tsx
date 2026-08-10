@@ -17,18 +17,27 @@ import type {
 
 type CurrentWorkspaceProps = Pick<
   PrimeAgentWorkspaceController,
-  'gitBranch' | 'loadingWorkspace' | 'selectedCwd' | 'changeFolder'
+  | 'busy'
+  | 'gitBranch'
+  | 'gitBranches'
+  | 'loadingWorkspace'
+  | 'selectedCwd'
+  | 'changeFolder'
+  | 'changeGitBranch'
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
 
 /** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
+  busy,
   folders,
   gitBranch,
+  gitBranches,
   loadingWorkspace,
   selectedCwd,
   changeFolder,
+  changeGitBranch,
 }: CurrentWorkspaceProps): React.JSX.Element {
   return (
     <section
@@ -64,13 +73,30 @@ export function CurrentWorkspace({
         </Select>
       </Field>
 
-      <Button
-        variant="outline"
-        className="bg-card px-3 text-sm font-normal text-muted-foreground"
+      <Select
+        items={gitBranches.map((name) => ({ label: name, value: name }))}
+        value={gitBranch}
+        onValueChange={changeGitBranch}
       >
-        <GitBranchIcon />
-        {gitBranch ?? 'No branch'}
-      </Button>
+        <SelectTrigger
+          size="sm"
+          className="h-[30px] w-[106px] bg-card px-3 text-sm text-muted-foreground"
+          aria-label="Git branch"
+          disabled={busy || selectedCwd === null || gitBranches.length === 0}
+        >
+          <GitBranchIcon />
+          <SelectValue placeholder="No branch" />
+        </SelectTrigger>
+        <SelectContent align="start" alignItemWithTrigger={false}>
+          <SelectGroup>
+            {gitBranches.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
 
       <Button
         variant="outline"

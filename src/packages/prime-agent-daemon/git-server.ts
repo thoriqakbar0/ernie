@@ -1,1 +1,1 @@
-export { readLocalGitBranch } from './lib/git';
+export { readLocalGitBranches, switchLocalGitBranch } from './lib/git';

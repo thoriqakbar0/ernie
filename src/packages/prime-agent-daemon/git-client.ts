@@ -1,15 +1,15 @@
-import { parseGitBranchResult } from './lib/protocol';
+import { parseGitBranchesResult } from './lib/protocol';
 
 import type {
-  PrimeAgentGitBranch,
+  PrimeAgentGitBranches,
   PrimeAgentResult,
 } from './types';
 
-export type { PrimeAgentGitBranch };
+export type { PrimeAgentGitBranches };
 
-/** Parse a local Git branch response received from Electron's main process. */
-export function parsePrimeAgentGitBranchResult(
+/** Parse local Git branches received from Electron's main process. */
+export function parsePrimeAgentGitBranchesResult(
   value: unknown,
-): PrimeAgentResult<PrimeAgentGitBranch> {
-  return parseGitBranchResult(value);
+): PrimeAgentResult<PrimeAgentGitBranches> {
+  return parseGitBranchesResult(value);
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-  parsePrimeAgentGitBranchResult,
+  parsePrimeAgentGitBranchesResult,
 } from '@/packages/prime-agent-daemon/git-client';
 import {
   parsePrimeAgentModelResult,
@@ -24,6 +24,7 @@ export interface PrimeAgentWorkspaceController {
   readonly busy: boolean;
   readonly folders: readonly PrimeAgentFolderChoice[];
   readonly gitBranch: string | null;
+  readonly gitBranches: readonly string[];
   readonly loadingWorkspace: boolean;
   readonly models: readonly PrimeAgentModel[];
   readonly repoName: string;
@@ -32,6 +33,7 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedModelKey: string | null;
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
+  readonly changeGitBranch: (name: string | null) => void;
   readonly changeModel: (modelKey: string | null) => void;
   readonly changeRlmDepth: (maxDepth: string | null) => void;
 }
@@ -57,10 +59,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   );
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
+  const [gitBranches, setGitBranches] = useState<readonly string[]>([]);
   const [rlmDepth, setRlmDepth] = useState<number | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [switchingGitBranch, setSwitchingGitBranch] = useState(false);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
   const [status, setStatus] = useState('Connecting to Prime Agent…');
 
@@ -108,25 +112,31 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   useEffect(() => {
     if (selectedCwd === null) {
       setGitBranch(null);
+      setGitBranches([]);
       return;
     }
 
     const cwd = selectedCwd;
     let cancelled = false;
 
-    async function loadGitBranch(): Promise<void> {
+    async function loadGitBranches(): Promise<void> {
       try {
-        const rawResult = await window.ernie.getPrimeAgentGitBranch(cwd);
+        const rawResult = await window.ernie.listPrimeAgentGitBranches(cwd);
         if (cancelled) return;
 
-        const result = parsePrimeAgentGitBranchResult(rawResult);
-        setGitBranch(result.ok ? result.value.name : null);
+        const result = parsePrimeAgentGitBranchesResult(rawResult);
+        setGitBranch(result.ok ? result.value.current : null);
+        setGitBranches(result.ok ? result.value.names : []);
+        if (!result.ok) setStatus(result.error.message);
       } catch {
-        if (!cancelled) setGitBranch(null);
+        if (!cancelled) {
+          setGitBranch(null);
+          setGitBranches([]);
+        }
       }
     }
 
-    void loadGitBranch();
+    void loadGitBranches();
     return () => {
       cancelled = true;
     };
@@ -255,6 +265,37 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     void updateModel();
   }
 
+  function changeGitBranch(name: string | null): void {
+    if (name === null || selectedCwd === null || name === gitBranch) return;
+    const cwd = selectedCwd;
+    const branchName = name;
+
+    async function switchGitBranch(): Promise<void> {
+      setSwitchingGitBranch(true);
+      try {
+        const rawResult = await window.ernie.switchPrimeAgentGitBranch({
+          cwd,
+          name: branchName,
+        });
+        const result = parsePrimeAgentGitBranchesResult(rawResult);
+        if (!result.ok) {
+          setStatus(result.error.message);
+          return;
+        }
+
+        setGitBranch(result.value.current);
+        setGitBranches(result.value.names);
+        setStatus(`Git branch changed to ${branchName}.`);
+      } catch {
+        setStatus('Ernie could not connect to local Git.');
+      } finally {
+        setSwitchingGitBranch(false);
+      }
+    }
+
+    void switchGitBranch();
+  }
+
   function changeRlmDepth(value: string | null): void {
     if (value === null || selectedSession === null) return;
     const maxDepth = Number(value);
@@ -288,9 +329,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   return {
     busy:
-      loadingWorkspace || loadingSession || savingModel || savingRlmDepth,
+      loadingWorkspace ||
+      loadingSession ||
+      savingModel ||
+      savingRlmDepth ||
+      switchingGitBranch,
     folders,
     gitBranch,
+    gitBranches,
     loadingWorkspace,
     models,
     repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),
@@ -299,6 +345,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedModelKey,
     status,
     changeFolder,
+    changeGitBranch,
     changeModel,
     changeRlmDepth,
   };

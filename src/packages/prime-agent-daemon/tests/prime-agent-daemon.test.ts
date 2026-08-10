@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 
 import {
-  parsePrimeAgentGitBranchResult,
+  parsePrimeAgentGitBranchesResult,
 } from '../git-client';
 import {
   parsePrimeAgentModelsResult,
@@ -18,9 +18,36 @@ import {
   parsePrimeAgentDaemonModels,
   parsePrimeAgentDaemonSessions,
 } from '../server';
-import { readLocalGitBranch } from '../git-server';
+import {
+  readLocalGitBranches,
+  switchLocalGitBranch,
+} from '../git-server';
 
 const execFileAsync = promisify(execFile);
+
+async function createGitRepository(cwd: string): Promise<void> {
+  await execFileAsync(
+    'git',
+    ['init', '--initial-branch', 'feature/local', cwd],
+    { encoding: 'utf8' },
+  );
+  await execFileAsync(
+    'git',
+    [
+      '-C',
+      cwd,
+      '-c',
+      'user.name=Ernie Test',
+      '-c',
+      'user.email=ernie@example.invalid',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'Initial commit',
+    ],
+    { encoding: 'utf8' },
+  );
+}
 
 test('keeps only connected top-level daemon sessions', () => {
   const result = parsePrimeAgentDaemonSessions({
@@ -152,32 +179,101 @@ test('parses live RLM depth after IPC', () => {
   });
 });
 
-test('parses a local Git branch after IPC', () => {
-  const result = parsePrimeAgentGitBranchResult({
+test('parses local Git branches after IPC', () => {
+  const result = parsePrimeAgentGitBranchesResult({
     ok: true,
-    value: { cwd: '/workspace/ernie', name: 'main' },
+    value: {
+      cwd: '/workspace/ernie',
+      current: 'main',
+      names: ['feature/local', 'main'],
+    },
   });
 
   assert.deepEqual(result, {
     ok: true,
-    value: { cwd: '/workspace/ernie', name: 'main' },
+    value: {
+      cwd: '/workspace/ernie',
+      current: 'main',
+      names: ['feature/local', 'main'],
+    },
   });
 });
 
-test('reads the checked-out branch through the Git process', async (context) => {
+test('rejects inconsistent local Git branches after IPC', () => {
+  const result = parsePrimeAgentGitBranchesResult({
+    ok: true,
+    value: {
+      cwd: '/workspace/ernie',
+      current: 'main',
+      names: ['feature/local'],
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'protocol_error',
+      message: 'Ernie received invalid daemon data.',
+    },
+  });
+});
+
+test('reads local branches through the Git process', async (context) => {
   const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-'));
   context.after(() => rm(cwd, { force: true, recursive: true }));
-  await execFileAsync(
-    'git',
-    ['init', '--initial-branch', 'feature/local', cwd],
-    { encoding: 'utf8' },
-  );
+  await createGitRepository(cwd);
+  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/second'], {
+    encoding: 'utf8',
+  });
 
-  const result = await readLocalGitBranch(cwd);
+  const result = await readLocalGitBranches(cwd);
 
   assert.deepEqual(result, {
     ok: true,
-    value: { cwd, name: 'feature/local' },
+    value: {
+      cwd,
+      current: 'feature/local',
+      names: ['feature/local', 'feature/second'],
+    },
+  });
+});
+
+test('switches to an existing local Git branch', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-switch-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/second'], {
+    encoding: 'utf8',
+  });
+
+  const result = await switchLocalGitBranch({
+    cwd,
+    name: 'feature/second',
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      cwd,
+      current: 'feature/second',
+      names: ['feature/local', 'feature/second'],
+    },
+  });
+});
+
+test('rejects a local Git branch that does not exist', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-missing-branch-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+
+  const result = await switchLocalGitBranch({ cwd, name: 'missing' });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'invalid_request',
+      message: 'The selected local Git branch does not exist.',
+    },
   });
 });
 
@@ -185,18 +281,18 @@ test('returns no branch for a directory outside a Git repository', async (contex
   const cwd = await mkdtemp(join(tmpdir(), 'ernie-no-git-'));
   context.after(() => rm(cwd, { force: true, recursive: true }));
 
-  const result = await readLocalGitBranch(cwd);
+  const result = await readLocalGitBranches(cwd);
 
   assert.deepEqual(result, {
     ok: true,
-    value: { cwd, name: null },
+    value: { cwd, current: null, names: [] },
   });
 });
 
 test('rejects a missing workspace path before starting Git', async () => {
   const cwd = join(tmpdir(), 'ernie-missing-workspace');
 
-  const result = await readLocalGitBranch(cwd);
+  const result = await readLocalGitBranches(cwd);
 
   assert.deepEqual(result, {
     ok: false,

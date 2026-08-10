@@ -21,10 +21,17 @@ export interface PrimeAgentWorkspace {
   readonly sessions: readonly PrimeAgentSession[];
 }
 
-/** The checked-out local Git branch for one workspace. */
-export interface PrimeAgentGitBranch {
+/** Local Git branches and the checked-out branch for one workspace. */
+export interface PrimeAgentGitBranches {
   readonly cwd: string;
-  readonly name: string | null;
+  readonly current: string | null;
+  readonly names: readonly string[];
+}
+
+/** The local Git branch change requested for one workspace. */
+export interface PrimeAgentGitBranchSelection {
+  readonly cwd: string;
+  readonly name: string;
 }
 
 /** Stable failure categories returned across the Electron IPC boundary. */

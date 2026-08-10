@@ -3,14 +3,18 @@ import path from 'node:path';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import type { IpcMainEvent } from 'electron';
 
-import { readLocalGitBranch } from './packages/prime-agent-daemon/git-server';
+import {
+  readLocalGitBranches,
+  switchLocalGitBranch,
+} from './packages/prime-agent-daemon/git-server';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
 import {
-  primeAgentGitBranchChannel,
+  primeAgentGitBranchesChannel,
   primeAgentModelsChannel,
   primeAgentRlmDepthChannel,
   primeAgentSetModelChannel,
   primeAgentSetRlmDepthChannel,
+  primeAgentSwitchGitBranchChannel,
   primeAgentWorkspaceChannel,
   rendererReadyChannel,
 } from './renderer-api';
@@ -78,8 +82,12 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(primeAgentSetRlmDepthChannel, (_event, selection: unknown) =>
     daemon.setRlmDepth(selection),
   );
-  ipcMain.handle(primeAgentGitBranchChannel, (_event, cwd: unknown) =>
-    readLocalGitBranch(cwd),
+  ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: unknown) =>
+    readLocalGitBranches(cwd),
+  );
+  ipcMain.handle(
+    primeAgentSwitchGitBranchChannel,
+    (_event, selection: unknown) => switchLocalGitBranch(selection),
   );
 }
 

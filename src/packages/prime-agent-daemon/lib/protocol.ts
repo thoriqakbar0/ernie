@@ -1,7 +1,8 @@
 import type {
   PrimeAgentFailure,
   PrimeAgentFailureCode,
-  PrimeAgentGitBranch,
+  PrimeAgentGitBranches,
+  PrimeAgentGitBranchSelection,
   PrimeAgentModel,
   PrimeAgentModelSelection,
   PrimeAgentResult,
@@ -312,14 +313,35 @@ function parseWorkspace(value: unknown): PrimeAgentWorkspace | null {
   };
 }
 
-function parseGitBranch(value: unknown): PrimeAgentGitBranch | null {
+function parseGitBranches(value: unknown): PrimeAgentGitBranches | null {
   if (!isRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
-  const name = value.name === null ? null : nonEmptyString(value.name);
-  if (cwd === null || (value.name !== null && name === null)) return null;
+  const current = value.current === null ? null : nonEmptyString(value.current);
+  if (
+    cwd === null ||
+    (value.current !== null && current === null) ||
+    !Array.isArray(value.names)
+  ) {
+    return null;
+  }
 
-  return { cwd, name };
+  const names = value.names.map(nonEmptyString);
+  if (names.some((name) => name === null)) return null;
+
+  const parsedNames = names.filter((name): name is string => name !== null);
+  if (
+    new Set(parsedNames).size !== parsedNames.length ||
+    (current !== null && !parsedNames.includes(current))
+  ) {
+    return null;
+  }
+
+  return {
+    cwd,
+    current,
+    names: parsedNames,
+  };
 }
 
 /** Parse a workspace path received from the isolated renderer. */
@@ -337,11 +359,26 @@ export function parseWorkspaceResult(
   return parseResult(value, parseWorkspace);
 }
 
-/** Parse a local Git branch result after it crosses the Electron IPC boundary. */
-export function parseGitBranchResult(
+/** Parse local Git branches after they cross the Electron IPC boundary. */
+export function parseGitBranchesResult(
   value: unknown,
-): PrimeAgentResult<PrimeAgentGitBranch> {
-  return parseResult(value, parseGitBranch);
+): PrimeAgentResult<PrimeAgentGitBranches> {
+  return parseResult(value, parseGitBranches);
+}
+
+/** Parse a local Git branch change from the isolated renderer. */
+export function parseGitBranchSelection(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitBranchSelection> {
+  if (!isRecord(value)) {
+    return failure('invalid_request', 'The Git branch selection is invalid.');
+  }
+
+  const cwd = nonEmptyString(value.cwd);
+  const name = nonEmptyString(value.name);
+  return cwd === null || name === null
+    ? failure('invalid_request', 'The Git branch selection is invalid.')
+    : { ok: true, value: { cwd, name } };
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */

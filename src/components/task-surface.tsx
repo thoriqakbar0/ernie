@@ -36,11 +36,14 @@ export function TaskSurface(): React.JSX.Element {
         </FieldLabel>
 
         <CurrentWorkspace
+          busy={workspace.busy}
           folders={workspace.folders}
           gitBranch={workspace.gitBranch}
+          gitBranches={workspace.gitBranches}
           loadingWorkspace={workspace.loadingWorkspace}
           selectedCwd={workspace.selectedCwd}
           changeFolder={workspace.changeFolder}
+          changeGitBranch={workspace.changeGitBranch}
         />
 
         <InputGroup className="min-h-40 rounded-2xl bg-card">

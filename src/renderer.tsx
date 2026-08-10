@@ -1,8 +1,8 @@
-import { Agentation } from 'agentation';
-import { StrictMode, useState } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { ErnieShell } from '@/components/ernie-shell';
+import { RendererApp } from '@/components/renderer-app';
+import { applyColorTheme, readInitialColorTheme } from '@/color-theme';
 
 import './index.css';
 
@@ -71,30 +71,12 @@ if (container === null) {
   throw new Error('Ernie renderer root is missing.');
 }
 
-function RendererApp(): React.JSX.Element {
-  const [agentationEnabled, setAgentationEnabled] = useState(true);
-
-  const reloadRenderer = (): void => {
-    window.location.reload();
-  };
-
-  return (
-    <>
-      <ErnieShell
-        agentationEnabled={agentationEnabled}
-        onAgentationEnabledChange={setAgentationEnabled}
-        onReload={reloadRenderer}
-      />
-      {agentationEnabled && (
-        <Agentation endpoint="http://localhost:4747" />
-      )}
-    </>
-  );
-}
+const initialColorTheme = readInitialColorTheme();
+applyColorTheme(initialColorTheme);
 
 createRoot(container).render(
   <StrictMode>
-    <RendererApp />
+    <RendererApp initialColorTheme={initialColorTheme} />
   </StrictMode>,
 );
 

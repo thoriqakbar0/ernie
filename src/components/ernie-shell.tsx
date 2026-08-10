@@ -1,8 +1,10 @@
 import {
+  MoonIcon,
   PlusIcon,
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
+  SunIcon,
 } from 'lucide-react';
 
 import { TaskSurface } from '@/components/task-surface';
@@ -90,15 +92,21 @@ function AgentSidebar(): React.JSX.Element {
 
 type ErnieShellProps = {
   agentationEnabled: boolean;
+  darkModeEnabled: boolean;
   onAgentationEnabledChange: (enabled: boolean) => void;
+  onDarkModeEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
 };
 
 export function ErnieShell({
   agentationEnabled,
+  darkModeEnabled,
   onAgentationEnabledChange,
+  onDarkModeEnabledChange,
   onReload,
 }: ErnieShellProps): React.JSX.Element {
+  const themeAction = darkModeEnabled ? 'Use light mode' : 'Use dark mode';
+
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen className="select-none">
@@ -116,6 +124,20 @@ export function ErnieShell({
                   onCheckedChange={onAgentationEnabledChange}
                 />
               </Field>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={themeAction}
+                title={themeAction}
+                onClick={() => onDarkModeEnabledChange(!darkModeEnabled)}
+              >
+                {darkModeEnabled ? (
+                  <SunIcon aria-hidden="true" />
+                ) : (
+                  <MoonIcon aria-hidden="true" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="ghost"

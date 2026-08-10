@@ -7,10 +7,9 @@
   "private": true,
   "scripts": {
     "start": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js .",
-    "start:dev": "nub run build:main && nub run build:renderer:dev && nub --node node_modules/electron/cli.js .",
+    "dev": "nub run build:main && nub --node scripts/development.mjs",
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
-    "build:renderer:dev": "vite build --mode development",
     "build": "nub run build:main && nub run build:renderer",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src",

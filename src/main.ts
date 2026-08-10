@@ -14,6 +14,7 @@ import {
 } from './renderer-api';
 
 const rendererReadyTimeoutMs = 5_000;
+const developmentRendererUrlEnvironmentName = 'ERNIE_RENDERER_URL';
 
 class RendererReadyTimeoutError extends Error {
   readonly _tag = 'RendererReadyTimeoutError';
@@ -31,7 +32,31 @@ class WindowClosedBeforeReadyError extends Error {
   }
 }
 
+class InvalidDevelopmentRendererUrlError extends Error {
+  readonly _tag = 'InvalidDevelopmentRendererUrlError';
+
+  constructor(value: string) {
+    super(`Invalid ${developmentRendererUrlEnvironmentName}: ${value}`);
+  }
+}
+
 let mainWindow: BrowserWindow | null = null;
+
+function readDevelopmentRendererUrl(): URL | null {
+  const value = process.env[developmentRendererUrlEnvironmentName];
+  if (value === undefined) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1') {
+      throw new InvalidDevelopmentRendererUrlError(value);
+    }
+    return url;
+  } catch (error) {
+    if (error instanceof InvalidDevelopmentRendererUrlError) throw error;
+    throw new InvalidDevelopmentRendererUrlError(value);
+  }
+}
 
 function registerPrimeAgentHandlers(): void {
   const daemon = createPrimeAgentDaemon(process.cwd());
@@ -113,6 +138,7 @@ function waitForReadyToShow(window: BrowserWindow): Promise<void> {
 }
 
 async function createWindow(): Promise<BrowserWindow> {
+  const developmentRendererUrl = readDevelopmentRendererUrl();
   const iconPath = path.join(__dirname, '../renderer/ernie-logo.png');
   const window = new BrowserWindow({
     width: 1360,
@@ -143,7 +169,9 @@ async function createWindow(): Promise<BrowserWindow> {
 
   try {
     await Promise.all([
-      window.loadFile(path.join(__dirname, '../renderer/index.html')),
+      developmentRendererUrl === null
+        ? window.loadFile(path.join(__dirname, '../renderer/index.html'))
+        : window.loadURL(developmentRendererUrl.href),
       readyToShow,
       rendererReady,
     ]);

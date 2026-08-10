@@ -14,6 +14,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
+      agentation:
+        specifier: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz
+        version: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -57,9 +60,6 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
-      agentation:
-        specifier: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz
-        version: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz
       dependency-cruiser:
         specifier: ^18.1.1
         version: 18.1.1

@@ -44,7 +44,7 @@ The interface uses flat color, precise one-pixel dividers, and modest radii. It 
 - Filters project Agents by attention state.
 - Attention actions return the user to the related Agent.
 - New Agent creates a local roster item and selects it.
-- Agentation remains available only in the development build.
+- Agentation ships with Ernie and can be disabled from the header.
 
 ## Responsive behavior
 

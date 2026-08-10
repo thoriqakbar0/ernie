@@ -6,8 +6,6 @@ import { ErnieShell } from '@/components/ernie-shell';
 
 import './index.css';
 
-declare const __ENABLE_AGENTATION__: boolean;
-
 const agentationToolbarSelector = '[data-agentation-toolbar]';
 
 function isAgentationToolbarVisible(): boolean {
@@ -46,11 +44,6 @@ function signalReadyAfterPaint(): () => void {
     if (secondFrameId !== undefined) cancelAnimationFrame(secondFrameId);
   };
 
-  if (!__ENABLE_AGENTATION__) {
-    signal();
-    return cancelScheduledSignal;
-  }
-
   const observer = new MutationObserver(() => {
     if (!isAgentationToolbarVisible()) {
       return;
@@ -79,7 +72,7 @@ if (container === null) {
 }
 
 function RendererApp(): React.JSX.Element {
-  const [devMode, setDevMode] = useState(__ENABLE_AGENTATION__);
+  const [agentationEnabled, setAgentationEnabled] = useState(true);
 
   const reloadRenderer = (): void => {
     window.location.reload();
@@ -88,12 +81,11 @@ function RendererApp(): React.JSX.Element {
   return (
     <>
       <ErnieShell
-        devMode={devMode}
-        devModeAvailable={__ENABLE_AGENTATION__}
-        onDevModeChange={setDevMode}
+        agentationEnabled={agentationEnabled}
+        onAgentationEnabledChange={setAgentationEnabled}
         onReload={reloadRenderer}
       />
-      {__ENABLE_AGENTATION__ && devMode && (
+      {agentationEnabled && (
         <Agentation endpoint="http://localhost:4747" />
       )}
     </>

@@ -89,23 +89,19 @@ function AgentSidebar(): React.JSX.Element {
 }
 
 type ErnieShellProps = {
-  devMode: boolean;
-  devModeAvailable: boolean;
-  onDevModeChange: (enabled: boolean) => void;
+  agentationEnabled: boolean;
+  onAgentationEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
 };
 
 export function ErnieShell({
-  devMode,
-  devModeAvailable,
-  onDevModeChange,
+  agentationEnabled,
+  onAgentationEnabledChange,
   onReload,
 }: ErnieShellProps): React.JSX.Element {
   return (
     <TooltipProvider>
-      <SidebarProvider
-        defaultOpen
-      >
+      <SidebarProvider defaultOpen>
         <AgentSidebar />
 
         <SidebarInset className="min-w-0 overflow-hidden">
@@ -113,12 +109,11 @@ export function ErnieShell({
             <SidebarTrigger className="md:hidden" />
             <div className="ml-auto flex items-center gap-2">
               <Field orientation="horizontal" className="w-auto">
-                <FieldLabel htmlFor="dev-mode">dev</FieldLabel>
+                <FieldLabel htmlFor="agentation">annotate</FieldLabel>
                 <Switch
-                  id="dev-mode"
-                  checked={devMode}
-                  disabled={!devModeAvailable}
-                  onCheckedChange={onDevModeChange}
+                  id="agentation"
+                  checked={agentationEnabled}
+                  onCheckedChange={onAgentationEnabledChange}
                 />
               </Field>
               <Button

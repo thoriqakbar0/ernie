@@ -6,7 +6,7 @@
   "main": ".build/main/main.js",
   "private": true,
   "scripts": {
-    "start": "nub run build:main && nub run build:renderer:dev && nub --node node_modules/electron/cli.js .",
+    "start": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js .",
     "start:dev": "nub run build:main && nub run build:renderer:dev && nub --node node_modules/electron/cli.js .",
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src",
     "test": "nub --test \"src/packages/**/tests/*.test.ts\"",
-    "check:agentation": "nub run build:main && nub run build:renderer:dev && nub --node node_modules/electron/cli.js scripts/agentation-check",
+    "check:agentation": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js scripts/agentation-check",
     "check": "nub run typecheck && nub run lint:boundaries && nub run test"
   },
   "keywords": [],
@@ -27,6 +27,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@fontsource-variable/geist": "^5.3.0",
+    "agentation": "https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "0.468.0",
@@ -43,7 +44,6 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
-    "agentation": "https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz",
     "dependency-cruiser": "^18.1.1",
     "electron": "43.3.0",
     "tailwindcss": "^4.3.3",

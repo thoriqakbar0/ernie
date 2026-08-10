@@ -4,11 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   base: './',
-  define: {
-    __ENABLE_AGENTATION__: JSON.stringify(mode === 'development'),
-  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -23,4 +20,4 @@ export default defineConfig(({ mode }) => ({
       input: resolve(import.meta.dirname, 'index.html'),
     },
   },
-}));
+});

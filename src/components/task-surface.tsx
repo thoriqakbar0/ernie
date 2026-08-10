@@ -82,7 +82,11 @@ export function TaskSurface(): React.JSX.Element {
                 >
                   <SelectValue placeholder="No model" />
                 </SelectTrigger>
-                <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectContent
+                  className="max-h-72"
+                  align="start"
+                  alignItemWithTrigger={false}
+                >
                   <SelectGroup>
                     {workspace.models.map((model) => (
                       <SelectItem key={model.key} value={model.key}>

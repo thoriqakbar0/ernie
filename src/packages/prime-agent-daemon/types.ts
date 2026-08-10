@@ -21,6 +21,12 @@ export interface PrimeAgentWorkspace {
   readonly sessions: readonly PrimeAgentSession[];
 }
 
+/** The checked-out local Git branch for one workspace. */
+export interface PrimeAgentGitBranch {
+  readonly cwd: string;
+  readonly name: string | null;
+}
+
 /** Stable failure categories returned across the Electron IPC boundary. */
 export type PrimeAgentFailureCode =
   | 'invalid_request'

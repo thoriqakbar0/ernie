@@ -17,7 +17,7 @@ import type {
 
 type CurrentWorkspaceProps = Pick<
   PrimeAgentWorkspaceController,
-  'loadingWorkspace' | 'selectedCwd' | 'changeFolder'
+  'gitBranch' | 'loadingWorkspace' | 'selectedCwd' | 'changeFolder'
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
@@ -25,6 +25,7 @@ type CurrentWorkspaceProps = Pick<
 /** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
   folders,
+  gitBranch,
   loadingWorkspace,
   selectedCwd,
   changeFolder,
@@ -68,7 +69,7 @@ export function CurrentWorkspace({
         className="bg-card px-3 text-sm font-normal text-muted-foreground"
       >
         <GitBranchIcon />
-        Select branch
+        {gitBranch ?? 'No branch'}
       </Button>
 
       <Button

@@ -1,6 +1,7 @@
 import type {
   PrimeAgentFailure,
   PrimeAgentFailureCode,
+  PrimeAgentGitBranch,
   PrimeAgentModel,
   PrimeAgentModelSelection,
   PrimeAgentResult,
@@ -311,11 +312,36 @@ function parseWorkspace(value: unknown): PrimeAgentWorkspace | null {
   };
 }
 
+function parseGitBranch(value: unknown): PrimeAgentGitBranch | null {
+  if (!isRecord(value)) return null;
+
+  const cwd = nonEmptyString(value.cwd);
+  const name = value.name === null ? null : nonEmptyString(value.name);
+  if (cwd === null || (value.name !== null && name === null)) return null;
+
+  return { cwd, name };
+}
+
+/** Parse a workspace path received from the isolated renderer. */
+export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
+  const cwd = nonEmptyString(value);
+  return cwd === null
+    ? failure('invalid_request', 'The workspace path is invalid.')
+    : { ok: true, value: cwd };
+}
+
 /** Parse a workspace result after it crosses the Electron IPC boundary. */
 export function parseWorkspaceResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentWorkspace> {
   return parseResult(value, parseWorkspace);
+}
+
+/** Parse a local Git branch result after it crosses the Electron IPC boundary. */
+export function parseGitBranchResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitBranch> {
+  return parseResult(value, parseGitBranch);
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */

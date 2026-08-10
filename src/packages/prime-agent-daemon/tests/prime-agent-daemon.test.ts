@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  parsePrimeAgentGitBranchResult,
+} from '../git-client';
+import {
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentWorkspaceResult,
 } from '../client';
@@ -106,5 +109,17 @@ test('parses live RLM depth after IPC', () => {
   assert.deepEqual(result, {
     ok: true,
     value: { maxDepth: 2, source: 'chat' },
+  });
+});
+
+test('parses a local Git branch after IPC', () => {
+  const result = parsePrimeAgentGitBranchResult({
+    ok: true,
+    value: { cwd: '/workspace/ernie', name: 'main' },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: { cwd: '/workspace/ernie', name: 'main' },
   });
 });

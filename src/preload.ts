@@ -10,6 +10,7 @@ const primeAgentModelsChannel = 'ernie:prime-agent:models';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
+const primeAgentGitBranchChannel = 'ernie:prime-agent:git-branch';
 
 const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
@@ -29,6 +30,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   async setPrimeAgentRlmDepth(selection): Promise<unknown> {
     return ipcRenderer.invoke(primeAgentSetRlmDepthChannel, selection);
+  },
+  async getPrimeAgentGitBranch(cwd): Promise<unknown> {
+    return ipcRenderer.invoke(primeAgentGitBranchChannel, cwd);
   },
 });
 

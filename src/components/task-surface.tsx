@@ -37,6 +37,7 @@ export function TaskSurface(): React.JSX.Element {
 
         <CurrentWorkspace
           folders={workspace.folders}
+          gitBranch={workspace.gitBranch}
           loadingWorkspace={workspace.loadingWorkspace}
           selectedCwd={workspace.selectedCwd}
           changeFolder={workspace.changeFolder}
@@ -46,7 +47,7 @@ export function TaskSurface(): React.JSX.Element {
           <InputGroupTextarea
             id="task"
             rows={4}
-            className="select-text px-4 pt-4 text-lg placeholder:text-lg"
+            className="select-text px-4 pt-4 text-base"
             placeholder="Plan, Build, / for skills, @ for context"
           />
           <InputGroupAddon align="block-end" className="px-4 pb-4">

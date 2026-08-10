@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  parsePrimeAgentGitBranchResult,
+} from '@/packages/prime-agent-daemon/git-client';
+import {
   parsePrimeAgentModelResult,
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
@@ -20,6 +23,7 @@ export interface PrimeAgentFolderChoice {
 export interface PrimeAgentWorkspaceController {
   readonly busy: boolean;
   readonly folders: readonly PrimeAgentFolderChoice[];
+  readonly gitBranch: string | null;
   readonly loadingWorkspace: boolean;
   readonly models: readonly PrimeAgentModel[];
   readonly repoName: string;
@@ -52,6 +56,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     null,
   );
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
+  const [gitBranch, setGitBranch] = useState<string | null>(null);
   const [rlmDepth, setRlmDepth] = useState<number | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
@@ -99,6 +104,33 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedCwd === null) {
+      setGitBranch(null);
+      return;
+    }
+
+    const cwd = selectedCwd;
+    let cancelled = false;
+
+    async function loadGitBranch(): Promise<void> {
+      try {
+        const rawResult = await window.ernie.getPrimeAgentGitBranch(cwd);
+        if (cancelled) return;
+
+        const result = parsePrimeAgentGitBranchResult(rawResult);
+        setGitBranch(result.ok ? result.value.name : null);
+      } catch {
+        if (!cancelled) setGitBranch(null);
+      }
+    }
+
+    void loadGitBranch();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCwd]);
 
   useEffect(() => {
     if (selectedSessionId === null) {
@@ -258,6 +290,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     busy:
       loadingWorkspace || loadingSession || savingModel || savingRlmDepth,
     folders,
+    gitBranch,
     loadingWorkspace,
     models,
     repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),

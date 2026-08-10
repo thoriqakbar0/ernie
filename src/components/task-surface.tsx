@@ -30,7 +30,7 @@ export function TaskSurface(): React.JSX.Element {
 
   return (
     <div className="my-auto w-full">
-      <Field className="mx-auto max-w-[50rem] gap-[1.375rem]">
+      <Field className="mx-auto max-w-[50rem] gap-2">
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
         </FieldLabel>
@@ -50,7 +50,7 @@ export function TaskSurface(): React.JSX.Element {
             className="select-text px-4 pt-4 text-base"
             placeholder="Plan, Build, / for skills, @ for context"
           />
-          <InputGroupAddon align="block-end" className="px-4 pb-4">
+          <InputGroupAddon align="block-end" className="px-4 pb-3.5">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <InputGroupButton
                 size="icon-sm"

@@ -9,8 +9,8 @@ import {
 const rlmDepthChoices = Array.from({ length: 9 }, (_, maxDepth) => ({
   label:
     maxDepth === 0
-      ? 'Direct, no delegation'
-      : `${maxDepth} delegation ${maxDepth === 1 ? 'level' : 'levels'}`,
+      ? 'RLM depth 0, no recursion'
+      : `RLM depth ${maxDepth}`,
   value: String(maxDepth),
 }));
 
@@ -35,11 +35,12 @@ export function RlmDepthPicker({
       onValueChange={onDepthChange}
     >
       <SelectTrigger
-        aria-label={`Multitask agent depth: ${depthLabel}`}
         className="group/depth-trigger h-8 w-auto rounded-full border-border bg-background py-0 pr-2.5 pl-3 text-sm font-normal shadow-[0_1px_2px_oklch(0_0_0/0.04)] transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-muted hover:shadow-[0_0_0_1px_oklch(0_0_0/0.04),0_2px_4px_oklch(0_0_0/0.06)] active:scale-[0.96] motion-reduce:transition-none dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)]"
         disabled={busy || depth === null}
       >
-        <span>Multitask</span>
+        <span>
+          <span translate="no">RLM</span> depth
+        </span>
         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs leading-none tabular-nums text-muted-foreground transition-colors duration-150 ease-out group-hover/depth-trigger:bg-background motion-reduce:transition-none">
           {depth === null ? '–' : depth}
         </span>
@@ -54,13 +55,15 @@ export function RlmDepthPicker({
         <SelectGroup className="grid grid-cols-9 gap-1 p-2">
           <div className="col-span-9 px-1 pb-2">
             <div className="flex items-baseline justify-between gap-4">
-              <p className="text-sm font-medium">Agent depth</p>
+              <p className="text-sm font-medium">
+                <span translate="no">RLM</span> depth
+              </p>
               <p className="text-xs tabular-nums text-muted-foreground">
                 {depthLabel}
               </p>
             </div>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              Limit how many delegation levels agents can create.
+              Set the maximum recursion depth for this chat.
             </p>
           </div>
 
@@ -79,7 +82,7 @@ export function RlmDepthPicker({
             aria-hidden="true"
             className="col-span-9 flex justify-between px-1 pt-1 text-[0.6875rem] text-muted-foreground"
           >
-            <span>Direct</span>
+            <span>No recursion</span>
             <span>Maximum</span>
           </div>
         </SelectGroup>

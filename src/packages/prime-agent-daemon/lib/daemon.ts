@@ -34,22 +34,46 @@ function responseData(response: DaemonResponse): PrimeAgentResult<unknown> {
     : failure('request_failed', 'Prime Agent could not complete the request.');
 }
 
+function errorMetadata(error: unknown): Readonly<{
+  name: string;
+  code: string | null;
+}> {
+  if (!(error instanceof Error)) return { name: 'NonError', code: null };
+  const code = 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : null;
+  return { name: error.name, code };
+}
+
+function reportOperationalFailure(scope: string, error: unknown): void {
+  console.error(scope, errorMetadata(error));
+}
+
 async function withClient<T>(
   operation: (client: DaemonClient) => Promise<PrimeAgentResult<T>>,
 ): Promise<PrimeAgentResult<T>> {
-  const { DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath } =
-    await import('prime-agent');
-  const client = new DaemonClientConstructor(defaultDaemonSocketPath());
+  let client: DaemonClient | null = null;
+  let connected = false;
   try {
+    const { DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath } =
+      await import('prime-agent');
+    client = new DaemonClientConstructor(defaultDaemonSocketPath());
     await client.connect(connectTimeoutMs);
+    connected = true;
     return await operation(client);
-  } catch {
-    return failure(
-      'daemon_unavailable',
-      'The Prime Agent daemon is not available.',
+  } catch (error) {
+    reportOperationalFailure(
+      connected ? 'Prime Agent request failed.' : 'Prime Agent connection failed.',
+      error,
     );
+    return connected
+      ? failure('request_failed', 'Prime Agent could not complete the request.')
+      : failure(
+          'daemon_unavailable',
+          'The Prime Agent daemon is not available.',
+        );
   } finally {
-    client.close();
+    client?.close();
   }
 }
 

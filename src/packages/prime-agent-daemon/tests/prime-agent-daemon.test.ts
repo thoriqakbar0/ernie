@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { promisify } from 'node:util';
 
 import {
   parsePrimeAgentGitBranchResult,
@@ -13,6 +18,9 @@ import {
   parsePrimeAgentDaemonModels,
   parsePrimeAgentDaemonSessions,
 } from '../server';
+import { readLocalGitBranch } from '../git-server';
+
+const execFileAsync = promisify(execFile);
 
 test('keeps only connected top-level daemon sessions', () => {
   const result = parsePrimeAgentDaemonSessions({
@@ -153,5 +161,48 @@ test('parses a local Git branch after IPC', () => {
   assert.deepEqual(result, {
     ok: true,
     value: { cwd: '/workspace/ernie', name: 'main' },
+  });
+});
+
+test('reads the checked-out branch through the Git process', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await execFileAsync(
+    'git',
+    ['init', '--initial-branch', 'feature/local', cwd],
+    { encoding: 'utf8' },
+  );
+
+  const result = await readLocalGitBranch(cwd);
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: { cwd, name: 'feature/local' },
+  });
+});
+
+test('returns no branch for a directory outside a Git repository', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-no-git-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+
+  const result = await readLocalGitBranch(cwd);
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: { cwd, name: null },
+  });
+});
+
+test('rejects a missing workspace path before starting Git', async () => {
+  const cwd = join(tmpdir(), 'ernie-missing-workspace');
+
+  const result = await readLocalGitBranch(cwd);
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'invalid_request',
+      message: 'The workspace path is invalid.',
+    },
   });
 });

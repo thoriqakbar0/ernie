@@ -54,7 +54,7 @@ export function TaskSurface(): React.JSX.Element {
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <InputGroupButton
                 size="icon-sm"
-                className="size-10 rounded-full bg-muted text-foreground"
+                className="size-9 rounded-full bg-muted text-foreground"
                 aria-label="Add context"
               >
                 <PlusIcon />
@@ -91,7 +91,7 @@ export function TaskSurface(): React.JSX.Element {
 
             <InputGroupButton
               size="icon-sm"
-              className="size-10 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
+              className="size-9 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
               aria-label="Use voice input"
             >
               <MicIcon />

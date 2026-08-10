@@ -62,6 +62,12 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
           aria-labelledby={labelId}
           aria-describedby={descriptionId}
           inputMode="numeric"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              commitDepth(draftDepth);
+            }
+          }}
           className="h-full w-8 border-x border-border bg-transparent px-0 text-center text-sm tabular-nums outline-none selection:bg-primary/20"
         />
         <NumberField.Increment

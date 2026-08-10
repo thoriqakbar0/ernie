@@ -44,6 +44,7 @@ export function TaskSurface(): React.JSX.Element {
           selectedCwd={workspace.selectedCwd}
           changeFolder={workspace.changeFolder}
           changeGitBranch={workspace.changeGitBranch}
+          deleteGitBranch={workspace.deleteGitBranch}
         />
 
         <InputGroup className="min-h-40 rounded-2xl bg-card">

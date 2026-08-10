@@ -10,16 +10,6 @@ import { parseGitBranchSelection, parseWorkspaceCwd } from './protocol';
 
 const execFileAsync = promisify(execFile);
 const gitTimeoutMs = 3_000;
-const preferredGitBranches = new Map([
-  ['main', 0],
-  ['staging', 1],
-]);
-
-function compareGitBranches(left: string, right: string): number {
-  const leftPriority = preferredGitBranches.get(left) ?? 2;
-  const rightPriority = preferredGitBranches.get(right) ?? 2;
-  return leftPriority - rightPriority || left.localeCompare(right);
-}
 
 function errorCode(error: unknown): string | number | null {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
@@ -93,7 +83,7 @@ export async function readLocalGitBranches(
       .filter((name) => name.length > 0);
 
     if (current !== null && !names.includes(current)) names.push(current);
-    names.sort(compareGitBranches);
+    names.sort((left, right) => left.localeCompare(right));
 
     return {
       ok: true,
@@ -158,6 +148,63 @@ export async function switchLocalGitBranch(
       error: {
         code: 'request_failed',
         message: 'Git could not switch the local branch.',
+      },
+    };
+  }
+}
+
+/** Delete one merged local branch while protecting primary and current branches. */
+export async function deleteLocalGitBranch(
+  selection: unknown,
+): Promise<PrimeAgentResult<PrimeAgentGitBranches>> {
+  const parsedSelection = parseGitBranchSelection(selection);
+  if (!parsedSelection.ok) return parsedSelection;
+
+  const branches = await readLocalGitBranches(parsedSelection.value.cwd);
+  if (!branches.ok) return branches;
+  if (
+    parsedSelection.value.name === 'main' ||
+    parsedSelection.value.name === 'staging' ||
+    parsedSelection.value.name === branches.value.current
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_request',
+        message: 'The selected local Git branch is protected.',
+      },
+    };
+  }
+  if (!branches.value.names.includes(parsedSelection.value.name)) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_request',
+        message: 'The selected local Git branch does not exist.',
+      },
+    };
+  }
+
+  try {
+    await execFileAsync(
+      'git',
+      [
+        '-C',
+        parsedSelection.value.cwd,
+        'branch',
+        '--delete',
+        parsedSelection.value.name,
+      ],
+      { encoding: 'utf8', timeout: gitTimeoutMs },
+    );
+    return readLocalGitBranches(parsedSelection.value.cwd);
+  } catch (error) {
+    reportGitFailure(error);
+    return {
+      ok: false,
+      error: {
+        code: 'request_failed',
+        message: 'Git could not delete the local branch.',
       },
     };
   }

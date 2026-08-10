@@ -29,6 +29,10 @@ export const primeAgentGitBranchesChannel = 'ernie:prime-agent:git-branches';
 export const primeAgentSwitchGitBranchChannel =
   'ernie:prime-agent:switch-git-branch';
 
+/** IPC channel that deletes one merged local branch. */
+export const primeAgentDeleteGitBranchChannel =
+  'ernie:prime-agent:delete-git-branch';
+
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
@@ -41,6 +45,9 @@ export type ErnieRendererApi = Readonly<{
   ) => Promise<unknown>;
   listPrimeAgentGitBranches: (cwd: string) => Promise<unknown>;
   switchPrimeAgentGitBranch: (
+    selection: PrimeAgentGitBranchSelection,
+  ) => Promise<unknown>;
+  deletePrimeAgentGitBranch: (
     selection: PrimeAgentGitBranchSelection,
   ) => Promise<unknown>;
 }>;

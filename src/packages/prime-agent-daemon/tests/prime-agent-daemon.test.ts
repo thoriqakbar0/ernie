@@ -19,6 +19,7 @@ import {
   parsePrimeAgentDaemonSessions,
 } from '../server';
 import {
+  deleteLocalGitBranch,
   readLocalGitBranches,
   switchLocalGitBranch,
 } from '../git-server';
@@ -185,7 +186,7 @@ test('parses local Git branches after IPC', () => {
     value: {
       cwd: '/workspace/ernie',
       current: 'main',
-      names: ['feature/local', 'main'],
+      names: ['feature/local', 'staging', 'main'],
     },
   });
 
@@ -194,7 +195,7 @@ test('parses local Git branches after IPC', () => {
     value: {
       cwd: '/workspace/ernie',
       current: 'main',
-      names: ['feature/local', 'main'],
+      names: ['main', 'staging', 'feature/local'],
     },
   });
 });
@@ -237,7 +238,7 @@ test('reads local branches through the Git process', async (context) => {
     value: {
       cwd,
       current: 'feature/local',
-      names: ['main', 'staging', 'feature/local', 'feature/second'],
+      names: ['feature/local', 'feature/second', 'main', 'staging'],
     },
   });
 });
@@ -279,6 +280,97 @@ test('rejects a local Git branch that does not exist', async (context) => {
       message: 'The selected local Git branch does not exist.',
     },
   });
+});
+
+test('deletes an existing merged local Git branch', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-delete-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+  await execFileAsync('git', ['-C', cwd, 'branch', 'feature/merged'], {
+    encoding: 'utf8',
+  });
+
+  const result = await deleteLocalGitBranch({
+    cwd,
+    name: 'feature/merged',
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      cwd,
+      current: 'feature/local',
+      names: ['feature/local'],
+    },
+  });
+});
+
+test('protects the main local Git branch from deletion', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-protected-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+  await execFileAsync('git', ['-C', cwd, 'branch', 'main'], {
+    encoding: 'utf8',
+  });
+
+  const result = await deleteLocalGitBranch({ cwd, name: 'main' });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'invalid_request',
+      message: 'The selected local Git branch is protected.',
+    },
+  });
+});
+
+test('keeps an unmerged local Git branch', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ernie-git-unmerged-'));
+  context.after(() => rm(cwd, { force: true, recursive: true }));
+  await createGitRepository(cwd);
+  await execFileAsync(
+    'git',
+    ['-C', cwd, 'switch', '--create', 'feature/unmerged'],
+    { encoding: 'utf8' },
+  );
+  await execFileAsync(
+    'git',
+    [
+      '-C',
+      cwd,
+      '-c',
+      'user.name=Ernie Test',
+      '-c',
+      'user.email=ernie@example.invalid',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'Unmerged commit',
+    ],
+    { encoding: 'utf8' },
+  );
+  await execFileAsync('git', ['-C', cwd, 'switch', 'feature/local'], {
+    encoding: 'utf8',
+  });
+
+  const result = await deleteLocalGitBranch({
+    cwd,
+    name: 'feature/unmerged',
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: {
+      code: 'request_failed',
+      message: 'Git could not delete the local branch.',
+    },
+  });
+  const branchResult = await execFileAsync(
+    'git',
+    ['-C', cwd, 'branch', '--list', 'feature/unmerged'],
+    { encoding: 'utf8' },
+  );
+  assert.equal(branchResult.stdout.trim(), 'feature/unmerged');
 });
 
 test('returns no branch for a directory outside a Git repository', async (context) => {

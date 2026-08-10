@@ -4,12 +4,14 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import type { IpcMainEvent } from 'electron';
 
 import {
+  deleteLocalGitBranch,
   readLocalGitBranches,
   switchLocalGitBranch,
 } from './packages/prime-agent-daemon/git-server';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
 import {
   primeAgentGitBranchesChannel,
+  primeAgentDeleteGitBranchChannel,
   primeAgentModelsChannel,
   primeAgentRlmDepthChannel,
   primeAgentSetModelChannel,
@@ -88,6 +90,10 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(
     primeAgentSwitchGitBranchChannel,
     (_event, selection: unknown) => switchLocalGitBranch(selection),
+  );
+  ipcMain.handle(
+    primeAgentDeleteGitBranchChannel,
+    (_event, selection: unknown) => deleteLocalGitBranch(selection),
   );
 }
 

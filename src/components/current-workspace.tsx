@@ -1,5 +1,6 @@
-import { GitBranchIcon, LaptopIcon } from 'lucide-react';
+import { LaptopIcon } from 'lucide-react';
 
+import { GitBranchDropdown } from '@/components/git-branch-dropdown';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
@@ -24,6 +25,7 @@ type CurrentWorkspaceProps = Pick<
   | 'selectedCwd'
   | 'changeFolder'
   | 'changeGitBranch'
+  | 'deleteGitBranch'
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
@@ -38,6 +40,7 @@ export function CurrentWorkspace({
   selectedCwd,
   changeFolder,
   changeGitBranch,
+  deleteGitBranch,
 }: CurrentWorkspaceProps): React.JSX.Element {
   return (
     <section
@@ -73,30 +76,13 @@ export function CurrentWorkspace({
         </Select>
       </Field>
 
-      <Select
-        items={gitBranches.map((name) => ({ label: name, value: name }))}
-        value={gitBranch}
-        onValueChange={changeGitBranch}
-      >
-        <SelectTrigger
-          size="sm"
-          className="h-[30px] w-[106px] bg-card px-3 text-sm text-muted-foreground"
-          aria-label="Git branch"
-          disabled={busy || selectedCwd === null || gitBranches.length === 0}
-        >
-          <GitBranchIcon />
-          <SelectValue placeholder="No branch" />
-        </SelectTrigger>
-        <SelectContent align="start" alignItemWithTrigger={false}>
-          <SelectGroup>
-            {gitBranches.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+      <GitBranchDropdown
+        branches={gitBranches}
+        busy={busy || selectedCwd === null}
+        currentBranch={gitBranch}
+        changeBranch={changeGitBranch}
+        deleteBranch={deleteGitBranch}
+      />
 
       <Button
         variant="outline"

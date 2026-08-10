@@ -34,6 +34,7 @@ export interface PrimeAgentWorkspaceController {
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
   readonly changeGitBranch: (name: string | null) => void;
+  readonly deleteGitBranch: (name: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
   readonly changeRlmDepth: (maxDepth: string | null) => void;
 }
@@ -64,7 +65,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
-  const [switchingGitBranch, setSwitchingGitBranch] = useState(false);
+  const [savingGitBranch, setSavingGitBranch] = useState(false);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
   const [status, setStatus] = useState('Connecting to Prime Agent…');
 
@@ -271,7 +272,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const branchName = name;
 
     async function switchGitBranch(): Promise<void> {
-      setSwitchingGitBranch(true);
+      setSavingGitBranch(true);
       try {
         const rawResult = await window.ernie.switchPrimeAgentGitBranch({
           cwd,
@@ -289,11 +290,41 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       } catch {
         setStatus('Ernie could not connect to local Git.');
       } finally {
-        setSwitchingGitBranch(false);
+        setSavingGitBranch(false);
       }
     }
 
     void switchGitBranch();
+  }
+
+  function deleteGitBranch(name: string): void {
+    if (selectedCwd === null || name === gitBranch) return;
+    const cwd = selectedCwd;
+
+    async function deleteBranch(): Promise<void> {
+      setSavingGitBranch(true);
+      try {
+        const rawResult = await window.ernie.deletePrimeAgentGitBranch({
+          cwd,
+          name,
+        });
+        const result = parsePrimeAgentGitBranchesResult(rawResult);
+        if (!result.ok) {
+          setStatus(result.error.message);
+          return;
+        }
+
+        setGitBranch(result.value.current);
+        setGitBranches(result.value.names);
+        setStatus(`Deleted local Git branch ${name}.`);
+      } catch {
+        setStatus('Ernie could not connect to local Git.');
+      } finally {
+        setSavingGitBranch(false);
+      }
+    }
+
+    void deleteBranch();
   }
 
   function changeRlmDepth(value: string | null): void {
@@ -333,7 +364,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       loadingSession ||
       savingModel ||
       savingRlmDepth ||
-      switchingGitBranch,
+      savingGitBranch,
     folders,
     gitBranch,
     gitBranches,
@@ -346,6 +377,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     status,
     changeFolder,
     changeGitBranch,
+    deleteGitBranch,
     changeModel,
     changeRlmDepth,
   };

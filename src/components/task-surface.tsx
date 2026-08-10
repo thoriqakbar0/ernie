@@ -28,7 +28,6 @@ export function TaskSurface(): React.JSX.Element {
           chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
           changeGitBranch={workspace.changeGitBranch}
           deleteGitBranch={workspace.deleteGitBranch}
-          renameGitBranch={workspace.renameGitBranch}
           initializeGitRepository={workspace.initializeGitRepository}
           createGitWorktree={workspace.createGitWorktree}
         />

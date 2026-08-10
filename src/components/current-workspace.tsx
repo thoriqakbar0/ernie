@@ -36,7 +36,6 @@ type CurrentWorkspaceProps = Pick<
   | 'chooseWorkspaceDirectory'
   | 'changeGitBranch'
   | 'deleteGitBranch'
-  | 'renameGitBranch'
   | 'initializeGitRepository'
   | 'createGitWorktree'
 > & {
@@ -62,7 +61,6 @@ export function CurrentWorkspace({
   chooseWorkspaceDirectory,
   changeGitBranch,
   deleteGitBranch,
-  renameGitBranch,
   initializeGitRepository,
   createGitWorktree,
 }: CurrentWorkspaceProps): React.JSX.Element {
@@ -177,7 +175,6 @@ export function CurrentWorkspace({
         statusId="workspace-status"
         changeBranch={changeGitBranch}
         deleteBranch={deleteGitBranch}
-        renameBranch={renameGitBranch}
         initializeGit={initializeGitRepository}
         createWorktree={createGitWorktree}
       />

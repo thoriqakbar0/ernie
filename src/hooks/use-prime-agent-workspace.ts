@@ -43,7 +43,6 @@ export interface PrimeAgentWorkspaceController {
   readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
   readonly deleteGitBranch: (name: string) => void;
-  readonly renameGitBranch: (currentName: string, newName: string) => void;
   readonly initializeGitRepository: () => void;
   readonly createGitWorktree: (branchName: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
@@ -518,48 +517,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function renameGitBranch(currentName: string, newName: string): void {
-    if (selectedCwd === null || currentName === newName) return;
-    const cwd = selectedCwd;
-
-    const renameBranch = Effect.fn('Workspace.renameGitBranch')(function* () {
-      yield* Effect.sync(() => {
-        setGitBranchBusy(true);
-        setGitWorktreeError(null);
-        setStatus(`Renaming local Git branch ${currentName}…`);
-      });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.renamePrimeAgentGitBranch({
-          cwd,
-          currentName,
-          newName,
-        }),
-      );
-      const result = parsePrimeAgentGitBranchesResult(rawResult);
-      if (!result.ok) {
-        yield* Effect.sync(() => setStatus(result.error.message));
-        return;
-      }
-
-      yield* Effect.sync(() => {
-        setGitBranch(result.value.current);
-        setGitBranches(result.value.names);
-        setStatus(`Renamed local Git branch to ${newName}.`);
-      });
-    });
-
-    Effect.runFork(
-      renameBranch().pipe(
-        Effect.catchAll(() =>
-          Effect.sync(() =>
-            setStatus('Ernie could not connect to local Git.'),
-          ),
-        ),
-        Effect.ensuring(Effect.sync(() => setGitBranchBusy(false))),
-      ),
-    );
-  }
-
   function initializeGitRepository(): void {
     if (selectedCwd === null || gitBranches.length > 0) return;
     const cwd = selectedCwd;
@@ -733,7 +690,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     chooseWorkspaceDirectory,
     changeGitBranch,
     deleteGitBranch,
-    renameGitBranch,
     initializeGitRepository,
     createGitWorktree,
     changeModel,

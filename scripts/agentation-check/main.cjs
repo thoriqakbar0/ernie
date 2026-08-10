@@ -12,6 +12,7 @@ const {
 } = require(path.resolve('.build/main/renderer-api.js'));
 
 const rendererReadyTimeoutMs = 5_000;
+const reloadButtonSelector = 'button[aria-label="Reload renderer"]';
 
 function waitForRendererReady(window, startedAt) {
   return new Promise((resolve, reject) => {
@@ -82,17 +83,40 @@ async function checkAgentation() {
     await readyToShow;
     const revealReadyMs = Math.round(performance.now() - startedAt);
 
+    const reloadButtonExists = await window.webContents.executeJavaScript(`(() => {
+      const reloadButton = document.querySelector(${JSON.stringify(reloadButtonSelector)});
+      return reloadButton instanceof HTMLButtonElement;
+    })()`);
+
+    if (!reloadButtonExists) {
+      process.stdout.write(`${JSON.stringify({ reloadButtonExists })}\n`);
+      app.exit(1);
+      return;
+    }
+
+    const reloadStartedAt = performance.now();
+    const reloaded = once(window.webContents, 'did-finish-load');
+    const reloadReady = waitForRendererReady(window, reloadStartedAt);
+    await window.webContents.executeJavaScript(`(() => {
+      const reloadButton = document.querySelector(${JSON.stringify(reloadButtonSelector)});
+      if (!(reloadButton instanceof HTMLButtonElement)) return false;
+      reloadButton.click();
+      return true;
+    })()`);
+    const [, reloadReadyMs] = await Promise.all([reloaded, reloadReady]);
+    const reloadMs = Math.round(performance.now() - reloadStartedAt);
+
     const state = await window.webContents.executeJavaScript(`(() => {
       const toolbar = document.querySelector('[data-agentation-toolbar]');
       if (!(toolbar instanceof HTMLElement)) {
-        return { exists: false, visible: false };
+        return { toolbarExists: false, toolbarVisible: false };
       }
 
       const bounds = toolbar.getBoundingClientRect();
       const style = getComputedStyle(toolbar);
       return {
-        exists: true,
-        visible:
+        toolbarExists: true,
+        toolbarVisible:
           bounds.width > 0 &&
           bounds.height > 0 &&
           style.display !== 'none' &&
@@ -106,9 +130,17 @@ async function checkAgentation() {
     })()`);
 
     process.stdout.write(
-      `${JSON.stringify({ ...state, loadMs, readyMs, revealReadyMs })}\n`,
+      `${JSON.stringify({
+        ...state,
+        reloadButtonExists,
+        loadMs,
+        readyMs,
+        revealReadyMs,
+        reloadMs,
+        reloadReadyMs,
+      })}\n`,
     );
-    app.exit(state.visible ? 0 : 1);
+    app.exit(state.toolbarVisible ? 0 : 1);
   } finally {
     window.destroy();
   }

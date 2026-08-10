@@ -81,12 +81,17 @@ if (container === null) {
 function RendererApp(): React.JSX.Element {
   const [devMode, setDevMode] = useState(__ENABLE_AGENTATION__);
 
+  const reloadRenderer = (): void => {
+    window.location.reload();
+  };
+
   return (
     <>
       <ErnieShell
         devMode={devMode}
         devModeAvailable={__ENABLE_AGENTATION__}
         onDevModeChange={setDevMode}
+        onReload={reloadRenderer}
       />
       {__ENABLE_AGENTATION__ && devMode && (
         <Agentation endpoint="http://localhost:4747" />

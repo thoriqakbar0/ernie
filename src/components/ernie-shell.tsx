@@ -1,10 +1,12 @@
 import {
   PlusIcon,
+  RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
 } from 'lucide-react';
 
 import { TaskSurface } from '@/components/task-surface';
+import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Sidebar,
@@ -90,12 +92,14 @@ type ErnieShellProps = {
   devMode: boolean;
   devModeAvailable: boolean;
   onDevModeChange: (enabled: boolean) => void;
+  onReload: () => void;
 };
 
 export function ErnieShell({
   devMode,
   devModeAvailable,
   onDevModeChange,
+  onReload,
 }: ErnieShellProps): React.JSX.Element {
   return (
     <TooltipProvider>
@@ -108,7 +112,7 @@ export function ErnieShell({
         <SidebarInset className="min-w-0 overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
             <SidebarTrigger className="md:hidden" />
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
               <Field orientation="horizontal" className="w-auto">
                 <FieldLabel htmlFor="dev-mode">dev</FieldLabel>
                 <Switch
@@ -118,6 +122,16 @@ export function ErnieShell({
                   onCheckedChange={onDevModeChange}
                 />
               </Field>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Reload renderer"
+                title="Reload renderer"
+                onClick={onReload}
+              >
+                <RefreshCwIcon />
+              </Button>
             </div>
           </header>
 

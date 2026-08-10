@@ -1,6 +1,5 @@
 import { NumberField } from '@base-ui/react/number-field';
-import { Popover } from '@base-ui/react/popover';
-import { ChevronDownIcon, MinusIcon, PlusIcon } from 'lucide-react';
+import { MinusIcon, PlusIcon } from 'lucide-react';
 import { memo, useId, useState } from 'react';
 
 interface RlmDepthPickerProps {
@@ -9,39 +8,29 @@ interface RlmDepthPickerProps {
   readonly onDepthChange: (depth: string | null) => void;
 }
 
-function explainDepth(depth: number | null): string {
-  if (depth === 0) {
-    return 'Depth 0: the main agent works alone.';
-  }
-  if (depth === 1) {
-    return 'Depth 1: the main agent can delegate.';
-  }
-  if (depth !== null) {
-    return `Depth ${depth}: agents can delegate through ${depth} levels.`;
-  }
-  return 'Enter a non-negative whole number.';
-}
+const maximumRlmDepth = 20;
 
-/** Select the maximum delegation depth for the active Prime Agent session. */
+/** Edit the active Prime Agent session's delegation depth from zero through twenty. */
 export const RlmDepthPicker = memo(function RlmDepthPicker({
   busy,
   depth,
   onDepthChange,
 }: RlmDepthPickerProps): React.JSX.Element {
   const [draftDepth, setDraftDepth] = useState<number | null>(depth);
-  const titleId = useId();
+  const labelId = useId();
   const descriptionId = useId();
-  const explanationId = useId();
 
   function commitDepth(nextDepth: number | null): void {
     if (
       nextDepth === null ||
       !Number.isSafeInteger(nextDepth) ||
-      nextDepth < 0
+      nextDepth < 0 ||
+      nextDepth > maximumRlmDepth
     ) {
       setDraftDepth(depth);
       return;
     }
+
     if (nextDepth !== depth) {
       onDepthChange(String(nextDepth));
       setDraftDepth(depth);
@@ -49,77 +38,42 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
   }
 
   return (
-    <Popover.Root>
-      <Popover.Trigger
-        className="group/depth-trigger flex h-8 items-center justify-between gap-1.5 rounded-full border border-border bg-background py-0 pr-2.5 pl-3 text-sm font-normal whitespace-nowrap outline-none select-none shadow-[0_1px_2px_oklch(0_0_0/0.04)] transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-muted hover:shadow-[0_0_0_1px_oklch(0_0_0/0.04),0_2px_4px_oklch(0_0_0/0.06)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)]"
-        disabled={busy || depth === null}
-      >
-        <span>
+    <NumberField.Root
+      value={draftDepth}
+      min={0}
+      max={maximumRlmDepth}
+      step={1}
+      disabled={busy || depth === null}
+      onValueChange={setDraftDepth}
+      onValueCommitted={commitDepth}
+      className="transition-opacity data-disabled:opacity-50 motion-reduce:transition-none"
+    >
+      <NumberField.Group className="inline-flex h-8 items-center overflow-hidden rounded-full border border-border bg-background text-sm shadow-[0_1px_2px_oklch(0_0_0/0.04)] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)]">
+        <span id={labelId} className="pr-2 pl-3 whitespace-nowrap select-none">
           <span translate="no">RLM</span> depth
         </span>
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs leading-none tabular-nums text-muted-foreground transition-colors duration-150 ease-out group-hover/depth-trigger:bg-background motion-reduce:transition-none">
-          {depth === null ? '–' : depth}
-        </span>
-        <ChevronDownIcon aria-hidden="true" className="size-3.5 text-muted-foreground" />
-      </Popover.Trigger>
-
-      <Popover.Portal>
-        <Popover.Positioner
-          align="start"
-          sideOffset={8}
-          className="isolate z-50"
+        <NumberField.Decrement
+          aria-label="Decrease RLM depth"
+          className="relative flex h-full w-8 items-center justify-center border-l border-border text-muted-foreground outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transition-none"
         >
-          <Popover.Popup className="w-[18rem] max-w-(--available-width) rounded-xl bg-popover p-3.5 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none transition-opacity duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none">
-            <Popover.Title id={titleId} className="text-sm font-medium">
-              <span translate="no">RLM</span> depth
-            </Popover.Title>
-            <Popover.Description
-              id={descriptionId}
-              className="mt-1 text-sm leading-5 text-muted-foreground"
-            >
-              How many times agents can pass work to subagents.
-            </Popover.Description>
-
-            <NumberField.Root
-              value={draftDepth}
-              min={0}
-              step={1}
-              largeStep={4}
-              disabled={busy}
-              onValueChange={setDraftDepth}
-              onValueCommitted={commitDepth}
-              className="mt-3 transition-opacity data-disabled:opacity-60 motion-reduce:transition-none"
-            >
-              <NumberField.Group className="grid h-11 grid-cols-[2.75rem_1fr_2.75rem] overflow-hidden rounded-lg border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
-                <NumberField.Decrement
-                  aria-label="Decrease RLM depth"
-                  className="flex items-center justify-center border-r border-input text-muted-foreground outline-none select-none transition-colors hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
-                >
-                  <MinusIcon aria-hidden="true" className="size-4" />
-                </NumberField.Decrement>
-                <NumberField.Input
-                  aria-labelledby={titleId}
-                  aria-describedby={`${descriptionId} ${explanationId}`}
-                  className="min-w-0 bg-transparent px-3 text-center text-base font-medium tabular-nums outline-none"
-                />
-                <NumberField.Increment
-                  aria-label="Increase RLM depth"
-                  className="flex items-center justify-center border-l border-input text-muted-foreground outline-none select-none transition-colors hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
-                >
-                  <PlusIcon aria-hidden="true" className="size-4" />
-                </NumberField.Increment>
-              </NumberField.Group>
-            </NumberField.Root>
-
-            <p
-              id={explanationId}
-              className="mt-2.5 text-xs leading-5 text-muted-foreground"
-            >
-              {explainDepth(draftDepth)}
-            </p>
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
+          <MinusIcon aria-hidden="true" className="size-3.5" />
+        </NumberField.Decrement>
+        <NumberField.Input
+          aria-labelledby={labelId}
+          aria-describedby={descriptionId}
+          inputMode="numeric"
+          className="h-full w-8 border-x border-border bg-transparent px-0 text-center text-sm tabular-nums outline-none selection:bg-primary/20"
+        />
+        <NumberField.Increment
+          aria-label="Increase RLM depth"
+          className="relative flex h-full w-8 items-center justify-center text-muted-foreground outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted hover:text-foreground active:bg-accent disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transition-none"
+        >
+          <PlusIcon aria-hidden="true" className="size-3.5" />
+        </NumberField.Increment>
+      </NumberField.Group>
+      <span id={descriptionId} className="sr-only">
+        Maximum recursive agent depth, from 0 through 20.
+      </span>
+    </NumberField.Root>
   );
 });

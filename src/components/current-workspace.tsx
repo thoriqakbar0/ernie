@@ -82,8 +82,9 @@ export function CurrentWorkspace({
 
       <GitBranchDropdown
         branches={gitBranches}
-        busy={busy || selectedCwd === null}
         currentBranch={gitBranch}
+        disabled={busy || loadingWorkspace || selectedCwd === null}
+        loading={busy || loadingWorkspace}
         changeBranch={changeGitBranch}
         deleteBranch={deleteGitBranch}
         renameBranch={renameGitBranch}

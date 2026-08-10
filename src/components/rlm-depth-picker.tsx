@@ -11,16 +11,13 @@ interface RlmDepthPickerProps {
 
 function explainDepth(depth: number | null): string {
   if (depth === 0) {
-    return 'Only the main agent works. It cannot create subagents.';
+    return 'Depth 0: the main agent works alone.';
   }
   if (depth === 1) {
-    return 'The main agent can create subagents. They cannot delegate again.';
-  }
-  if (depth === 2) {
-    return 'The main agent can create subagents, and those agents can delegate once more.';
+    return 'Depth 1: the main agent can delegate.';
   }
   if (depth !== null) {
-    return `The main agent and its subagents can delegate through ${depth} nested levels.`;
+    return `Depth ${depth}: agents can delegate through ${depth} levels.`;
   }
   return 'Enter a non-negative whole number.';
 }
@@ -35,7 +32,6 @@ export function RlmDepthPicker({
   const titleId = useId();
   const descriptionId = useId();
   const explanationId = useId();
-  const noteId = useId();
 
   useEffect(() => {
     setDraftDepth(depth);
@@ -77,7 +73,7 @@ export function RlmDepthPicker({
           sideOffset={8}
           className="isolate z-50"
         >
-          <Popover.Popup className="w-[20rem] max-w-(--available-width) rounded-xl bg-popover p-4 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none transition-opacity duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+          <Popover.Popup className="w-[18rem] max-w-(--available-width) rounded-xl bg-popover p-3.5 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none transition-opacity duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none">
             <Popover.Title id={titleId} className="text-sm font-medium">
               <span translate="no">RLM</span> depth
             </Popover.Title>
@@ -85,9 +81,7 @@ export function RlmDepthPicker({
               id={descriptionId}
               className="mt-1 text-sm leading-5 text-muted-foreground"
             >
-              <span translate="no">RLM</span> means Recursive Language Model.
-              It lets an agent delegate parts of a task to subagents. Depth sets
-              how many times that delegation can repeat.
+              How many times agents can pass work to subagents.
             </Popover.Description>
 
             <NumberField.Root
@@ -98,7 +92,7 @@ export function RlmDepthPicker({
               disabled={busy}
               onValueChange={setDraftDepth}
               onValueCommitted={commitDepth}
-              className="mt-4 transition-opacity data-disabled:opacity-60 motion-reduce:transition-none"
+              className="mt-3 transition-opacity data-disabled:opacity-60 motion-reduce:transition-none"
             >
               <NumberField.Group className="grid h-11 grid-cols-[2.75rem_1fr_2.75rem] overflow-hidden rounded-lg border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
                 <NumberField.Decrement
@@ -109,7 +103,7 @@ export function RlmDepthPicker({
                 </NumberField.Decrement>
                 <NumberField.Input
                   aria-labelledby={titleId}
-                  aria-describedby={`${descriptionId} ${explanationId} ${noteId}`}
+                  aria-describedby={`${descriptionId} ${explanationId}`}
                   className="min-w-0 bg-transparent px-3 text-center text-base font-medium tabular-nums outline-none"
                 />
                 <NumberField.Increment
@@ -121,23 +115,11 @@ export function RlmDepthPicker({
               </NumberField.Group>
             </NumberField.Root>
 
-            <div className="mt-3 rounded-lg bg-muted/50 px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">
-                Depth {draftDepth ?? '–'}
-              </p>
-              <p
-                id={explanationId}
-                className="mt-1 text-sm leading-5 text-muted-foreground"
-              >
-                {explainDepth(draftDepth)}
-              </p>
-            </div>
-
             <p
-              id={noteId}
-              className="mt-3 text-xs leading-relaxed text-muted-foreground"
+              id={explanationId}
+              className="mt-2.5 text-xs leading-5 text-muted-foreground"
             >
-              Depth limits nesting, not the total number of agents.
+              {explainDepth(draftDepth)}
             </p>
           </Popover.Popup>
         </Popover.Positioner>

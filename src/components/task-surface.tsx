@@ -46,7 +46,7 @@ export function TaskSurface(): React.JSX.Element {
           <InputGroupTextarea
             id="task"
             rows={4}
-            className="px-4 pt-4 text-lg placeholder:text-lg"
+            className="select-text px-4 pt-4 text-lg placeholder:text-lg"
             placeholder="Plan, Build, / for skills, @ for context"
           />
           <InputGroupAddon align="block-end" className="px-4 pb-4">
@@ -101,7 +101,7 @@ export function TaskSurface(): React.JSX.Element {
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
-            className="rounded-full text-base font-normal"
+            className="rounded-full text-sm font-normal"
           >
             Plan New Idea
             <span className="text-muted-foreground">⇧Tab</span>
@@ -115,7 +115,7 @@ export function TaskSurface(): React.JSX.Element {
             onValueChange={workspace.changeRlmDepth}
           >
             <SelectTrigger
-              className="w-auto rounded-full px-4 text-base"
+              className="w-auto rounded-full px-4 text-sm"
               aria-label="RLM maximum depth"
               disabled={workspace.busy || workspace.rlmDepth === null}
             >

@@ -46,7 +46,7 @@ export function CurrentWorkspace({
           <SelectTrigger
             id="workspace-folder"
             size="sm"
-            className="max-w-48 bg-card px-3 text-base"
+            className="max-w-48 bg-card px-3 text-sm"
             disabled={loadingWorkspace || folders.length === 0}
           >
             <SelectValue placeholder="Workspace" />
@@ -65,7 +65,7 @@ export function CurrentWorkspace({
 
       <Button
         variant="outline"
-        className="bg-card px-3 text-base font-normal text-muted-foreground"
+        className="bg-card px-3 text-sm font-normal text-muted-foreground"
       >
         <GitBranchIcon />
         Select branch
@@ -73,7 +73,7 @@ export function CurrentWorkspace({
 
       <Button
         variant="outline"
-        className="bg-card px-3 text-base font-normal text-muted-foreground"
+        className="bg-card px-3 text-sm font-normal text-muted-foreground"
       >
         <LaptopIcon />
         This Mac

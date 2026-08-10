@@ -42,7 +42,7 @@ function AgentSidebar(): React.JSX.Element {
               <span className="flex min-w-0 flex-col">
                 <span className="truncate font-semibold">Ernie</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  <em>cool</em> agent desktop
+                  cool agent desktop
                 </span>
               </span>
             </SidebarMenuButton>
@@ -101,7 +101,7 @@ export function ErnieShell({
 }: ErnieShellProps): React.JSX.Element {
   return (
     <TooltipProvider>
-      <SidebarProvider defaultOpen>
+      <SidebarProvider defaultOpen className="select-none">
         <AgentSidebar />
 
         <SidebarInset className="min-w-0 overflow-hidden">

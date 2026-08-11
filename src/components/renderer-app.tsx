@@ -24,7 +24,9 @@ export function RendererApp({
   if (
     window.location.hostname === '127.0.0.1' &&
     window.location.port === '5173' &&
-    prototypeVariant === 'A'
+    (prototypeVariant === 'A' ||
+      prototypeVariant === 'B' ||
+      prototypeVariant === 'C')
   ) {
     return <CleanEnvironmentPrototype />;
   }

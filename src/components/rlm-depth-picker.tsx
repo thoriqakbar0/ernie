@@ -57,56 +57,61 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
       <PopoverContent
         align="end"
         aria-label={depth === null ? 'Depth unavailable' : 'Adjust Agent depth'}
-        className={depth === null ? 'w-52 p-2.5' : 'w-auto p-1'}
+        className={depth === null ? 'w-52 p-2.5' : 'w-44 p-1.5'}
       >
         {depth === null ? (
           <p className="text-xs leading-5 text-muted-foreground">
             Available after starting an Agent.
           </p>
         ) : (
-          <div
-            role="group"
-            aria-label="Agent depth"
-            className="inline-flex items-center gap-0.5"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={busy || depth === 0}
-              aria-label="Decrease Agent depth"
-              className="text-muted-foreground hover:text-foreground disabled:opacity-35"
-              onClick={() => requestDepth(depth - 1)}
-              onPointerUp={(event) => event.currentTarget.blur()}
+          <div className="flex flex-col items-center">
+            <div
+              role="group"
+              aria-label="Agent depth"
+              className="inline-flex items-center gap-0.5"
             >
-              <MinusIcon
-                aria-hidden="true"
-                className="size-4"
-                strokeWidth={1.75}
-              />
-            </Button>
-            <output
-              aria-label="Current Agent depth"
-              className="w-8 text-center text-sm font-medium tabular-nums text-foreground"
-            >
-              {depth}
-            </output>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={busy || depth === maximumRlmDepth}
-              aria-label="Increase Agent depth"
-              className="text-muted-foreground hover:text-foreground disabled:opacity-35"
-              onClick={() => requestDepth(depth + 1)}
-              onPointerUp={(event) => event.currentTarget.blur()}
-            >
-              <PlusIcon
-                aria-hidden="true"
-                className="size-4"
-                strokeWidth={1.75}
-              />
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={busy || depth === 0}
+                aria-label="Decrease Agent depth"
+                className="text-muted-foreground hover:text-foreground disabled:opacity-35"
+                onClick={() => requestDepth(depth - 1)}
+                onPointerUp={(event) => event.currentTarget.blur()}
+              >
+                <MinusIcon
+                  aria-hidden="true"
+                  className="size-4"
+                  strokeWidth={1.75}
+                />
+              </Button>
+              <output
+                aria-label="Current Agent depth"
+                className="w-8 text-center text-sm font-medium tabular-nums text-foreground"
+              >
+                {depth}
+              </output>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={busy || depth === maximumRlmDepth}
+                aria-label="Increase Agent depth"
+                className="text-muted-foreground hover:text-foreground disabled:opacity-35"
+                onClick={() => requestDepth(depth + 1)}
+                onPointerUp={(event) => event.currentTarget.blur()}
+              >
+                <PlusIcon
+                  aria-hidden="true"
+                  className="size-4"
+                  strokeWidth={1.75}
+                />
+              </Button>
+            </div>
+            <p className="px-1 pb-0.5 pt-1 text-[11px] leading-4 text-muted-foreground">
+              Higher depth uses more tokens.
+            </p>
           </div>
         )}
       </PopoverContent>

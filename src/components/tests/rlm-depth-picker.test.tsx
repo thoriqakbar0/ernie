@@ -159,6 +159,9 @@ test('RLM depth is displayed without another text control', async () => {
     within(document.body).getByLabelText('Current Agent depth').textContent,
     '5',
   );
+  assert.ok(
+    within(document.body).getByText('Higher depth uses more tokens.'),
+  );
 });
 
 test('unavailable depth explains when the control becomes available', async () => {

@@ -1,5 +1,4 @@
 import {
-  ArchiveRestoreIcon,
   ChevronRightIcon,
   FolderIcon,
   FolderPlusIcon,
@@ -10,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useMemo, useState, type DragEvent } from 'react';
 
-import { ImportSessionSheet } from '@/components/import-session-sheet';
 import { RenameThreadDialog } from '@/components/rename-thread-dialog';
 import {
   threadConversationId,
@@ -48,7 +46,6 @@ type AgentSidebarProps = Pick<
   | 'creatingAgent'
   | 'folders'
   | 'importingSessionPath'
-  | 'loadingSavedSessions'
   | 'renamingSession'
   | 'savedSessions'
   | 'selectedCwd'
@@ -58,7 +55,6 @@ type AgentSidebarProps = Pick<
   | 'chooseWorkspaceDirectory'
   | 'prepareAgent'
   | 'importSession'
-  | 'loadSavedSessions'
   | 'renameSession'
   | 'selectSession'
 >;
@@ -100,7 +96,6 @@ export function AgentSidebar({
   creatingAgent,
   folders,
   importingSessionPath,
-  loadingSavedSessions,
   renamingSession,
   savedSessions,
   selectedCwd,
@@ -110,12 +105,10 @@ export function AgentSidebar({
   chooseWorkspaceDirectory,
   prepareAgent,
   importSession,
-  loadSavedSessions,
   renameSession,
   selectSession,
 }: AgentSidebarProps): React.JSX.Element {
   const [activeOnly, setActiveOnly] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<ThreadConversation | null>(
     null,
   );
@@ -328,19 +321,6 @@ export function AgentSidebar({
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label="Import Prime Agent session"
-            title="Import Prime Agent session"
-            onClick={() => {
-              setImportOpen(true);
-              loadSavedSessions();
-            }}
-          >
-            <ArchiveRestoreIcon aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
             aria-label="Add repository"
             title="Add repository"
             onClick={chooseWorkspaceDirectory}
@@ -449,14 +429,6 @@ export function AgentSidebar({
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
-      <ImportSessionSheet
-        importingSessionPath={importingSessionPath}
-        loading={loadingSavedSessions}
-        open={importOpen}
-        sessions={savedSessions}
-        importSession={importSession}
-        onOpenChange={setImportOpen}
-      />
       <RenameThreadDialog
         busy={renamingSession}
         thread={renameTarget}

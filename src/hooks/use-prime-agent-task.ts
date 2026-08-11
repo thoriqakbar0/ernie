@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import { useRef, useState } from 'react';
 
+import type { CreateAgentWithTaskResult } from '@/hooks/use-prime-agent-workspace';
 import { parsePrimeAgentTaskReceiptResult } from '@/packages/prime-agent-daemon/client';
 
 /** State and actions owned by Ernie's focused task composer. */
@@ -16,6 +17,11 @@ export interface PrimeAgentTaskController {
 /** Submit task drafts without rerendering the surrounding workspace controls. */
 export function usePrimeAgentTask(
   activeSessionId: string | null,
+  selectedCwd: string | null,
+  createAgentWithTask: (
+    cwd: string,
+    message: string,
+  ) => Promise<CreateAgentWithTaskResult>,
 ): PrimeAgentTaskController {
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState('');
@@ -25,22 +31,42 @@ export function usePrimeAgentTask(
   function submit(): void {
     const submittedDraft = draft;
     const message = submittedDraft.trim();
-    if (
-      activeSessionId === null ||
-      message.length === 0 ||
-      submissionInFlight.current
-    ) {
+    if (message.length === 0 || submissionInFlight.current) {
       return;
     }
+    const target =
+      activeSessionId !== null
+        ? { kind: 'connected' as const, activeSessionId }
+        : selectedCwd !== null
+          ? { kind: 'new' as const, cwd: selectedCwd }
+          : null;
+    if (target === null) return;
 
     submissionInFlight.current = true;
     setSubmitting(true);
     setStatus('Sending task to Prime Agent…');
-    const sessionId = activeSessionId;
     const submitTask = Effect.fn('Task.submit')(function* () {
+      if (target.kind === 'new') {
+        const result = yield* Effect.tryPromise(() =>
+          createAgentWithTask(target.cwd, message),
+        );
+        if (!result.ok) {
+          yield* Effect.sync(() => setStatus(result.message));
+          return;
+        }
+
+        yield* Effect.sync(() => {
+          setDraft((currentDraft) =>
+            currentDraft === submittedDraft ? '' : currentDraft,
+          );
+          setStatus('Task sent to Prime Agent.');
+        });
+        return;
+      }
+
       const rawResult = yield* Effect.tryPromise(() =>
         window.ernie.submitPrimeAgentTask({
-          activeSessionId: sessionId,
+          activeSessionId: target.activeSessionId,
           message,
         }),
       );
@@ -76,7 +102,9 @@ export function usePrimeAgentTask(
   }
 
   return {
-    canSubmit: activeSessionId !== null && draft.trim().length > 0,
+    canSubmit:
+      (activeSessionId !== null || selectedCwd !== null) &&
+      draft.trim().length > 0,
     draft,
     status,
     submitting,

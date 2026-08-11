@@ -23,9 +23,11 @@ type TaskComposerProps = Pick<
   | 'modelBusy'
   | 'models'
   | 'skills'
+  | 'selectedCwd'
   | 'selectedModelKey'
   | 'selectedSessionId'
   | 'changeModel'
+  | 'createAgentWithTask'
 >;
 
 /** Compose and submit one task without rerendering workspace controls. */
@@ -33,11 +35,17 @@ export const TaskComposer = memo(function TaskComposer({
   modelBusy,
   models,
   skills,
+  selectedCwd,
   selectedModelKey,
   selectedSessionId,
   changeModel,
+  createAgentWithTask,
 }: TaskComposerProps): React.JSX.Element {
-  const task = usePrimeAgentTask(selectedSessionId);
+  const task = usePrimeAgentTask(
+    selectedSessionId,
+    selectedCwd,
+    createAgentWithTask,
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const skillsListId = useId();
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
@@ -155,6 +163,7 @@ export const TaskComposer = memo(function TaskComposer({
           <InputGroupTextarea
             ref={textareaRef}
             id="task"
+            autoFocus={selectedSessionId === null && selectedCwd !== null}
             rows={4}
             value={task.draft}
             className="select-text px-4 pt-4 text-base"

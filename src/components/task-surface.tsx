@@ -37,13 +37,17 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
         />
 
         <TaskComposer
-          key={workspace.selectedSessionId}
+          key={`${workspace.selectedCwd ?? 'no-workspace'}:${
+            workspace.selectedSessionId ?? 'new'
+          }`}
           modelBusy={workspace.modelBusy}
           models={workspace.models}
           skills={workspace.skills}
+          selectedCwd={workspace.selectedCwd}
           selectedModelKey={workspace.selectedModelKey}
           selectedSessionId={workspace.selectedSessionId}
           changeModel={workspace.changeModel}
+          createAgentWithTask={workspace.createAgentWithTask}
         />
       </Field>
 

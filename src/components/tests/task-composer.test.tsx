@@ -3,7 +3,7 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, render, within } from '@testing-library/react';
+import { cleanup, render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TaskComposer } from '@/components/task-composer';
@@ -29,9 +29,11 @@ function renderTaskComposer(): void {
       modelBusy={false}
       models={[]}
       skills={skills}
+      selectedCwd="/workspace/ernie"
       selectedModelKey={null}
       selectedSessionId="active-agent"
       changeModel={() => undefined}
+      createAgentWithTask={async () => ({ ok: true })}
     />,
   );
 }
@@ -61,4 +63,74 @@ test('user can select a detected skill with the keyboard', async () => {
   await user.keyboard('{ArrowDown}{Enter}');
 
   assert.equal((composer as HTMLTextAreaElement).value, '/skill:tdd ');
+});
+
+test('a new Agent starts only after its first non-empty task', async () => {
+  const submissions: Array<{ cwd: string; message: string }> = [];
+  const user = userEvent.setup();
+  render(
+    <TaskComposer
+      modelBusy={false}
+      models={[]}
+      skills={skills}
+      selectedCwd="/workspace/ernie"
+      selectedModelKey={null}
+      selectedSessionId={null}
+      changeModel={() => undefined}
+      createAgentWithTask={async (cwd, message) => {
+        submissions.push({ cwd, message });
+        return { ok: true };
+      }}
+    />,
+  );
+
+  const composer = within(document.body).getByRole('textbox');
+  assert.equal(document.activeElement, composer);
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'Send task' })
+      .hasAttribute('disabled'),
+    true,
+  );
+  await user.type(composer, '   {Enter}');
+  assert.deepEqual(submissions, []);
+
+  await user.clear(composer);
+  await user.type(composer, 'Polish the sidebar{Enter}');
+
+  await waitFor(() =>
+    assert.deepEqual(submissions, [
+      { cwd: '/workspace/ernie', message: 'Polish the sidebar' },
+    ]),
+  );
+});
+
+test('a failed Agent start keeps the first task draft', async () => {
+  const user = userEvent.setup();
+  render(
+    <TaskComposer
+      modelBusy={false}
+      models={[]}
+      skills={skills}
+      selectedCwd="/workspace/ernie"
+      selectedModelKey={null}
+      selectedSessionId={null}
+      changeModel={() => undefined}
+      createAgentWithTask={async () => ({
+        ok: false,
+        message: 'Prime Agent is unavailable.',
+      })}
+    />,
+  );
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, 'Keep this draft{Enter}');
+
+  await waitFor(() =>
+    assert.equal(
+      within(document.body).getByRole('status').textContent,
+      'Prime Agent is unavailable.',
+    ),
+  );
+  assert.equal((composer as HTMLTextAreaElement).value, 'Keep this draft');
 });

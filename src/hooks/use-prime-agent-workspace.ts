@@ -13,6 +13,7 @@ import {
   parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
+  parsePrimeAgentTaskReceiptResult,
   parsePrimeAgentWorkspaceResult,
   type PrimeAgentModel,
   type PrimeAgentSavedSession,
@@ -27,6 +28,11 @@ export interface PrimeAgentFolderChoice {
   readonly label: string;
   readonly value: string;
 }
+
+/** Result of creating an Agent and delivering its required first task. */
+export type CreateAgentWithTaskResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string };
 
 /** Live state and actions used by Ernie's task and environment controls. */
 export interface PrimeAgentWorkspaceController {
@@ -54,7 +60,11 @@ export interface PrimeAgentWorkspaceController {
   readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
-  readonly createAgent: (cwd?: string) => void;
+  readonly prepareAgent: (cwd: string) => void;
+  readonly createAgentWithTask: (
+    cwd: string,
+    message: string,
+  ) => Promise<CreateAgentWithTaskResult>;
   readonly loadSavedSessions: () => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
@@ -377,11 +387,29 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function createAgent(requestedCwd?: string): void {
-    const cwd = requestedCwd ?? selectedCwd;
-    if (cwd === null || creatingAgent) return;
+  function prepareAgent(cwd: string): void {
+    setSelectedCwd(cwd);
+    setSelectedSessionId(null);
+    setGitWorktreeError(null);
+    setStatus('Ready for a first task.');
+  }
 
-    const create = Effect.fn('Workspace.createAgent')(function* () {
+  function createAgentWithTask(
+    cwd: string,
+    firstMessage: string,
+  ): Promise<CreateAgentWithTaskResult> {
+    const message = firstMessage.trim();
+    if (message.length === 0) {
+      return Promise.resolve({ ok: false, message: 'Enter a task first.' });
+    }
+    if (creatingAgent) {
+      return Promise.resolve({
+        ok: false,
+        message: 'A new Agent is already starting.',
+      });
+    }
+
+    const create = Effect.fn('Workspace.createAgentWithTask')(function* () {
       yield* Effect.sync(() => {
         setCreatingAgent(true);
         setStatus('Creating a new Agent…');
@@ -391,11 +419,21 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       );
       const result = parsePrimeAgentSessionResult(rawResult);
       if (!result.ok) {
-        yield* Effect.sync(() => setStatus(result.error.message));
-        return;
+        return yield* Effect.sync(() => {
+          setStatus(result.error.message);
+          return { ok: false as const, message: result.error.message };
+        });
       }
 
-      yield* Effect.sync(() => {
+      const rawTaskResult = yield* Effect.tryPromise(() =>
+        window.ernie.submitPrimeAgentTask({
+          activeSessionId: result.value.activeSessionId,
+          message,
+        }),
+      );
+      const taskResult = parsePrimeAgentTaskReceiptResult(rawTaskResult);
+
+      return yield* Effect.sync(() => {
         setWorkspace((current) => ({
           currentCwd: current?.currentCwd ?? cwd,
           sessions: [
@@ -408,16 +446,23 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         }));
         setSelectedCwd(result.value.cwd);
         setSelectedSessionId(result.value.activeSessionId);
-        setStatus('New Agent ready.');
+        setStatus(
+          taskResult.ok ? 'Task sent to Prime Agent.' : taskResult.error.message,
+        );
+        return taskResult.ok
+          ? { ok: true as const }
+          : { ok: false as const, message: taskResult.error.message };
       });
     });
 
-    Effect.runFork(
+    return Effect.runPromise(
       create().pipe(
         Effect.catchAll(() =>
-          Effect.sync(() =>
-            setStatus('Ernie could not create a new Agent.'),
-          ),
+          Effect.sync(() => {
+            const message = 'Ernie could not create a new Agent.';
+            setStatus(message);
+            return { ok: false as const, message };
+          }),
         ),
         Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
       ),
@@ -953,7 +998,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     savedSessions,
     status,
     changeFolder,
-    createAgent,
+    prepareAgent,
+    createAgentWithTask,
     loadSavedSessions,
     importSession,
     renameSession,

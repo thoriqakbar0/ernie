@@ -56,7 +56,7 @@ type AgentSidebarProps = Pick<
   | 'sessions'
   | 'changeFolder'
   | 'chooseWorkspaceDirectory'
-  | 'createAgent'
+  | 'prepareAgent'
   | 'importSession'
   | 'loadSavedSessions'
   | 'renameSession'
@@ -108,7 +108,7 @@ export function AgentSidebar({
   sessions,
   changeFolder,
   chooseWorkspaceDirectory,
-  createAgent,
+  prepareAgent,
   importSession,
   loadSavedSessions,
   renameSession,
@@ -394,10 +394,10 @@ export function AgentSidebar({
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        aria-label={`New Agent in ${folder.label}`}
-                        title={`New Agent in ${folder.label}`}
+                        aria-label={`New draft in ${folder.label}`}
+                        title={`New draft in ${folder.label}`}
                         disabled={creatingAgent}
-                        onClick={() => createAgent(folder.value)}
+                        onClick={() => prepareAgent(folder.value)}
                       >
                         {creatingAgent && selectedCwd === folder.value ? (
                           <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />

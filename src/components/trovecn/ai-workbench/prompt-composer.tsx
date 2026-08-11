@@ -71,7 +71,7 @@ function PromptComposer({
   onStop,
   isRunning = false,
   disabled = false,
-  placeholder = "Ask anything...",
+  placeholder = "Describe your task",
   maxLength,
   models = [],
   model,
@@ -135,7 +135,7 @@ function PromptComposer({
       onSubmit={handleSubmit}
     >
       <span id={statusId} role="status" aria-live="polite" className="sr-only">
-        {isRunning ? "Generating response. Stop is available." : "Ready to send prompt."}
+        {isRunning ? "Generating response. You can stop it at any time." : "Ready for your prompt."}
       </span>
 
       <label htmlFor={textareaId} className="sr-only">

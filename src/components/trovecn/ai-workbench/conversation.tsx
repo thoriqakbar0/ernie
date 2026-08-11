@@ -79,7 +79,7 @@ function Conversation({
               key={message.id}
               data-slot="conversation-message"
               data-role={message.role}
-              aria-label={message.role === "user" ? "Your message" : "Conversation response"}
+              aria-label={message.role === "user" ? "Your message" : "Agent response"}
               initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{
@@ -120,7 +120,7 @@ function Conversation({
                     size="icon-xs"
                     className="text-muted-foreground"
                     onClick={() => void handleCopy(message)}
-                    aria-label={message.role === "user" ? "Copy your message" : "Copy response"}
+                    aria-label={message.role === "user" ? "Copy message" : "Copy response"}
                   >
                     <AnimatePresence mode="wait" initial={false}>
                       <motion.span
@@ -142,7 +142,7 @@ function Conversation({
                     size="icon-xs"
                     className="text-muted-foreground"
                     onClick={() => onEdit(message)}
-                    aria-label="Edit your message"
+                    aria-label="Edit message"
                   >
                     <PencilIcon />
                   </Button>

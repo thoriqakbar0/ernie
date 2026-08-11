@@ -58,6 +58,9 @@ test('conversation renders authored messages', () => {
 
   assert.equal(within(document.body).getByText('hello').textContent, 'hello');
   assert.equal(within(document.body).getByText('hi there').textContent, 'hi there');
+  assert.ok(within(document.body).getByRole('article', { name: 'Your message' }));
+  assert.ok(within(document.body).getByRole('article', { name: 'Agent response' }));
+  assert.ok(within(document.body).getByRole('button', { name: 'Copy message' }));
 });
 
 test('prompt composer submits trimmed text with Enter', async () => {
@@ -68,7 +71,20 @@ test('prompt composer submits trimmed text with Enter', async () => {
     <PromptComposer onSubmit={({ prompt }) => submissions.push(prompt)} />,
   );
 
-  await user.type(within(document.body).getByRole('textbox', { name: 'Prompt' }), '  hello  {Enter}');
+  const prompt = within(document.body).getByRole('textbox', { name: 'Prompt' });
+  assert.equal(prompt.getAttribute('placeholder'), 'Describe your task');
+  assert.equal(within(document.body).getByRole('status').textContent, 'Ready for your prompt.');
+  await user.type(prompt, '  hello  {Enter}');
 
   assert.deepEqual(submissions, ['hello']);
+});
+
+test('prompt composer explains how to stop a running response', () => {
+  render(<PromptComposer isRunning />);
+
+  assert.equal(
+    within(document.body).getByRole('status').textContent,
+    'Generating response. You can stop it at any time.',
+  );
+  assert.ok(within(document.body).getByRole('button', { name: 'Stop generating' }));
 });

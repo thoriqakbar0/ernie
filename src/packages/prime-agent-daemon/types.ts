@@ -38,6 +38,12 @@ export interface PrimeAgentWorkspace {
   readonly sessions: readonly PrimeAgentSession[];
 }
 
+/** Configuration required before Prime Agent creates one new session. */
+export interface PrimeAgentSessionCreation {
+  readonly cwd: string;
+  readonly rlmMaxDepth: number;
+}
+
 /** Local Git branches and the checked-out branch for one workspace. */
 export interface PrimeAgentGitBranches {
   readonly cwd: string;
@@ -166,7 +172,7 @@ export interface PrimeAgentDaemon {
     activeSessionId: unknown,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
   readonly createSession: (
-    cwd: unknown,
+    creation: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
   readonly listSavedSessions: () => Effect.Effect<
     PrimeAgentResult<readonly PrimeAgentSavedSession[]>

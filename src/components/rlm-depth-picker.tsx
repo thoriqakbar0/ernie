@@ -23,7 +23,7 @@ const maximumRlmDepth = 20;
  *   0ms   depth changes; old numeral morphs into the new numeral
  * ───────────────────────────────────────────── */
 const DEPTH_VALUE_MORPH = {
-  spring: { stiffness: 540, damping: 36, mass: 0.6 },
+  spring: { stiffness: 540, damping: 34, mass: 0.6 },
   scale: false,
 } as const;
 

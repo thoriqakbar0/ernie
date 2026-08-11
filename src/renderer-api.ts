@@ -4,6 +4,7 @@ import type {
   PrimeAgentGitWorktreeCreation,
   PrimeAgentModelSelection,
   PrimeAgentRlmDepthSelection,
+  PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentTaskSubmission,
 } from './packages/prime-agent-daemon/types';
@@ -78,7 +79,9 @@ export const chooseWorkspaceDirectoryChannel =
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
   listPrimeAgentWorkspace: () => Promise<unknown>;
-  createPrimeAgentSession: (cwd: string) => Promise<unknown>;
+  createPrimeAgentSession: (
+    creation: PrimeAgentSessionCreation,
+  ) => Promise<unknown>;
   listPrimeAgentSavedSessions: () => Promise<unknown>;
   importPrimeAgentSession: (sessionPath: string) => Promise<unknown>;
   renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<unknown>;

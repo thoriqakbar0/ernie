@@ -36,14 +36,14 @@ type CurrentWorkspaceProps = Pick<
   | 'gitBranches'
   | 'gitWorktreeError'
   | 'loadingWorkspace'
-  | 'rlmDepth'
-  | 'rlmDepthBusy'
+  | 'rlmMaxDepth'
+  | 'rlmMaxDepthBusy'
   | 'selectedCwd'
   | 'selectedSessionId'
   | 'changeFolder'
   | 'chooseWorkspaceDirectory'
   | 'changeGitBranch'
-  | 'changeRlmDepth'
+  | 'changeRlmMaxDepth'
   | 'deleteGitBranch'
   | 'initializeGitRepository'
   | 'createGitWorktree'
@@ -67,14 +67,14 @@ export function CurrentWorkspace({
   gitBranches,
   gitWorktreeError,
   loadingWorkspace,
-  rlmDepth,
-  rlmDepthBusy,
+  rlmMaxDepth,
+  rlmMaxDepthBusy,
   selectedCwd,
   selectedSessionId,
   changeFolder,
   chooseWorkspaceDirectory,
   changeGitBranch,
-  changeRlmDepth,
+  changeRlmMaxDepth,
   deleteGitBranch,
   initializeGitRepository,
   createGitWorktree,
@@ -229,6 +229,12 @@ export function CurrentWorkspace({
         </SelectContent>
       </Select>
 
+      <RlmDepthPicker
+        busy={rlmMaxDepthBusy}
+        depth={rlmMaxDepth}
+        onDepthChange={changeRlmMaxDepth}
+      />
+
       {selectedSessionId === null ? (
         <Button
           type="button"
@@ -246,20 +252,7 @@ export function CurrentWorkspace({
           )}
           {creatingAgent ? 'Starting…' : 'Start Agent'}
         </Button>
-      ) : rlmDepth === null ? (
-        <Button type="button" variant="outline" disabled>
-          {rlmDepthBusy ? (
-            <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
-          ) : null}
-          {rlmDepthBusy ? 'Loading Agent…' : 'Agent controls unavailable'}
-        </Button>
-      ) : (
-        <RlmDepthPicker
-          busy={rlmDepthBusy}
-          depth={rlmDepth}
-          onDepthChange={changeRlmDepth}
-        />
-      )}
+      ) : null}
 
       {gitWorktreeError === null ? null : (
         <p

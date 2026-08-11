@@ -16,7 +16,13 @@ Object.defineProperty(Element.prototype, 'getAnimations', {
 });
 Object.defineProperty(Element.prototype, 'animate', {
   configurable: true,
-  value: () => {
+  value: (
+    _keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
+    options?: number | KeyframeAnimationOptions,
+  ) => {
+    if (typeof options === 'object' && typeof options.easing === 'string') {
+      assert.equal(options.easing.includes('NaN'), false);
+    }
     const animation = { cancel: () => undefined };
 
     Object.defineProperty(animation, 'onfinish', {

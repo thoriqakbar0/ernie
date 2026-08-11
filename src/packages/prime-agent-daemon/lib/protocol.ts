@@ -13,6 +13,7 @@ import type {
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
   PrimeAgentSession,
+  PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
   PrimeAgentSkill,
@@ -637,6 +638,34 @@ export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
   return cwd === null
     ? failure('invalid_request', 'The workspace path is invalid.')
     : { ok: true, value: cwd };
+}
+
+/** Parse new-session configuration from the isolated renderer. */
+export function parseSessionCreation(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionCreation> {
+  if (!isRecord(value)) {
+    return failure(
+      'invalid_request',
+      'The Agent session configuration is invalid.',
+    );
+  }
+
+  const cwd = nonEmptyString(value.cwd);
+  const rlmMaxDepth = value.rlmMaxDepth;
+  if (
+    cwd === null ||
+    typeof rlmMaxDepth !== 'number' ||
+    !Number.isSafeInteger(rlmMaxDepth) ||
+    rlmMaxDepth < 0
+  ) {
+    return failure(
+      'invalid_request',
+      'The Agent session configuration is invalid.',
+    );
+  }
+
+  return { ok: true, value: { cwd, rlmMaxDepth } };
 }
 
 /** Parse a workspace result after it crosses the Electron IPC boundary. */

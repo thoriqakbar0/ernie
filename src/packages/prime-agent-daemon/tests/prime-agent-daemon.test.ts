@@ -131,6 +131,16 @@ testInTempDirectory(
       } as const;
       assert.deepEqual(coldResults, [expected, expected]);
       assert.deepEqual(warmResult, expected);
+
+      const created = yield* daemon.createSession({ cwd, rlmMaxDepth: 3 });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+
+      const depth = yield* daemon.getRlmDepth(created.value.activeSessionId);
+      assert.deepEqual(depth, {
+        ok: true,
+        value: { maxDepth: 3, source: 'chat' },
+      });
     }).pipe(Effect.ensuring(shutdown));
   },
 );

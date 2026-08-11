@@ -24,11 +24,11 @@ import {
   parseRlmDepthSelection,
   parseSavedSessionListData,
   parseSavedSessionPath,
+  parseSessionCreation,
   parseSessionRename,
   parseSessionListData,
   parseSkillCatalogData,
   parseTaskSubmission,
-  parseWorkspaceCwd,
 } from './protocol';
 
 const connectTimeoutMs = 3_000;
@@ -70,7 +70,11 @@ interface PrimeAgentDaemonRuntime {
 }
 
 type SessionOpenRequest =
-  | Readonly<{ type: 'new'; cwd: string }>
+  | Readonly<{
+      type: 'new';
+      cwd: string;
+      rlmMaxDepth: number;
+    }>
   | Readonly<{ type: 'saved'; sessionPath: string }>;
 
 export function createPrimeAgentDaemon(
@@ -327,6 +331,30 @@ export function createPrimeAgentDaemon(
               const session = parseCreatedSessionData(createResponse.value);
               if (!session.ok) return session;
 
+              if (request.type === 'new') {
+                const rawDepthResponse = yield* Effect.tryPromise(() =>
+                  activeClient.request(
+                    {
+                      type: 'set_rlm_max_depth',
+                      activeSessionId: session.value.activeSessionId,
+                      maxDepth: request.rlmMaxDepth,
+                    },
+                    requestTimeoutMs,
+                  ),
+                );
+                const depthResponse = responseData(rawDepthResponse);
+                if (!depthResponse.ok) return depthResponse;
+
+                const depth = parseRlmDepthData(depthResponse.value);
+                if (!depth.ok) return depth;
+                if (depth.value.maxDepth !== request.rlmMaxDepth) {
+                  return failure(
+                    'protocol_error',
+                    'Prime Agent did not apply the requested RLM max depth.',
+                  );
+                }
+              }
+
               const rawAttachResponse = yield* Effect.tryPromise(() =>
                 activeClient.request(
                   {
@@ -388,10 +416,10 @@ export function createPrimeAgentDaemon(
   }
 
   const createSession = Effect.fn('PrimeAgentDaemon.createSession')(
-    (cwd: unknown) => {
-      const parsedCwd = parseWorkspaceCwd(cwd);
-      if (!parsedCwd.ok) return Effect.succeed(parsedCwd);
-      return openSession({ type: 'new', cwd: parsedCwd.value });
+    (creation: unknown) => {
+      const parsedCreation = parseSessionCreation(creation);
+      if (!parsedCreation.ok) return Effect.succeed(parsedCreation);
+      return openSession({ type: 'new', ...parsedCreation.value });
     },
   );
 

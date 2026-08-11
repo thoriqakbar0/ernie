@@ -35,7 +35,8 @@ afterEach(() => {
 });
 
 test('user can create a blank Prime Agent session in the selected repository before sending its first task', async () => {
-  const createdCwds: string[] = [];
+  const createdSessions: unknown[] = [];
+  let createdRlmMaxDepth = 1;
   const submittedTasks: Array<{
     activeSessionId: string;
     message: string;
@@ -47,13 +48,21 @@ test('user can create a blank Prime Agent session in the selected repository bef
       ok: true,
       value: { currentCwd: '/workspace/ernie', sessions: [] },
     }),
-    createPrimeAgentSession: async (cwd) => {
-      createdCwds.push(cwd);
+    createPrimeAgentSession: async (creation: unknown) => {
+      createdSessions.push(creation);
+      if (
+        typeof creation === 'object' &&
+        creation !== null &&
+        'rlmMaxDepth' in creation &&
+        typeof creation.rlmMaxDepth === 'number'
+      ) {
+        createdRlmMaxDepth = creation.rlmMaxDepth;
+      }
       return {
         ok: true,
         value: {
           activeSessionId: 'blank-agent',
-          cwd,
+          cwd: '/workspace/kastuli',
           name: 'Blank Agent',
           model: null,
           modifiedAt: null,
@@ -80,7 +89,7 @@ test('user can create a blank Prime Agent session in the selected repository bef
     setPrimeAgentModel: async () => ({ ok: false }),
     getPrimeAgentRlmDepth: async () => ({
       ok: true,
-      value: { maxDepth: 1, source: 'default' },
+      value: { maxDepth: createdRlmMaxDepth, source: 'chat' },
     }),
     setPrimeAgentRlmDepth: async () => ({ ok: false }),
     submitPrimeAgentTask: async (submission) => {
@@ -102,6 +111,7 @@ test('user can create a blank Prime Agent session in the selected repository bef
     configurable: true,
     value: rendererApi,
   });
+  window.localStorage.setItem('ernie:rlm-max-depth:v1', '4');
 
   render(
     <ErnieShell
@@ -119,6 +129,18 @@ test('user can create a blank Prime Agent session in the selected repository bef
       name: 'Depth unavailable',
     }),
     null,
+  );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Depth 4' }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Increase Agent depth',
+    }),
+  );
+  assert.equal(
+    window.localStorage.getItem('ernie:rlm-max-depth:v1'),
+    '5',
   );
   assert.equal(
     within(document.body).queryByRole('button', { name: 'Add context' }),
@@ -139,7 +161,9 @@ test('user can create a blank Prime Agent session in the selected repository bef
   );
 
   await waitFor(() => {
-    assert.deepEqual(createdCwds, ['/workspace/kastuli']);
+    assert.deepEqual(createdSessions, [
+      { cwd: '/workspace/kastuli', rlmMaxDepth: 5 },
+    ]);
     assert.equal(
       within(document.body)
         .getByRole('button', { name: 'Blank Agent' })
@@ -149,7 +173,7 @@ test('user can create a blank Prime Agent session in the selected repository bef
   });
   assert.deepEqual(submittedTasks, []);
   assert.ok(
-    await within(document.body).findByRole('button', { name: 'Depth 1' }),
+    await within(document.body).findByRole('button', { name: 'Depth 5' }),
   );
   assert.ok(
     within(document.body).getByRole('button', { name: 'Add context' }),
@@ -170,5 +194,7 @@ test('user can create a blank Prime Agent session in the selected repository bef
       },
     ]),
   );
-  assert.deepEqual(createdCwds, ['/workspace/kastuli']);
+  assert.deepEqual(createdSessions, [
+    { cwd: '/workspace/kastuli', rlmMaxDepth: 5 },
+  ]);
 });

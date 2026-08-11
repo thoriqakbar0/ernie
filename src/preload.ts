@@ -35,8 +35,8 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   listPrimeAgentWorkspace() {
     return ipcRenderer.invoke(primeAgentWorkspaceChannel);
   },
-  createPrimeAgentSession(cwd) {
-    return ipcRenderer.invoke(primeAgentCreateSessionChannel, cwd);
+  createPrimeAgentSession(creation) {
+    return ipcRenderer.invoke(primeAgentCreateSessionChannel, creation);
   },
   listPrimeAgentSavedSessions() {
     return ipcRenderer.invoke(primeAgentSavedSessionsChannel);

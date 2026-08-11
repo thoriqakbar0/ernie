@@ -25,14 +25,14 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           gitBranches={workspace.gitBranches}
           gitWorktreeError={workspace.gitWorktreeError}
           loadingWorkspace={workspace.loadingWorkspace}
-          rlmDepth={workspace.rlmDepth}
-          rlmDepthBusy={workspace.rlmDepthBusy}
+          rlmMaxDepth={workspace.rlmMaxDepth}
+          rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
           selectedCwd={workspace.selectedCwd}
           selectedSessionId={workspace.selectedSessionId}
           changeFolder={workspace.changeFolder}
           chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
           changeGitBranch={workspace.changeGitBranch}
-          changeRlmDepth={workspace.changeRlmDepth}
+          changeRlmMaxDepth={workspace.changeRlmMaxDepth}
           deleteGitBranch={workspace.deleteGitBranch}
           initializeGitRepository={workspace.initializeGitRepository}
           createGitWorktree={workspace.createGitWorktree}

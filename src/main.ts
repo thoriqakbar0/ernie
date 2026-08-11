@@ -97,8 +97,8 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
     Effect.runPromise(daemon.listWorkspace()),
   );
-  ipcMain.handle(primeAgentCreateSessionChannel, (_event, cwd: unknown) =>
-    Effect.runPromise(daemon.createSession(cwd)),
+  ipcMain.handle(primeAgentCreateSessionChannel, (_event, creation: unknown) =>
+    Effect.runPromise(daemon.createSession(creation)),
   );
   ipcMain.handle(primeAgentSavedSessionsChannel, () =>
     Effect.runPromise(daemon.listSavedSessions()),

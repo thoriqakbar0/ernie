@@ -1,4 +1,4 @@
-// Three thread-control and composer variants, switchable via ?variant=, inside the selected nested environment prototype.
+// Two independent experiments for input direction and global pin behavior, switchable through URL parameters.
 import {
   Archive,
   ArrowUp,
@@ -8,7 +8,6 @@ import {
   Ellipsis,
   Folder,
   GitBranch,
-  GripVertical,
   Layers3,
   PanelLeft,
   Paperclip,
@@ -40,7 +39,8 @@ import {
   MenuTrigger,
 } from '@/components/trovecn/ui/menu';
 
-type VariantKey = 'A' | 'B' | 'C';
+type InputMode = 'quick' | 'workbench' | 'command';
+type PinMode = 'shelf' | 'lift';
 type ThreadAction = 'archive' | 'rename' | 'toggle-pin';
 
 interface ThreadItem {
@@ -101,9 +101,14 @@ interface ThreadRowProps {
 interface ComposerProps {
   readonly repository: RepositoryItem;
   readonly worktree: WorktreeItem;
-  readonly threadTitle: string;
   readonly draft: string;
   readonly onDraftChange: (draft: string) => void;
+}
+
+interface ThreadLocation {
+  readonly repository: RepositoryItem;
+  readonly worktree: WorktreeItem;
+  readonly thread: ThreadItem;
 }
 
 const repositories: ReadonlyArray<RepositoryItem> = [
@@ -148,13 +153,21 @@ const repositories: ReadonlyArray<RepositoryItem> = [
   },
 ];
 
-const variants: ReadonlyArray<{
-  readonly key: VariantKey;
+const inputModes: ReadonlyArray<{
+  readonly key: InputMode;
   readonly label: string;
 }> = [
-  { key: 'A', label: 'Reveal on hover' },
-  { key: 'B', label: 'Inline controls' },
-  { key: 'C', label: 'Thread inspector' },
+  { key: 'quick', label: 'Quick' },
+  { key: 'workbench', label: 'Workbench' },
+  { key: 'command', label: 'Command' },
+];
+
+const pinModes: ReadonlyArray<{
+  readonly key: PinMode;
+  readonly label: string;
+}> = [
+  { key: 'shelf', label: 'Shelf' },
+  { key: 'lift', label: 'Lift' },
 ];
 
 const initialEnvironment: EnvironmentState = {
@@ -165,9 +178,9 @@ const initialEnvironment: EnvironmentState = {
 
 const initialManagement: ThreadManagementState = {
   archivedThreadIds: [],
-  pinnedThreadIds: [],
+  pinnedThreadIds: ['thread-controls'],
   titles: {},
-  lastAction: 'Ready',
+  lastAction: 'Pinned Thread controls for comparison',
 };
 
 function requireItem<T>(item: T | undefined, message: string): T {
@@ -205,6 +218,16 @@ function findThread(
   );
 }
 
+function findThreadLocation(threadId: string): ThreadLocation | undefined {
+  for (const repository of repositories) {
+    for (const worktree of repository.worktrees) {
+      const thread = worktree.threads.find((item) => item.id === threadId);
+      if (thread !== undefined) return { repository, worktree, thread };
+    }
+  }
+  return undefined;
+}
+
 function threadTitle(
   thread: ThreadItem,
   management: ThreadManagementState,
@@ -215,20 +238,26 @@ function threadTitle(
 function visibleThreads(
   worktree: WorktreeItem,
   management: ThreadManagementState,
+  pinMode: PinMode,
 ): ReadonlyArray<ThreadItem> {
-  return worktree.threads
-    .filter((thread) => !management.archivedThreadIds.includes(thread.id))
-    .slice()
-    .sort(
-      (left, right) =>
-        Number(management.pinnedThreadIds.includes(right.id)) -
-        Number(management.pinnedThreadIds.includes(left.id)),
-    );
+  return worktree.threads.filter(
+    (thread) =>
+      !management.archivedThreadIds.includes(thread.id) &&
+      !(
+        pinMode === 'lift' && management.pinnedThreadIds.includes(thread.id)
+      ),
+  );
 }
 
-function readVariant(): VariantKey {
-  const value = new URLSearchParams(window.location.search).get('variant');
-  return value === 'B' || value === 'C' ? value : 'A';
+function readInputMode(): InputMode {
+  const value = new URLSearchParams(window.location.search).get('input');
+  return value === 'workbench' || value === 'command' ? value : 'quick';
+}
+
+function readPinMode(): PinMode {
+  return new URLSearchParams(window.location.search).get('pins') === 'lift'
+    ? 'lift'
+    : 'shelf';
 }
 
 function shouldIgnoreShortcut(target: EventTarget | null): boolean {
@@ -475,92 +504,9 @@ function ThreadRowA(props: ThreadRowProps): React.JSX.Element {
   );
 }
 
-function ThreadRowB(props: ThreadRowProps): React.JSX.Element {
-  return (
-    <ThreadContext {...props}>
-      <div
-        className={`rounded-lg transition-colors ${props.selected ? 'bg-white/[0.065]' : ''}`}
-      >
-        <Button
-          aria-current={props.selected ? 'page' : undefined}
-          className="h-8 w-full min-w-0 justify-start rounded-lg px-2 text-left text-[12px] font-normal text-white/62 hover:bg-white/[0.035]"
-          onClick={props.onOpen}
-          type="button"
-          variant="ghost"
-        >
-          <span className="min-w-0 flex-1 truncate">{props.title}</span>
-          <span className="shrink-0 text-[9px] text-white/18">
-            {props.thread.age}
-          </span>
-        </Button>
-        {props.selected && (
-          <div className="flex items-center gap-0.5 px-1.5 pb-1.5">
-            <IconButton
-              label={`Rename ${props.title}`}
-              onClick={() =>
-                props.onThreadAction('rename', props.thread, props.worktree)
-              }
-            >
-              <Pencil className="size-3" />
-            </IconButton>
-            <IconButton
-              label={`${props.pinned ? 'Unpin' : 'Pin'} ${props.title}`}
-              onClick={() =>
-                props.onThreadAction('toggle-pin', props.thread, props.worktree)
-              }
-            >
-              {props.pinned ? (
-                <PinOff className="size-3" />
-              ) : (
-                <Pin className="size-3" />
-              )}
-            </IconButton>
-            <IconButton
-              label={`Archive ${props.title}`}
-              className="text-red-300/45 hover:text-red-300/80"
-              onClick={() =>
-                props.onThreadAction('archive', props.thread, props.worktree)
-              }
-            >
-              <Archive className="size-3" />
-            </IconButton>
-            <span className="ml-auto pr-1 text-[9px] text-white/20">
-              right-click for more
-            </span>
-          </div>
-        )}
-      </div>
-    </ThreadContext>
-  );
-}
-
-function ThreadRowC(props: ThreadRowProps): React.JSX.Element {
-  return (
-    <ThreadContext {...props}>
-      <Button
-        aria-current={props.selected ? 'page' : undefined}
-        className={`h-8 w-full min-w-0 justify-start rounded-lg px-2 text-left text-[12px] font-normal ${props.selected ? 'bg-white/[0.075] text-white/88' : 'text-white/38 hover:bg-white/[0.035] hover:text-white/65'}`}
-        onClick={props.onOpen}
-        type="button"
-        variant="ghost"
-      >
-        {props.selected && <span className="size-1 rounded-full bg-white/60" />}
-        <span className="min-w-0 flex-1 truncate">{props.title}</span>
-        {props.pinned ? (
-          <Pin className="size-3 text-white/30" />
-        ) : (
-          <span className="shrink-0 text-[9px] text-white/18">
-            {props.thread.age}
-          </span>
-        )}
-      </Button>
-    </ThreadContext>
-  );
-}
-
-function RepositoryTree({
-  controls,
+function PinnedThreadRow({
   environment,
+  location,
   management,
   onEnvironmentChange,
   onThreadAction,
@@ -568,18 +514,148 @@ function RepositoryTree({
   PrototypeSurfaceProps,
   'environment' | 'management' | 'onEnvironmentChange' | 'onThreadAction'
 > & {
-  readonly controls: VariantKey;
+  readonly location: ThreadLocation;
+}): React.JSX.Element {
+  const { repository, worktree, thread } = location;
+  const title = threadTitle(thread, management);
+  const selected = thread.id === environment.threadId;
+
+  return (
+    <ThreadContext
+      pinned
+      thread={thread}
+      worktree={worktree}
+      onThreadAction={onThreadAction}
+    >
+      <div className="group/thread flex min-h-10 items-center rounded-lg">
+        <Button
+          aria-current={selected ? 'page' : undefined}
+          className={`h-10 min-w-0 flex-1 justify-start gap-2 rounded-lg px-2 text-left font-normal ${selected ? 'bg-white/[0.075] text-white/88' : 'text-white/46 hover:bg-white/[0.035] hover:text-white/70'}`}
+          onClick={() =>
+            onEnvironmentChange({
+              repositoryId: repository.id,
+              worktreeId: worktree.id,
+              threadId: thread.id,
+            })
+          }
+          type="button"
+          variant="ghost"
+        >
+          <Pin className="size-3 shrink-0 text-amber-100/35" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12px]">{title}</span>
+            <span className="mt-0.5 block truncate text-[9px] text-white/22">
+              {repository.label} / {worktree.branch}
+            </span>
+          </span>
+        </Button>
+        <Menu>
+          <MenuTrigger
+            render={
+              <Button
+                aria-label={`Manage ${title}`}
+                className="mr-0.5 size-7 text-white/35 opacity-0 hover:bg-white/[0.06] group-hover/thread:opacity-100 aria-expanded:opacity-100"
+                size="icon-xs"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <Ellipsis />
+          </MenuTrigger>
+          <MenuContent align="start" className="w-44" side="right" sideOffset={5}>
+            <ThreadClickActions
+              pinned
+              thread={thread}
+              worktree={worktree}
+              onThreadAction={onThreadAction}
+            />
+          </MenuContent>
+        </Menu>
+      </div>
+    </ThreadContext>
+  );
+}
+
+function PinnedThreads({
+  environment,
+  management,
+  pinMode,
+  onEnvironmentChange,
+  onThreadAction,
+}: Pick<
+  PrototypeSurfaceProps,
+  'environment' | 'management' | 'onEnvironmentChange' | 'onThreadAction'
+> & {
+  readonly pinMode: PinMode;
+}): React.JSX.Element {
+  const locations = management.pinnedThreadIds.flatMap((threadId) => {
+    const location = findThreadLocation(threadId);
+    return location === undefined || management.archivedThreadIds.includes(threadId)
+      ? []
+      : [location];
+  });
+
+  return (
+    <section className="shrink-0 border-b border-white/[0.06] px-2 pb-2">
+      <div className="flex h-10 items-center px-2">
+        <p className="text-[10px] font-medium tracking-[0.08em] text-white/30 uppercase">
+          Pinned
+        </p>
+        <span className="ml-auto rounded-md bg-white/[0.035] px-1.5 py-0.5 text-[8px] text-white/22">
+          {pinMode === 'shelf' ? 'also in tree' : 'lifted from tree'}
+        </span>
+      </div>
+      {locations.length === 0 ? (
+        <p className="px-2 pb-2 text-[10px] leading-4 text-white/20">
+          Pin any thread to reach it across repositories.
+        </p>
+      ) : (
+        <div className="space-y-0.5">
+          {locations.map((location) => (
+            <PinnedThreadRow
+              environment={environment}
+              key={location.thread.id}
+              location={location}
+              management={management}
+              onEnvironmentChange={onEnvironmentChange}
+              onThreadAction={onThreadAction}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RepositoryTree({
+  environment,
+  management,
+  pinMode,
+  onEnvironmentChange,
+  onThreadAction,
+}: Pick<
+  PrototypeSurfaceProps,
+  'environment' | 'management' | 'onEnvironmentChange' | 'onThreadAction'
+> & {
+  readonly pinMode: PinMode;
 }): React.JSX.Element {
   const activeRepository = findRepository(environment.repositoryId);
   const activeWorktree = findWorktree(
     activeRepository,
     environment.worktreeId,
   );
-  const Row = controls === 'B' ? ThreadRowB : controls === 'C' ? ThreadRowC : ThreadRowA;
 
   return (
     <>
-      <div className="flex h-12 shrink-0 items-center justify-between px-3 pl-4">
+      <PinnedThreads
+        environment={environment}
+        management={management}
+        pinMode={pinMode}
+        onEnvironmentChange={onEnvironmentChange}
+        onThreadAction={onThreadAction}
+      />
+      <div className="flex h-10 shrink-0 items-center justify-between px-3 pl-4">
         <p className="text-[11px] font-medium tracking-[0.08em] text-white/38 uppercase">
           Repositories
         </p>
@@ -613,7 +689,7 @@ function RepositoryTree({
                 <div className="ml-[18px] border-l border-white/[0.065] pl-2">
                   {repository.worktrees.map((worktree) => {
                     const worktreeActive = worktree.id === activeWorktree.id;
-                    const threads = visibleThreads(worktree, management);
+                    const threads = visibleThreads(worktree, management, pinMode);
                     return (
                       <div className="mt-0.5" key={worktree.id}>
                         <Button
@@ -637,7 +713,7 @@ function RepositoryTree({
                         {worktreeActive && (
                           <div className="mt-0.5 space-y-0.5 pl-2">
                             {threads.map((thread) => (
-                              <Row
+                              <ThreadRowA
                                 key={thread.id}
                                 pinned={management.pinnedThreadIds.includes(
                                   thread.id,
@@ -687,54 +763,7 @@ function WorkspaceIntro({ threadTitle }: { readonly threadTitle: string }) {
   );
 }
 
-function ComposerA({
-  repository,
-  worktree,
-  draft,
-  onDraftChange,
-}: ComposerProps): React.JSX.Element {
-  return (
-    <div className="w-full overflow-hidden rounded-[18px] border border-white/[0.1] bg-[#1b1b18] shadow-[0_24px_80px_rgba(0,0,0,0.28)] focus-within:border-white/[0.17]">
-      <div className="flex h-9 items-center gap-1.5 border-b border-white/[0.055] px-3 text-[11px] text-white/36">
-        <Folder className="size-3" />
-        <span className="text-white/55">{repository.label}</span>
-        <span className="text-white/15">/</span>
-        <GitBranch className="size-3" />
-        <span>{worktree.branch}</span>
-        <span className="ml-auto max-w-[260px] truncate font-mono text-[9px] text-white/18">
-          {worktree.path}
-        </span>
-      </div>
-      <textarea
-        aria-label="Message Prime Agent"
-        className="block h-24 w-full resize-none bg-transparent px-4 pt-3.5 text-[14px] leading-6 text-white/82 outline-none placeholder:text-white/24"
-        onChange={(event) => onDraftChange(event.target.value)}
-        placeholder="Describe the change…"
-        value={draft}
-      />
-      <div className="flex h-11 items-center justify-between px-2.5 pb-1">
-        <div className="flex items-center gap-1">
-          <IconButton label="Add context">
-            <Paperclip className="size-4" />
-          </IconButton>
-          <Button
-            className="h-7 rounded-lg px-2 text-[11px] font-normal text-white/34 hover:bg-white/[0.05] hover:text-white/62"
-            type="button"
-            variant="ghost"
-          >
-            GPT-5.6 Sol
-          </Button>
-          <span className="hidden text-[9px] text-white/18 sm:inline">
-            Enter to send · Shift Enter for line
-          </span>
-        </div>
-        <SendButton draft={draft} />
-      </div>
-    </div>
-  );
-}
-
-function ComposerB({
+function QuickComposer({
   repository,
   worktree,
   draft,
@@ -742,31 +771,89 @@ function ComposerB({
 }: ComposerProps): React.JSX.Element {
   return (
     <div className="w-full">
-      <div className="mb-2 flex items-center justify-center gap-1.5 text-[10px] text-white/25">
-        <Folder className="size-3" />
-        {repository.label}
-        <span>/</span>
-        <GitBranch className="size-3" />
-        {worktree.branch}
-      </div>
       <div className="flex min-h-14 items-end gap-1 rounded-2xl border border-white/[0.1] bg-[#1b1b18] p-2 shadow-[0_20px_70px_rgba(0,0,0,0.25)] focus-within:border-white/[0.18]">
         <IconButton label="Add context" className="mb-0.5 shrink-0">
           <Plus className="size-4" />
         </IconButton>
         <textarea
           aria-label="Message Prime Agent"
-          className="max-h-28 min-h-9 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[14px] leading-5 text-white/82 outline-none placeholder:text-white/24"
+          className="max-h-28 min-h-9 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[14px] leading-5 text-white/82 outline-none [field-sizing:content] placeholder:text-white/24"
           onChange={(event) => onDraftChange(event.target.value)}
-          placeholder="Ask anything…"
+          placeholder="Ask Prime Agent…"
           rows={1}
           value={draft}
         />
+        <SendButton draft={draft} />
+      </div>
+      <div className="mt-2 flex items-center justify-center gap-1.5 text-[9px] text-white/20">
+        <span>{repository.label}</span>
+        <span>/</span>
+        <span>{worktree.branch}</span>
+        <span className="mx-1 text-white/10">·</span>
+        <span>GPT-5.6 Sol</span>
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchComposer({
+  repository,
+  worktree,
+  draft,
+  onDraftChange,
+}: ComposerProps): React.JSX.Element {
+  return (
+    <div className="w-full overflow-hidden rounded-[18px] border border-white/[0.1] bg-[#1b1b18] shadow-[0_24px_80px_rgba(0,0,0,0.28)] focus-within:border-white/[0.17]">
+      <div className="flex h-9 items-center gap-1.5 border-b border-white/[0.055] px-3 text-[10px] text-white/32">
+        <Folder className="size-3" />
+        <span className="text-white/52">{repository.label}</span>
+        <span className="text-white/12">/</span>
+        <GitBranch className="size-3" />
+        <span>{worktree.branch}</span>
+        <span className="ml-auto max-w-[250px] truncate font-mono text-[9px] text-white/16">
+          {worktree.path}
+        </span>
+      </div>
+      <textarea
+        aria-label="Message Prime Agent"
+        className="block h-24 w-full resize-none bg-transparent px-4 pt-3.5 text-[14px] leading-6 text-white/82 outline-none placeholder:text-white/24"
+        onChange={(event) => onDraftChange(event.target.value)}
+        placeholder="Describe the work, then tune its environment below…"
+        value={draft}
+      />
+      <div className="flex h-11 items-center justify-between px-2.5 pb-1">
+        <div className="flex items-center gap-0.5">
+          <IconButton label="Add context">
+            <Paperclip className="size-4" />
+          </IconButton>
+          <Button
+            className="h-7 rounded-lg px-2 text-[10px] font-normal text-white/34 hover:bg-white/[0.05] hover:text-white/62"
+            type="button"
+            variant="ghost"
+          >
+            GPT-5.6 Sol
+          </Button>
+          <Button
+            className="h-7 rounded-lg px-2 text-[10px] font-normal text-white/28 hover:bg-white/[0.05] hover:text-white/58"
+            type="button"
+            variant="ghost"
+          >
+            Depth 2
+          </Button>
+          <Button
+            className="h-7 rounded-lg px-2 text-[10px] font-normal text-white/28 hover:bg-white/[0.05] hover:text-white/58"
+            type="button"
+            variant="ghost"
+          >
+            This Mac
+          </Button>
+        </div>
         <Button
-          className="mb-0.5 h-7 rounded-lg px-2 text-[10px] font-normal text-white/30 hover:bg-white/[0.05]"
+          className="mr-1 h-7 rounded-lg px-2 text-[9px] font-normal text-white/20 hover:bg-white/[0.05]"
           type="button"
           variant="ghost"
         >
-          GPT-5.6 Sol
+          / skills
         </Button>
         <SendButton draft={draft} />
       </div>
@@ -774,49 +861,84 @@ function ComposerB({
   );
 }
 
-function ComposerC({
+function CommandComposer({
   repository,
   worktree,
   draft,
   onDraftChange,
 }: ComposerProps): React.JSX.Element {
+  const activeTokenStart =
+    Math.max(draft.lastIndexOf(' '), draft.lastIndexOf('\n')) + 1;
+  const activeToken = draft.slice(activeTokenStart);
+
+  const insertToken = (token: string): void => {
+    if (activeToken.startsWith('@') || activeToken.startsWith('/')) {
+      onDraftChange(`${draft.slice(0, activeTokenStart)}${token} `);
+      return;
+    }
+    const separator = draft.length === 0 || draft.endsWith(' ') ? '' : ' ';
+    onDraftChange(`${draft}${separator}${token} `);
+  };
+
+  const suggestions = activeToken.startsWith('@')
+    ? ['@browser', '@repository', '@selection']
+    : activeToken.startsWith('/')
+      ? ['/prototype', '/audit', '/tdd']
+      : [];
+
   return (
-    <div className="w-full rounded-[16px] border border-white/[0.1] bg-[#181816] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.3)] focus-within:border-white/[0.18]">
-      <div className="flex items-center gap-1.5 px-1 pb-2">
-        <span className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] text-white/45">
-          {repository.label}
-        </span>
-        <span className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-1 text-[10px] text-white/45">
-          <GitBranch className="size-3" /> {worktree.branch}
-        </span>
-        <span className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] text-white/35">
-          @ context
-        </span>
-        <span className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] text-white/35">
-          / skills
-        </span>
-      </div>
-      <textarea
-        aria-label="Message Prime Agent"
-        className="block h-20 w-full resize-none rounded-xl bg-white/[0.025] px-3 py-2.5 text-[14px] leading-6 text-white/82 outline-none placeholder:text-white/24"
-        onChange={(event) => onDraftChange(event.target.value)}
-        placeholder="What should this agent do next?"
-        value={draft}
-      />
-      <div className="flex h-10 items-end justify-between px-1">
-        <div className="flex items-center gap-1">
-          <IconButton label="Attach file">
-            <Paperclip className="size-4" />
-          </IconButton>
+    <div className="w-full">
+      {suggestions.length > 0 && (
+        <div className="mb-1.5 flex items-center gap-1 rounded-xl border border-white/[0.07] bg-[#171715] p-1.5 shadow-lg">
+          <span className="px-2 text-[9px] text-white/22">insert</span>
+          {suggestions.map((suggestion) => (
+            <Button
+              className="h-7 rounded-lg bg-white/[0.035] px-2 text-[10px] font-normal text-white/44 hover:bg-white/[0.07] hover:text-white/70"
+              key={suggestion}
+              onClick={() => insertToken(suggestion)}
+              type="button"
+              variant="ghost"
+            >
+              {suggestion}
+            </Button>
+          ))}
+        </div>
+      )}
+      <div className="w-full rounded-[16px] border border-white/[0.1] bg-[#181816] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.3)] focus-within:border-white/[0.18]">
+        <div className="flex items-center gap-1.5 px-1 pb-2">
           <Button
-            className="h-7 rounded-lg px-2 text-[11px] font-normal text-white/32 hover:bg-white/[0.05]"
+            className="h-7 rounded-lg bg-white/[0.045] px-2 text-[10px] font-normal text-white/45 hover:bg-white/[0.075]"
+            onClick={() => insertToken('@browser')}
             type="button"
             variant="ghost"
           >
-            GPT-5.6 Sol
+            @ context
           </Button>
+          <Button
+            className="h-7 rounded-lg bg-white/[0.045] px-2 text-[10px] font-normal text-white/45 hover:bg-white/[0.075]"
+            onClick={() => insertToken('/prototype')}
+            type="button"
+            variant="ghost"
+          >
+            / skills
+          </Button>
+          <span className="ml-auto flex items-center gap-1 text-[9px] text-white/20">
+            {repository.label} / {worktree.branch}
+          </span>
         </div>
-        <SendButton draft={draft} />
+        <textarea
+          aria-label="Message Prime Agent"
+          className="block h-20 w-full resize-none rounded-xl bg-white/[0.025] px-3 py-2.5 text-[14px] leading-6 text-white/82 outline-none placeholder:text-white/24"
+          onChange={(event) => onDraftChange(event.target.value)}
+          placeholder="Type @ for context or / for a skill…"
+          value={draft}
+        />
+        <div className="flex h-10 items-end justify-between px-1">
+          <span className="pb-2 text-[9px] text-white/18">
+            commands become part of the prompt
+          </span>
+          <SendButton draft={draft} />
+        </div>
       </div>
     </div>
   );
@@ -836,186 +958,92 @@ function SendButton({ draft }: { readonly draft: string }): React.JSX.Element {
   );
 }
 
-function VariantShell({
-  variant,
-  composer,
-  inspector,
+function EnvironmentPrototypeSurface({
+  inputMode,
+  pinMode,
   environment,
   management,
+  draft,
+  onDraftChange,
   onEnvironmentChange,
   onThreadAction,
-}: Pick<
-  PrototypeSurfaceProps,
-  'environment' | 'management' | 'onEnvironmentChange' | 'onThreadAction'
-> & {
-  readonly variant: VariantKey;
-  readonly composer: React.ReactNode;
-  readonly inspector?: React.ReactNode;
+}: PrototypeSurfaceProps & {
+  readonly inputMode: InputMode;
+  readonly pinMode: PinMode;
 }): React.JSX.Element {
   const repository = findRepository(environment.repositoryId);
   const worktree = findWorktree(repository, environment.worktreeId);
   const thread = findThread(worktree, environment.threadId);
   const title = threadTitle(thread, management);
+  const composerProps: ComposerProps = {
+    draft,
+    onDraftChange,
+    repository,
+    worktree,
+  };
+  const composer =
+    inputMode === 'workbench' ? (
+      <WorkbenchComposer {...composerProps} />
+    ) : inputMode === 'command' ? (
+      <CommandComposer {...composerProps} />
+    ) : (
+      <QuickComposer {...composerProps} />
+    );
 
   return (
     <AppChrome
       sidebar={
         <RepositoryTree
-          controls={variant}
           environment={environment}
           management={management}
+          pinMode={pinMode}
           onEnvironmentChange={onEnvironmentChange}
           onThreadAction={onThreadAction}
         />
       }
     >
-      {inspector}
-      {variant === 'C' ? (
-        <section className="mx-auto flex min-h-0 w-full max-w-[920px] flex-1 flex-col px-8 pb-24 pt-4">
-          <div className="flex flex-1 items-center justify-center pb-8">
-            <WorkspaceIntro threadTitle={title} />
-          </div>
-          {composer}
-        </section>
-      ) : (
-        <section className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col px-8 pb-24">
-          <div className="flex flex-1 items-end justify-center pb-8">
-            <WorkspaceIntro threadTitle={title} />
-          </div>
-          <div className="pb-8">{composer}</div>
-        </section>
-      )}
+      <section className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col px-8 pb-28">
+        <div className="flex flex-1 items-end justify-center pb-8">
+          <WorkspaceIntro threadTitle={title} />
+        </div>
+        <div className="pb-6">{composer}</div>
+      </section>
     </AppChrome>
   );
 }
 
-/** Reveal a compact Trove menu only when a thread row needs attention. */
-export function VariantA(props: PrototypeSurfaceProps): React.JSX.Element {
-  const repository = findRepository(props.environment.repositoryId);
-  const worktree = findWorktree(repository, props.environment.worktreeId);
-  const thread = findThread(worktree, props.environment.threadId);
-  return (
-    <VariantShell
-      {...props}
-      variant="A"
-      composer={
-        <ComposerA
-          draft={props.draft}
-          onDraftChange={props.onDraftChange}
-          repository={repository}
-          threadTitle={threadTitle(thread, props.management)}
-          worktree={worktree}
-        />
-      }
-    />
-  );
-}
-
-/** Keep selected-thread actions visible directly beneath its row. */
-export function VariantB(props: PrototypeSurfaceProps): React.JSX.Element {
-  const repository = findRepository(props.environment.repositoryId);
-  const worktree = findWorktree(repository, props.environment.worktreeId);
-  const thread = findThread(worktree, props.environment.threadId);
-  return (
-    <VariantShell
-      {...props}
-      variant="B"
-      composer={
-        <ComposerB
-          draft={props.draft}
-          onDraftChange={props.onDraftChange}
-          repository={repository}
-          threadTitle={threadTitle(thread, props.management)}
-          worktree={worktree}
-        />
-      }
-    />
-  );
-}
-
-/** Move selected-thread controls into a calm inspector above the workspace. */
-export function VariantC(props: PrototypeSurfaceProps): React.JSX.Element {
-  const repository = findRepository(props.environment.repositoryId);
-  const worktree = findWorktree(repository, props.environment.worktreeId);
-  const thread = findThread(worktree, props.environment.threadId);
-  const title = threadTitle(thread, props.management);
-  const pinned = props.management.pinnedThreadIds.includes(thread.id);
-  const inspector = (
-    <div className="mx-4 flex h-12 shrink-0 items-center gap-2 rounded-xl border border-white/[0.065] bg-white/[0.025] px-3">
-      <GripVertical className="size-3.5 text-white/18" />
-      <span className="min-w-0 flex-1 truncate text-[12px] text-white/62">
-        {title}
-      </span>
-      <span className="mr-1 text-[9px] text-white/20">thread controls</span>
-      <IconButton
-        label={`Rename ${title}`}
-        onClick={() => props.onThreadAction('rename', thread, worktree)}
-      >
-        <Pencil className="size-3.5" />
-      </IconButton>
-      <IconButton
-        label={`${pinned ? 'Unpin' : 'Pin'} ${title}`}
-        onClick={() => props.onThreadAction('toggle-pin', thread, worktree)}
-      >
-        {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-      </IconButton>
-      <IconButton
-        label={`Archive ${title}`}
-        className="text-red-300/45 hover:text-red-300/80"
-        onClick={() => props.onThreadAction('archive', thread, worktree)}
-      >
-        <Archive className="size-3.5" />
-      </IconButton>
-    </div>
-  );
-  return (
-    <VariantShell
-      {...props}
-      variant="C"
-      inspector={inspector}
-      composer={
-        <ComposerC
-          draft={props.draft}
-          onDraftChange={props.onDraftChange}
-          repository={repository}
-          threadTitle={title}
-          worktree={worktree}
-        />
-      }
-    />
-  );
-}
-
 function PrototypeSwitcher({
-  variant,
+  inputMode,
+  pinMode,
   environment,
   management,
   draft,
-  onVariantChange,
+  onInputModeChange,
+  onPinModeChange,
 }: {
-  readonly variant: VariantKey;
+  readonly inputMode: InputMode;
+  readonly pinMode: PinMode;
   readonly environment: EnvironmentState;
   readonly management: ThreadManagementState;
   readonly draft: string;
-  readonly onVariantChange: (variant: VariantKey) => void;
+  readonly onInputModeChange: (inputMode: InputMode) => void;
+  readonly onPinModeChange: (pinMode: PinMode) => void;
 }): React.JSX.Element {
-  const activeIndex = variants.findIndex((item) => item.key === variant);
-  const activeVariant = requireItem(
-    variants[activeIndex],
-    'The prototype requires an active variant.',
+  const activeInputIndex = inputModes.findIndex(
+    (item) => item.key === inputMode,
   );
   const repository = findRepository(environment.repositoryId);
   const worktree = findWorktree(repository, environment.worktreeId);
   const thread = findThread(worktree, environment.threadId);
 
-  const move = (offset: number): void => {
+  const moveInput = (offset: number): void => {
     const nextIndex =
-      (activeIndex + offset + variants.length) % variants.length;
-    const nextVariant = requireItem(
-      variants[nextIndex],
-      'The prototype requires a switcher variant.',
+      (activeInputIndex + offset + inputModes.length) % inputModes.length;
+    const nextInput = requireItem(
+      inputModes[nextIndex],
+      'The prototype requires an input mode.',
     );
-    onVariantChange(nextVariant.key);
+    onInputModeChange(nextInput.key);
   };
 
   return (
@@ -1024,45 +1052,82 @@ function PrototypeSwitcher({
         <span className="mr-2 text-amber-200/55">prototype state</span>
         {repository.label} · {worktree.branch} · {threadTitle(thread, management)}
         {' · '}
-        pinned {management.pinnedThreadIds.length} · archived{' '}
+        input {inputMode} · pins {pinMode} · pinned [
+        {management.pinnedThreadIds.join(', ') || 'none'}] · archived{' '}
         {management.archivedThreadIds.length} · draft {draft.length} ·{' '}
         {management.lastAction}
       </div>
-      <div className="pointer-events-auto flex h-10 items-center rounded-xl border border-white/[0.14] bg-[#20201d]/95 p-1 shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-xl">
-        <IconButton label="Previous variant" onClick={() => move(-1)}>
-          <ChevronLeft className="size-4" />
+      <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/[0.14] bg-[#20201d]/95 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-xl">
+        <span className="pl-2 text-[9px] font-medium tracking-[0.08em] text-white/24 uppercase">
+          input
+        </span>
+        <IconButton label="Previous input" onClick={() => moveInput(-1)}>
+          <ChevronLeft className="size-3.5" />
         </IconButton>
-        <Button
-          className="h-8 min-w-[164px] gap-2 rounded-lg px-3 text-[11px] font-normal text-white/78 hover:bg-white/[0.04]"
-          onClick={() => move(1)}
-          type="button"
-          variant="ghost"
-        >
-          <span className="text-white/30">{activeVariant.key}</span>
-          {activeVariant.label}
-        </Button>
-        <IconButton label="Next variant" onClick={() => move(1)}>
-          <ChevronRight className="size-4" />
+        <div className="flex rounded-xl bg-black/20 p-0.5">
+          {inputModes.map((mode) => (
+            <Button
+              aria-pressed={mode.key === inputMode}
+              className={`h-7 rounded-[9px] px-2.5 text-[10px] font-normal ${mode.key === inputMode ? 'bg-white/[0.1] text-white/78 shadow-sm' : 'text-white/30 hover:bg-white/[0.045] hover:text-white/58'}`}
+              key={mode.key}
+              onClick={() => onInputModeChange(mode.key)}
+              type="button"
+              variant="ghost"
+            >
+              {mode.label}
+            </Button>
+          ))}
+        </div>
+        <IconButton label="Next input" onClick={() => moveInput(1)}>
+          <ChevronRight className="size-3.5" />
         </IconButton>
+        <span className="mx-1 h-5 w-px bg-white/[0.08]" />
+        <span className="text-[9px] font-medium tracking-[0.08em] text-white/24 uppercase">
+          pins
+        </span>
+        <div className="flex rounded-xl bg-black/20 p-0.5">
+          {pinModes.map((mode) => (
+            <Button
+              aria-pressed={mode.key === pinMode}
+              className={`h-7 rounded-[9px] px-2.5 text-[10px] font-normal ${mode.key === pinMode ? 'bg-white/[0.1] text-white/78 shadow-sm' : 'text-white/30 hover:bg-white/[0.045] hover:text-white/58'}`}
+              key={mode.key}
+              onClick={() => onPinModeChange(mode.key)}
+              type="button"
+              variant="ghost"
+            >
+              {mode.label}
+            </Button>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-/** Render the disposable thread-control and composer prototype. */
+/** Render the disposable input and global-pinning prototype. */
 export function CleanEnvironmentPrototype(): React.JSX.Element {
-  const [variant, setVariant] = useState<VariantKey>(readVariant);
+  const [inputMode, setInputMode] = useState<InputMode>(readInputMode);
+  const [pinMode, setPinMode] = useState<PinMode>(readPinMode);
   const [environment, setEnvironment] =
     useState<EnvironmentState>(initialEnvironment);
   const [management, setManagement] =
     useState<ThreadManagementState>(initialManagement);
   const [draft, setDraft] = useState('');
 
-  const changeVariant = (nextVariant: VariantKey): void => {
+  const changeInputMode = (nextInputMode: InputMode): void => {
     const url = new URL(window.location.href);
-    url.searchParams.set('variant', nextVariant);
+    url.searchParams.set('variant', 'A');
+    url.searchParams.set('input', nextInputMode);
     window.history.replaceState(null, '', url);
-    setVariant(nextVariant);
+    setInputMode(nextInputMode);
+  };
+
+  const changePinMode = (nextPinMode: PinMode): void => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('variant', 'A');
+    url.searchParams.set('pins', nextPinMode);
+    window.history.replaceState(null, '', url);
+    setPinMode(nextPinMode);
   };
 
   const performThreadAction = (
@@ -1119,18 +1184,20 @@ export function CleanEnvironmentPrototype(): React.JSX.Element {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (shouldIgnoreShortcut(event.target)) return;
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      const activeIndex = variants.findIndex((item) => item.key === variant);
+      const activeIndex = inputModes.findIndex(
+        (item) => item.key === inputMode,
+      );
       const offset = event.key === 'ArrowLeft' ? -1 : 1;
       const nextIndex =
-        (activeIndex + offset + variants.length) % variants.length;
-      changeVariant(
-        requireItem(variants[nextIndex], 'The prototype requires a variant.')
+        (activeIndex + offset + inputModes.length) % inputModes.length;
+      changeInputMode(
+        requireItem(inputModes[nextIndex], 'The prototype requires an input.')
           .key,
       );
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [variant]);
+  }, [inputMode]);
 
   const props: PrototypeSurfaceProps = {
     environment,
@@ -1143,19 +1210,19 @@ export function CleanEnvironmentPrototype(): React.JSX.Element {
 
   return (
     <div className="h-full w-full overflow-hidden">
-      {variant === 'B' ? (
-        <VariantB {...props} />
-      ) : variant === 'C' ? (
-        <VariantC {...props} />
-      ) : (
-        <VariantA {...props} />
-      )}
+      <EnvironmentPrototypeSurface
+        {...props}
+        inputMode={inputMode}
+        pinMode={pinMode}
+      />
       <PrototypeSwitcher
         draft={draft}
         environment={environment}
+        inputMode={inputMode}
         management={management}
-        onVariantChange={changeVariant}
-        variant={variant}
+        pinMode={pinMode}
+        onInputModeChange={changeInputMode}
+        onPinModeChange={changePinMode}
       />
     </div>
   );

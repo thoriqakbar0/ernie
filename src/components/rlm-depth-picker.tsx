@@ -2,6 +2,16 @@ import { NumberField } from '@base-ui/react/number-field';
 import { MinusIcon, PlusIcon } from 'lucide-react';
 import { memo, useId, useRef, useState } from 'react';
 
+import { Button } from '@/components/trovecn/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/trovecn/ui/popover';
+
 interface RlmDepthPickerProps {
   readonly busy: boolean;
   readonly depth: number | null;
@@ -40,80 +50,128 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
   }
 
   return (
-    <NumberField.Root
-      value={draftDepth}
-      min={0}
-      max={maximumRlmDepth}
-      step={1}
-      disabled={busy || depth === null}
-      onValueChange={setDraftDepth}
-      onValueCommitted={commitDepth}
-      onPointerDownCapture={() => {
-        pointerInteraction.current = true;
-        setKeyboardFocusWithin(false);
-      }}
-      onPointerUpCapture={() => {
-        pointerInteraction.current = false;
-      }}
-      onPointerCancelCapture={() => {
-        pointerInteraction.current = false;
-      }}
-      onKeyDownCapture={() => {
-        pointerInteraction.current = false;
-      }}
-      onFocusCapture={() => {
-        if (!pointerInteraction.current) setKeyboardFocusWithin(true);
-      }}
-      onBlurCapture={(event) => {
-        const nextTarget = event.relatedTarget;
-        if (
-          !(nextTarget instanceof Node) ||
-          !event.currentTarget.contains(nextTarget)
-        ) {
-          setKeyboardFocusWithin(false);
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            aria-label={depth === null ? 'Depth unavailable' : undefined}
+            className="gap-2 px-3 font-normal text-muted-foreground"
+          />
         }
-      }}
-      className="transition-opacity data-disabled:opacity-50 motion-reduce:transition-none"
-    >
-      <NumberField.Group
-        className={`inline-flex h-8 items-center gap-0.5 rounded-lg border bg-card p-0.5 text-sm shadow-[0_1px_2px_oklch(0_0_0/0.04)] dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)] ${keyboardFocusWithin ? 'border-ring ring-3 ring-ring/50' : 'border-input'}`}
       >
-        <span
-          id={labelId}
-          className="pr-1.5 pl-2 whitespace-nowrap text-muted-foreground select-none"
-        >
-          <span translate="no">RLM</span> depth
+        <span>Depth</span>
+        <span className="font-medium tabular-nums text-foreground">
+          {depth ?? '—'}
         </span>
-        <NumberField.Decrement
-          aria-label="Decrease RLM depth"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none select-none transition-[color,background-color,transform] hover:bg-accent hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transform-none motion-reduce:transition-none"
-          onPointerUp={(event) => event.currentTarget.blur()}
-        >
-          <MinusIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
-        </NumberField.Decrement>
-        <NumberField.Input
-          aria-labelledby={labelId}
-          aria-describedby={descriptionId}
-          inputMode="numeric"
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              commitDepth(draftDepth);
-            }
-          }}
-          className="h-7 w-7 rounded-md bg-muted/55 px-0 text-center text-sm font-medium tabular-nums outline-none selection:bg-primary/20"
-        />
-        <NumberField.Increment
-          aria-label="Increase RLM depth"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none select-none transition-[color,background-color,transform] hover:bg-accent hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transform-none motion-reduce:transition-none"
-          onPointerUp={(event) => event.currentTarget.blur()}
-        >
-          <PlusIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
-        </NumberField.Increment>
-      </NumberField.Group>
-      <span id={descriptionId} className="sr-only">
-        Maximum recursive agent depth, from 0 through 20.
-      </span>
-    </NumberField.Root>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64">
+        <PopoverHeader>
+          <PopoverTitle id={labelId}>Agent depth</PopoverTitle>
+          <PopoverDescription id={descriptionId}>
+            <span translate="no">RLM</span> sets the maximum recursive Agent
+            delegation depth, from 0 through 20.
+          </PopoverDescription>
+        </PopoverHeader>
+        {depth === null ? (
+          <p className="mt-3 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            Available after starting an Agent.
+          </p>
+        ) : (
+          <NumberField.Root
+            value={draftDepth}
+            min={0}
+            max={maximumRlmDepth}
+            step={1}
+            disabled={busy}
+            aria-labelledby={labelId}
+            aria-describedby={descriptionId}
+            onValueChange={setDraftDepth}
+            onValueCommitted={commitDepth}
+            onPointerDownCapture={() => {
+              pointerInteraction.current = true;
+              setKeyboardFocusWithin(false);
+            }}
+            onPointerUpCapture={() => {
+              pointerInteraction.current = false;
+            }}
+            onPointerCancelCapture={() => {
+              pointerInteraction.current = false;
+            }}
+            onKeyDownCapture={() => {
+              pointerInteraction.current = false;
+            }}
+            onFocusCapture={() => {
+              if (!pointerInteraction.current) setKeyboardFocusWithin(true);
+            }}
+            onBlurCapture={(event) => {
+              const nextTarget = event.relatedTarget;
+              if (
+                !(nextTarget instanceof Node) ||
+                !event.currentTarget.contains(nextTarget)
+              ) {
+                setKeyboardFocusWithin(false);
+              }
+            }}
+          >
+            <NumberField.Group
+              aria-labelledby={labelId}
+              className={`mt-4 flex items-center justify-between rounded-lg bg-muted/60 p-1 ${keyboardFocusWithin ? 'ring-3 ring-ring/50' : ''}`}
+            >
+              <NumberField.Decrement
+                aria-label="Decrease Agent depth"
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-35"
+                  />
+                }
+                onPointerUp={(event) => event.currentTarget.blur()}
+              >
+                <MinusIcon
+                  aria-hidden="true"
+                  className="size-4"
+                  strokeWidth={1.75}
+                />
+              </NumberField.Decrement>
+              <NumberField.Input
+                aria-labelledby={labelId}
+                aria-describedby={descriptionId}
+                inputMode="numeric"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    commitDepth(draftDepth);
+                  }
+                }}
+                className="h-8 w-14 bg-transparent px-0 text-center text-base font-medium tabular-nums outline-none selection:bg-primary/20"
+              />
+              <NumberField.Increment
+                aria-label="Increase Agent depth"
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-35"
+                  />
+                }
+                onPointerUp={(event) => event.currentTarget.blur()}
+              >
+                <PlusIcon
+                  aria-hidden="true"
+                  className="size-4"
+                  strokeWidth={1.75}
+                />
+              </NumberField.Increment>
+            </NumberField.Group>
+          </NumberField.Root>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 });

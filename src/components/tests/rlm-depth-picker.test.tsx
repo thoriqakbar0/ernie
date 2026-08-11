@@ -10,6 +10,15 @@ import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 
 afterEach(cleanup);
 
+async function openDepthEditor(
+  user: ReturnType<typeof userEvent.setup>,
+  depth: number,
+): Promise<void> {
+  await user.click(
+    within(document.body).getByRole('button', { name: `Depth ${depth}` }),
+  );
+}
+
 test('user can increase the RLM depth by one', async () => {
   const requestedDepths: Array<string | null> = [];
   const user = userEvent.setup();
@@ -22,9 +31,10 @@ test('user can increase the RLM depth by one', async () => {
     />,
   );
 
+  await openDepthEditor(user, 5);
   await user.click(
     within(document.body).getByRole('button', {
-      name: 'Increase RLM depth',
+      name: 'Increase Agent depth',
     }),
   );
 
@@ -43,9 +53,10 @@ test('user can decrease the RLM depth by one', async () => {
     />,
   );
 
+  await openDepthEditor(user, 5);
   await user.click(
     within(document.body).getByRole('button', {
-      name: 'Decrease RLM depth',
+      name: 'Decrease Agent depth',
     }),
   );
 
@@ -63,11 +74,12 @@ test('pointer adjustment releases focus after changing depth', async () => {
     />,
   );
 
+  await openDepthEditor(user, 5);
   const decreaseButton = within(document.body).getByRole('button', {
-    name: 'Decrease RLM depth',
+    name: 'Decrease Agent depth',
   });
   const increaseButton = within(document.body).getByRole('button', {
-    name: 'Increase RLM depth',
+    name: 'Increase Agent depth',
   });
 
   await user.click(decreaseButton);
@@ -89,8 +101,9 @@ test('user cannot increase the RLM depth above twenty', async () => {
     />,
   );
 
+  await openDepthEditor(user, 20);
   const increaseButton = within(document.body).getByRole('button', {
-    name: 'Increase RLM depth',
+    name: 'Increase Agent depth',
   });
   await user.click(increaseButton);
 
@@ -110,8 +123,9 @@ test('user cannot decrease the RLM depth below zero', async () => {
     />,
   );
 
+  await openDepthEditor(user, 0);
   const decreaseButton = within(document.body).getByRole('button', {
-    name: 'Decrease RLM depth',
+    name: 'Decrease Agent depth',
   });
   await user.click(decreaseButton);
 
@@ -131,8 +145,9 @@ test('user can type an RLM depth and commit it with Enter', async () => {
     />,
   );
 
+  await openDepthEditor(user, 5);
   const input = within(document.body).getByRole('textbox', {
-    name: 'RLM depth',
+    name: 'Agent depth',
   });
   await user.clear(input);
   await user.type(input, '12{Enter}');
@@ -152,11 +167,39 @@ test('typed RLM depth is capped at twenty', async () => {
     />,
   );
 
+  await openDepthEditor(user, 5);
   const input = within(document.body).getByRole('textbox', {
-    name: 'RLM depth',
+    name: 'Agent depth',
   });
   await user.clear(input);
   await user.type(input, '21{Enter}');
 
   assert.deepEqual(requestedDepths, ['20']);
+});
+
+test('unavailable depth explains when the control becomes available', async () => {
+  const user = userEvent.setup();
+
+  render(
+    <RlmDepthPicker
+      busy={false}
+      depth={null}
+      onDepthChange={() => undefined}
+    />,
+  );
+
+  const trigger = within(document.body).getByRole('button', {
+    name: 'Depth unavailable',
+  });
+  assert.equal(trigger.hasAttribute('disabled'), false);
+
+  await user.click(trigger);
+
+  assert.ok(
+    within(document.body).getByText('Available after starting an Agent.'),
+  );
+  assert.equal(
+    within(document.body).queryByRole('textbox', { name: 'Agent depth' }),
+    null,
+  );
 });

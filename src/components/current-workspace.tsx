@@ -5,12 +5,15 @@ import {
   CloudIcon,
   FolderPlusIcon,
   LaptopIcon,
+  LoaderCircleIcon,
+  PlayIcon,
   SearchIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 
 import { GitBranchDropdown } from '@/components/git-branch-dropdown';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
+import { Button } from '@/components/trovecn/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Select,
@@ -27,6 +30,7 @@ import type {
 type CurrentWorkspaceProps = Pick<
   PrimeAgentWorkspaceController,
   | 'busy'
+  | 'creatingAgent'
   | 'gitBranch'
   | 'gitBranchBusy'
   | 'gitBranches'
@@ -35,6 +39,7 @@ type CurrentWorkspaceProps = Pick<
   | 'rlmDepth'
   | 'rlmDepthBusy'
   | 'selectedCwd'
+  | 'selectedSessionId'
   | 'changeFolder'
   | 'chooseWorkspaceDirectory'
   | 'changeGitBranch'
@@ -42,6 +47,7 @@ type CurrentWorkspaceProps = Pick<
   | 'deleteGitBranch'
   | 'initializeGitRepository'
   | 'createGitWorktree'
+  | 'createAgentSession'
 > & {
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
@@ -54,6 +60,7 @@ const executionTargets = [
 /** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
   busy,
+  creatingAgent,
   folders,
   gitBranch,
   gitBranchBusy,
@@ -63,6 +70,7 @@ export function CurrentWorkspace({
   rlmDepth,
   rlmDepthBusy,
   selectedCwd,
+  selectedSessionId,
   changeFolder,
   chooseWorkspaceDirectory,
   changeGitBranch,
@@ -70,6 +78,7 @@ export function CurrentWorkspace({
   deleteGitBranch,
   initializeGitRepository,
   createGitWorktree,
+  createAgentSession,
 }: CurrentWorkspaceProps): React.JSX.Element {
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const selectedFolder =
@@ -220,11 +229,37 @@ export function CurrentWorkspace({
         </SelectContent>
       </Select>
 
-      <RlmDepthPicker
-        busy={rlmDepthBusy}
-        depth={rlmDepth}
-        onDepthChange={changeRlmDepth}
-      />
+      {selectedSessionId === null ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={creatingAgent || loadingWorkspace || selectedCwd === null}
+          aria-label="Start Agent"
+          onClick={() => {
+            if (selectedCwd !== null) createAgentSession(selectedCwd);
+          }}
+        >
+          {creatingAgent ? (
+            <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
+          ) : (
+            <PlayIcon aria-hidden="true" />
+          )}
+          {creatingAgent ? 'Starting…' : 'Start Agent'}
+        </Button>
+      ) : rlmDepth === null ? (
+        <Button type="button" variant="outline" disabled>
+          {rlmDepthBusy ? (
+            <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
+          ) : null}
+          {rlmDepthBusy ? 'Loading Agent…' : 'Agent controls unavailable'}
+        </Button>
+      ) : (
+        <RlmDepthPicker
+          busy={rlmDepthBusy}
+          depth={rlmDepth}
+          onDepthChange={changeRlmDepth}
+        />
+      )}
 
       {gitWorktreeError === null ? null : (
         <p

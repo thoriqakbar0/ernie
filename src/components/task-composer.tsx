@@ -53,7 +53,7 @@ export const TaskComposer = memo(function TaskComposer({
   const skillQuery = skillSearchQuery(task.draft);
   const matchingSkills = useMemo(
     () =>
-      skillQuery === null
+      skillQuery === null || selectedSessionId === null
         ? []
         : skills
             .filter((skill) =>
@@ -178,46 +178,52 @@ export const TaskComposer = memo(function TaskComposer({
             onKeyDown={handleComposerKeyDown}
           />
           <InputGroupAddon align="block-end" className="px-4 pb-[13px]">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <InputGroupButton
-                size="icon-sm"
-                className="size-9 rounded-full bg-muted text-foreground"
-                aria-label="Add context"
-              >
-                <PlusIcon />
-              </InputGroupButton>
+            {selectedSessionId === null ? (
+              <div className="min-w-0 flex-1" />
+            ) : (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <InputGroupButton
+                  size="icon-sm"
+                  className="size-9 rounded-full bg-muted text-foreground"
+                  aria-label="Add context"
+                >
+                  <PlusIcon />
+                </InputGroupButton>
 
-              <Select
-                items={models.map((model) => ({
-                  label: model.name,
-                  value: model.key,
-                }))}
-                value={selectedModelKey}
-                onValueChange={changeModel}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
-                  aria-label="Model"
-                  disabled={modelBusy || models.length === 0}
-                >
-                  <SelectValue placeholder="No model" />
-                </SelectTrigger>
-                <SelectContent
-                  className="max-h-72"
-                  align="start"
-                  alignItemWithTrigger={false}
-                >
-                  <SelectGroup>
-                    {models.map((model) => (
-                      <SelectItem key={model.key} value={model.key}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+                {models.length === 0 ? null : (
+                  <Select
+                    items={models.map((model) => ({
+                      label: model.name,
+                      value: model.key,
+                    }))}
+                    value={selectedModelKey}
+                    onValueChange={changeModel}
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
+                      aria-label="Model"
+                      disabled={modelBusy}
+                    >
+                      <SelectValue placeholder="Model" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className="max-h-72"
+                      align="start"
+                      alignItemWithTrigger={false}
+                    >
+                      <SelectGroup>
+                        {models.map((model) => (
+                          <SelectItem key={model.key} value={model.key}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
 
             <InputGroupButton
               type="submit"

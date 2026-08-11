@@ -34,7 +34,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-test('user can create a blank Prime Agent session before sending its first task', async () => {
+test('user can create a blank Prime Agent session in the selected repository before sending its first task', async () => {
   const createdCwds: string[] = [];
   const submittedTasks: Array<{
     activeSessionId: string;
@@ -61,7 +61,18 @@ test('user can create a blank Prime Agent session before sending its first task'
         },
       };
     },
-    listPrimeAgentSavedSessions: async () => ({ ok: true, value: [] }),
+    listPrimeAgentSavedSessions: async () => ({
+      ok: true,
+      value: [
+        {
+          cwd: '/workspace/kastuli',
+          messageCount: 1,
+          modifiedAt: '2026-08-11T10:00:00.000Z',
+          name: 'Saved Agent',
+          path: '/sessions/kastuli.jsonl',
+        },
+      ],
+    }),
     importPrimeAgentSession: async () => ({ ok: false }),
     renamePrimeAgentSession: async () => ({ ok: false }),
     listPrimeAgentModels: async () => ({ ok: true, value: [] }),
@@ -102,19 +113,33 @@ test('user can create a blank Prime Agent session before sending its first task'
     />,
   );
 
-  const newAgentButton = await within(document.body).findByRole('button', {
-    name: 'New Agent in ernie',
-  });
+  assert.ok(await within(document.body).findByText('Prime Agent ready'));
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: 'Depth unavailable',
+    }),
+    null,
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Add context' }),
+    null,
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Model' }),
+    null,
+  );
   const repositoryButton = within(document.body).getByRole('button', {
-    name: 'ernie',
+    name: 'kastuli',
   });
   await user.click(repositoryButton);
   assert.equal(repositoryButton.getAttribute('aria-expanded'), 'false');
 
-  await user.click(newAgentButton);
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Start Agent' }),
+  );
 
   await waitFor(() => {
-    assert.deepEqual(createdCwds, ['/workspace/ernie']);
+    assert.deepEqual(createdCwds, ['/workspace/kastuli']);
     assert.equal(
       within(document.body)
         .getByRole('button', { name: 'Blank Agent' })
@@ -123,6 +148,12 @@ test('user can create a blank Prime Agent session before sending its first task'
     );
   });
   assert.deepEqual(submittedTasks, []);
+  assert.ok(
+    await within(document.body).findByRole('button', { name: 'Depth 1' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('button', { name: 'Add context' }),
+  );
 
   await user.type(
     within(document.body).getByRole('textbox', {
@@ -139,5 +170,5 @@ test('user can create a blank Prime Agent session before sending its first task'
       },
     ]),
   );
-  assert.deepEqual(createdCwds, ['/workspace/ernie']);
+  assert.deepEqual(createdCwds, ['/workspace/kastuli']);
 });

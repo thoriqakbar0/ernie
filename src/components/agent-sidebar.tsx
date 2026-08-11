@@ -7,7 +7,7 @@ import {
   PlusIcon,
   SettingsIcon,
 } from 'lucide-react';
-import { useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 
 import { RenameThreadDialog } from '@/components/rename-thread-dialog';
 import {
@@ -46,6 +46,7 @@ type AgentSidebarProps = Pick<
   | 'creatingAgent'
   | 'folders'
   | 'importingSessionPath'
+  | 'primeAgentConnection'
   | 'renamingSession'
   | 'savedSessions'
   | 'selectedCwd'
@@ -96,6 +97,7 @@ export function AgentSidebar({
   creatingAgent,
   folders,
   importingSessionPath,
+  primeAgentConnection,
   renamingSession,
   savedSessions,
   selectedCwd,
@@ -116,6 +118,7 @@ export function AgentSidebar({
     null,
   );
   const [management, setManagement] = useThreadManagement();
+  const revealCreatedSession = useRef(false);
   const archivedThreadIds = useMemo(
     () => new Set(management.archivedThreadIds),
     [management.archivedThreadIds],
@@ -124,6 +127,25 @@ export function AgentSidebar({
     () => new Set(management.foldedRepositoryPaths),
     [management.foldedRepositoryPaths],
   );
+  const primeAgentStatus = {
+    connecting: 'Prime Agent connecting…',
+    ready: 'Prime Agent ready',
+    unavailable: 'Prime Agent unavailable',
+  }[primeAgentConnection];
+
+  useEffect(() => {
+    if (creatingAgent) {
+      revealCreatedSession.current = true;
+      return;
+    }
+    if (!revealCreatedSession.current) return;
+
+    revealCreatedSession.current = false;
+    if (selectedCwd === null || selectedSessionId === null) return;
+    setManagement((current) =>
+      setRepositoryFolded(current, selectedCwd, false),
+    );
+  }, [creatingAgent, selectedCwd, selectedSessionId, setManagement]);
 
   const repositories = useMemo<readonly RepositoryGroup[]>(
     () =>
@@ -424,8 +446,22 @@ export function AgentSidebar({
               />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-medium">Ernie</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  Local Agent
+                <span
+                  className="flex items-center gap-1.5 truncate text-xs text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`size-1.5 shrink-0 rounded-full ${
+                      primeAgentConnection === 'ready'
+                        ? 'bg-emerald-500'
+                        : primeAgentConnection === 'connecting'
+                          ? 'animate-pulse bg-muted-foreground motion-reduce:animate-none'
+                          : 'bg-destructive'
+                    }`}
+                  />
+                  {primeAgentStatus}
                 </span>
               </span>
               <SettingsIcon aria-hidden="true" />

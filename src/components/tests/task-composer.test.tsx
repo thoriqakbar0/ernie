@@ -21,22 +21,40 @@ const skills = [
   },
 ] as const;
 
+const models = [
+  {
+    id: 'gpt-5.6',
+    key: 'openai:gpt-5.6',
+    name: 'GPT-5.6',
+    provider: 'openai',
+  },
+] as const;
+
 afterEach(cleanup);
 
 function renderTaskComposer(): void {
   render(
     <TaskComposer
       modelBusy={false}
-      models={[]}
+      models={models}
       skills={skills}
       selectedCwd="/workspace/ernie"
-      selectedModelKey={null}
+      selectedModelKey="openai:gpt-5.6"
       selectedSessionId="active-agent"
       changeModel={() => undefined}
       createAgentWithTask={async () => ({ ok: true })}
     />,
   );
 }
+
+test('session controls appear for a connected Agent', () => {
+  renderTaskComposer();
+
+  assert.ok(
+    within(document.body).getByRole('button', { name: 'Add context' }),
+  );
+  assert.ok(within(document.body).getByRole('combobox', { name: 'Model' }));
+});
 
 test('user can detect and insert a Prime Agent skill', async () => {
   const user = userEvent.setup();
@@ -86,6 +104,14 @@ test('a new Agent starts only after its first non-empty task', async () => {
 
   const composer = within(document.body).getByRole('textbox');
   assert.equal(document.activeElement, composer);
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Add context' }),
+    null,
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Model' }),
+    null,
+  );
   assert.equal(
     within(document.body)
       .getByRole('button', { name: 'Send task' })

@@ -49,6 +49,7 @@ export interface PrimeAgentWorkspaceController {
   readonly renamingSession: boolean;
   readonly modelBusy: boolean;
   readonly models: readonly PrimeAgentModel[];
+  readonly primeAgentConnection: 'connecting' | 'ready' | 'unavailable';
   readonly skills: readonly PrimeAgentSkill[];
   readonly repoName: string;
   readonly rlmDepth: number | null;
@@ -988,6 +989,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const modelBusy = loadingWorkspace || loadingSession || savingModel;
   const rlmDepthBusy =
     loadingWorkspace || loadingSession || savingRlmDepth;
+  const primeAgentConnection = loadingWorkspace
+    ? 'connecting'
+    : workspace === null
+      ? 'unavailable'
+      : 'ready';
 
   return {
     busy:
@@ -1011,6 +1017,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     renamingSession,
     modelBusy,
     models,
+    primeAgentConnection,
     skills,
     repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),
     rlmDepth,

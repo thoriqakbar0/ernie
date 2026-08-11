@@ -28,6 +28,7 @@ function renderSidebar(actions: {
       <SidebarProvider>
         <AgentSidebar
           creatingAgent={false}
+          primeAgentConnection="ready"
           importingSessionPath={null}
           renamingSession={false}
           folders={[
@@ -179,6 +180,18 @@ test('sidebar omits the standalone session import action', () => {
     }),
     null,
   );
+});
+
+test('sidebar reports that Prime Agent is ready', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    createAgentSession: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  assert.ok(within(document.body).getByText('Prime Agent ready'));
 });
 
 test('saved conversations appear inside their repository and open in place', async () => {

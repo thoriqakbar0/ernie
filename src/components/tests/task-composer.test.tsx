@@ -56,6 +56,14 @@ test('session controls appear for a connected Agent', () => {
   assert.ok(within(document.body).getByRole('combobox', { name: 'Model' }));
 });
 
+test('connected Agent uses the compact quick composer', () => {
+  renderTaskComposer();
+
+  const composer = within(document.body).getByRole('textbox');
+  assert.equal(composer.getAttribute('rows'), '1');
+  assert.equal(composer.getAttribute('placeholder'), 'Ask Prime Agent…');
+});
+
 test('user can detect and insert a Prime Agent skill', async () => {
   const user = userEvent.setup();
   renderTaskComposer();

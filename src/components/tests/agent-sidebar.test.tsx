@@ -336,5 +336,68 @@ test('thread actions open from a right-click context menu', () => {
   fireEvent.contextMenu(thread);
 
   assert.ok(within(document.body).getByRole('menuitem', { name: 'Rename' }));
+  assert.ok(
+    within(document.body).getByRole('menuitem', { name: 'Pin to top' }),
+  );
   assert.ok(within(document.body).getByRole('menuitem', { name: 'Archive' }));
+});
+
+test('pinned threads lift above repositories and return when unpinned', async () => {
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => undefined,
+    createAgentSession: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  const ernieRepository = within(document.body).getByRole('listitem', {
+    name: 'ernie repository',
+  });
+  await user.click(
+    within(ernieRepository).getByRole('button', {
+      name: 'Manage Codebase rating feedback',
+    }),
+  );
+  await user.click(
+    within(document.body).getByRole('menuitem', { name: 'Pin to top' }),
+  );
+
+  const pinnedTasks = within(document.body).getByRole('region', {
+    name: 'Pinned tasks',
+  });
+  assert.ok(
+    within(pinnedTasks).getByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+  );
+  assert.ok(within(pinnedTasks).getByText('ernie'));
+  assert.equal(
+    within(ernieRepository).queryByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+    null,
+  );
+
+  await user.click(
+    within(pinnedTasks).getByRole('button', {
+      name: 'Manage Codebase rating feedback',
+    }),
+  );
+  await user.click(
+    within(document.body).getByRole('menuitem', { name: 'Unpin' }),
+  );
+
+  assert.equal(
+    within(pinnedTasks).queryByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+    null,
+  );
+  assert.ok(
+    within(ernieRepository).getByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+  );
 });

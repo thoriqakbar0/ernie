@@ -7,6 +7,8 @@ import {
   GripVerticalIcon,
   LoaderCircleIcon,
   PencilIcon,
+  PinIcon,
+  PinOffIcon,
 } from 'lucide-react';
 import type { DragEvent } from 'react';
 
@@ -35,6 +37,7 @@ interface ThreadRowProps {
   readonly disabled: boolean;
   readonly dragging: boolean;
   readonly importing: boolean;
+  readonly pinned: boolean;
   readonly selected: boolean;
   readonly thread: ThreadConversation;
   readonly onArchiveChange: (archived: boolean) => void;
@@ -44,6 +47,7 @@ interface ThreadRowProps {
   readonly onMoveDown: () => void;
   readonly onMoveUp: () => void;
   readonly onOpen: () => void;
+  readonly onPinChange: (pinned: boolean) => void;
   readonly onRename: () => void;
 }
 
@@ -56,6 +60,7 @@ export function ThreadRow({
   disabled,
   dragging,
   importing,
+  pinned,
   selected,
   thread,
   onArchiveChange,
@@ -65,20 +70,23 @@ export function ThreadRow({
   onMoveDown,
   onMoveUp,
   onOpen,
+  onPinChange,
   onRename,
 }: ThreadRowProps): React.JSX.Element {
+  const reorderable = !archived && !pinned;
+
   return (
     <ContextMenu>
       <ContextMenuTrigger
         render={
           <li
-            draggable={!archived}
+            draggable={reorderable}
             data-dragging={dragging}
             className="group/thread relative flex min-w-0 items-center rounded-lg opacity-100 transition-opacity data-[dragging=true]:opacity-40"
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             onDragOver={(event) => {
-              if (archived) return;
+              if (!reorderable) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = 'move';
             }}
@@ -86,10 +94,17 @@ export function ThreadRow({
           />
         }
       >
-        <GripVerticalIcon
-          aria-hidden="true"
-          className="absolute left-1 size-3.5 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-60 group-focus-within/thread:opacity-60"
-        />
+        {pinned ? (
+          <PinIcon
+            aria-hidden="true"
+            className="absolute left-1 size-3.5 text-muted-foreground"
+          />
+        ) : (
+          <GripVerticalIcon
+            aria-hidden="true"
+            className="absolute left-1 size-3.5 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-60 group-focus-within/thread:opacity-60"
+          />
+        )}
         <Button
           type="button"
           variant="ghost"
@@ -101,16 +116,23 @@ export function ThreadRow({
               ? `${thread.session.name}, saved session`
               : thread.session.name
           }
-          className="h-9 min-w-0 flex-1 justify-start gap-2 rounded-lg pl-5 pr-1 text-left font-normal text-sidebar-foreground data-active:bg-sidebar-accent hover:bg-sidebar-accent"
+          className={`${pinned ? 'h-10' : 'h-9'} min-w-0 flex-1 justify-start gap-2 rounded-lg pl-5 pr-1 text-left font-normal text-sidebar-foreground data-active:bg-sidebar-accent hover:bg-sidebar-accent`}
           onClick={onOpen}
         >
-          <span className="min-w-0 flex-1 truncate">{thread.session.name}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate">{thread.session.name}</span>
+            {pinned && detail !== null ? (
+              <span className="block truncate text-[10px] text-muted-foreground">
+                {detail}
+              </span>
+            ) : null}
+          </span>
           {importing ? (
             <LoaderCircleIcon
               className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none"
               aria-label="Opening saved session"
             />
-          ) : detail === null ? null : (
+          ) : pinned || detail === null ? null : (
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
               {detail}
             </span>
@@ -137,12 +159,18 @@ export function ThreadRow({
               Rename
             </MenuItem>
             {archived ? null : (
+              <MenuItem onClick={() => onPinChange(!pinned)}>
+                {pinned ? <PinOffIcon /> : <PinIcon />}
+                {pinned ? 'Unpin' : 'Pin to top'}
+              </MenuItem>
+            )}
+            {!reorderable ? null : (
               <MenuItem disabled={!canMoveUp} onClick={onMoveUp}>
                 <ArrowUpIcon />
                 Move up
               </MenuItem>
             )}
-            {archived ? null : (
+            {!reorderable ? null : (
               <MenuItem disabled={!canMoveDown} onClick={onMoveDown}>
                 <ArrowDownIcon />
                 Move down
@@ -162,12 +190,18 @@ export function ThreadRow({
           Rename
         </ContextMenuItem>
         {archived ? null : (
+          <ContextMenuItem onClick={() => onPinChange(!pinned)}>
+            {pinned ? <PinOffIcon /> : <PinIcon />}
+            {pinned ? 'Unpin' : 'Pin to top'}
+          </ContextMenuItem>
+        )}
+        {!reorderable ? null : (
           <ContextMenuItem disabled={!canMoveUp} onClick={onMoveUp}>
             <ArrowUpIcon />
             Move up
           </ContextMenuItem>
         )}
-        {archived ? null : (
+        {!reorderable ? null : (
           <ContextMenuItem disabled={!canMoveDown} onClick={onMoveDown}>
             <ArrowDownIcon />
             Move down

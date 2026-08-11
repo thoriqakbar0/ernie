@@ -4,6 +4,7 @@ export interface ThreadManagementState {
   readonly archivedThreadIds: readonly string[];
   readonly foldedRepositoryPaths: readonly string[];
   readonly orderByRepository: Readonly<Record<string, readonly string[]>>;
+  readonly pinnedThreadIds: readonly string[];
 }
 
 /** The safe initial state when no thread preferences exist. */
@@ -12,6 +13,7 @@ export const emptyThreadManagementState: ThreadManagementState = {
   archivedThreadIds: [],
   foldedRepositoryPaths: [],
   orderByRepository: {},
+  pinnedThreadIds: [],
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,9 +40,14 @@ export function parseThreadManagementState(
 
   const archivedThreadIds = parseUniqueStrings(value.archivedThreadIds);
   const foldedRepositoryPaths = parseUniqueStrings(value.foldedRepositoryPaths);
+  const pinnedThreadIds =
+    value.pinnedThreadIds === undefined
+      ? []
+      : parseUniqueStrings(value.pinnedThreadIds);
   if (
     archivedThreadIds === null ||
     foldedRepositoryPaths === null ||
+    pinnedThreadIds === null ||
     !isRecord(value.orderByRepository)
   ) {
     return emptyThreadManagementState;
@@ -62,6 +69,7 @@ export function parseThreadManagementState(
     archivedThreadIds,
     foldedRepositoryPaths,
     orderByRepository,
+    pinnedThreadIds,
   };
 }
 
@@ -86,6 +94,22 @@ export function setThreadArchived(
       state.archivedThreadIds,
       threadId,
       archived,
+    ),
+  };
+}
+
+/** Move one thread into or out of the global pinned section. */
+export function setThreadPinned(
+  state: ThreadManagementState,
+  threadId: string,
+  pinned: boolean,
+): ThreadManagementState {
+  return {
+    ...state,
+    pinnedThreadIds: updateMembership(
+      state.pinnedThreadIds,
+      threadId,
+      pinned,
     ),
   };
 }

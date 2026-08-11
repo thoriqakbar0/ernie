@@ -124,7 +124,7 @@ export const TaskComposer = memo(function TaskComposer({
   return (
     <>
       <form onSubmit={submitTask}>
-        <InputGroup className="min-h-40 rounded-2xl bg-card">
+        <InputGroup className="min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm">
           {skillsOpen ? (
             <div
               id={skillsListId}
@@ -160,14 +160,29 @@ export const TaskComposer = memo(function TaskComposer({
             </div>
           ) : null}
 
+          {selectedSessionId === null ? null : (
+            <InputGroupAddon
+              align="inline-start"
+              className="h-9 self-end p-0"
+            >
+              <InputGroupButton
+                size="icon-sm"
+                className="size-8 rounded-full bg-muted text-foreground"
+                aria-label="Add context"
+              >
+                <PlusIcon />
+              </InputGroupButton>
+            </InputGroupAddon>
+          )}
+
           <InputGroupTextarea
             ref={textareaRef}
             id="task"
             autoFocus={selectedSessionId === null && selectedCwd !== null}
-            rows={4}
+            rows={1}
             value={task.draft}
-            className="select-text px-4 pt-4 text-base"
-            placeholder="Plan, Build, / for skills, @ for context"
+            className="max-h-28 min-h-9 select-text px-2 py-2 text-base [field-sizing:content]"
+            placeholder="Ask Prime Agent…"
             aria-autocomplete="list"
             aria-controls={skillsOpen ? skillsListId : undefined}
             aria-expanded={skillsOpen}
@@ -177,58 +192,11 @@ export const TaskComposer = memo(function TaskComposer({
             onChange={(event) => changeDraft(event.target.value)}
             onKeyDown={handleComposerKeyDown}
           />
-          <InputGroupAddon align="block-end" className="px-4 pb-[13px]">
-            {selectedSessionId === null ? (
-              <div className="min-w-0 flex-1" />
-            ) : (
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <InputGroupButton
-                  size="icon-sm"
-                  className="size-9 rounded-full bg-muted text-foreground"
-                  aria-label="Add context"
-                >
-                  <PlusIcon />
-                </InputGroupButton>
-
-                {models.length === 0 ? null : (
-                  <Select
-                    items={models.map((model) => ({
-                      label: model.name,
-                      value: model.key,
-                    }))}
-                    value={selectedModelKey}
-                    onValueChange={changeModel}
-                  >
-                    <SelectTrigger
-                      size="sm"
-                      className="max-w-56 border-0 bg-transparent px-2 text-sm shadow-none"
-                      aria-label="Model"
-                      disabled={modelBusy}
-                    >
-                      <SelectValue placeholder="Model" />
-                    </SelectTrigger>
-                    <SelectContent
-                      className="max-h-72"
-                      align="start"
-                      alignItemWithTrigger={false}
-                    >
-                      <SelectGroup>
-                        {models.map((model) => (
-                          <SelectItem key={model.key} value={model.key}>
-                            {model.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
-
+          <InputGroupAddon align="inline-end" className="h-9 self-end p-0">
             <InputGroupButton
               type="submit"
               size="icon-sm"
-              className="size-9 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
+              className="size-8 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
               aria-label="Send task"
               title="Send task (Enter)"
               disabled={!task.canSubmit || task.submitting}
@@ -237,6 +205,41 @@ export const TaskComposer = memo(function TaskComposer({
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
+
+        {selectedSessionId === null || models.length === 0 ? null : (
+          <div className="mt-1 flex justify-center">
+            <Select
+              items={models.map((model) => ({
+                label: model.name,
+                value: model.key,
+              }))}
+              value={selectedModelKey}
+              onValueChange={changeModel}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
+                aria-label="Model"
+                disabled={modelBusy}
+              >
+                <SelectValue placeholder="Model" />
+              </SelectTrigger>
+              <SelectContent
+                className="max-h-72"
+                align="center"
+                alignItemWithTrigger={false}
+              >
+                <SelectGroup>
+                  {models.map((model) => (
+                    <SelectItem key={model.key} value={model.key}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </form>
 
       <p className="sr-only" role="status">

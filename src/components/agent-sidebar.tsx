@@ -39,6 +39,7 @@ import {
   orderRepositoryThreadIds,
   setRepositoryFolded,
   setThreadArchived,
+  setThreadPinned,
 } from '@/packages/thread-management';
 
 type AgentSidebarProps = Pick<
@@ -68,6 +69,11 @@ interface RepositoryGroup {
 interface DraggedThread {
   readonly cwd: string;
   readonly id: string;
+}
+
+interface LocatedConversation {
+  readonly conversation: ThreadConversation;
+  readonly repository: RepositoryGroup;
 }
 
 function conversationFallbackIdentity(cwd: string, name: string): string {
@@ -126,6 +132,10 @@ export function AgentSidebar({
   const foldedRepositoryPaths = useMemo(
     () => new Set(management.foldedRepositoryPaths),
     [management.foldedRepositoryPaths],
+  );
+  const pinnedThreadIds = useMemo(
+    () => new Set(management.pinnedThreadIds),
+    [management.pinnedThreadIds],
   );
   const primeAgentStatus = {
     connecting: 'Prime Agent connecting…',
@@ -209,8 +219,25 @@ export function AgentSidebar({
       !activeOnly ||
       repository.conversations.some(
         (conversation) =>
-          !archivedThreadIds.has(threadConversationId(conversation)),
+          !archivedThreadIds.has(threadConversationId(conversation)) &&
+          !pinnedThreadIds.has(threadConversationId(conversation)),
       ),
+  );
+  const pinnedConversations = management.pinnedThreadIds.flatMap(
+    (threadId): readonly LocatedConversation[] => {
+      for (const repository of repositories) {
+        const conversation = repository.conversations.find(
+          (candidate) => threadConversationId(candidate) === threadId,
+        );
+        if (
+          conversation !== undefined &&
+          !archivedThreadIds.has(threadConversationId(conversation))
+        ) {
+          return [{ conversation, repository }];
+        }
+      }
+      return [];
+    },
   );
   const moveThread = (
     cwd: string,
@@ -240,13 +267,15 @@ export function AgentSidebar({
   const renderThread = (
     conversation: ThreadConversation,
     repository: RepositoryGroup,
+    pinned: boolean,
     archived: boolean,
     detail: string | null,
   ): React.JSX.Element => {
     const id = threadConversationId(conversation);
     const activeConversations = repository.conversations.filter(
       (candidate) =>
-        !archivedThreadIds.has(threadConversationId(candidate)),
+        !archivedThreadIds.has(threadConversationId(candidate)) &&
+        !pinnedThreadIds.has(threadConversationId(candidate)),
     );
     const position = activeConversations.findIndex(
       (candidate) => threadConversationId(candidate) === id,
@@ -275,19 +304,23 @@ export function AgentSidebar({
         disabled={importingSessionPath !== null}
         dragging={draggedThread?.id === id}
         importing={importing}
+        pinned={pinned}
         selected={
           conversation.kind === 'live' &&
           conversation.session.activeSessionId === selectedSessionId
         }
         thread={conversation}
         onArchiveChange={(nextArchived) =>
-          setManagement((current) =>
-            setThreadArchived(current, id, nextArchived),
-          )
+          setManagement((current) => {
+            const unpinned = nextArchived
+              ? setThreadPinned(current, id, false)
+              : current;
+            return setThreadArchived(unpinned, id, nextArchived);
+          })
         }
         onDragEnd={() => setDraggedThread(null)}
         onDragStart={(event: DragEvent<HTMLLIElement>) => {
-          if (archived) return;
+          if (archived || pinned) return;
           event.dataTransfer.effectAllowed = 'move';
           event.dataTransfer.setData('text/plain', id);
           setDraggedThread({ cwd: repository.folder.value, id });
@@ -296,6 +329,7 @@ export function AgentSidebar({
           event.preventDefault();
           if (
             archived ||
+            pinned ||
             draggedThread === null ||
             draggedThread.cwd !== repository.folder.value
           ) {
@@ -312,6 +346,11 @@ export function AgentSidebar({
         onMoveDown={() => moveBy(1)}
         onMoveUp={() => moveBy(-1)}
         onOpen={() => openThread(conversation)}
+        onPinChange={(nextPinned) =>
+          setManagement((current) =>
+            setThreadPinned(current, id, nextPinned),
+          )
+        }
         onRename={() => setRenameTarget(conversation)}
       />
     );
@@ -319,9 +358,40 @@ export function AgentSidebar({
 
   return (
     <Sidebar collapsible="offcanvas">
-      <SidebarHeader className="px-3 pb-1 pt-4">
+      <SidebarHeader className="gap-0 px-2 pb-1 pt-3">
+        <section
+          aria-label="Pinned tasks"
+          className="mb-1 border-b border-sidebar-border pb-2"
+        >
+          <div className="flex h-8 items-center px-2">
+            <SidebarGroupLabel className="h-auto flex-1 px-0 text-[11px] font-medium tracking-[0.08em] uppercase">
+              Pinned
+            </SidebarGroupLabel>
+            <span className="text-[10px] tabular-nums text-muted-foreground">
+              {pinnedConversations.length}
+            </span>
+          </div>
+          {pinnedConversations.length === 0 ? (
+            <p className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground/70">
+              Pin a task to reach it from any repository.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {pinnedConversations.map(({ conversation, repository }) =>
+                renderThread(
+                  conversation,
+                  repository,
+                  true,
+                  false,
+                  repository.folder.label,
+                ),
+              )}
+            </ul>
+          )}
+        </section>
+
         <div className="flex h-8 items-center gap-0.5 px-2">
-          <SidebarGroupLabel className="h-auto flex-1 px-0 text-sm font-medium">
+          <SidebarGroupLabel className="h-auto flex-1 px-0 text-[11px] font-medium tracking-[0.08em] uppercase">
             Repositories
           </SidebarGroupLabel>
           <Button
@@ -355,14 +425,15 @@ export function AgentSidebar({
       <SidebarContent className="px-2">
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
-            <ul className="flex flex-col gap-3">
+            <ul className="flex flex-col gap-1">
               {visibleRepositories.map((repository, index) => {
                 const { folder } = repository;
                 const folded = foldedRepositoryPaths.has(folder.value);
                 const conversationsId = `repository-${index}-conversations`;
                 const activeConversations = repository.conversations.filter(
                   (conversation) =>
-                    !archivedThreadIds.has(threadConversationId(conversation)),
+                    !archivedThreadIds.has(threadConversationId(conversation)) &&
+                    !pinnedThreadIds.has(threadConversationId(conversation)),
                 );
                 return (
                   <li key={folder.value} aria-label={`${folder.label} repository`}>
@@ -370,7 +441,7 @@ export function AgentSidebar({
                       <Button
                         type="button"
                         variant="ghost"
-                        className="h-8 min-w-0 flex-1 justify-start gap-2 px-2 text-[15px] font-medium"
+                        className="h-8 min-w-0 flex-1 justify-start gap-2 px-2 text-[13px] font-medium"
                         aria-label={folder.label}
                         aria-controls={conversationsId}
                         aria-expanded={!folded}
@@ -416,12 +487,13 @@ export function AgentSidebar({
                     <ul
                       id={conversationsId}
                       hidden={folded}
-                      className="mt-0.5 flex flex-col gap-0.5 pl-3"
+                      className="mt-0.5 ml-3 flex flex-col gap-0.5 border-l border-sidebar-border pl-2"
                     >
                       {activeConversations.map((conversation) =>
                         renderThread(
                           conversation,
                           repository,
+                          false,
                           false,
                           sessionAge(conversation.session.modifiedAt),
                         ),

@@ -1,116 +1,21 @@
 import {
-  LoaderCircleIcon,
   MoonIcon,
-  PlusIcon,
   RefreshCwIcon,
-  SearchIcon,
-  SettingsIcon,
   SunIcon,
 } from 'lucide-react';
 
+import { AgentSidebar } from '@/components/agent-sidebar';
 import { TaskSurface } from '@/components/task-surface';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Switch } from '@/components/ui/switch';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
-
-interface AgentSidebarProps {
-  readonly creatingAgent: boolean;
-  readonly newAgentDisabled: boolean;
-  readonly onCreateAgent: () => void;
-}
-
-function AgentSidebar({
-  creatingAgent,
-  newAgentDisabled,
-  onCreateAgent,
-}: AgentSidebarProps): React.JSX.Element {
-  return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="h-16 justify-center p-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Ernie">
-              <img
-                src="./ernie-logo.png"
-                alt=""
-                className="size-8 rounded-lg object-cover"
-              />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate font-semibold">Ernie</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  cool agent desktop
-                </span>
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-
-      <SidebarSeparator />
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive
-                  tooltip="New task"
-                  onClick={onCreateAgent}
-                  disabled={newAgentDisabled}
-                  aria-busy={creatingAgent}
-                >
-                  {creatingAgent ? (
-                    <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
-                  ) : (
-                    <PlusIcon />
-                  )}
-                  <span>New task</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Search">
-                  <SearchIcon />
-                  <span>Search</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings">
-              <SettingsIcon />
-              <span>Settings</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
-  );
-}
 
 type ErnieShellProps = {
   agentationEnabled: boolean;
@@ -133,13 +38,7 @@ export function ErnieShell({
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen className="select-none">
-        <AgentSidebar
-          creatingAgent={workspace.creatingAgent}
-          newAgentDisabled={
-            workspace.creatingAgent || workspace.selectedCwd === null
-          }
-          onCreateAgent={workspace.createAgent}
-        />
+        <AgentSidebar {...workspace} />
 
         <SidebarInset className="min-w-0 overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">

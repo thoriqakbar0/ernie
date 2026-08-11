@@ -78,6 +78,14 @@ export type PrimeAgentResult<T> =
   | Readonly<{ ok: true; value: T }>
   | Readonly<{ ok: false; error: PrimeAgentFailure }>;
 
+/** Process paths and workspace used to launch the shared Prime Agent daemon. */
+export interface PrimeAgentDaemonConfiguration {
+  readonly currentCwd: string;
+  readonly daemonEntrypointPath: string;
+  readonly executablePath: string;
+  readonly socketPath?: string;
+}
+
 /** The model change requested for one live Prime Agent session. */
 export interface PrimeAgentModelSelection {
   readonly activeSessionId: string;

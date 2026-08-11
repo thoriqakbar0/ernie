@@ -2,13 +2,15 @@ import type {
   DaemonClient,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
-import { Effect } from 'effect';
+import { Effect, Schedule } from 'effect';
 
 import type {
   PrimeAgentDaemon,
+  PrimeAgentDaemonConfiguration,
   PrimeAgentFailureCode,
   PrimeAgentResult,
 } from '../types';
+import { startPrimeAgentDaemonProcess } from './daemon-process';
 import {
   parseActiveSessionId,
   parseCreatedSessionData,
@@ -24,6 +26,8 @@ import {
 } from './protocol';
 
 const connectTimeoutMs = 3_000;
+const daemonProbeTimeoutMs = 250;
+const daemonStartupAttempts = 400;
 const requestTimeoutMs = 10_000;
 
 function failure(
@@ -54,60 +58,118 @@ function reportOperationalFailure(scope: string, error: unknown): void {
   console.error(scope, errorMetadata(error));
 }
 
-function withClient<T>(
-  operation: (
-    client: DaemonClient,
-  ) => Effect.Effect<PrimeAgentResult<T>, unknown>,
-): Effect.Effect<PrimeAgentResult<T>> {
-  let connected = false;
-  return Effect.tryPromise(() => import('prime-agent')).pipe(
-    Effect.map(
-      ({ DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath }) =>
-        new DaemonClientConstructor(defaultDaemonSocketPath()),
-    ),
-    Effect.flatMap((client) =>
-      Effect.acquireUseRelease(
-        Effect.succeed(client),
-        (activeClient) =>
-          Effect.gen(function* () {
-            yield* Effect.tryPromise(() =>
-              activeClient.connect(connectTimeoutMs),
-            );
-            connected = true;
-            return yield* operation(activeClient);
-          }),
-        (activeClient) => Effect.sync(() => activeClient.close()),
-      ),
-    ),
-    Effect.catchAll((error) =>
-      Effect.sync(() => {
-        reportOperationalFailure(
-          connected
-            ? 'Prime Agent request failed.'
-            : 'Prime Agent connection failed.',
-          error,
-        );
-        return connected
-          ? failure(
-              'request_failed',
-              'Prime Agent could not complete the request.',
-            )
-          : failure(
-              'daemon_unavailable',
-              'The Prime Agent daemon is not available.',
-            );
-      }),
-    ),
-  );
+interface PrimeAgentDaemonRuntime {
+  readonly createClient: () => DaemonClient;
+  readonly socketPath: string;
 }
 
 /** Create the Prime Agent daemon adapter owned by Electron's main process. */
-export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
-  const normalizedCwd = currentCwd.trim();
+export function createPrimeAgentDaemon(
+  configuration: PrimeAgentDaemonConfiguration,
+): PrimeAgentDaemon {
+  const normalizedCwd = configuration.currentCwd.trim();
   if (normalizedCwd.length === 0) {
     throw new Error('The current workspace path must not be empty.');
   }
+  if (
+    configuration.daemonEntrypointPath.trim().length === 0 ||
+    configuration.executablePath.trim().length === 0
+  ) {
+    throw new Error('Prime Agent daemon process paths must not be empty.');
+  }
   const retainedSessionClients = new Map<string, DaemonClient>();
+
+  const loadRuntime = Effect.tryPromise(() => import('prime-agent')).pipe(
+    Effect.map(
+      ({ DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath }) => {
+        const socketPath =
+          configuration.socketPath ?? defaultDaemonSocketPath();
+        return {
+          socketPath,
+          createClient: () => new DaemonClientConstructor(socketPath),
+        } satisfies PrimeAgentDaemonRuntime;
+      },
+    ),
+  );
+
+  const probeDaemon = (runtime: PrimeAgentDaemonRuntime) =>
+    Effect.acquireUseRelease(
+      Effect.sync(runtime.createClient),
+      (client) =>
+        Effect.tryPromise(() => client.connect(daemonProbeTimeoutMs)),
+      (client) => Effect.sync(() => client.close()),
+    );
+
+  const establishDaemonReadiness = loadRuntime.pipe(
+    Effect.flatMap((runtime) =>
+      probeDaemon(runtime).pipe(
+        Effect.catchAll(() =>
+          startPrimeAgentDaemonProcess(configuration, runtime.socketPath).pipe(
+            Effect.andThen(
+              probeDaemon(runtime).pipe(
+                Effect.retry({
+                  times: daemonStartupAttempts - 1,
+                  schedule: Schedule.fixed('25 millis'),
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  const [ensureDaemonReady, invalidateDaemonReadiness] = Effect.runSync(
+    Effect.cachedInvalidateWithTTL(establishDaemonReadiness, '1 second'),
+  );
+
+  function withClient<T>(
+    operation: (
+      client: DaemonClient,
+    ) => Effect.Effect<PrimeAgentResult<T>, unknown>,
+  ): Effect.Effect<PrimeAgentResult<T>> {
+    let connected = false;
+    return ensureDaemonReady.pipe(
+      Effect.andThen(loadRuntime),
+      Effect.map((runtime) => runtime.createClient()),
+      Effect.flatMap((client) =>
+        Effect.acquireUseRelease(
+          Effect.succeed(client),
+          (activeClient) =>
+            Effect.gen(function* () {
+              yield* Effect.tryPromise(() =>
+                activeClient.connect(connectTimeoutMs),
+              );
+              connected = true;
+              return yield* operation(activeClient);
+            }),
+          (activeClient) => Effect.sync(() => activeClient.close()),
+        ),
+      ),
+      Effect.catchAll((error) =>
+        invalidateDaemonReadiness.pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              reportOperationalFailure(
+                connected
+                  ? 'Prime Agent request failed.'
+                  : 'Prime Agent connection failed.',
+                error,
+              );
+              return connected
+                ? failure(
+                    'request_failed',
+                    'Prime Agent could not complete the request.',
+                  )
+                : failure(
+                    'daemon_unavailable',
+                    'Ernie could not start the Prime Agent daemon.',
+                  );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
 
   const listWorkspace = Effect.fn('PrimeAgentDaemon.listWorkspace')(() =>
     withClient((client) =>
@@ -193,11 +255,9 @@ export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
       if (!parsedCwd.ok) return Effect.succeed(parsedCwd);
 
       let connected = false;
-      return Effect.tryPromise(() => import('prime-agent')).pipe(
-        Effect.map(
-          ({ DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath }) =>
-            new DaemonClientConstructor(defaultDaemonSocketPath()),
-        ),
+      return ensureDaemonReady.pipe(
+        Effect.andThen(loadRuntime),
+        Effect.map((runtime) => runtime.createClient()),
         Effect.flatMap((client) => {
           let retained = false;
           return Effect.acquireUseRelease(
@@ -255,20 +315,27 @@ export function createPrimeAgentDaemon(currentCwd: string): PrimeAgentDaemon {
           );
         }),
         Effect.catchAll((error) =>
-          Effect.sync(() => {
-            reportOperationalFailure(
-              connected
-                ? 'Prime Agent session creation failed.'
-                : 'Prime Agent connection failed.',
-              error,
-            );
-            return connected
-              ? failure('request_failed', 'Prime Agent could not create the Agent.')
-              : failure(
-                  'daemon_unavailable',
-                  'The Prime Agent daemon is not available.',
+          invalidateDaemonReadiness.pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                reportOperationalFailure(
+                  connected
+                    ? 'Prime Agent session creation failed.'
+                    : 'Prime Agent connection failed.',
+                  error,
                 );
-          }),
+                return connected
+                  ? failure(
+                      'request_failed',
+                      'Prime Agent could not create the Agent.',
+                    )
+                  : failure(
+                      'daemon_unavailable',
+                      'Ernie could not start the Prime Agent daemon.',
+                    );
+              }),
+            ),
+          ),
         ),
       );
     },

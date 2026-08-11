@@ -5,5 +5,9 @@
     "rootDir": "src",
     "outDir": ".build/main"
   },
-  "include": ["src/main.ts", "src/preload.ts"]
+  "include": [
+    "src/main.ts",
+    "src/preload.ts",
+    "src/packages/prime-agent-daemon/daemon-runner.ts"
+  ]
 }

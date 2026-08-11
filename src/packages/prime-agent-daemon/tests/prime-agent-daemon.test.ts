@@ -20,6 +20,7 @@ import {
   parsePrimeAgentWorkspaceResult,
 } from '../client';
 import {
+  createPrimeAgentDaemon,
   parsePrimeAgentDaemonCreatedSession,
   parsePrimeAgentDaemonModels,
   parsePrimeAgentDaemonSessions,
@@ -35,6 +36,10 @@ import {
 } from '../git-server';
 
 const execFileAsync = promisify(execFile);
+const primeAgentCliPath = join(
+  process.cwd(),
+  'node_modules/prime-agent/dist/bundle/cli.js',
+);
 
 function runGit(args: readonly string[]) {
   return Effect.tryPromise(() =>
@@ -82,6 +87,47 @@ function testInTempDirectory(
 function testEffect(name: string, effect: Effect.Effect<void, unknown>): void {
   test(name, () => Effect.runPromise(effect));
 }
+
+testInTempDirectory(
+  'starts and reuses an isolated Prime Agent daemon',
+  'ernie-prime-agent-',
+  (cwd) => {
+    const socketPath = join(cwd, 'prime-agent.sock');
+    const daemon = createPrimeAgentDaemon({
+      currentCwd: cwd,
+      daemonEntrypointPath: primeAgentCliPath,
+      executablePath: process.execPath,
+      socketPath,
+    });
+
+    const shutdown = Effect.tryPromise(async () => {
+      const { DaemonClient } = await import('prime-agent');
+      const client = new DaemonClient(socketPath);
+      try {
+        await client.connect(1_000);
+        await client.request({ type: 'shutdown', force: true }, 3_000);
+      } finally {
+        client.close();
+        daemon.close();
+      }
+    }).pipe(Effect.catchAll(() => Effect.sync(() => daemon.close())));
+
+    return Effect.gen(function* () {
+      const coldResults = yield* Effect.all(
+        [daemon.listWorkspace(), daemon.listWorkspace()],
+        { concurrency: 'unbounded' },
+      );
+      const warmResult = yield* daemon.listWorkspace();
+
+      const expected = {
+        ok: true,
+        value: { currentCwd: cwd, sessions: [] },
+      } as const;
+      assert.deepEqual(coldResults, [expected, expected]);
+      assert.deepEqual(warmResult, expected);
+    }).pipe(Effect.ensuring(shutdown));
+  },
+);
 
 test('keeps only connected top-level daemon sessions', () => {
   const result = parsePrimeAgentDaemonSessions({

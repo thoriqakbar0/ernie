@@ -43,9 +43,11 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedCwd: string | null;
   readonly selectedModelKey: string | null;
   readonly selectedSessionId: string | null;
+  readonly sessions: readonly PrimeAgentSession[];
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
-  readonly createAgent: () => void;
+  readonly createAgent: (cwd?: string) => void;
+  readonly selectSession: (activeSessionId: string) => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
   readonly deleteGitBranch: (name: string) => void;
@@ -343,9 +345,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function createAgent(): void {
-    if (selectedCwd === null || creatingAgent) return;
-    const cwd = selectedCwd;
+  function createAgent(requestedCwd?: string): void {
+    const cwd = requestedCwd ?? selectedCwd;
+    if (cwd === null || creatingAgent) return;
 
     const create = Effect.fn('Workspace.createAgent')(function* () {
       yield* Effect.sync(() => {
@@ -388,6 +390,18 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
       ),
     );
+  }
+
+  function selectSession(activeSessionId: string): void {
+    const session = workspace?.sessions.find(
+      (candidate) => candidate.activeSessionId === activeSessionId,
+    );
+    if (session === undefined) return;
+
+    setSelectedCwd(session.cwd);
+    setSelectedSessionId(session.activeSessionId);
+    setGitWorktreeError(null);
+    setStatus('Connected to Prime Agent.');
   }
 
   function chooseWorkspaceDirectory(): void {
@@ -751,9 +765,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedCwd,
     selectedModelKey,
     selectedSessionId,
+    sessions: workspace?.sessions ?? [],
     status,
     changeFolder,
     createAgent,
+    selectSession,
     chooseWorkspaceDirectory,
     changeGitBranch,
     deleteGitBranch,

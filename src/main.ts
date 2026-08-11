@@ -78,7 +78,14 @@ function readDevelopmentRendererUrl(): URL | null {
 }
 
 function registerPrimeAgentHandlers(): void {
-  const daemon = createPrimeAgentDaemon(process.cwd());
+  const daemon = createPrimeAgentDaemon({
+    currentCwd: process.cwd(),
+    daemonEntrypointPath: path.join(
+      __dirname,
+      'packages/prime-agent-daemon/daemon-runner.js',
+    ),
+    executablePath: process.execPath,
+  });
 
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
     Effect.runPromise(daemon.listWorkspace()),

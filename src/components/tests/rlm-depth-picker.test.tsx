@@ -9,6 +9,26 @@ import userEvent from '@testing-library/user-event';
 
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 
+// Happy DOM does not implement the Web Animations APIs used by Torph.
+Object.defineProperty(Element.prototype, 'getAnimations', {
+  configurable: true,
+  value: () => [],
+});
+Object.defineProperty(Element.prototype, 'animate', {
+  configurable: true,
+  value: () => {
+    const animation = { cancel: () => undefined };
+
+    Object.defineProperty(animation, 'onfinish', {
+      set: (finish: unknown) => {
+        if (typeof finish === 'function') queueMicrotask(() => finish());
+      },
+    });
+
+    return animation;
+  },
+});
+
 afterEach(cleanup);
 
 function StatefulDepthPicker(): React.JSX.Element {
@@ -202,7 +222,7 @@ test('RLM depth is displayed without another text control', async () => {
     '5',
   );
   assert.ok(
-    within(document.body).getByText('Higher depth uses more tokens.'),
+    within(document.body).getByText('More depth uses more tokens.'),
   );
 });
 

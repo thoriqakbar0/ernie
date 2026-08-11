@@ -1,5 +1,6 @@
 import { MinusIcon, PlusIcon } from 'lucide-react';
 import { memo } from 'react';
+import { TextMorph } from 'torph/react';
 
 import { Button } from '@/components/trovecn/ui/button';
 import {
@@ -15,6 +16,16 @@ interface RlmDepthPickerProps {
 }
 
 const maximumRlmDepth = 20;
+
+/* ─────────────────────────────────────────────
+ * ANIMATION STORYBOARD
+ *
+ *   0ms   depth changes; old numeral morphs into the new numeral
+ * ───────────────────────────────────────────── */
+const depthValueMorph = {
+  spring: { stiffness: 420, damping: 34, mass: 0.7 },
+  scale: false,
+} as const;
 
 /** Edit the active Prime Agent session's delegation depth from zero through twenty. */
 export const RlmDepthPicker = memo(function RlmDepthPicker({
@@ -44,20 +55,28 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
             type="button"
             variant="outline"
             disabled={busy}
-            aria-label={depth === null ? 'Depth unavailable' : undefined}
+            aria-label={
+              depth === null ? 'Depth unavailable' : `Depth ${depth}`
+            }
             className="gap-2 px-3 font-normal text-muted-foreground"
           />
         }
       >
         <span>Depth</span>
-        <span className="font-medium tabular-nums text-foreground">
-          {depth ?? '—'}
-        </span>
+        <TextMorph
+          as="span"
+          ease={depthValueMorph.spring}
+          scale={depthValueMorph.scale}
+          respectReducedMotion
+          className="font-medium tabular-nums text-foreground"
+        >
+          {String(depth ?? '—')}
+        </TextMorph>
       </PopoverTrigger>
       <PopoverContent
         align="end"
         aria-label={depth === null ? 'Depth unavailable' : 'Adjust Agent depth'}
-        className={depth === null ? 'w-52 p-2.5' : 'w-44 p-1.5'}
+        className={depth === null ? 'w-52 p-2.5' : 'w-36 p-1'}
       >
         {depth === null ? (
           <p className="text-xs leading-5 text-muted-foreground">
@@ -73,7 +92,7 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 disabled={busy || depth === 0}
                 aria-label="Decrease Agent depth"
                 className="text-muted-foreground hover:text-foreground disabled:opacity-35"
@@ -82,20 +101,28 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
               >
                 <MinusIcon
                   aria-hidden="true"
-                  className="size-4"
+                  className="size-3.5"
                   strokeWidth={1.75}
                 />
               </Button>
               <output
                 aria-label="Current Agent depth"
-                className="w-8 text-center text-sm font-medium tabular-nums text-foreground"
+                className="w-7 text-center text-sm font-medium tabular-nums text-foreground"
               >
-                {depth}
+                <TextMorph
+                  as="span"
+                  ease={depthValueMorph.spring}
+                  scale={depthValueMorph.scale}
+                  respectReducedMotion
+                  className="inline-block"
+                >
+                  {String(depth)}
+                </TextMorph>
               </output>
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 disabled={busy || depth === maximumRlmDepth}
                 aria-label="Increase Agent depth"
                 className="text-muted-foreground hover:text-foreground disabled:opacity-35"
@@ -104,13 +131,13 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
               >
                 <PlusIcon
                   aria-hidden="true"
-                  className="size-4"
+                  className="size-3.5"
                   strokeWidth={1.75}
                 />
               </Button>
             </div>
-            <p className="px-1 pb-0.5 pt-1 text-[11px] leading-4 text-muted-foreground">
-              Higher depth uses more tokens.
+            <p className="px-1 pb-0.5 pt-0.5 text-center text-[10px] leading-4 text-muted-foreground">
+              More depth uses more tokens.
             </p>
           </div>
         )}

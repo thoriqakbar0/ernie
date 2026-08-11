@@ -59,6 +59,9 @@ importers:
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
+      torph:
+        specifier: ^0.1.0
+        version: 0.1.0(react@19.2.8)(react-dom@19.2.8(react@19.2.8))
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -2670,6 +2673,23 @@ packages:
   token-types@6.1.2:
     resolution: {integrity: sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww==}
     engines: {node: '>=14.16'}
+
+  torph@0.1.0:
+    resolution: {integrity: sha512-2HxoKBIjydwsVilfP44Dawsc6Ou4iL00GgnCvs4raL+Oc8EfY1kKyAxm+wmPYtVRdgdUoSIWUeaaIShNadxQPQ==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+      svelte: '>=5'
+      vue: '>=3'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
 
   trouter@2.0.1:
     resolution: {integrity: sha512-kr8SKKw94OI+xTGOkfsvwZQ8mWoikZDd2n8XZHjJVZUARZT+4/VV6cacRS6CLsH9bNm+HFIPU1Zx4CnNnb4qlQ==}
@@ -5605,6 +5625,11 @@ snapshots:
       '@borewit/text-codec': 0.2.2
       '@tokenizer/token': 0.3.0
       ieee754: 1.2.1
+
+  torph@0.1.0(react@19.2.8)(react-dom@19.2.8(react@19.2.8)):
+    dependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   trouter@2.0.1:
     dependencies:

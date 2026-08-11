@@ -31,6 +31,10 @@ function signalReadyAfterPaint(): () => void {
   let firstFrameId: number | undefined;
   let secondFrameId: number | undefined;
 
+  if (!('ernie' in window)) {
+    return () => undefined;
+  }
+
   const signal = (): void => {
     firstFrameId = requestAnimationFrame(() => {
       secondFrameId = requestAnimationFrame(() => {
@@ -53,7 +57,17 @@ function signalReadyAfterPaint(): () => void {
     signal();
   });
 
-  if (isAgentationToolbarVisible()) {
+  const prototypeVariant = new URLSearchParams(window.location.search).get(
+    'variant',
+  );
+  const cleanEnvironmentPrototype =
+    window.location.hostname === '127.0.0.1' &&
+    window.location.port === '5173' &&
+    (prototypeVariant === 'A' ||
+      prototypeVariant === 'B' ||
+      prototypeVariant === 'C');
+
+  if (cleanEnvironmentPrototype || isAgentationToolbarVisible()) {
     signal();
   } else {
     observer.observe(document.body, { childList: true, subtree: true });

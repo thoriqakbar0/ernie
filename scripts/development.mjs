@@ -6,7 +6,11 @@ import { createServer } from 'vite';
 
 const host = '127.0.0.1';
 const port = 5173;
-const rendererUrl = `http://${host}:${port}`;
+const rendererQuery = process.env.ERNIE_RENDERER_QUERY;
+const rendererUrl =
+  rendererQuery === undefined
+    ? `http://${host}:${port}`
+    : `http://${host}:${port}?${rendererQuery}`;
 const shutdownTimeoutMs = 5_000;
 const electronCliPath = fileURLToPath(
   new URL('../node_modules/electron/cli.js', import.meta.url),

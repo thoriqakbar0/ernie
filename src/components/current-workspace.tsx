@@ -78,7 +78,7 @@ export function CurrentWorkspace({
   return (
     <section
       className="flex min-h-9 flex-wrap items-center gap-2"
-      aria-label="Task environment"
+      aria-label="New Agent settings"
     >
       <Field className="w-auto min-w-0">
         <FieldLabel htmlFor="workspace-folder" className="sr-only">

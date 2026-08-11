@@ -16,25 +16,27 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           Give Ernie a task
         </FieldLabel>
 
-        <CurrentWorkspace
-          busy={workspace.busy}
-          folders={workspace.folders}
-          gitBranch={workspace.gitBranch}
-          gitBranchBusy={workspace.gitBranchBusy}
-          gitBranches={workspace.gitBranches}
-          gitWorktreeError={workspace.gitWorktreeError}
-          loadingWorkspace={workspace.loadingWorkspace}
-          rlmMaxDepth={workspace.rlmMaxDepth}
-          rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
-          selectedCwd={workspace.selectedCwd}
-          changeFolder={workspace.changeFolder}
-          chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
-          changeGitBranch={workspace.changeGitBranch}
-          changeRlmMaxDepth={workspace.changeRlmMaxDepth}
-          deleteGitBranch={workspace.deleteGitBranch}
-          initializeGitRepository={workspace.initializeGitRepository}
-          createGitWorktree={workspace.createGitWorktree}
-        />
+        {workspace.selectedSessionId === null ? (
+          <CurrentWorkspace
+            busy={workspace.busy}
+            folders={workspace.folders}
+            gitBranch={workspace.gitBranch}
+            gitBranchBusy={workspace.gitBranchBusy}
+            gitBranches={workspace.gitBranches}
+            gitWorktreeError={workspace.gitWorktreeError}
+            loadingWorkspace={workspace.loadingWorkspace}
+            rlmMaxDepth={workspace.rlmMaxDepth}
+            rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
+            selectedCwd={workspace.selectedCwd}
+            changeFolder={workspace.changeFolder}
+            chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
+            changeGitBranch={workspace.changeGitBranch}
+            changeRlmMaxDepth={workspace.changeRlmMaxDepth}
+            deleteGitBranch={workspace.deleteGitBranch}
+            initializeGitRepository={workspace.initializeGitRepository}
+            createGitWorktree={workspace.createGitWorktree}
+          />
+        ) : null}
 
         <TaskComposer
           key={`${workspace.selectedCwd ?? 'no-workspace'}:${

@@ -36,7 +36,7 @@ afterEach(() => {
 
 test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
   const createdSessions: unknown[] = [];
-  let createdRlmMaxDepth = 1;
+  let modelCatalogRequests = 0;
   const submittedTasks: Array<{
     activeSessionId: string;
     message: string;
@@ -50,14 +50,6 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     }),
     createPrimeAgentSession: async (creation: unknown) => {
       createdSessions.push(creation);
-      if (
-        typeof creation === 'object' &&
-        creation !== null &&
-        'rlmMaxDepth' in creation &&
-        typeof creation.rlmMaxDepth === 'number'
-      ) {
-        createdRlmMaxDepth = creation.rlmMaxDepth;
-      }
       return {
         ok: true,
         value: {
@@ -84,12 +76,15 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     }),
     importPrimeAgentSession: async () => ({ ok: false }),
     renamePrimeAgentSession: async () => ({ ok: false }),
-    listPrimeAgentModels: async () => ({ ok: true, value: [] }),
+    listPrimeAgentModels: async () => {
+      modelCatalogRequests += 1;
+      return { ok: true, value: [] };
+    },
     listPrimeAgentSkills: async () => ({ ok: true, value: [] }),
     setPrimeAgentModel: async () => ({ ok: false }),
     getPrimeAgentRlmDepth: async () => ({
       ok: true,
-      value: { maxDepth: createdRlmMaxDepth, source: 'chat' },
+      value: { maxDepth: 17, source: 'chat' },
     }),
     setPrimeAgentRlmDepth: async () => ({ ok: false }),
     submitPrimeAgentTask: async (submission) => {
@@ -128,6 +123,11 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   );
 
   assert.ok(await within(document.body).findByText('Prime Agent ready'));
+  assert.ok(
+    within(document.body).getByRole('region', {
+      name: 'New Agent settings',
+    }),
+  );
   assert.equal(
     within(document.body).queryByRole('button', {
       name: 'Depth unavailable',
@@ -196,8 +196,51 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       .getAttribute('aria-current'),
     'page',
   );
-  assert.ok(
-    await within(document.body).findByRole('button', { name: 'Depth 5' }),
+  await waitFor(() => assert.equal(modelCatalogRequests, 1));
+  assert.equal(
+    within(document.body).queryByRole('region', {
+      name: 'New Agent settings',
+    }),
+    null,
   );
   assert.ok(within(document.body).getByRole('button', { name: 'Add context' }));
+
+  await user.click(
+    within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('region', {
+      name: 'New Agent settings',
+    }),
+  );
+  assert.ok(within(document.body).getByRole('button', { name: 'Depth 5' }));
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Add context' }),
+    null,
+  );
+  assert.equal(window.localStorage.getItem('ernie:rlm-max-depth:v1'), '5');
+
+  const folderPicker = within(document.body).getByRole('combobox', {
+    name: 'Folder location',
+  });
+  await user.click(folderPicker);
+  await user.click(
+    within(document.body).getByRole('option', { name: /ernie/u }),
+  );
+  await user.click(folderPicker);
+  await user.click(
+    within(document.body).getByRole('option', { name: /kastuli/u }),
+  );
+
+  assert.ok(
+    within(document.body).getByRole('region', {
+      name: 'New Agent settings',
+    }),
+  );
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'Blank Agent' })
+      .getAttribute('aria-current'),
+    null,
+  );
 });

@@ -10,7 +10,6 @@ import {
 import {
   parsePrimeAgentModelResult,
   parsePrimeAgentModelsResult,
-  parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
@@ -163,7 +162,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [gitWorkspaces, setGitWorkspaces] = useState<
     ReadonlyMap<string, PrimeAgentGitWorkspace>
   >(new Map());
-  const [savingRlmDepth, setSavingRlmDepth] = useState(false);
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
@@ -333,16 +331,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const loadSessionControls = Effect.fn('Workspace.loadSessionControls')(
       function* () {
         yield* Effect.sync(() => setLoadingSession(true));
-        const [rawModels, rawSkills, rawRlmDepth] = yield* Effect.all(
+        const [rawModels, rawSkills] = yield* Effect.all(
           [
             Effect.tryPromise(() =>
               window.ernie.listPrimeAgentModels(activeSessionId),
             ),
             Effect.tryPromise(() =>
               window.ernie.listPrimeAgentSkills(activeSessionId),
-            ),
-            Effect.tryPromise(() =>
-              window.ernie.getPrimeAgentRlmDepth(activeSessionId),
             ),
           ],
           { concurrency: 'unbounded' },
@@ -351,16 +346,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
         const modelResult = parsePrimeAgentModelsResult(rawModels);
         const skillsResult = parsePrimeAgentSkillsResult(rawSkills);
-        const rlmDepthResult = parsePrimeAgentRlmDepthResult(rawRlmDepth);
         yield* Effect.sync(() => {
           setModels(modelResult.ok ? modelResult.value : []);
           setSkills(skillsResult.ok ? skillsResult.value : []);
-          if (rlmDepthResult.ok) {
-            setRlmMaxDepth(rlmDepthResult.value.maxDepth);
-          }
           if (!modelResult.ok) setStatus(modelResult.error.message);
           else if (!skillsResult.ok) setStatus(skillsResult.error.message);
-          else if (!rlmDepthResult.ok) setStatus(rlmDepthResult.error.message);
           else setStatus('Connected to Prime Agent.');
         });
       },
@@ -498,16 +488,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   function changeFolder(cwd: string | null): void {
     if (cwd === null) return;
-    const session =
-      workspace === null ? null : newestSession(workspace.sessions, cwd);
     setSelectedCwd(cwd);
-    setSelectedSessionId(session?.activeSessionId ?? null);
+    setSelectedSessionId(null);
     setGitWorktreeError(null);
-    setStatus(
-      session === null
-        ? 'No connected agent in this workspace.'
-        : 'Connected to Prime Agent.',
-    );
+    setStatus('New Agent workspace selected.');
   }
 
   function startAgentDraft(cwd: string): void {
@@ -747,19 +731,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       }
 
       const cwd = selection.value;
-      const session =
-        workspace === null ? null : newestSession(workspace.sessions, cwd);
       yield* Effect.sync(() => {
         setAddedCwds((current) =>
           current.includes(cwd) ? current : [...current, cwd],
         );
         setSelectedCwd(cwd);
-        setSelectedSessionId(session?.activeSessionId ?? null);
-        setStatus(
-          session === null
-            ? 'Workspace selected. No connected agent in this directory.'
-            : 'Connected to Prime Agent.',
-        );
+        setSelectedSessionId(null);
+        setStatus('New Agent workspace selected.');
       });
     });
 
@@ -976,10 +954,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           return;
         }
 
-        const session =
-          workspace === null
-            ? null
-            : newestSession(workspace.sessions, result.value.cwd);
         yield* Effect.sync(() => {
           setAddedCwds((current) =>
             current.includes(result.value.cwd)
@@ -996,7 +970,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             skipGitBranchLoadForCwd.current = result.value.cwd;
           }
           setSelectedCwd(result.value.cwd);
-          setSelectedSessionId(session?.activeSessionId ?? null);
+          setSelectedSessionId(null);
           setStatus(`Created worktree for ${result.value.branchName}.`);
         });
       },
@@ -1028,52 +1002,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     ) {
       return;
     }
-    if (selectedSession === null) {
-      setRlmMaxDepth(maxDepth);
-      setStatus(`RLM max depth set to ${maxDepth} for the next Agent.`);
-      return;
-    }
-    const activeSessionId = selectedSession.activeSessionId;
-
-    const updateRlmDepth = Effect.fn('Workspace.updateRlmDepth')(function* () {
-      yield* Effect.sync(() => {
-        setSavingRlmDepth(true);
-        setStatus(`Changing RLM max depth to ${maxDepth}…`);
-      });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.setPrimeAgentRlmDepth({
-          activeSessionId,
-          maxDepth,
-        }),
-      );
-      const result = parsePrimeAgentRlmDepthResult(rawResult);
-      if (!result.ok) {
-        yield* Effect.sync(() => setStatus(result.error.message));
-        return;
-      }
-
-      yield* Effect.sync(() => {
-        setRlmMaxDepth(result.value.maxDepth);
-        setStatus(`RLM max depth changed to ${result.value.maxDepth}.`);
-      });
-    });
-
-    Effect.runFork(
-      updateRlmDepth().pipe(
-        Effect.catchAll(() =>
-          Effect.sync(() =>
-            setStatus('The Prime Agent daemon is not available.'),
-          ),
-        ),
-        Effect.ensuring(Effect.sync(() => setSavingRlmDepth(false))),
-      ),
-    );
-  }, [selectedSession]);
+    setRlmMaxDepth(maxDepth);
+    setStatus(`RLM max depth set to ${maxDepth} for the next Agent.`);
+  }, []);
 
   const modelBusy = loadingWorkspace || loadingSession || savingModel;
-  const rlmMaxDepthBusy =
-    loadingWorkspace ||
-    (selectedSession !== null && (loadingSession || savingRlmDepth));
+  const rlmMaxDepthBusy = loadingWorkspace;
   const primeAgentConnection = loadingWorkspace
     ? 'connecting'
     : workspace === null

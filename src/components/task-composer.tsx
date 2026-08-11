@@ -1,5 +1,5 @@
 import { ArrowUpIcon, PlusIcon } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useId, useMemo, useRef, useState } from 'react';
 
 import {
   InputGroup,
@@ -22,6 +22,7 @@ type TaskComposerProps = Pick<
   PrimeAgentWorkspaceController,
   | 'modelBusy'
   | 'models'
+  | 'skills'
   | 'selectedModelKey'
   | 'selectedSessionId'
   | 'changeModel'
@@ -31,11 +32,81 @@ type TaskComposerProps = Pick<
 export const TaskComposer = memo(function TaskComposer({
   modelBusy,
   models,
+  skills,
   selectedModelKey,
   selectedSessionId,
   changeModel,
 }: TaskComposerProps): React.JSX.Element {
   const task = usePrimeAgentTask(selectedSessionId);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const skillsListId = useId();
+  const [activeSkillIndex, setActiveSkillIndex] = useState(0);
+  const [skillsDismissed, setSkillsDismissed] = useState(false);
+  const skillQuery = skillSearchQuery(task.draft);
+  const matchingSkills = useMemo(
+    () =>
+      skillQuery === null
+        ? []
+        : skills
+            .filter((skill) =>
+              `${skill.name} ${skill.description ?? ''}`
+                .toLocaleLowerCase()
+                .includes(skillQuery),
+            )
+            .slice(0, 6),
+    [skillQuery, skills],
+  );
+  const skillsOpen = !skillsDismissed && matchingSkills.length > 0;
+
+  function insertSkill(command: string): void {
+    task.changeDraft(`${command} `);
+    setSkillsDismissed(true);
+    textareaRef.current?.focus();
+  }
+
+  function changeDraft(message: string): void {
+    task.changeDraft(message);
+    setActiveSkillIndex(0);
+    setSkillsDismissed(false);
+  }
+
+  function handleComposerKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ): void {
+    if (event.nativeEvent.isComposing) return;
+
+    if (skillsOpen && event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveSkillIndex((current) => (current + 1) % matchingSkills.length);
+      return;
+    }
+
+    if (skillsOpen && event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveSkillIndex(
+        (current) =>
+          (current - 1 + matchingSkills.length) % matchingSkills.length,
+      );
+      return;
+    }
+
+    if (skillsOpen && event.key === 'Escape') {
+      event.preventDefault();
+      setSkillsDismissed(true);
+      return;
+    }
+
+    if (skillsOpen && event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      const selectedSkill = matchingSkills[activeSkillIndex];
+      if (selectedSkill !== undefined) insertSkill(selectedSkill.command);
+      return;
+    }
+
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
 
   function submitTask(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -46,24 +117,56 @@ export const TaskComposer = memo(function TaskComposer({
     <>
       <form onSubmit={submitTask}>
         <InputGroup className="min-h-40 rounded-2xl bg-card">
+          {skillsOpen ? (
+            <div
+              id={skillsListId}
+              role="listbox"
+              aria-label="Available skills"
+              className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+            >
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                Skills
+              </p>
+              {matchingSkills.map((skill, index) => (
+                <button
+                  id={`${skillsListId}-${index}`}
+                  key={skill.command}
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeSkillIndex}
+                  className="flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent aria-selected:bg-accent"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertSkill(skill.command)}
+                  onMouseEnter={() => setActiveSkillIndex(index)}
+                >
+                  <code className="shrink-0 text-sm text-foreground">
+                    {skill.command}
+                  </code>
+                  {skill.description === null ? null : (
+                    <span className="truncate text-sm text-muted-foreground">
+                      {skill.description}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <InputGroupTextarea
+            ref={textareaRef}
             id="task"
             rows={4}
             value={task.draft}
             className="select-text px-4 pt-4 text-base"
             placeholder="Plan, Build, / for skills, @ for context"
-            onChange={(event) => task.changeDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                event.key !== 'Enter' ||
-                event.shiftKey ||
-                event.nativeEvent.isComposing
-              ) {
-                return;
-              }
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }}
+            aria-autocomplete="list"
+            aria-controls={skillsOpen ? skillsListId : undefined}
+            aria-expanded={skillsOpen}
+            aria-activedescendant={
+              skillsOpen ? `${skillsListId}-${activeSkillIndex}` : undefined
+            }
+            onChange={(event) => changeDraft(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
           />
           <InputGroupAddon align="block-end" className="px-4 pb-[13px]">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -127,3 +230,8 @@ export const TaskComposer = memo(function TaskComposer({
     </>
   );
 });
+
+function skillSearchQuery(draft: string): string | null {
+  const match = /^\/(?:skill:)?([^\s]*)$/u.exec(draft);
+  return match?.[1]?.toLocaleLowerCase() ?? null;
+}

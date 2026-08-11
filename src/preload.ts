@@ -6,7 +6,9 @@ import type { ErnieRendererApi } from './renderer-api';
 // sync with rendererReadyChannel in renderer-api.ts.
 const rendererReadyChannel = 'ernie:renderer-ready';
 const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
+const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
 const primeAgentModelsChannel = 'ernie:prime-agent:models';
+const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
@@ -30,8 +32,14 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   listPrimeAgentWorkspace() {
     return ipcRenderer.invoke(primeAgentWorkspaceChannel);
   },
+  createPrimeAgentSession(cwd) {
+    return ipcRenderer.invoke(primeAgentCreateSessionChannel, cwd);
+  },
   listPrimeAgentModels(activeSessionId) {
     return ipcRenderer.invoke(primeAgentModelsChannel, activeSessionId);
+  },
+  listPrimeAgentSkills(activeSessionId) {
+    return ipcRenderer.invoke(primeAgentSkillsChannel, activeSessionId);
   },
   setPrimeAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);

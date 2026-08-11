@@ -2,12 +2,14 @@ import { CurrentWorkspace } from '@/components/current-workspace';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
+import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+
+interface TaskSurfaceProps {
+  readonly workspace: PrimeAgentWorkspaceController;
+}
 
 /** Ernie's primary task input and its connected execution environment. */
-export function TaskSurface(): React.JSX.Element {
-  const workspace = usePrimeAgentWorkspace();
-
+export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element {
   return (
     <div className="my-auto w-full">
       <Field className="mx-auto max-w-[50rem] gap-2">
@@ -33,8 +35,10 @@ export function TaskSurface(): React.JSX.Element {
         />
 
         <TaskComposer
+          key={workspace.selectedSessionId}
           modelBusy={workspace.modelBusy}
           models={workspace.models}
+          skills={workspace.skills}
           selectedModelKey={workspace.selectedModelKey}
           selectedSessionId={workspace.selectedSessionId}
           changeModel={workspace.changeModel}

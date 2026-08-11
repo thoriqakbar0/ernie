@@ -1,4 +1,5 @@
 import {
+  LoaderCircleIcon,
   MoonIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -28,8 +29,19 @@ import {
 } from '@/components/ui/sidebar';
 import { Switch } from '@/components/ui/switch';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 
-function AgentSidebar(): React.JSX.Element {
+interface AgentSidebarProps {
+  readonly creatingAgent: boolean;
+  readonly newAgentDisabled: boolean;
+  readonly onCreateAgent: () => void;
+}
+
+function AgentSidebar({
+  creatingAgent,
+  newAgentDisabled,
+  onCreateAgent,
+}: AgentSidebarProps): React.JSX.Element {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-16 justify-center p-3">
@@ -59,8 +71,18 @@ function AgentSidebar(): React.JSX.Element {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton isActive tooltip="New task">
-                  <PlusIcon />
+                <SidebarMenuButton
+                  isActive
+                  tooltip="New task"
+                  onClick={onCreateAgent}
+                  disabled={newAgentDisabled}
+                  aria-busy={creatingAgent}
+                >
+                  {creatingAgent ? (
+                    <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <PlusIcon />
+                  )}
                   <span>New task</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -105,12 +127,19 @@ export function ErnieShell({
   onDarkModeEnabledChange,
   onReload,
 }: ErnieShellProps): React.JSX.Element {
+  const workspace = usePrimeAgentWorkspace();
   const themeAction = darkModeEnabled ? 'Use light mode' : 'Use dark mode';
 
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen className="select-none">
-        <AgentSidebar />
+        <AgentSidebar
+          creatingAgent={workspace.creatingAgent}
+          newAgentDisabled={
+            workspace.creatingAgent || workspace.selectedCwd === null
+          }
+          onCreateAgent={workspace.createAgent}
+        />
 
         <SidebarInset className="min-w-0 overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
@@ -152,7 +181,7 @@ export function ErnieShell({
           </header>
 
           <section className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-[clamp(1.5rem,6vh,4rem)] sm:px-10">
-            <TaskSurface />
+            <TaskSurface workspace={workspace} />
           </section>
         </SidebarInset>
       </SidebarProvider>

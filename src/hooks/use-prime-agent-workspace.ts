@@ -9,9 +9,12 @@ import {
   parsePrimeAgentModelResult,
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
+  parsePrimeAgentSessionResult,
+  parsePrimeAgentSkillsResult,
   parsePrimeAgentWorkspaceResult,
   type PrimeAgentModel,
   type PrimeAgentSession,
+  type PrimeAgentSkill,
   type PrimeAgentWorkspace,
 } from '@/packages/prime-agent-daemon/client';
 
@@ -29,9 +32,11 @@ export interface PrimeAgentWorkspaceController {
   readonly gitBranchBusy: boolean;
   readonly gitBranches: readonly string[];
   readonly gitWorktreeError: string | null;
+  readonly creatingAgent: boolean;
   readonly loadingWorkspace: boolean;
   readonly modelBusy: boolean;
   readonly models: readonly PrimeAgentModel[];
+  readonly skills: readonly PrimeAgentSkill[];
   readonly repoName: string;
   readonly rlmDepth: number | null;
   readonly rlmDepthBusy: boolean;
@@ -40,6 +45,7 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedSessionId: string | null;
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
+  readonly createAgent: () => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
   readonly deleteGitBranch: (name: string) => void;
@@ -84,6 +90,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     null,
   );
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
+  const [skills, setSkills] = useState<readonly PrimeAgentSkill[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
   const [gitBranches, setGitBranches] = useState<readonly string[]>([]);
   const [rlmDepth, setRlmDepth] = useState<number | null>(null);
@@ -94,6 +101,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [gitBranchBusy, setGitBranchBusy] = useState(false);
   const [gitWorktreeError, setGitWorktreeError] = useState<string | null>(null);
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
+  const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
 
@@ -230,6 +238,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   useEffect(() => {
     if (selectedSessionId === null) {
       setModels([]);
+      setSkills([]);
       setRlmDepth(null);
       return;
     }
@@ -239,10 +248,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const loadSessionControls = Effect.fn('Workspace.loadSessionControls')(
       function* () {
         yield* Effect.sync(() => setLoadingSession(true));
-        const [rawModels, rawRlmDepth] = yield* Effect.all(
+        const [rawModels, rawSkills, rawRlmDepth] = yield* Effect.all(
           [
             Effect.tryPromise(() =>
               window.ernie.listPrimeAgentModels(activeSessionId),
+            ),
+            Effect.tryPromise(() =>
+              window.ernie.listPrimeAgentSkills(activeSessionId),
             ),
             Effect.tryPromise(() =>
               window.ernie.getPrimeAgentRlmDepth(activeSessionId),
@@ -253,11 +265,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         if (!active) return;
 
         const modelResult = parsePrimeAgentModelsResult(rawModels);
+        const skillsResult = parsePrimeAgentSkillsResult(rawSkills);
         const rlmDepthResult = parsePrimeAgentRlmDepthResult(rawRlmDepth);
         yield* Effect.sync(() => {
           setModels(modelResult.ok ? modelResult.value : []);
+          setSkills(skillsResult.ok ? skillsResult.value : []);
           setRlmDepth(rlmDepthResult.ok ? rlmDepthResult.value.maxDepth : null);
           if (!modelResult.ok) setStatus(modelResult.error.message);
+          else if (!skillsResult.ok) setStatus(skillsResult.error.message);
           else if (!rlmDepthResult.ok) setStatus(rlmDepthResult.error.message);
           else setStatus('Connected to Prime Agent.');
         });
@@ -269,6 +284,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           Effect.sync(() => {
             if (!active) return;
             setModels([]);
+            setSkills([]);
             setRlmDepth(null);
             setStatus('The Prime Agent daemon is not available.');
           }),
@@ -324,6 +340,53 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       session === null
         ? 'No connected agent in this workspace.'
         : 'Connected to Prime Agent.',
+    );
+  }
+
+  function createAgent(): void {
+    if (selectedCwd === null || creatingAgent) return;
+    const cwd = selectedCwd;
+
+    const create = Effect.fn('Workspace.createAgent')(function* () {
+      yield* Effect.sync(() => {
+        setCreatingAgent(true);
+        setStatus('Creating a new Agent…');
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.createPrimeAgentSession(cwd),
+      );
+      const result = parsePrimeAgentSessionResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        setWorkspace((current) => ({
+          currentCwd: current?.currentCwd ?? cwd,
+          sessions: [
+            result.value,
+            ...(current?.sessions.filter(
+              (session) =>
+                session.activeSessionId !== result.value.activeSessionId,
+            ) ?? []),
+          ],
+        }));
+        setSelectedCwd(result.value.cwd);
+        setSelectedSessionId(result.value.activeSessionId);
+        setStatus('New Agent ready.');
+      });
+    });
+
+    Effect.runFork(
+      create().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not create a new Agent.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
+      ),
     );
   }
 
@@ -670,7 +733,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       modelBusy ||
       rlmDepthBusy ||
       choosingDirectory ||
+      creatingAgent ||
       gitBranchBusy,
+    creatingAgent,
     folders,
     gitBranch,
     gitBranchBusy,
@@ -679,6 +744,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     loadingWorkspace,
     modelBusy,
     models,
+    skills,
     repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),
     rlmDepth,
     rlmDepthBusy,
@@ -687,6 +753,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedSessionId,
     status,
     changeFolder,
+    createAgent,
     chooseWorkspaceDirectory,
     changeGitBranch,
     deleteGitBranch,

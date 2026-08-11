@@ -14,12 +14,16 @@ import {
 import {
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
+  parsePrimeAgentSessionResult,
+  parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
   parsePrimeAgentWorkspaceResult,
 } from '../client';
 import {
+  parsePrimeAgentDaemonCreatedSession,
   parsePrimeAgentDaemonModels,
   parsePrimeAgentDaemonSessions,
+  parsePrimeAgentDaemonSkills,
 } from '../server';
 import {
   createLocalGitWorktree,
@@ -149,6 +153,96 @@ test('keeps models from configured daemon providers', () => {
       },
     ],
   });
+});
+
+test('parses a newly created detached session before Ernie attaches', () => {
+  const result = parsePrimeAgentDaemonCreatedSession({
+    activeSessionId: 'new-agent',
+    attachedClients: 0,
+    cwd: '/workspace/ernie',
+    runtimeKind: 'top-level',
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      activeSessionId: 'new-agent',
+      cwd: '/workspace/ernie',
+      name: 'ernie',
+      model: null,
+      modifiedAt: null,
+    },
+  });
+});
+
+test('keeps and orders only skill commands from the daemon', () => {
+  const result = parsePrimeAgentDaemonSkills({
+    commands: [
+      { name: 'help', source: 'builtin' },
+      {
+        description: 'Write tests first.',
+        name: 'skill:tdd',
+        source: 'skill',
+      },
+      {
+        description: 'Review a user interface.',
+        name: 'skill:interface-review',
+        source: 'skill',
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: [
+      {
+        command: '/skill:interface-review',
+        description: 'Review a user interface.',
+        name: 'interface-review',
+      },
+      {
+        command: '/skill:tdd',
+        description: 'Write tests first.',
+        name: 'tdd',
+      },
+    ],
+  });
+});
+
+test('validates created sessions and skills after IPC', () => {
+  assert.equal(
+    parsePrimeAgentSessionResult({
+      ok: true,
+      value: {
+        activeSessionId: 'new-agent',
+        cwd: '/workspace/ernie',
+        name: 'ernie',
+        model: null,
+        modifiedAt: null,
+      },
+    }).ok,
+    true,
+  );
+  assert.equal(
+    parsePrimeAgentSkillsResult({
+      ok: true,
+      value: [
+        {
+          command: '/skill:tdd',
+          description: null,
+          name: 'tdd',
+        },
+      ],
+    }).ok,
+    true,
+  );
+  assert.equal(
+    parsePrimeAgentSkillsResult({
+      ok: true,
+      value: [{ command: '/skill:tdd', description: null, name: 'wrong' }],
+    }).ok,
+    false,
+  );
 });
 
 test('orders GPT models from the largest version first in the renderer', () => {

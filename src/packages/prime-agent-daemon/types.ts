@@ -15,6 +15,13 @@ export interface PrimeAgentSession {
   readonly modifiedAt: string | null;
 }
 
+/** One Prime Agent skill available to the active Agent conversation. */
+export interface PrimeAgentSkill {
+  readonly command: string;
+  readonly description: string | null;
+  readonly name: string;
+}
+
 /** The current local workspace and the daemon sessions visible to Ernie. */
 export interface PrimeAgentWorkspace {
   readonly currentCwd: string;
@@ -117,6 +124,12 @@ export interface PrimeAgentDaemon {
   readonly listModels: (
     activeSessionId: unknown,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentModel[]>>;
+  readonly listSkills: (
+    activeSessionId: unknown,
+  ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
+  readonly createSession: (
+    cwd: unknown,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
   readonly setModel: (
     selection: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentModel>>;
@@ -129,5 +142,6 @@ export interface PrimeAgentDaemon {
   readonly submitTask: (
     submission: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentTaskReceipt>>;
+  readonly close: () => void;
 }
 import type { Effect } from 'effect';

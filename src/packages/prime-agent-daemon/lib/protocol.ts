@@ -12,6 +12,7 @@ import type {
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSession,
+  PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
@@ -86,7 +87,10 @@ function sessionName(value: Record<string, unknown>, cwd: string): string {
   return pathBasename(cwd);
 }
 
-function parseSession(value: unknown): PrimeAgentSession | null {
+function parseSession(
+  value: unknown,
+  requireAttachedClient: boolean,
+): PrimeAgentSession | null {
   if (!isRecord(value)) return null;
 
   const activeSessionId = nonEmptyString(value.activeSessionId);
@@ -97,7 +101,7 @@ function parseSession(value: unknown): PrimeAgentSession | null {
     cwd === null ||
     value.runtimeKind === 'subagent' ||
     typeof attachedClients !== 'number' ||
-    attachedClients < 1
+    (requireAttachedClient && attachedClients < 1)
   ) {
     return null;
   }
@@ -159,13 +163,65 @@ export function parseSessionListData(
   }
 
   const sessions = value.sessions
-    .map(parseSession)
+    .map((session) => parseSession(session, true))
     .filter((session): session is PrimeAgentSession => session !== null)
     .sort((left, right) =>
       (right.modifiedAt ?? '').localeCompare(left.modifiedAt ?? ''),
     );
 
   return { ok: true, value: sessions };
+}
+
+/** Parse one newly created Prime Agent session. */
+export function parseCreatedSessionData(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSession> {
+  const session = parseSession(value, false);
+  return session === null
+    ? failure('protocol_error', 'Prime Agent returned an invalid Agent session.')
+    : { ok: true, value: session };
+}
+
+/** Parse the skill commands available to one active Prime Agent session. */
+export function parseSkillCatalogData(
+  value: unknown,
+): PrimeAgentResult<readonly PrimeAgentSkill[]> {
+  if (!isRecord(value) || !Array.isArray(value.commands)) {
+    return failure(
+      'protocol_error',
+      'Prime Agent returned an invalid skill catalog.',
+    );
+  }
+
+  const skills: PrimeAgentSkill[] = [];
+  for (const candidate of value.commands) {
+    if (!isRecord(candidate) || candidate.source !== 'skill') continue;
+
+    const commandName = nonEmptyString(candidate.name);
+    const description =
+      candidate.description === undefined
+        ? null
+        : nonEmptyString(candidate.description);
+    if (
+      commandName === null ||
+      !commandName.startsWith('skill:') ||
+      commandName.length === 'skill:'.length ||
+      (candidate.description !== undefined && description === null)
+    ) {
+      return failure(
+        'protocol_error',
+        'Prime Agent returned invalid skill data.',
+      );
+    }
+
+    const name = commandName.slice('skill:'.length);
+    skills.push({ command: `/${commandName}`, description, name });
+  }
+
+  return {
+    ok: true,
+    value: skills.sort((left, right) => left.name.localeCompare(right.name)),
+  };
 }
 
 /** Parse the configured model catalog returned by the Prime Agent daemon. */
@@ -361,6 +417,42 @@ function parseTaskReceipt(value: unknown): PrimeAgentTaskReceipt | null {
   return isRecord(value) && value.accepted === true ? { accepted: true } : null;
 }
 
+function parseSessionResultValue(value: unknown): PrimeAgentSession | null {
+  return parseSessionDto(value);
+}
+
+function parseSkill(value: unknown): PrimeAgentSkill | null {
+  if (!isRecord(value)) return null;
+
+  const command = nonEmptyString(value.command);
+  const name = nonEmptyString(value.name);
+  const description =
+    value.description === null ? null : nonEmptyString(value.description);
+  if (
+    command === null ||
+    name === null ||
+    !command.startsWith('/skill:') ||
+    command.slice('/skill:'.length) !== name ||
+    (value.description !== null && description === null)
+  ) {
+    return null;
+  }
+
+  return { command, description, name };
+}
+
+function parseSkills(value: unknown): readonly PrimeAgentSkill[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const skills: PrimeAgentSkill[] = [];
+  for (const candidate of value) {
+    const skill = parseSkill(candidate);
+    if (skill === null) return null;
+    skills.push(skill);
+  }
+  return skills;
+}
+
 /** Parse a workspace path received from the isolated renderer. */
 export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
   const cwd = nonEmptyString(value);
@@ -374,6 +466,20 @@ export function parseWorkspaceResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentWorkspace> {
   return parseResult(value, parseWorkspace);
+}
+
+/** Parse a newly created Agent session after it crosses the Electron IPC boundary. */
+export function parseSessionResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSession> {
+  return parseResult(value, parseSessionResultValue);
+}
+
+/** Parse an Agent skill catalog after it crosses the Electron IPC boundary. */
+export function parseSkillsResult(
+  value: unknown,
+): PrimeAgentResult<readonly PrimeAgentSkill[]> {
+  return parseResult(value, parseSkills);
 }
 
 /** Parse local Git branches after they cross the Electron IPC boundary. */

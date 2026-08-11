@@ -13,8 +13,14 @@ export const rendererReadyChannel = 'ernie:renderer-ready';
 /** IPC channel that lists live sessions from the Prime Agent daemon. */
 export const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 
+/** IPC channel that creates one fresh Agent session in a workspace. */
+export const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
+
 /** IPC channel that lists configured models for one Prime Agent session. */
 export const primeAgentModelsChannel = 'ernie:prime-agent:models';
+
+/** IPC channel that lists skills available to one Prime Agent session. */
+export const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
 
 /** IPC channel that changes the model for one Prime Agent session. */
 export const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
@@ -59,7 +65,9 @@ export const chooseWorkspaceDirectoryChannel =
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
   listPrimeAgentWorkspace: () => Promise<unknown>;
+  createPrimeAgentSession: (cwd: string) => Promise<unknown>;
   listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
+  listPrimeAgentSkills: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;
   getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentRlmDepth: (

@@ -2,6 +2,8 @@ import {
   parseModelResult,
   parseModelsResult,
   parseRlmDepthResult,
+  parseSessionResult,
+  parseSkillsResult,
   parseTaskReceiptResult,
   parseWorkspaceResult,
 } from './lib/protocol';
@@ -13,6 +15,7 @@ import type {
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSession,
+  PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
@@ -46,6 +49,7 @@ export type {
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSession,
+  PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
@@ -56,6 +60,20 @@ export function parsePrimeAgentWorkspaceResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentWorkspace> {
   return parseWorkspaceResult(value);
+}
+
+/** Parse a newly created Agent session received from Electron's main process. */
+export function parsePrimeAgentSessionResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSession> {
+  return parseSessionResult(value);
+}
+
+/** Parse an Agent skill catalog received from Electron's main process. */
+export function parsePrimeAgentSkillsResult(
+  value: unknown,
+): PrimeAgentResult<readonly PrimeAgentSkill[]> {
+  return parseSkillsResult(value);
 }
 
 /** Parse a model-list response received from Electron's main process. */

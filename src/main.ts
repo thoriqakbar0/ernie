@@ -15,11 +15,13 @@ import {
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
 import {
   chooseWorkspaceDirectoryChannel,
+  primeAgentCreateSessionChannel,
   primeAgentCreateGitWorktreeChannel,
   primeAgentGitBranchesChannel,
   primeAgentInitializeGitChannel,
   primeAgentDeleteGitBranchChannel,
   primeAgentModelsChannel,
+  primeAgentSkillsChannel,
   primeAgentRlmDepthChannel,
   primeAgentRenameGitBranchChannel,
   primeAgentSetModelChannel,
@@ -81,10 +83,18 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
     Effect.runPromise(daemon.listWorkspace()),
   );
+  ipcMain.handle(primeAgentCreateSessionChannel, (_event, cwd: unknown) =>
+    Effect.runPromise(daemon.createSession(cwd)),
+  );
   ipcMain.handle(
     primeAgentModelsChannel,
     (_event, activeSessionId: unknown) =>
       Effect.runPromise(daemon.listModels(activeSessionId)),
+  );
+  ipcMain.handle(
+    primeAgentSkillsChannel,
+    (_event, activeSessionId: unknown) =>
+      Effect.runPromise(daemon.listSkills(activeSessionId)),
   );
   ipcMain.handle(primeAgentSetModelChannel, (_event, selection: unknown) =>
     Effect.runPromise(daemon.setModel(selection)),
@@ -144,6 +154,7 @@ function registerPrimeAgentHandlers(): void {
       ),
     );
   });
+  app.once('will-quit', () => daemon.close());
 }
 
 function waitForRendererReady(

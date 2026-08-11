@@ -52,6 +52,31 @@ test('user can decrease the RLM depth by one', async () => {
   assert.deepEqual(requestedDepths, ['4']);
 });
 
+test('pointer adjustment releases focus after changing depth', async () => {
+  const user = userEvent.setup();
+
+  render(
+    <RlmDepthPicker
+      busy={false}
+      depth={5}
+      onDepthChange={() => undefined}
+    />,
+  );
+
+  const decreaseButton = within(document.body).getByRole('button', {
+    name: 'Decrease RLM depth',
+  });
+  const increaseButton = within(document.body).getByRole('button', {
+    name: 'Increase RLM depth',
+  });
+
+  await user.click(decreaseButton);
+  assert.notEqual(document.activeElement, decreaseButton);
+
+  await user.click(increaseButton);
+  assert.notEqual(document.activeElement, increaseButton);
+});
+
 test('user cannot increase the RLM depth above twenty', async () => {
   const requestedDepths: Array<string | null> = [];
   const user = userEvent.setup();

@@ -10,6 +10,7 @@ import {
 import { useState } from 'react';
 
 import { GitBranchDropdown } from '@/components/git-branch-dropdown';
+import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Select,
@@ -31,10 +32,13 @@ type CurrentWorkspaceProps = Pick<
   | 'gitBranches'
   | 'gitWorktreeError'
   | 'loadingWorkspace'
+  | 'rlmDepth'
+  | 'rlmDepthBusy'
   | 'selectedCwd'
   | 'changeFolder'
   | 'chooseWorkspaceDirectory'
   | 'changeGitBranch'
+  | 'changeRlmDepth'
   | 'deleteGitBranch'
   | 'initializeGitRepository'
   | 'createGitWorktree'
@@ -56,10 +60,13 @@ export function CurrentWorkspace({
   gitBranches,
   gitWorktreeError,
   loadingWorkspace,
+  rlmDepth,
+  rlmDepthBusy,
   selectedCwd,
   changeFolder,
   chooseWorkspaceDirectory,
   changeGitBranch,
+  changeRlmDepth,
   deleteGitBranch,
   initializeGitRepository,
   createGitWorktree,
@@ -70,7 +77,7 @@ export function CurrentWorkspace({
 
   return (
     <section
-      className="flex min-h-9 flex-wrap items-center gap-3"
+      className="flex min-h-9 flex-wrap items-center gap-2"
       aria-label="Task environment"
     >
       <Field className="w-auto min-w-0">
@@ -212,6 +219,13 @@ export function CurrentWorkspace({
           </SelectGroup>
         </SelectContent>
       </Select>
+
+      <RlmDepthPicker
+        key={rlmDepth}
+        busy={rlmDepthBusy}
+        depth={rlmDepth}
+        onDepthChange={changeRlmDepth}
+      />
 
       {gitWorktreeError === null ? null : (
         <p

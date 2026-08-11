@@ -76,16 +76,20 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
       className="transition-opacity data-disabled:opacity-50 motion-reduce:transition-none"
     >
       <NumberField.Group
-        className={`inline-flex h-8 items-center overflow-hidden rounded-full border bg-background text-sm shadow-[0_1px_2px_oklch(0_0_0/0.04)] dark:bg-input/30 dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)] ${keyboardFocusWithin ? 'border-ring ring-3 ring-ring/50' : 'border-border'}`}
+        className={`inline-flex h-8 items-center gap-0.5 rounded-lg border bg-card p-0.5 text-sm shadow-[0_1px_2px_oklch(0_0_0/0.04)] dark:shadow-[0_0_0_1px_oklch(1_0_0/0.04)] ${keyboardFocusWithin ? 'border-ring ring-3 ring-ring/50' : 'border-input'}`}
       >
-        <span id={labelId} className="pr-2 pl-3 whitespace-nowrap select-none">
+        <span
+          id={labelId}
+          className="pr-1.5 pl-2 whitespace-nowrap text-muted-foreground select-none"
+        >
           <span translate="no">RLM</span> depth
         </span>
         <NumberField.Decrement
           aria-label="Decrease RLM depth"
-          className="relative flex h-full w-8 items-center justify-center border-l border-border text-muted-foreground outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transition-none"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none select-none transition-[color,background-color,transform] hover:bg-accent hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transform-none motion-reduce:transition-none"
+          onPointerUp={(event) => event.currentTarget.blur()}
         >
-          <MinusIcon aria-hidden="true" className="size-3.5" />
+          <MinusIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
         </NumberField.Decrement>
         <NumberField.Input
           aria-labelledby={labelId}
@@ -97,13 +101,14 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
               commitDepth(draftDepth);
             }
           }}
-          className="h-full w-8 border-x border-border bg-transparent px-0 text-center text-sm tabular-nums outline-none selection:bg-primary/20"
+          className="h-7 w-7 rounded-md bg-muted/55 px-0 text-center text-sm font-medium tabular-nums outline-none selection:bg-primary/20"
         />
         <NumberField.Increment
           aria-label="Increase RLM depth"
-          className="relative flex h-full w-8 items-center justify-center text-muted-foreground/45 outline-none select-none transition-colors after:absolute after:-inset-y-1 hover:bg-muted/50 hover:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-25 motion-reduce:transition-none"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none select-none transition-[color,background-color,transform] hover:bg-accent hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transform-none motion-reduce:transition-none"
+          onPointerUp={(event) => event.currentTarget.blur()}
         >
-          <PlusIcon aria-hidden="true" className="size-3.5" />
+          <PlusIcon aria-hidden="true" className="size-4" strokeWidth={1.75} />
         </NumberField.Increment>
       </NumberField.Group>
       <span id={descriptionId} className="sr-only">

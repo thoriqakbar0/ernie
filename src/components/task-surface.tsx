@@ -1,5 +1,4 @@
 import { CurrentWorkspace } from '@/components/current-workspace';
-import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
 import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
@@ -17,33 +16,25 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           Give Ernie a task
         </FieldLabel>
 
-        <div className="flex min-w-0 flex-wrap items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <CurrentWorkspace
-              busy={workspace.busy}
-              folders={workspace.folders}
-              gitBranch={workspace.gitBranch}
-              gitBranchBusy={workspace.gitBranchBusy}
-              gitBranches={workspace.gitBranches}
-              gitWorktreeError={workspace.gitWorktreeError}
-              loadingWorkspace={workspace.loadingWorkspace}
-              selectedCwd={workspace.selectedCwd}
-              changeFolder={workspace.changeFolder}
-              chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
-              changeGitBranch={workspace.changeGitBranch}
-              deleteGitBranch={workspace.deleteGitBranch}
-              initializeGitRepository={workspace.initializeGitRepository}
-              createGitWorktree={workspace.createGitWorktree}
-            />
-          </div>
-
-          <RlmDepthPicker
-            key={workspace.rlmDepth}
-            busy={workspace.rlmDepthBusy}
-            depth={workspace.rlmDepth}
-            onDepthChange={workspace.changeRlmDepth}
-          />
-        </div>
+        <CurrentWorkspace
+          busy={workspace.busy}
+          folders={workspace.folders}
+          gitBranch={workspace.gitBranch}
+          gitBranchBusy={workspace.gitBranchBusy}
+          gitBranches={workspace.gitBranches}
+          gitWorktreeError={workspace.gitWorktreeError}
+          loadingWorkspace={workspace.loadingWorkspace}
+          rlmDepth={workspace.rlmDepth}
+          rlmDepthBusy={workspace.rlmDepthBusy}
+          selectedCwd={workspace.selectedCwd}
+          changeFolder={workspace.changeFolder}
+          chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
+          changeGitBranch={workspace.changeGitBranch}
+          changeRlmDepth={workspace.changeRlmDepth}
+          deleteGitBranch={workspace.deleteGitBranch}
+          initializeGitRepository={workspace.initializeGitRepository}
+          createGitWorktree={workspace.createGitWorktree}
+        />
 
         <TaskComposer
           key={workspace.selectedSessionId}
@@ -54,7 +45,6 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           selectedSessionId={workspace.selectedSessionId}
           changeModel={workspace.changeModel}
         />
-
       </Field>
 
       <p id="workspace-status" className="sr-only" role="status">

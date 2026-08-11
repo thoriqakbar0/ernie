@@ -6,15 +6,15 @@ import {
 
 import { AgentSidebar } from '@/components/agent-sidebar';
 import { TaskSurface } from '@/components/task-surface';
-import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { Switch } from '@/components/ui/switch';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Button } from '@/components/trovecn/ui/button';
+import { Switch } from '@/components/trovecn/ui/switch';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 
 type ErnieShellProps = {
@@ -40,7 +40,7 @@ export function ErnieShell({
       <SidebarProvider defaultOpen className="select-none">
         <AgentSidebar {...workspace} />
 
-        <SidebarInset className="min-w-0 overflow-hidden">
+        <SidebarInset className="h-svh min-w-0 overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
             <SidebarTrigger aria-label="Toggle repository sidebar" />
             <div className="ms-auto flex items-center gap-2">

@@ -1,14 +1,11 @@
 import { NumberField } from '@base-ui/react/number-field';
 import { MinusIcon, PlusIcon } from 'lucide-react';
-import { memo, useId, useRef, useState } from 'react';
+import { memo, useState } from 'react';
 
 import { Button } from '@/components/trovecn/ui/button';
 import {
   Popover,
   PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
   PopoverTrigger,
 } from '@/components/trovecn/ui/popover';
 
@@ -27,10 +24,6 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
   onDepthChange,
 }: RlmDepthPickerProps): React.JSX.Element {
   const [draftDepth, setDraftDepth] = useState<number | null>(depth);
-  const [keyboardFocusWithin, setKeyboardFocusWithin] = useState(false);
-  const pointerInteraction = useRef(false);
-  const labelId = useId();
-  const descriptionId = useId();
 
   function commitDepth(nextDepth: number | null): void {
     if (
@@ -67,16 +60,13 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
           {depth ?? '—'}
         </span>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-64">
-        <PopoverHeader>
-          <PopoverTitle id={labelId}>Agent depth</PopoverTitle>
-          <PopoverDescription id={descriptionId}>
-            <span translate="no">RLM</span> sets the maximum recursive Agent
-            delegation depth, from 0 through 20.
-          </PopoverDescription>
-        </PopoverHeader>
+      <PopoverContent
+        align="end"
+        aria-label={depth === null ? 'Depth unavailable' : 'Adjust Agent depth'}
+        className={depth === null ? 'w-52 p-2.5' : 'w-auto p-1'}
+      >
         {depth === null ? (
-          <p className="mt-3 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+          <p className="text-xs leading-5 text-muted-foreground">
             Available after starting an Agent.
           </p>
         ) : (
@@ -86,39 +76,12 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
             max={maximumRlmDepth}
             step={1}
             disabled={busy}
-            aria-labelledby={labelId}
-            aria-describedby={descriptionId}
             onValueChange={setDraftDepth}
             onValueCommitted={commitDepth}
-            onPointerDownCapture={() => {
-              pointerInteraction.current = true;
-              setKeyboardFocusWithin(false);
-            }}
-            onPointerUpCapture={() => {
-              pointerInteraction.current = false;
-            }}
-            onPointerCancelCapture={() => {
-              pointerInteraction.current = false;
-            }}
-            onKeyDownCapture={() => {
-              pointerInteraction.current = false;
-            }}
-            onFocusCapture={() => {
-              if (!pointerInteraction.current) setKeyboardFocusWithin(true);
-            }}
-            onBlurCapture={(event) => {
-              const nextTarget = event.relatedTarget;
-              if (
-                !(nextTarget instanceof Node) ||
-                !event.currentTarget.contains(nextTarget)
-              ) {
-                setKeyboardFocusWithin(false);
-              }
-            }}
           >
             <NumberField.Group
-              aria-labelledby={labelId}
-              className={`mt-4 flex items-center justify-between rounded-lg bg-muted/60 p-1 ${keyboardFocusWithin ? 'ring-3 ring-ring/50' : ''}`}
+              aria-label="Agent depth"
+              className="inline-flex items-center gap-0.5"
             >
               <NumberField.Decrement
                 aria-label="Decrease Agent depth"
@@ -126,8 +89,8 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-35"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-35"
                   />
                 }
                 onPointerUp={(event) => event.currentTarget.blur()}
@@ -139,8 +102,7 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
                 />
               </NumberField.Decrement>
               <NumberField.Input
-                aria-labelledby={labelId}
-                aria-describedby={descriptionId}
+                aria-label="Agent depth"
                 inputMode="numeric"
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
@@ -148,7 +110,7 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
                     commitDepth(draftDepth);
                   }
                 }}
-                className="h-8 w-14 bg-transparent px-0 text-center text-base font-medium tabular-nums outline-none selection:bg-primary/20"
+                className="h-7 w-8 rounded-md bg-transparent px-0 text-center text-sm font-medium tabular-nums outline-none selection:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <NumberField.Increment
                 aria-label="Increase Agent depth"
@@ -156,8 +118,8 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-35"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-35"
                   />
                 }
                 onPointerUp={(event) => event.currentTarget.blur()}

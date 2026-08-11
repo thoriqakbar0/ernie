@@ -17,6 +17,11 @@ async function openDepthEditor(
   await user.click(
     within(document.body).getByRole('button', { name: `Depth ${depth}` }),
   );
+  assert.ok(
+    within(document.body).getByRole('dialog', {
+      name: 'Adjust Agent depth',
+    }),
+  );
 }
 
 test('user can increase the RLM depth by one', async () => {
@@ -195,6 +200,11 @@ test('unavailable depth explains when the control becomes available', async () =
 
   await user.click(trigger);
 
+  assert.ok(
+    within(document.body).getByRole('dialog', {
+      name: 'Depth unavailable',
+    }),
+  );
   assert.ok(
     within(document.body).getByText('Available after starting an Agent.'),
   );

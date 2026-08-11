@@ -11,6 +11,7 @@ import type {
   PrimeAgentFailureCode,
   PrimeAgentResult,
   PrimeAgentSession,
+  PrimeAgentSessionRenameReceipt,
 } from '../types';
 import { startPrimeAgentDaemonProcess } from './daemon-process';
 import {
@@ -23,6 +24,7 @@ import {
   parseRlmDepthSelection,
   parseSavedSessionListData,
   parseSavedSessionPath,
+  parseSessionRename,
   parseSessionListData,
   parseSkillCatalogData,
   parseTaskSubmission,
@@ -404,6 +406,47 @@ export function createPrimeAgentDaemon(
     },
   );
 
+  const renameSession = Effect.fn('PrimeAgentDaemon.renameSession')(
+    (
+      rename: unknown,
+    ): Effect.Effect<PrimeAgentResult<PrimeAgentSessionRenameReceipt>> => {
+      const parsedRename = parseSessionRename(rename);
+      if (!parsedRename.ok) return Effect.succeed(parsedRename);
+
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          parsedRename.value.kind === 'live'
+            ? client.request(
+                {
+                  type: 'set_session_name',
+                  activeSessionId: parsedRename.value.activeSessionId,
+                  name: parsedRename.value.name,
+                },
+                requestTimeoutMs,
+              )
+            : client.request(
+                {
+                  type: 'rename_saved_session',
+                  sessionPath: parsedRename.value.sessionPath,
+                  name: parsedRename.value.name,
+                },
+                requestTimeoutMs,
+              ),
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok
+              ? {
+                  ok: true as const,
+                  value: { name: parsedRename.value.name },
+                }
+              : response,
+          ),
+        ),
+      );
+    },
+  );
+
   const setModel = Effect.fn('PrimeAgentDaemon.setModel')(
     (selection: unknown) => {
       const parsedSelection = parseModelSelection(selection);
@@ -515,6 +558,7 @@ export function createPrimeAgentDaemon(
     listSavedSessions,
     createSession,
     importSession,
+    renameSession,
     setModel,
     getRlmDepth,
     setRlmDepth,

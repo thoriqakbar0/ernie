@@ -13,6 +13,7 @@ export interface PrimeAgentSession {
   readonly name: string;
   readonly model: PrimeAgentModel | null;
   readonly modifiedAt: string | null;
+  readonly sessionPath: string | null;
 }
 
 /** A durable Prime Agent session that can be reopened in Ernie. */
@@ -134,6 +135,25 @@ export interface PrimeAgentTaskReceipt {
   readonly accepted: true;
 }
 
+/** A real Prime Agent session-name change requested by Ernie. */
+export type PrimeAgentSessionRename =
+  | Readonly<{
+      kind: 'live';
+      activeSessionId: string;
+      sessionPath: string | null;
+      name: string;
+    }>
+  | Readonly<{
+      kind: 'saved';
+      sessionPath: string;
+      name: string;
+    }>;
+
+/** Confirmation that Prime Agent persisted a session name. */
+export interface PrimeAgentSessionRenameReceipt {
+  readonly name: string;
+}
+
 /** The daemon operations owned by Ernie's Electron main process. */
 export interface PrimeAgentDaemon {
   readonly listWorkspace: () => Effect.Effect<
@@ -154,6 +174,9 @@ export interface PrimeAgentDaemon {
   readonly importSession: (
     sessionPath: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
+  readonly renameSession: (
+    rename: unknown,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentSessionRenameReceipt>>;
   readonly setModel: (
     selection: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentModel>>;

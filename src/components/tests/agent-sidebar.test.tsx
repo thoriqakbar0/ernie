@@ -3,20 +3,25 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import type { PrimeAgentSessionRename } from '@/packages/prime-agent-daemon/client';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 function renderSidebar(actions: {
   readonly addRepository: () => void;
   readonly createAgent: (cwd?: string) => void;
   readonly importSession: (sessionPath: string) => void;
   readonly loadSavedSessions: () => void;
+  readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
 }): void {
   render(
@@ -26,6 +31,7 @@ function renderSidebar(actions: {
           creatingAgent={false}
           importingSessionPath={null}
           loadingSavedSessions={false}
+          renamingSession={false}
           folders={[
             { label: 'ernie', value: '/workspace/ernie' },
             { label: 'kastuli', value: '/workspace/kastuli' },
@@ -39,6 +45,7 @@ function renderSidebar(actions: {
               modifiedAt: null,
               model: null,
               name: 'Codebase rating feedback',
+              sessionPath: '/sessions/ernie-agent.jsonl',
             },
             {
               activeSessionId: 'general-agent',
@@ -46,6 +53,7 @@ function renderSidebar(actions: {
               modifiedAt: null,
               model: null,
               name: 'General chat',
+              sessionPath: '/sessions/general-agent.jsonl',
             },
           ]}
           savedSessions={[
@@ -62,6 +70,7 @@ function renderSidebar(actions: {
           createAgent={actions.createAgent}
           importSession={actions.importSession}
           loadSavedSessions={actions.loadSavedSessions}
+          renameSession={actions.renameSession}
           selectSession={actions.selectSession}
         />
       </SidebarProvider>
@@ -77,6 +86,7 @@ test('user can select a nested Agent conversation', async () => {
     createAgent: () => undefined,
     importSession: () => undefined,
     loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
     selectSession: (activeSessionId) => selectedSessions.push(activeSessionId),
   });
 
@@ -94,6 +104,7 @@ test('user can fold and unfold a repository conversation list', async () => {
     createAgent: () => undefined,
     importSession: () => undefined,
     loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
     selectSession: () => undefined,
   });
 
@@ -142,6 +153,7 @@ test('user can add a repository and create an Agent inside one', async () => {
     createAgent: (cwd) => agentCwds.push(cwd),
     importSession: () => undefined,
     loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
     selectSession: () => undefined,
   });
 
@@ -169,6 +181,7 @@ test('user can import a saved Prime Agent session', async () => {
     loadSavedSessions: () => {
       loadRequests += 1;
     },
+    renameSession: () => undefined,
     selectSession: () => undefined,
   });
 
@@ -195,6 +208,7 @@ test('saved conversations appear inside their repository and open in place', asy
     createAgent: () => undefined,
     importSession: (sessionPath) => importedPaths.push(sessionPath),
     loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
     selectSession: () => undefined,
   });
 
@@ -208,4 +222,150 @@ test('saved conversations appear inside their repository and open in place', asy
   );
 
   assert.deepEqual(importedPaths, ['/sessions/saved-architecture.jsonl']);
+});
+
+test('user can rename a thread from its Trove menu', async () => {
+  const renames: PrimeAgentSessionRename[] = [];
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => undefined,
+    createAgent: () => undefined,
+    importSession: () => undefined,
+    loadSavedSessions: () => undefined,
+    renameSession: (rename) => renames.push(rename),
+    selectSession: () => undefined,
+  });
+
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Manage Codebase rating feedback',
+    }),
+  );
+  await user.click(within(document.body).getByRole('menuitem', { name: 'Rename' }));
+  const input = within(document.body).getByRole('textbox', {
+    name: 'Conversation name',
+  });
+  await user.clear(input);
+  await user.type(input, 'Thread management polish');
+  await user.click(within(document.body).getByRole('button', { name: 'Rename' }));
+
+  assert.deepEqual(renames, [
+    {
+      kind: 'live',
+      activeSessionId: 'ernie-agent',
+      sessionPath: '/sessions/ernie-agent.jsonl',
+      name: 'Thread management polish',
+    },
+  ]);
+});
+
+test('user can archive and restore a thread', async () => {
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => undefined,
+    createAgent: () => undefined,
+    importSession: () => undefined,
+    loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Manage Codebase rating feedback',
+    }),
+  );
+  await user.click(within(document.body).getByRole('menuitem', { name: 'Archive' }));
+
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+    null,
+  );
+  const archive = within(document.body).getByRole('button', { name: /Archived/u });
+  await user.click(archive);
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+  );
+
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Manage Codebase rating feedback',
+    }),
+  );
+  await user.click(within(document.body).getByRole('menuitem', { name: 'Restore' }));
+
+  assert.equal(within(document.body).queryByRole('button', { name: /Archived/u }), null);
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+  );
+});
+
+test('user can reorder threads by dragging one row onto another', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    createAgent: () => undefined,
+    importSession: () => undefined,
+    loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+  const repository = within(document.body).getByRole('listitem', {
+    name: 'ernie repository',
+  });
+  const live = within(repository).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+  const saved = within(repository).getByRole('button', {
+    name: 'Saved architecture review, saved session',
+  });
+  const dataTransfer = {
+    dropEffect: 'none',
+    effectAllowed: 'none',
+    setData: () => undefined,
+  };
+  const savedRow = saved.closest('li');
+  const liveRow = live.closest('li');
+  assert.ok(savedRow);
+  assert.ok(liveRow);
+
+  fireEvent.dragStart(savedRow, { dataTransfer });
+  fireEvent.dragOver(liveRow, { dataTransfer });
+  fireEvent.drop(liveRow, { dataTransfer });
+
+  const threadButtons = within(repository)
+    .getAllByRole('button')
+    .filter((button) =>
+      ['Codebase rating feedback', 'Saved architecture review, saved session'].includes(
+        button.getAttribute('aria-label') ?? '',
+      ),
+    );
+  assert.deepEqual(
+    threadButtons.map((button) => button.getAttribute('aria-label')),
+    ['Saved architecture review, saved session', 'Codebase rating feedback'],
+  );
+});
+
+test('thread actions open from a right-click context menu', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    createAgent: () => undefined,
+    importSession: () => undefined,
+    loadSavedSessions: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+  const thread = within(document.body).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+
+  fireEvent.contextMenu(thread);
+
+  assert.ok(within(document.body).getByRole('menuitem', { name: 'Rename' }));
+  assert.ok(within(document.body).getByRole('menuitem', { name: 'Archive' }));
 });

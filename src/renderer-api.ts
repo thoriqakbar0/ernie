@@ -4,6 +4,7 @@ import type {
   PrimeAgentGitWorktreeCreation,
   PrimeAgentModelSelection,
   PrimeAgentRlmDepthSelection,
+  PrimeAgentSessionRename,
   PrimeAgentTaskSubmission,
 } from './packages/prime-agent-daemon/types';
 
@@ -23,6 +24,10 @@ export const primeAgentSavedSessionsChannel =
 /** IPC channel that reopens one durable Prime Agent session in Ernie. */
 export const primeAgentImportSessionChannel =
   'ernie:prime-agent:import-session';
+
+/** IPC channel that persists one Agent conversation name. */
+export const primeAgentRenameSessionChannel =
+  'ernie:prime-agent:rename-session';
 
 /** IPC channel that lists configured models for one Prime Agent session. */
 export const primeAgentModelsChannel = 'ernie:prime-agent:models';
@@ -76,6 +81,7 @@ export type ErnieRendererApi = Readonly<{
   createPrimeAgentSession: (cwd: string) => Promise<unknown>;
   listPrimeAgentSavedSessions: () => Promise<unknown>;
   importPrimeAgentSession: (sessionPath: string) => Promise<unknown>;
+  renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<unknown>;
   listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
   listPrimeAgentSkills: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;

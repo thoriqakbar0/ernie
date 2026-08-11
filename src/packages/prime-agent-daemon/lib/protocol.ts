@@ -13,6 +13,8 @@ import type {
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
   PrimeAgentSession,
+  PrimeAgentSessionRename,
+  PrimeAgentSessionRenameReceipt,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
@@ -161,6 +163,7 @@ function parseSession(
     name: sessionName(value, cwd),
     model: parsedModel,
     modifiedAt: nonEmptyString(value.modified),
+    sessionPath: nonEmptyString(value.sessionFile),
   };
 }
 
@@ -178,6 +181,9 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
   const modifiedAt =
     value.modifiedAt === null ? null : nonEmptyString(value.modifiedAt);
   if (value.modifiedAt !== null && modifiedAt === null) return null;
+  const sessionPath =
+    value.sessionPath === null ? null : nonEmptyString(value.sessionPath);
+  if (value.sessionPath !== null && sessionPath === null) return null;
 
   return {
     activeSessionId,
@@ -185,6 +191,7 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
     name,
     model: parsedModel,
     modifiedAt,
+    sessionPath,
   };
 }
 
@@ -419,6 +426,39 @@ export function parseSavedSessionPath(value: unknown): PrimeAgentResult<string> 
     : { ok: true, value: sessionPath };
 }
 
+/** Parse a session rename received from the isolated renderer. */
+export function parseSessionRename(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionRename> {
+  if (!isRecord(value)) {
+    return failure('invalid_request', 'The Agent rename is invalid.');
+  }
+
+  const name = nonEmptyString(value.name);
+  const sessionPath =
+    value.sessionPath === null ? null : nonEmptyString(value.sessionPath);
+  if (
+    name === null ||
+    (value.sessionPath !== null && sessionPath === null)
+  ) {
+    return failure('invalid_request', 'The Agent rename is invalid.');
+  }
+
+  if (value.kind === 'saved' && sessionPath !== null) {
+    return { ok: true, value: { kind: 'saved', sessionPath, name } };
+  }
+
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  if (value.kind !== 'live' || activeSessionId === null) {
+    return failure('invalid_request', 'The Agent rename is invalid.');
+  }
+
+  return {
+    ok: true,
+    value: { kind: 'live', activeSessionId, sessionPath, name },
+  };
+}
+
 /** Parse RLM maximum-depth state returned by the Prime Agent daemon. */
 export function parseRlmDepthData(
   value: unknown,
@@ -545,6 +585,14 @@ function parseGitWorktree(value: unknown): PrimeAgentGitWorktree | null {
 
 function parseTaskReceipt(value: unknown): PrimeAgentTaskReceipt | null {
   return isRecord(value) && value.accepted === true ? { accepted: true } : null;
+}
+
+function parseSessionRenameReceipt(
+  value: unknown,
+): PrimeAgentSessionRenameReceipt | null {
+  if (!isRecord(value)) return null;
+  const name = nonEmptyString(value.name);
+  return name === null ? null : { name };
 }
 
 function parseSessionResultValue(value: unknown): PrimeAgentSession | null {
@@ -699,6 +747,13 @@ export function parseTaskReceiptResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentTaskReceipt> {
   return parseResult(value, parseTaskReceipt);
+}
+
+/** Parse a session-rename receipt after it crosses Electron IPC. */
+export function parseSessionRenameResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionRenameReceipt> {
+  return parseResult(value, parseSessionRenameReceipt);
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */

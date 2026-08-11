@@ -10,12 +10,14 @@ import {
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
+  parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentWorkspaceResult,
   type PrimeAgentModel,
   type PrimeAgentSavedSession,
   type PrimeAgentSession,
+  type PrimeAgentSessionRename,
   type PrimeAgentSkill,
   type PrimeAgentWorkspace,
 } from '@/packages/prime-agent-daemon/client';
@@ -38,6 +40,7 @@ export interface PrimeAgentWorkspaceController {
   readonly loadingWorkspace: boolean;
   readonly loadingSavedSessions: boolean;
   readonly importingSessionPath: string | null;
+  readonly renamingSession: boolean;
   readonly modelBusy: boolean;
   readonly models: readonly PrimeAgentModel[];
   readonly skills: readonly PrimeAgentSkill[];
@@ -54,6 +57,7 @@ export interface PrimeAgentWorkspaceController {
   readonly createAgent: (cwd?: string) => void;
   readonly loadSavedSessions: () => void;
   readonly importSession: (sessionPath: string) => void;
+  readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
@@ -108,6 +112,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [importingSessionPath, setImportingSessionPath] = useState<
     string | null
   >(null);
+  const [renamingSession, setRenamingSession] = useState(false);
   const [savedSessions, setSavedSessions] = useState<
     readonly PrimeAgentSavedSession[]
   >([]);
@@ -506,6 +511,65 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
+  function renameSession(rename: PrimeAgentSessionRename): void {
+    if (renamingSession) return;
+
+    const persistRename = Effect.fn('Workspace.renameSession')(function* () {
+      yield* Effect.sync(() => {
+        setRenamingSession(true);
+        setStatus('Renaming Agent conversation…');
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.renamePrimeAgentSession(rename),
+      );
+      const result = parsePrimeAgentSessionRenameResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        if (rename.kind === 'live') {
+          setWorkspace((current) =>
+            current === null
+              ? null
+              : {
+                  ...current,
+                  sessions: current.sessions.map((session) =>
+                    session.activeSessionId === rename.activeSessionId
+                      ? { ...session, name: result.value.name }
+                      : session,
+                  ),
+                },
+          );
+        }
+
+        const renamedPath = rename.sessionPath;
+        if (renamedPath !== null) {
+          setSavedSessions((current) =>
+            current.map((session) =>
+              session.path === renamedPath
+                ? { ...session, name: result.value.name }
+                : session,
+            ),
+          );
+        }
+        setStatus(`Renamed Agent conversation to ${result.value.name}.`);
+      });
+    });
+
+    Effect.runFork(
+      persistRename().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not rename the Agent conversation.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setRenamingSession(false))),
+      ),
+    );
+  }
+
   function selectSession(activeSessionId: string): void {
     const session = workspace?.sessions.find(
       (candidate) => candidate.activeSessionId === activeSessionId,
@@ -863,6 +927,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       choosingDirectory ||
       loadingSavedSessions ||
       importingSessionPath !== null ||
+      renamingSession ||
       creatingAgent ||
       gitBranchBusy,
     creatingAgent,
@@ -874,6 +939,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     loadingWorkspace,
     loadingSavedSessions,
     importingSessionPath,
+    renamingSession,
     modelBusy,
     models,
     skills,
@@ -890,6 +956,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     createAgent,
     loadSavedSessions,
     importSession,
+    renameSession,
     selectSession,
     chooseWorkspaceDirectory,
     changeGitBranch,

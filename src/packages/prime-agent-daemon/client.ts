@@ -3,6 +3,7 @@ import {
   parseModelsResult,
   parseRlmDepthResult,
   parseSavedSessionsResult,
+  parseSessionRenameResult,
   parseSessionResult,
   parseSkillsResult,
   parseTaskReceiptResult,
@@ -17,6 +18,8 @@ import type {
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
   PrimeAgentSession,
+  PrimeAgentSessionRename,
+  PrimeAgentSessionRenameReceipt,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
@@ -52,6 +55,8 @@ export type {
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
   PrimeAgentSession,
+  PrimeAgentSessionRename,
+  PrimeAgentSessionRenameReceipt,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
@@ -70,6 +75,13 @@ export function parsePrimeAgentSessionResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentSession> {
   return parseSessionResult(value);
+}
+
+/** Parse a persisted Agent rename received from Electron's main process. */
+export function parsePrimeAgentSessionRenameResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionRenameReceipt> {
+  return parseSessionRenameResult(value);
 }
 
 /** Parse saved sessions received from Electron's main process. */

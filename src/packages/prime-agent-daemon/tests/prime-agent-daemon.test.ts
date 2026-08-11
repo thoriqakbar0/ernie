@@ -143,6 +143,7 @@ test('keeps only connected top-level daemon sessions', () => {
         attachedClients: 1,
         cwd: '/workspace/ernie',
         runtimeKind: 'top-level',
+        sessionFile: '/sessions/root-active.jsonl',
         firstMessage: 'Build the desktop',
         modified: '2026-08-10T10:00:00.000Z',
         model: {
@@ -180,6 +181,7 @@ test('keeps only connected top-level daemon sessions', () => {
           provider: 'openai-codex',
         },
         modifiedAt: '2026-08-10T10:00:00.000Z',
+        sessionPath: '/sessions/root-active.jsonl',
       },
     ],
   });
@@ -223,6 +225,7 @@ test('parses a newly created detached session before Ernie attaches', () => {
       name: 'ernie',
       model: null,
       modifiedAt: null,
+      sessionPath: null,
     },
   });
 });
@@ -324,6 +327,7 @@ test('validates created sessions and skills after IPC', () => {
         name: 'ernie',
         model: null,
         modifiedAt: null,
+        sessionPath: null,
       },
     }).ok,
     true,

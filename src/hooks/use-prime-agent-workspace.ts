@@ -60,7 +60,7 @@ export interface PrimeAgentWorkspaceController {
   readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
-  readonly prepareAgent: (cwd: string) => void;
+  readonly createAgentSession: (cwd: string) => void;
   readonly createAgentWithTask: (
     cwd: string,
     message: string,
@@ -373,6 +373,27 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     models.find((model) => model.key === selectedSession?.model?.key)?.key ??
     null;
 
+  function requestAgentSession(cwd: string) {
+    return Effect.tryPromise(() =>
+      window.ernie.createPrimeAgentSession(cwd),
+    ).pipe(Effect.map(parsePrimeAgentSessionResult));
+  }
+
+  function connectAgentSession(session: PrimeAgentSession): void {
+    setWorkspace((current) => ({
+      currentCwd: current?.currentCwd ?? session.cwd,
+      sessions: [
+        session,
+        ...(current?.sessions.filter(
+          (candidate) =>
+            candidate.activeSessionId !== session.activeSessionId,
+        ) ?? []),
+      ],
+    }));
+    setSelectedCwd(session.cwd);
+    setSelectedSessionId(session.activeSessionId);
+  }
+
   function changeFolder(cwd: string | null): void {
     if (cwd === null) return;
     const session =
@@ -387,11 +408,39 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function prepareAgent(cwd: string): void {
-    setSelectedCwd(cwd);
-    setSelectedSessionId(null);
-    setGitWorktreeError(null);
-    setStatus('Ready for a first task.');
+  function createAgentSession(cwd: string): void {
+    if (creatingAgent) return;
+
+    const create = Effect.fn('Workspace.createAgent')(function* () {
+      yield* Effect.sync(() => {
+        setCreatingAgent(true);
+        setSelectedCwd(cwd);
+        setSelectedSessionId(null);
+        setGitWorktreeError(null);
+        setStatus('Creating a new Agent…');
+      });
+      const result = yield* requestAgentSession(cwd);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        connectAgentSession(result.value);
+        setStatus('New Agent ready for a first task.');
+      });
+    });
+
+    Effect.runFork(
+      create().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not create a new Agent.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
+      ),
+    );
   }
 
   function createAgentWithTask(
@@ -414,10 +463,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setCreatingAgent(true);
         setStatus('Creating a new Agent…');
       });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.createPrimeAgentSession(cwd),
-      );
-      const result = parsePrimeAgentSessionResult(rawResult);
+      const result = yield* requestAgentSession(cwd);
       if (!result.ok) {
         return yield* Effect.sync(() => {
           setStatus(result.error.message);
@@ -434,18 +480,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const taskResult = parsePrimeAgentTaskReceiptResult(rawTaskResult);
 
       return yield* Effect.sync(() => {
-        setWorkspace((current) => ({
-          currentCwd: current?.currentCwd ?? cwd,
-          sessions: [
-            result.value,
-            ...(current?.sessions.filter(
-              (session) =>
-                session.activeSessionId !== result.value.activeSessionId,
-            ) ?? []),
-          ],
-        }));
-        setSelectedCwd(result.value.cwd);
-        setSelectedSessionId(result.value.activeSessionId);
+        connectAgentSession(result.value);
         setStatus(
           taskResult.ok ? 'Task sent to Prime Agent.' : taskResult.error.message,
         );
@@ -527,18 +562,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         }
 
         yield* Effect.sync(() => {
-          setWorkspace((current) => ({
-            currentCwd: current?.currentCwd ?? result.value.cwd,
-            sessions: [
-              result.value,
-              ...(current?.sessions.filter(
-                (session) =>
-                  session.activeSessionId !== result.value.activeSessionId,
-              ) ?? []),
-            ],
-          }));
-          setSelectedCwd(result.value.cwd);
-          setSelectedSessionId(result.value.activeSessionId);
+          connectAgentSession(result.value);
           setStatus('Saved Agent imported.');
         });
       },
@@ -998,7 +1022,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     savedSessions,
     status,
     changeFolder,
-    prepareAgent,
+    createAgentSession,
     createAgentWithTask,
     loadSavedSessions,
     importSession,

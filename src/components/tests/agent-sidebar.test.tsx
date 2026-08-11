@@ -18,7 +18,7 @@ afterEach(() => {
 
 function renderSidebar(actions: {
   readonly addRepository: () => void;
-  readonly prepareAgent: (cwd: string) => void;
+  readonly createAgentSession: (cwd: string) => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
@@ -65,7 +65,7 @@ function renderSidebar(actions: {
           ]}
           changeFolder={() => undefined}
           chooseWorkspaceDirectory={actions.addRepository}
-          prepareAgent={actions.prepareAgent}
+          createAgentSession={actions.createAgentSession}
           importSession={actions.importSession}
           renameSession={actions.renameSession}
           selectSession={actions.selectSession}
@@ -80,7 +80,7 @@ test('user can select a nested Agent conversation', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: (activeSessionId) => selectedSessions.push(activeSessionId),
@@ -97,7 +97,7 @@ test('user can fold and unfold a repository conversation list', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -137,15 +137,15 @@ test('user can fold and unfold a repository conversation list', async () => {
   );
 });
 
-test('user can add a repository and prepare an Agent draft inside one', async () => {
+test('user can add a repository and create an Agent inside one', async () => {
   let repositoryRequests = 0;
-  const draftCwds: string[] = [];
+  const agentCwds: string[] = [];
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => {
       repositoryRequests += 1;
     },
-    prepareAgent: (cwd) => draftCwds.push(cwd),
+    createAgentSession: (cwd) => agentCwds.push(cwd),
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -156,18 +156,18 @@ test('user can add a repository and prepare an Agent draft inside one', async ()
   );
   await user.click(
     within(document.body).getByRole('button', {
-      name: 'New draft in ernie',
+      name: 'New Agent in ernie',
     }),
   );
 
   assert.equal(repositoryRequests, 1);
-  assert.deepEqual(draftCwds, ['/workspace/ernie']);
+  assert.deepEqual(agentCwds, ['/workspace/ernie']);
 });
 
 test('sidebar omits the standalone session import action', () => {
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -186,7 +186,7 @@ test('saved conversations appear inside their repository and open in place', asy
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: (sessionPath) => importedPaths.push(sessionPath),
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -209,7 +209,7 @@ test('user can rename a thread from its Trove menu', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: (rename) => renames.push(rename),
     selectSession: () => undefined,
@@ -242,7 +242,7 @@ test('archived threads leave the sidebar without an archived section', async () 
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -267,7 +267,7 @@ test('archived threads leave the sidebar without an archived section', async () 
 test('user can reorder threads by dragging one row onto another', () => {
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -311,7 +311,7 @@ test('user can reorder threads by dragging one row onto another', () => {
 test('thread actions open from a right-click context menu', () => {
   renderSidebar({
     addRepository: () => undefined,
-    prepareAgent: () => undefined,
+    createAgentSession: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,

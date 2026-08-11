@@ -1,13 +1,11 @@
-// Three clean environment variants, switchable via ?variant=, on Ernie's existing renderer route.
+// The selected nested repository, worktree, and thread prototype for Ernie's existing renderer route.
 import {
   ArrowUp,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Folder,
   GitBranch,
   Layers3,
-  MoreHorizontal,
   PanelLeft,
   Paperclip,
   Plus,
@@ -16,9 +14,7 @@ import {
   SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-
-type VariantKey = 'A' | 'B' | 'C';
+import { useState } from 'react';
 
 interface ThreadItem {
   readonly id: string;
@@ -94,43 +90,15 @@ const repositories: ReadonlyArray<RepositoryItem> = [
   },
 ];
 
-const variants: ReadonlyArray<{
-  readonly key: VariantKey;
-  readonly label: string;
-}> = [
-  { key: 'A', label: 'Nested tree' },
-  { key: 'B', label: 'Quiet columns' },
-  { key: 'C', label: 'Input context' },
-];
-
 const initialEnvironment: EnvironmentState = {
   repositoryId: 'ernie',
   worktreeId: 'ernie-main',
   threadId: 'environment',
 };
 
-function isVariantKey(value: string | null): value is VariantKey {
-  return value === 'A' || value === 'B' || value === 'C';
-}
-
-function readVariant(): VariantKey {
-  const queryVariant = new URLSearchParams(window.location.search).get(
-    'variant',
-  );
-  return isVariantKey(queryVariant) ? queryVariant : 'A';
-}
-
 function requireItem<T>(item: T | undefined, message: string): T {
   if (item === undefined) throw new Error(message);
   return item;
-}
-
-function itemAtWrappedIndex<T>(
-  items: ReadonlyArray<T>,
-  index: number,
-  message: string,
-): T {
-  return requireItem(items[index % items.length], message);
 }
 
 function findRepository(repositoryId: string): RepositoryItem {
@@ -160,15 +128,6 @@ function findThread(
     worktree.threads.find((thread) => thread.id === threadId) ??
       worktree.threads[0],
     'The prototype worktree requires at least one thread.',
-  );
-}
-
-function shouldIgnoreShortcut(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target.isContentEditable
   );
 }
 
@@ -312,14 +271,12 @@ function Composer({
   thread,
   draft,
   onDraftChange,
-  worktreeControl,
 }: {
   readonly repository: RepositoryItem;
   readonly worktree: WorktreeItem;
   readonly thread: ThreadItem;
   readonly draft: string;
   readonly onDraftChange: (draft: string) => void;
-  readonly worktreeControl?: React.ReactNode;
 }): React.JSX.Element {
   return (
     <section className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col justify-center px-8 pb-28">
@@ -337,15 +294,11 @@ function Composer({
 
       <div className="overflow-hidden rounded-[18px] border border-white/[0.1] bg-[#1b1b18] shadow-[0_24px_80px_rgba(0,0,0,0.28)] focus-within:border-white/[0.17]">
         <div className="flex h-9 items-center gap-1.5 border-b border-white/[0.055] px-3 text-[11px] text-white/36">
-          {worktreeControl ?? (
-            <>
-              <Folder className="size-3" />
-              <span className="text-white/55">{repository.label}</span>
-              <span className="text-white/15">/</span>
-              <GitBranch className="size-3" />
-              <span>{worktree.branch}</span>
-            </>
-          )}
+          <Folder className="size-3" />
+          <span className="text-white/55">{repository.label}</span>
+          <span className="text-white/15">/</span>
+          <GitBranch className="size-3" />
+          <span>{worktree.branch}</span>
           <span className="ml-auto max-w-[260px] truncate font-mono text-[9px] text-white/18">
             {worktree.path}
           </span>
@@ -495,362 +448,19 @@ export function VariantA({
   );
 }
 
-/** Put worktrees and threads in two distinct, low-noise columns. */
-export function VariantB({
-  environment,
-  onEnvironmentChange,
-  draft,
-  onDraftChange,
-}: PrototypeSurfaceProps): React.JSX.Element {
-  const repository = findRepository(environment.repositoryId);
-  const worktree = findWorktree(repository, environment.worktreeId);
-  const thread = findThread(worktree, environment.threadId);
-
-  const sidebar = (
-    <>
-      <div className="flex h-12 shrink-0 items-center gap-2 px-3">
-        <button
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-[13px] text-white/76 transition-colors hover:bg-white/[0.04]"
-          onClick={() => {
-            const currentIndex = repositories.findIndex(
-              (item) => item.id === repository.id,
-            );
-            const nextRepository = itemAtWrappedIndex(
-              repositories,
-              currentIndex + 1,
-              'The prototype requires a repository.',
-            );
-            selectRepository(nextRepository.id, onEnvironmentChange);
-          }}
-          type="button"
-        >
-          <Folder className="size-3.5 text-white/42" />
-          <span className="truncate">{repository.label}</span>
-          <ChevronDown className="ml-auto size-3.5 text-white/24" />
-        </button>
-        <IconButton label="Add repository">
-          <Plus className="size-3.5" />
-        </IconButton>
-      </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[118px_minmax(0,1fr)] border-t border-white/[0.055]">
-        <div className="border-r border-white/[0.055] p-2">
-          <p className="px-2 pb-2 pt-1 text-[9px] font-medium tracking-[0.09em] text-white/22 uppercase">
-            Worktrees
-          </p>
-          <div className="space-y-1">
-            {repository.worktrees.map((worktreeItem) => {
-              const active = worktreeItem.id === worktree.id;
-              return (
-                <button
-                  className={`w-full rounded-lg px-2 py-2 text-left transition-colors ${active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.035]'}`}
-                  key={worktreeItem.id}
-                  onClick={() =>
-                    selectWorktree(
-                      repository,
-                      worktreeItem.id,
-                      onEnvironmentChange,
-                    )
-                  }
-                  type="button"
-                >
-                  <GitBranch
-                    className={`mb-1.5 size-3 ${active ? 'text-white/54' : 'text-white/24'}`}
-                  />
-                  <p
-                    className={`truncate text-[10px] ${active ? 'text-white/74' : 'text-white/34'}`}
-                  >
-                    {worktreeItem.branch}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="min-w-0 p-2">
-          <div className="flex items-center justify-between px-2 pb-2 pt-1">
-            <p className="text-[9px] font-medium tracking-[0.09em] text-white/22 uppercase">
-              Threads
-            </p>
-            <IconButton label="New thread">
-              <Plus className="size-3" />
-            </IconButton>
-          </div>
-          <div className="space-y-0.5">
-            {worktree.threads.map((threadItem) => {
-              const active = threadItem.id === thread.id;
-              return (
-                <button
-                  className={`group flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors ${active ? 'bg-white/[0.07] text-white/86' : 'text-white/36 hover:bg-white/[0.035] hover:text-white/62'}`}
-                  key={threadItem.id}
-                  onClick={() =>
-                    onEnvironmentChange({
-                      ...environment,
-                      threadId: threadItem.id,
-                    })
-                  }
-                  type="button"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[12px]">
-                    {threadItem.title}
-                  </span>
-                  <MoreHorizontal className="size-3 shrink-0 opacity-0 group-hover:opacity-60" />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
-  return (
-    <AppChrome sidebar={sidebar} sidebarWidth="w-[348px]">
-      <Composer
-        draft={draft}
-        onDraftChange={onDraftChange}
-        repository={repository}
-        thread={thread}
-        worktree={worktree}
-      />
-    </AppChrome>
-  );
-}
-
-/** Keep the sidebar thread-first and move worktree context into the input. */
-export function VariantC({
-  environment,
-  onEnvironmentChange,
-  draft,
-  onDraftChange,
-}: PrototypeSurfaceProps): React.JSX.Element {
-  const repository = findRepository(environment.repositoryId);
-  const worktree = findWorktree(repository, environment.worktreeId);
-  const thread = findThread(worktree, environment.threadId);
-  const allThreads = repository.worktrees.flatMap((item) =>
-    item.threads.map((threadItem) => ({ thread: threadItem, worktree: item })),
-  );
-
-  const sidebar = (
-    <>
-      <div className="flex h-12 shrink-0 items-center gap-2 px-3">
-        <button
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-[13px] text-white/78 transition-colors hover:bg-white/[0.04]"
-          onClick={() => {
-            const firstRepository = requireItem(
-              repositories[0],
-              'The prototype requires a repository.',
-            );
-            const nextRepository =
-              repository.id === firstRepository.id
-                ? requireItem(
-                    repositories[1],
-                    'The prototype requires a second repository.',
-                  )
-                : firstRepository;
-            selectRepository(nextRepository.id, onEnvironmentChange);
-          }}
-          type="button"
-        >
-          <Folder className="size-3.5 text-white/44" />
-          <span className="truncate">{repository.label}</span>
-          <ChevronDown className="ml-auto size-3.5 text-white/24" />
-        </button>
-        <IconButton label="New thread">
-          <Plus className="size-3.5" />
-        </IconButton>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2">
-        <p className="px-2 pb-2 pt-2 text-[9px] font-medium tracking-[0.09em] text-white/22 uppercase">
-          Threads
-        </p>
-        <div className="space-y-0.5">
-          {allThreads.map((item) => {
-            const active = item.thread.id === thread.id;
-            return (
-              <button
-                className={`group flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors ${active ? 'bg-white/[0.07] text-white/86' : 'text-white/38 hover:bg-white/[0.035] hover:text-white/64'}`}
-                key={`${item.worktree.id}-${item.thread.id}`}
-                onClick={() =>
-                  onEnvironmentChange({
-                    repositoryId: repository.id,
-                    worktreeId: item.worktree.id,
-                    threadId: item.thread.id,
-                  })
-                }
-                type="button"
-              >
-                <span className="min-w-0 flex-1 truncate text-[12px]">
-                  {item.thread.title}
-                </span>
-                <span className="shrink-0 text-[9px] text-white/17 group-hover:text-white/28">
-                  {item.thread.age}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
-
-  const worktreeControl = (
-    <button
-      className="flex h-6 items-center gap-1.5 rounded-md px-1.5 text-white/44 transition-colors hover:bg-white/[0.05] hover:text-white/70"
-      onClick={() => {
-        const currentIndex = repository.worktrees.findIndex(
-          (item) => item.id === worktree.id,
-        );
-        const nextWorktree = itemAtWrappedIndex(
-          repository.worktrees,
-          currentIndex + 1,
-          'The prototype requires a worktree.',
-        );
-        selectWorktree(repository, nextWorktree.id, onEnvironmentChange);
-      }}
-      type="button"
-    >
-      <Folder className="size-3" />
-      <span className="text-white/62">{repository.label}</span>
-      <span className="text-white/16">/</span>
-      <GitBranch className="size-3" />
-      <span>{worktree.branch}</span>
-      <ChevronDown className="size-3 text-white/22" />
-    </button>
-  );
-
-  return (
-    <AppChrome sidebar={sidebar} sidebarWidth="w-[268px]">
-      <Composer
-        draft={draft}
-        onDraftChange={onDraftChange}
-        repository={repository}
-        thread={thread}
-        worktree={worktree}
-        worktreeControl={worktreeControl}
-      />
-    </AppChrome>
-  );
-}
-
-function PrototypeSwitcher({
-  variant,
-  onVariantChange,
-  environment,
-  draft,
-}: {
-  readonly variant: VariantKey;
-  readonly onVariantChange: (variant: VariantKey) => void;
-  readonly environment: EnvironmentState;
-  readonly draft: string;
-}): React.JSX.Element {
-  const activeIndex = variants.findIndex((item) => item.key === variant);
-  const activeVariant = requireItem(
-    variants[activeIndex],
-    'The prototype requires an active variant.',
-  );
-  const repository = findRepository(environment.repositoryId);
-  const worktree = findWorktree(repository, environment.worktreeId);
-  const thread = findThread(worktree, environment.threadId);
-
-  const move = (offset: number): void => {
-    const nextIndex =
-      (activeIndex + offset + variants.length) % variants.length;
-    onVariantChange(
-      requireItem(variants[nextIndex], 'The prototype requires a variant.').key,
-    );
-  };
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4">
-      <div className="max-w-[calc(100vw-2rem)] truncate rounded-full border border-white/[0.08] bg-black/65 px-3 py-1.5 text-[9px] tracking-[0.02em] text-white/35 shadow-xl backdrop-blur-xl">
-        <span className="mr-2 text-amber-200/55">prototype state</span>
-        {repository.label} · {worktree.branch} · {thread.title} · {draft.length}{' '}
-        chars
-      </div>
-      <div className="pointer-events-auto flex h-10 items-center rounded-xl border border-white/[0.14] bg-[#20201d]/95 p-1 shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-xl">
-        <button
-          aria-label="Previous variant"
-          className="grid size-8 place-items-center rounded-lg text-white/42 transition-colors hover:bg-white/[0.07] hover:text-white/80"
-          onClick={() => move(-1)}
-          type="button"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-        <button
-          className="flex h-8 min-w-[150px] items-center justify-center gap-2 rounded-lg px-3 text-[11px] text-white/78"
-          onClick={() => move(1)}
-          type="button"
-        >
-          <span className="text-white/30">{activeVariant.key}</span>
-          {activeVariant.label}
-        </button>
-        <button
-          aria-label="Next variant"
-          className="grid size-8 place-items-center rounded-lg text-white/42 transition-colors hover:bg-white/[0.07] hover:text-white/80"
-          onClick={() => move(1)}
-          type="button"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** Render the disposable clean-environment prototype and its variant switcher. */
+/** Render the selected disposable clean-environment prototype. */
 export function CleanEnvironmentPrototype(): React.JSX.Element {
-  const [variant, setVariant] = useState<VariantKey>(readVariant);
   const [environment, setEnvironment] =
     useState<EnvironmentState>(initialEnvironment);
   const [draft, setDraft] = useState('');
 
-  const changeVariant = (nextVariant: VariantKey): void => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('variant', nextVariant);
-    window.history.replaceState(null, '', url);
-    setVariant(nextVariant);
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (shouldIgnoreShortcut(event.target)) return;
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-
-      const activeIndex = variants.findIndex((item) => item.key === variant);
-      const offset = event.key === 'ArrowLeft' ? -1 : 1;
-      const nextIndex =
-        (activeIndex + offset + variants.length) % variants.length;
-      changeVariant(
-        requireItem(variants[nextIndex], 'The prototype requires a variant.')
-          .key,
-      );
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [variant]);
-
-  const surface = useMemo(() => {
-    const props: PrototypeSurfaceProps = {
-      environment,
-      onEnvironmentChange: setEnvironment,
-      draft,
-      onDraftChange: setDraft,
-    };
-
-    if (variant === 'B') return <VariantB {...props} />;
-    if (variant === 'C') return <VariantC {...props} />;
-    return <VariantA {...props} />;
-  }, [draft, environment, variant]);
-
   return (
     <div className="h-full w-full overflow-hidden">
-      {surface}
-      <PrototypeSwitcher
+      <VariantA
         draft={draft}
         environment={environment}
-        onVariantChange={changeVariant}
-        variant={variant}
+        onDraftChange={setDraft}
+        onEnvironmentChange={setEnvironment}
       />
     </div>
   );

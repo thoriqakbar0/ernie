@@ -8,7 +8,7 @@
   "scripts": {
     "start": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js .",
     "dev": "nub run build:main && nub --node scripts/development.mjs",
-    "prototype:clean": "ERNIE_RENDERER_QUERY=variant=C nub run dev",
+    "prototype:clean": "ERNIE_RENDERER_QUERY=variant=A nub run dev",
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
     "build": "nub run build:main && nub run build:renderer",

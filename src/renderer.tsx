@@ -63,9 +63,7 @@ function signalReadyAfterPaint(): () => void {
   const cleanEnvironmentPrototype =
     window.location.hostname === '127.0.0.1' &&
     window.location.port === '5173' &&
-    (prototypeVariant === 'A' ||
-      prototypeVariant === 'B' ||
-      prototypeVariant === 'C');
+    prototypeVariant === 'A';
 
   if (cleanEnvironmentPrototype || isAgentationToolbarVisible()) {
     signal();

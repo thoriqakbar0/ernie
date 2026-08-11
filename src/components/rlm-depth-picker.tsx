@@ -1,6 +1,5 @@
-import { NumberField } from '@base-ui/react/number-field';
 import { MinusIcon, PlusIcon } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo } from 'react';
 
 import { Button } from '@/components/trovecn/ui/button';
 import {
@@ -23,22 +22,17 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
   depth,
   onDepthChange,
 }: RlmDepthPickerProps): React.JSX.Element {
-  const [draftDepth, setDraftDepth] = useState<number | null>(depth);
-
-  function commitDepth(nextDepth: number | null): void {
+  function requestDepth(nextDepth: number): void {
     if (
-      nextDepth === null ||
       !Number.isSafeInteger(nextDepth) ||
       nextDepth < 0 ||
       nextDepth > maximumRlmDepth
     ) {
-      setDraftDepth(depth);
       return;
     }
 
     if (nextDepth !== depth) {
       onDepthChange(String(nextDepth));
-      setDraftDepth(depth);
     }
   }
 
@@ -70,68 +64,50 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
             Available after starting an Agent.
           </p>
         ) : (
-          <NumberField.Root
-            value={draftDepth}
-            min={0}
-            max={maximumRlmDepth}
-            step={1}
-            disabled={busy}
-            onValueChange={setDraftDepth}
-            onValueCommitted={commitDepth}
+          <div
+            role="group"
+            aria-label="Agent depth"
+            className="inline-flex items-center gap-0.5"
           >
-            <NumberField.Group
-              aria-label="Agent depth"
-              className="inline-flex items-center gap-0.5"
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={busy || depth === 0}
+              aria-label="Decrease Agent depth"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-35"
+              onClick={() => requestDepth(depth - 1)}
+              onPointerUp={(event) => event.currentTarget.blur()}
             >
-              <NumberField.Decrement
-                aria-label="Decrease Agent depth"
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-35"
-                  />
-                }
-                onPointerUp={(event) => event.currentTarget.blur()}
-              >
-                <MinusIcon
-                  aria-hidden="true"
-                  className="size-4"
-                  strokeWidth={1.75}
-                />
-              </NumberField.Decrement>
-              <NumberField.Input
-                aria-label="Agent depth"
-                inputMode="numeric"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    commitDepth(draftDepth);
-                  }
-                }}
-                className="h-7 w-8 rounded-md bg-transparent px-0 text-center text-sm font-medium tabular-nums outline-none selection:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring/50"
+              <MinusIcon
+                aria-hidden="true"
+                className="size-4"
+                strokeWidth={1.75}
               />
-              <NumberField.Increment
-                aria-label="Increase Agent depth"
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-35"
-                  />
-                }
-                onPointerUp={(event) => event.currentTarget.blur()}
-              >
-                <PlusIcon
-                  aria-hidden="true"
-                  className="size-4"
-                  strokeWidth={1.75}
-                />
-              </NumberField.Increment>
-            </NumberField.Group>
-          </NumberField.Root>
+            </Button>
+            <output
+              aria-label="Current Agent depth"
+              className="w-8 text-center text-sm font-medium tabular-nums text-foreground"
+            >
+              {depth}
+            </output>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={busy || depth === maximumRlmDepth}
+              aria-label="Increase Agent depth"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-35"
+              onClick={() => requestDepth(depth + 1)}
+              onPointerUp={(event) => event.currentTarget.blur()}
+            >
+              <PlusIcon
+                aria-hidden="true"
+                className="size-4"
+                strokeWidth={1.75}
+              />
+            </Button>
+          </div>
         )}
       </PopoverContent>
     </Popover>

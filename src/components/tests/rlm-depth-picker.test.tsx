@@ -112,7 +112,7 @@ test('user cannot increase the RLM depth above twenty', async () => {
   });
   await user.click(increaseButton);
 
-  assert.equal(increaseButton.getAttribute('aria-disabled'), 'true');
+  assert.equal(increaseButton.hasAttribute('disabled'), true);
   assert.deepEqual(requestedDepths, []);
 });
 
@@ -134,52 +134,31 @@ test('user cannot decrease the RLM depth below zero', async () => {
   });
   await user.click(decreaseButton);
 
-  assert.equal(decreaseButton.getAttribute('aria-disabled'), 'true');
+  assert.equal(decreaseButton.hasAttribute('disabled'), true);
   assert.deepEqual(requestedDepths, []);
 });
 
-test('user can type an RLM depth and commit it with Enter', async () => {
-  const requestedDepths: Array<string | null> = [];
+test('RLM depth is displayed without another text control', async () => {
   const user = userEvent.setup();
 
   render(
     <RlmDepthPicker
       busy={false}
       depth={5}
-      onDepthChange={(depth) => requestedDepths.push(depth)}
+      onDepthChange={() => undefined}
     />,
   );
 
   await openDepthEditor(user, 5);
-  const input = within(document.body).getByRole('textbox', {
-    name: 'Agent depth',
-  });
-  await user.clear(input);
-  await user.type(input, '12{Enter}');
 
-  assert.deepEqual(requestedDepths, ['12']);
-});
-
-test('typed RLM depth is capped at twenty', async () => {
-  const requestedDepths: Array<string | null> = [];
-  const user = userEvent.setup();
-
-  render(
-    <RlmDepthPicker
-      busy={false}
-      depth={5}
-      onDepthChange={(depth) => requestedDepths.push(depth)}
-    />,
+  assert.equal(
+    within(document.body).queryByRole('textbox', { name: 'Agent depth' }),
+    null,
   );
-
-  await openDepthEditor(user, 5);
-  const input = within(document.body).getByRole('textbox', {
-    name: 'Agent depth',
-  });
-  await user.clear(input);
-  await user.type(input, '21{Enter}');
-
-  assert.deepEqual(requestedDepths, ['20']);
+  assert.equal(
+    within(document.body).getByLabelText('Current Agent depth').textContent,
+    '5',
+  );
 });
 
 test('unavailable depth explains when the control becomes available', async () => {

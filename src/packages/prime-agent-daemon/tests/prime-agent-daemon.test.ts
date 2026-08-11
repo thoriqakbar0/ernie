@@ -14,6 +14,7 @@ import {
 import {
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
+  parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
@@ -23,6 +24,7 @@ import {
   createPrimeAgentDaemon,
   parsePrimeAgentDaemonCreatedSession,
   parsePrimeAgentDaemonModels,
+  parsePrimeAgentDaemonSavedSessions,
   parsePrimeAgentDaemonSessions,
   parsePrimeAgentDaemonSkills,
 } from '../server';
@@ -97,6 +99,10 @@ testInTempDirectory(
       currentCwd: cwd,
       daemonEntrypointPath: primeAgentCliPath,
       executablePath: process.execPath,
+      sessionNameExtensionPath: join(
+        process.cwd(),
+        'src/packages/session-name-hook/index.ts',
+      ),
       socketPath,
     });
 
@@ -221,6 +227,59 @@ test('parses a newly created detached session before Ernie attaches', () => {
   });
 });
 
+test('keeps and orders durable top-level Prime Agent sessions', () => {
+  const result = parsePrimeAgentDaemonSavedSessions({
+    sessions: [
+      {
+        cwd: '/workspace/ernie',
+        firstMessage: 'Older session',
+        id: 'older',
+        messageCount: 4,
+        modified: '2026-08-09T10:00:00.000Z',
+        path: '/sessions/older.jsonl',
+      },
+      {
+        cwd: '/workspace/ernie',
+        id: 'child',
+        messageCount: 2,
+        modified: '2026-08-11T10:00:00.000Z',
+        parentSessionPath: '/sessions/newer.jsonl',
+        path: '/sessions/child.jsonl',
+        rlmDepth: 1,
+      },
+      {
+        cwd: '/workspace/kastuli',
+        firstMessage: 'Fallback message',
+        id: 'newer',
+        messageCount: 12,
+        modified: '2026-08-10T10:00:00.000Z',
+        name: 'Saved architecture review',
+        path: '/sessions/newer.jsonl',
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: [
+      {
+        cwd: '/workspace/kastuli',
+        messageCount: 12,
+        modifiedAt: '2026-08-10T10:00:00.000Z',
+        name: 'Saved architecture review',
+        path: '/sessions/newer.jsonl',
+      },
+      {
+        cwd: '/workspace/ernie',
+        messageCount: 4,
+        modifiedAt: '2026-08-09T10:00:00.000Z',
+        name: 'Older session',
+        path: '/sessions/older.jsonl',
+      },
+    ],
+  });
+});
+
 test('keeps and orders only skill commands from the daemon', () => {
   const result = parsePrimeAgentDaemonSkills({
     commands: [
@@ -266,6 +325,21 @@ test('validates created sessions and skills after IPC', () => {
         model: null,
         modifiedAt: null,
       },
+    }).ok,
+    true,
+  );
+  assert.equal(
+    parsePrimeAgentSavedSessionsResult({
+      ok: true,
+      value: [
+        {
+          cwd: '/workspace/ernie',
+          messageCount: 4,
+          modifiedAt: '2026-08-10T10:00:00.000Z',
+          name: 'Saved architecture review',
+          path: '/sessions/architecture.jsonl',
+        },
+      ],
     }).ok,
     true,
   );

@@ -11,6 +11,7 @@ import type {
   PrimeAgentResult,
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
+  PrimeAgentSavedSession,
   PrimeAgentSession,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
@@ -87,6 +88,51 @@ function sessionName(value: Record<string, unknown>, cwd: string): string {
   return pathBasename(cwd);
 }
 
+function savedSessionName(
+  value: Record<string, unknown>,
+  cwd: string,
+): string {
+  const explicitName = nonEmptyString(value.name);
+  if (explicitName !== null) return explicitName;
+
+  const firstMessage = nonEmptyString(value.firstMessage);
+  if (firstMessage !== null && firstMessage !== '(no messages)') {
+    return firstMessage.length > 64
+      ? `${firstMessage.slice(0, 61)}…`
+      : firstMessage;
+  }
+
+  return pathBasename(cwd);
+}
+
+function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
+  if (!isRecord(value)) return null;
+
+  const path = nonEmptyString(value.path);
+  const cwd = nonEmptyString(value.cwd);
+  const modifiedAt = nonEmptyString(value.modified);
+  const messageCount = value.messageCount;
+  if (
+    path === null ||
+    cwd === null ||
+    modifiedAt === null ||
+    !Number.isFinite(Date.parse(modifiedAt)) ||
+    typeof messageCount !== 'number' ||
+    !Number.isSafeInteger(messageCount) ||
+    messageCount < 0
+  ) {
+    return null;
+  }
+
+  return {
+    path,
+    cwd,
+    modifiedAt,
+    messageCount,
+    name: savedSessionName(value, cwd),
+  };
+}
+
 function parseSession(
   value: unknown,
   requireAttachedClient: boolean,
@@ -142,6 +188,43 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
   };
 }
 
+function parseSavedSessionDto(value: unknown): PrimeAgentSavedSession | null {
+  if (!isRecord(value)) return null;
+
+  const path = nonEmptyString(value.path);
+  const cwd = nonEmptyString(value.cwd);
+  const name = nonEmptyString(value.name);
+  const modifiedAt = nonEmptyString(value.modifiedAt);
+  const messageCount = value.messageCount;
+  if (
+    path === null ||
+    cwd === null ||
+    name === null ||
+    modifiedAt === null ||
+    !Number.isFinite(Date.parse(modifiedAt)) ||
+    typeof messageCount !== 'number' ||
+    !Number.isSafeInteger(messageCount) ||
+    messageCount < 0
+  ) {
+    return null;
+  }
+
+  return { path, cwd, name, modifiedAt, messageCount };
+}
+
+function parseSavedSessions(
+  value: unknown,
+): readonly PrimeAgentSavedSession[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const sessions = value.map(parseSavedSessionDto);
+  return sessions.some((session) => session === null)
+    ? null
+    : sessions.filter(
+        (session): session is PrimeAgentSavedSession => session !== null,
+      );
+}
+
 function parseModels(value: unknown): readonly PrimeAgentModel[] | null {
   if (!Array.isArray(value)) return null;
 
@@ -170,6 +253,45 @@ export function parseSessionListData(
     );
 
   return { ok: true, value: sessions };
+}
+
+/** Parse durable top-level sessions returned by the Prime Agent daemon. */
+export function parseSavedSessionListData(
+  value: unknown,
+): PrimeAgentResult<readonly PrimeAgentSavedSession[]> {
+  if (!isRecord(value) || !Array.isArray(value.sessions)) {
+    return failure(
+      'protocol_error',
+      'Prime Agent returned an invalid saved session list.',
+    );
+  }
+
+  const sessions: PrimeAgentSavedSession[] = [];
+  for (const candidate of value.sessions) {
+    if (
+      isRecord(candidate) &&
+      (candidate.parentSessionPath !== undefined ||
+        (typeof candidate.rlmDepth === 'number' && candidate.rlmDepth > 0))
+    ) {
+      continue;
+    }
+
+    const session = parseSavedSession(candidate);
+    if (session === null) {
+      return failure(
+        'protocol_error',
+        'Prime Agent returned invalid saved session data.',
+      );
+    }
+    sessions.push(session);
+  }
+
+  return {
+    ok: true,
+    value: sessions.sort((left, right) =>
+      right.modifiedAt.localeCompare(left.modifiedAt),
+    ),
+  };
 }
 
 /** Parse one newly created Prime Agent session. */
@@ -287,6 +409,14 @@ export function parseActiveSessionId(
   return activeSessionId === null
     ? failure('invalid_request', 'The active session identifier is invalid.')
     : { ok: true, value: activeSessionId };
+}
+
+/** Parse a saved session path received from the isolated renderer. */
+export function parseSavedSessionPath(value: unknown): PrimeAgentResult<string> {
+  const sessionPath = nonEmptyString(value);
+  return sessionPath === null
+    ? failure('invalid_request', 'The saved session path is invalid.')
+    : { ok: true, value: sessionPath };
 }
 
 /** Parse RLM maximum-depth state returned by the Prime Agent daemon. */
@@ -473,6 +603,13 @@ export function parseSessionResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentSession> {
   return parseResult(value, parseSessionResultValue);
+}
+
+/** Parse saved sessions after they cross the Electron IPC boundary. */
+export function parseSavedSessionsResult(
+  value: unknown,
+): PrimeAgentResult<readonly PrimeAgentSavedSession[]> {
+  return parseResult(value, parseSavedSessions);
 }
 
 /** Parse an Agent skill catalog after it crosses the Electron IPC boundary. */

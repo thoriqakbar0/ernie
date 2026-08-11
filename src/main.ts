@@ -20,7 +20,9 @@ import {
   primeAgentGitBranchesChannel,
   primeAgentInitializeGitChannel,
   primeAgentDeleteGitBranchChannel,
+  primeAgentImportSessionChannel,
   primeAgentModelsChannel,
+  primeAgentSavedSessionsChannel,
   primeAgentSkillsChannel,
   primeAgentRlmDepthChannel,
   primeAgentRenameGitBranchChannel,
@@ -85,6 +87,10 @@ function registerPrimeAgentHandlers(): void {
       'packages/prime-agent-daemon/daemon-runner.js',
     ),
     executablePath: process.execPath,
+    sessionNameExtensionPath: path.join(
+      __dirname,
+      'packages/session-name-hook/index.js',
+    ),
   });
 
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
@@ -92,6 +98,14 @@ function registerPrimeAgentHandlers(): void {
   );
   ipcMain.handle(primeAgentCreateSessionChannel, (_event, cwd: unknown) =>
     Effect.runPromise(daemon.createSession(cwd)),
+  );
+  ipcMain.handle(primeAgentSavedSessionsChannel, () =>
+    Effect.runPromise(daemon.listSavedSessions()),
+  );
+  ipcMain.handle(
+    primeAgentImportSessionChannel,
+    (_event, sessionPath: unknown) =>
+      Effect.runPromise(daemon.importSession(sessionPath)),
   );
   ipcMain.handle(
     primeAgentModelsChannel,

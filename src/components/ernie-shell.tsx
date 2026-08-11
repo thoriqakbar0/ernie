@@ -42,7 +42,7 @@ export function ErnieShell({
 
         <SidebarInset className="min-w-0 overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
-            <SidebarTrigger className="md:hidden" />
+            <SidebarTrigger aria-label="Toggle repository sidebar" />
             <div className="ms-auto flex items-center gap-2">
               <Field orientation="horizontal" className="w-auto">
                 <FieldLabel htmlFor="agentation">annotate</FieldLabel>

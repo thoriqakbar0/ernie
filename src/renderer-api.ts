@@ -16,6 +16,14 @@ export const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 /** IPC channel that creates one fresh Agent session in a workspace. */
 export const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
 
+/** IPC channel that lists durable Prime Agent sessions available to import. */
+export const primeAgentSavedSessionsChannel =
+  'ernie:prime-agent:saved-sessions';
+
+/** IPC channel that reopens one durable Prime Agent session in Ernie. */
+export const primeAgentImportSessionChannel =
+  'ernie:prime-agent:import-session';
+
 /** IPC channel that lists configured models for one Prime Agent session. */
 export const primeAgentModelsChannel = 'ernie:prime-agent:models';
 
@@ -66,6 +74,8 @@ export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
   listPrimeAgentWorkspace: () => Promise<unknown>;
   createPrimeAgentSession: (cwd: string) => Promise<unknown>;
+  listPrimeAgentSavedSessions: () => Promise<unknown>;
+  importPrimeAgentSession: (sessionPath: string) => Promise<unknown>;
   listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
   listPrimeAgentSkills: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;

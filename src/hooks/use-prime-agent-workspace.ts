@@ -9,10 +9,12 @@ import {
   parsePrimeAgentModelResult,
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
+  parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentWorkspaceResult,
   type PrimeAgentModel,
+  type PrimeAgentSavedSession,
   type PrimeAgentSession,
   type PrimeAgentSkill,
   type PrimeAgentWorkspace,
@@ -34,6 +36,8 @@ export interface PrimeAgentWorkspaceController {
   readonly gitWorktreeError: string | null;
   readonly creatingAgent: boolean;
   readonly loadingWorkspace: boolean;
+  readonly loadingSavedSessions: boolean;
+  readonly importingSessionPath: string | null;
   readonly modelBusy: boolean;
   readonly models: readonly PrimeAgentModel[];
   readonly skills: readonly PrimeAgentSkill[];
@@ -44,9 +48,12 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedModelKey: string | null;
   readonly selectedSessionId: string | null;
   readonly sessions: readonly PrimeAgentSession[];
+  readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
   readonly createAgent: (cwd?: string) => void;
+  readonly loadSavedSessions: () => void;
+  readonly importSession: (sessionPath: string) => void;
   readonly selectSession: (activeSessionId: string) => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly changeGitBranch: (name: string | null) => void;
@@ -97,6 +104,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [gitBranches, setGitBranches] = useState<readonly string[]>([]);
   const [rlmDepth, setRlmDepth] = useState<number | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
+  const [loadingSavedSessions, setLoadingSavedSessions] = useState(false);
+  const [importingSessionPath, setImportingSessionPath] = useState<
+    string | null
+  >(null);
+  const [savedSessions, setSavedSessions] = useState<
+    readonly PrimeAgentSavedSession[]
+  >([]);
   const [loadingSession, setLoadingSession] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
@@ -111,16 +125,25 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     let active = true;
     const loadWorkspace = Effect.fn('Workspace.load')(function* () {
       yield* Effect.sync(() => setStatus('Connecting to Prime Agent…'));
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.listPrimeAgentWorkspace(),
+      const [rawWorkspace, rawSavedSessions] = yield* Effect.all(
+        [
+          Effect.tryPromise(() => window.ernie.listPrimeAgentWorkspace()),
+          Effect.tryPromise(() =>
+            window.ernie.listPrimeAgentSavedSessions(),
+          ).pipe(Effect.catchAll(() => Effect.succeed(null))),
+        ],
+        { concurrency: 'unbounded' },
       );
       if (!active) return;
 
-      const result = parsePrimeAgentWorkspaceResult(rawResult);
+      const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
       }
+      const savedSessionsResult = parsePrimeAgentSavedSessionsResult(
+        rawSavedSessions,
+      );
 
       const initialCwd = result.value.sessions.some(
         (session) => session.cwd === result.value.currentCwd,
@@ -130,6 +153,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const initialSession = newestSession(result.value.sessions, initialCwd);
       yield* Effect.sync(() => {
         setWorkspace(result.value);
+        if (savedSessionsResult.ok) {
+          setSavedSessions(savedSessionsResult.value);
+        }
         setSelectedCwd(initialCwd);
         setSelectedSessionId(initialSession?.activeSessionId ?? null);
         setStatus(
@@ -313,10 +339,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             workspace.currentCwd,
             ...workspace.sessions.map((session) => session.cwd),
           ]),
+      ...savedSessions.map((session) => session.cwd),
       ...addedCwds,
     ]);
     return [...paths].map((cwd) => ({ label: folderName(cwd), value: cwd }));
-  }, [addedCwds, workspace]);
+  }, [addedCwds, savedSessions, workspace]);
 
   const agents = useMemo(
     () =>
@@ -388,6 +415,93 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           ),
         ),
         Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
+      ),
+    );
+  }
+
+  function loadSavedSessions(): void {
+    if (loadingSavedSessions) return;
+
+    const load = Effect.fn('Workspace.loadSavedSessions')(function* () {
+      yield* Effect.sync(() => {
+        setLoadingSavedSessions(true);
+        setStatus('Loading saved Prime Agent sessions…');
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.listPrimeAgentSavedSessions(),
+      );
+      const result = parsePrimeAgentSavedSessionsResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        setSavedSessions(result.value);
+        setStatus(
+          result.value.length === 0
+            ? 'No saved Prime Agent sessions found.'
+            : `Found ${result.value.length} saved Prime Agent sessions.`,
+        );
+      });
+    });
+
+    Effect.runFork(
+      load().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not load saved Prime Agent sessions.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setLoadingSavedSessions(false))),
+      ),
+    );
+  }
+
+  function importSession(sessionPath: string): void {
+    if (importingSessionPath !== null) return;
+
+    const importSavedSession = Effect.fn('Workspace.importSession')(
+      function* () {
+        yield* Effect.sync(() => {
+          setImportingSessionPath(sessionPath);
+          setStatus('Importing saved Prime Agent session…');
+        });
+        const rawResult = yield* Effect.tryPromise(() =>
+          window.ernie.importPrimeAgentSession(sessionPath),
+        );
+        const result = parsePrimeAgentSessionResult(rawResult);
+        if (!result.ok) {
+          yield* Effect.sync(() => setStatus(result.error.message));
+          return;
+        }
+
+        yield* Effect.sync(() => {
+          setWorkspace((current) => ({
+            currentCwd: current?.currentCwd ?? result.value.cwd,
+            sessions: [
+              result.value,
+              ...(current?.sessions.filter(
+                (session) =>
+                  session.activeSessionId !== result.value.activeSessionId,
+              ) ?? []),
+            ],
+          }));
+          setSelectedCwd(result.value.cwd);
+          setSelectedSessionId(result.value.activeSessionId);
+          setStatus('Saved Agent imported.');
+        });
+      },
+    );
+
+    Effect.runFork(
+      importSavedSession().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not import the saved Agent.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setImportingSessionPath(null))),
       ),
     );
   }
@@ -747,6 +861,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       modelBusy ||
       rlmDepthBusy ||
       choosingDirectory ||
+      loadingSavedSessions ||
+      importingSessionPath !== null ||
       creatingAgent ||
       gitBranchBusy,
     creatingAgent,
@@ -756,6 +872,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     gitBranches,
     gitWorktreeError,
     loadingWorkspace,
+    loadingSavedSessions,
+    importingSessionPath,
     modelBusy,
     models,
     skills,
@@ -766,9 +884,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedModelKey,
     selectedSessionId,
     sessions: workspace?.sessions ?? [],
+    savedSessions,
     status,
     changeFolder,
     createAgent,
+    loadSavedSessions,
+    importSession,
     selectSession,
     chooseWorkspaceDirectory,
     changeGitBranch,

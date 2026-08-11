@@ -7,6 +7,8 @@ import type { ErnieRendererApi } from './renderer-api';
 const rendererReadyChannel = 'ernie:renderer-ready';
 const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
+const primeAgentSavedSessionsChannel = 'ernie:prime-agent:saved-sessions';
+const primeAgentImportSessionChannel = 'ernie:prime-agent:import-session';
 const primeAgentModelsChannel = 'ernie:prime-agent:models';
 const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
@@ -34,6 +36,12 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   createPrimeAgentSession(cwd) {
     return ipcRenderer.invoke(primeAgentCreateSessionChannel, cwd);
+  },
+  listPrimeAgentSavedSessions() {
+    return ipcRenderer.invoke(primeAgentSavedSessionsChannel);
+  },
+  importPrimeAgentSession(sessionPath) {
+    return ipcRenderer.invoke(primeAgentImportSessionChannel, sessionPath);
   },
   listPrimeAgentModels(activeSessionId) {
     return ipcRenderer.invoke(primeAgentModelsChannel, activeSessionId);

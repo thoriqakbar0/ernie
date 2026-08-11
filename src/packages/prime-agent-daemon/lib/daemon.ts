@@ -1,5 +1,6 @@
 import type {
   DaemonClient,
+  DaemonCommand,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
 import { Effect, Schedule } from 'effect';
@@ -9,6 +10,7 @@ import type {
   PrimeAgentDaemonConfiguration,
   PrimeAgentFailureCode,
   PrimeAgentResult,
+  PrimeAgentSession,
 } from '../types';
 import { startPrimeAgentDaemonProcess } from './daemon-process';
 import {
@@ -19,6 +21,8 @@ import {
   parseModelSelection,
   parseRlmDepthData,
   parseRlmDepthSelection,
+  parseSavedSessionListData,
+  parseSavedSessionPath,
   parseSessionListData,
   parseSkillCatalogData,
   parseTaskSubmission,
@@ -63,7 +67,10 @@ interface PrimeAgentDaemonRuntime {
   readonly socketPath: string;
 }
 
-/** Create the Prime Agent daemon adapter owned by Electron's main process. */
+type SessionOpenRequest =
+  | Readonly<{ type: 'new'; cwd: string }>
+  | Readonly<{ type: 'saved'; sessionPath: string }>;
+
 export function createPrimeAgentDaemon(
   configuration: PrimeAgentDaemonConfiguration,
 ): PrimeAgentDaemon {
@@ -73,9 +80,10 @@ export function createPrimeAgentDaemon(
   }
   if (
     configuration.daemonEntrypointPath.trim().length === 0 ||
-    configuration.executablePath.trim().length === 0
+    configuration.executablePath.trim().length === 0 ||
+    configuration.sessionNameExtensionPath.trim().length === 0
   ) {
-    throw new Error('Prime Agent daemon process paths must not be empty.');
+    throw new Error('Prime Agent process and extension paths must not be empty.');
   }
   const retainedSessionClients = new Map<string, DaemonClient>();
 
@@ -249,95 +257,150 @@ export function createPrimeAgentDaemon(
     },
   );
 
+  const listSavedSessions = Effect.fn(
+    'PrimeAgentDaemon.listSavedSessions',
+  )(() =>
+    withClient((client) =>
+      Effect.tryPromise(() =>
+        client.request(
+          {
+            type: 'list_saved_sessions',
+            cwd: normalizedCwd,
+            scope: 'all',
+          },
+          30_000,
+        ),
+      ).pipe(
+        Effect.map(responseData),
+        Effect.map((response) =>
+          response.ok ? parseSavedSessionListData(response.value) : response,
+        ),
+      ),
+    ),
+  );
+
+  function openSession(
+    request: SessionOpenRequest,
+  ): Effect.Effect<PrimeAgentResult<PrimeAgentSession>> {
+    let connected = false;
+    const command: Extract<DaemonCommand, { type: 'create' }> =
+      request.type === 'new'
+        ? {
+            type: 'create',
+            config: {
+              cwd: request.cwd,
+              extensions: [configuration.sessionNameExtensionPath],
+            },
+            lifecycle: 'resident',
+          }
+        : {
+            type: 'create',
+            sessionPath: request.sessionPath,
+            config: {
+              extensions: [configuration.sessionNameExtensionPath],
+            },
+            lifecycle: 'resident',
+          };
+
+    return ensureDaemonReady.pipe(
+      Effect.andThen(loadRuntime),
+      Effect.map((runtime) => runtime.createClient()),
+      Effect.flatMap((client) => {
+        let retained = false;
+        return Effect.acquireUseRelease(
+          Effect.succeed(client),
+          (activeClient) =>
+            Effect.gen(function* () {
+              yield* Effect.tryPromise(() =>
+                activeClient.connect(connectTimeoutMs),
+              );
+              connected = true;
+
+              const rawCreateResponse = yield* Effect.tryPromise(() =>
+                activeClient.request(command, requestTimeoutMs),
+              );
+              const createResponse = responseData(rawCreateResponse);
+              if (!createResponse.ok) return createResponse;
+
+              const session = parseCreatedSessionData(createResponse.value);
+              if (!session.ok) return session;
+
+              const rawAttachResponse = yield* Effect.tryPromise(() =>
+                activeClient.request(
+                  {
+                    type: 'attach',
+                    activeSessionId: session.value.activeSessionId,
+                  },
+                  requestTimeoutMs,
+                ),
+              );
+              const attachResponse = responseData(rawAttachResponse);
+              if (!attachResponse.ok) return attachResponse;
+
+              const previousClient = retainedSessionClients.get(
+                session.value.activeSessionId,
+              );
+              previousClient?.close();
+              retainedSessionClients.set(
+                session.value.activeSessionId,
+                activeClient,
+              );
+              retained = true;
+              return session;
+            }),
+          (activeClient) =>
+            Effect.sync(() => {
+              if (!retained) activeClient.close();
+            }),
+        );
+      }),
+      Effect.catchAll((error) =>
+        invalidateDaemonReadiness.pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              const importing = request.type === 'saved';
+              reportOperationalFailure(
+                connected
+                  ? importing
+                    ? 'Prime Agent session import failed.'
+                    : 'Prime Agent session creation failed.'
+                  : 'Prime Agent connection failed.',
+                error,
+              );
+              return connected
+                ? failure(
+                    'request_failed',
+                    importing
+                      ? 'Prime Agent could not import the saved Agent.'
+                      : 'Prime Agent could not create the Agent.',
+                  )
+                : failure(
+                    'daemon_unavailable',
+                    'Ernie could not start the Prime Agent daemon.',
+                  );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
   const createSession = Effect.fn('PrimeAgentDaemon.createSession')(
     (cwd: unknown) => {
       const parsedCwd = parseWorkspaceCwd(cwd);
       if (!parsedCwd.ok) return Effect.succeed(parsedCwd);
+      return openSession({ type: 'new', cwd: parsedCwd.value });
+    },
+  );
 
-      let connected = false;
-      return ensureDaemonReady.pipe(
-        Effect.andThen(loadRuntime),
-        Effect.map((runtime) => runtime.createClient()),
-        Effect.flatMap((client) => {
-          let retained = false;
-          return Effect.acquireUseRelease(
-            Effect.succeed(client),
-            (activeClient) =>
-              Effect.gen(function* () {
-                yield* Effect.tryPromise(() =>
-                  activeClient.connect(connectTimeoutMs),
-                );
-                connected = true;
-
-                const rawCreateResponse = yield* Effect.tryPromise(() =>
-                  activeClient.request(
-                    {
-                      type: 'create',
-                      config: { cwd: parsedCwd.value },
-                      lifecycle: 'resident',
-                    },
-                    requestTimeoutMs,
-                  ),
-                );
-                const createResponse = responseData(rawCreateResponse);
-                if (!createResponse.ok) return createResponse;
-
-                const session = parseCreatedSessionData(createResponse.value);
-                if (!session.ok) return session;
-
-                const rawAttachResponse = yield* Effect.tryPromise(() =>
-                  activeClient.request(
-                    {
-                      type: 'attach',
-                      activeSessionId: session.value.activeSessionId,
-                    },
-                    requestTimeoutMs,
-                  ),
-                );
-                const attachResponse = responseData(rawAttachResponse);
-                if (!attachResponse.ok) return attachResponse;
-
-                const previousClient = retainedSessionClients.get(
-                  session.value.activeSessionId,
-                );
-                previousClient?.close();
-                retainedSessionClients.set(
-                  session.value.activeSessionId,
-                  activeClient,
-                );
-                retained = true;
-                return session;
-              }),
-            (activeClient) =>
-              Effect.sync(() => {
-                if (!retained) activeClient.close();
-              }),
-          );
-        }),
-        Effect.catchAll((error) =>
-          invalidateDaemonReadiness.pipe(
-            Effect.andThen(
-              Effect.sync(() => {
-                reportOperationalFailure(
-                  connected
-                    ? 'Prime Agent session creation failed.'
-                    : 'Prime Agent connection failed.',
-                  error,
-                );
-                return connected
-                  ? failure(
-                      'request_failed',
-                      'Prime Agent could not create the Agent.',
-                    )
-                  : failure(
-                      'daemon_unavailable',
-                      'Ernie could not start the Prime Agent daemon.',
-                    );
-              }),
-            ),
-          ),
-        ),
-      );
+  const importSession = Effect.fn('PrimeAgentDaemon.importSession')(
+    (sessionPath: unknown) => {
+      const parsedSessionPath = parseSavedSessionPath(sessionPath);
+      if (!parsedSessionPath.ok) return Effect.succeed(parsedSessionPath);
+      return openSession({
+        type: 'saved',
+        sessionPath: parsedSessionPath.value,
+      });
     },
   );
 
@@ -449,7 +512,9 @@ export function createPrimeAgentDaemon(
     listWorkspace,
     listModels,
     listSkills,
+    listSavedSessions,
     createSession,
+    importSession,
     setModel,
     getRlmDepth,
     setRlmDepth,

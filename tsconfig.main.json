@@ -8,6 +8,7 @@
   "include": [
     "src/main.ts",
     "src/preload.ts",
-    "src/packages/prime-agent-daemon/daemon-runner.ts"
+    "src/packages/prime-agent-daemon/daemon-runner.ts",
+    "src/packages/session-name-hook/index.ts"
   ]
 }

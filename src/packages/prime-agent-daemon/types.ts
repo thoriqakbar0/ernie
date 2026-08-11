@@ -15,6 +15,15 @@ export interface PrimeAgentSession {
   readonly modifiedAt: string | null;
 }
 
+/** A durable Prime Agent session that can be reopened in Ernie. */
+export interface PrimeAgentSavedSession {
+  readonly cwd: string;
+  readonly messageCount: number;
+  readonly modifiedAt: string;
+  readonly name: string;
+  readonly path: string;
+}
+
 /** One Prime Agent skill available to the active Agent conversation. */
 export interface PrimeAgentSkill {
   readonly command: string;
@@ -83,6 +92,7 @@ export interface PrimeAgentDaemonConfiguration {
   readonly currentCwd: string;
   readonly daemonEntrypointPath: string;
   readonly executablePath: string;
+  readonly sessionNameExtensionPath: string;
   readonly socketPath?: string;
 }
 
@@ -137,6 +147,12 @@ export interface PrimeAgentDaemon {
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
   readonly createSession: (
     cwd: unknown,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
+  readonly listSavedSessions: () => Effect.Effect<
+    PrimeAgentResult<readonly PrimeAgentSavedSession[]>
+  >;
+  readonly importSession: (
+    sessionPath: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
   readonly setModel: (
     selection: unknown,

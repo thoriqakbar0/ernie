@@ -2,13 +2,12 @@ import {
   ChevronRightIcon,
   FolderIcon,
   FolderPlusIcon,
-  GitBranchIcon,
   ListFilterIcon,
   LoaderCircleIcon,
   PlusIcon,
   SettingsIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useState, type DragEvent } from 'react';
 
 import { RenameThreadDialog } from '@/components/rename-thread-dialog';
 import {
@@ -84,6 +83,11 @@ interface LocatedConversation {
   readonly workspace: WorkspaceGroup;
 }
 
+interface ArchiveUndo {
+  readonly id: string;
+  readonly name: string;
+}
+
 function conversationFallbackIdentity(cwd: string, name: string): string {
   return `${cwd}\u0000${name}`;
 }
@@ -106,6 +110,12 @@ function sessionAge(modifiedAt: string | null): string | null {
   return elapsedDays < 7 ? `${elapsedDays}d` : null;
 }
 
+function isActiveConversation(conversation: ThreadConversation): boolean {
+  return (
+    conversation.kind === 'live' && conversation.session.activity !== 'idle'
+  );
+}
+
 /** Repository navigation with persistent, reversible thread management. */
 export function AgentSidebar({
   creatingAgent,
@@ -117,7 +127,6 @@ export function AgentSidebar({
   selectedCwd,
   selectedSessionId,
   sessions,
-  changeFolder,
   chooseWorkspaceDirectory,
   startAgentDraft,
   importSession,
@@ -131,8 +140,8 @@ export function AgentSidebar({
   const [draggedThread, setDraggedThread] = useState<DraggedThread | null>(
     null,
   );
+  const [archiveUndo, setArchiveUndo] = useState<ArchiveUndo | null>(null);
   const [management, setManagement] = useThreadManagement();
-  const revealCreatedSession = useRef(false);
   const archivedThreadIds = useMemo(
     () => new Set(management.archivedThreadIds),
     [management.archivedThreadIds],
@@ -152,21 +161,10 @@ export function AgentSidebar({
   }[primeAgentConnection];
 
   useEffect(() => {
-    if (creatingAgent) {
-      revealCreatedSession.current = true;
-      return;
-    }
-    if (!revealCreatedSession.current) return;
-
-    revealCreatedSession.current = false;
-    if (selectedCwd === null || selectedSessionId === null) return;
-    const repositoryCwd =
-      folders.find((folder) => folder.value === selectedCwd)?.repositoryCwd ??
-      selectedCwd;
-    setManagement((current) =>
-      setRepositoryFolded(current, repositoryCwd, false),
-    );
-  }, [creatingAgent, folders, selectedCwd, selectedSessionId, setManagement]);
+    if (archiveUndo === null) return;
+    const timeout = window.setTimeout(() => setArchiveUndo(null), 5_000);
+    return () => window.clearTimeout(timeout);
+  }, [archiveUndo]);
 
   const workspaceGroups = useMemo<readonly WorkspaceGroup[]>(
     () =>
@@ -271,12 +269,13 @@ export function AgentSidebar({
       !activeOnly ||
       repository.conversations.some(
         (conversation) =>
+          isActiveConversation(conversation) &&
           !archivedThreadIds.has(threadConversationId(conversation)) &&
           !pinnedThreadIds.has(threadConversationId(conversation)),
       ),
   );
-  const pinnedConversations = management.pinnedThreadIds.flatMap(
-    (threadId): readonly LocatedConversation[] => {
+  const pinnedConversations = management.pinnedThreadIds
+    .flatMap((threadId): readonly LocatedConversation[] => {
       for (const repository of repositories) {
         for (const workspaceGroup of repository.workspaces) {
           const conversation = workspaceGroup.conversations.find(
@@ -291,8 +290,10 @@ export function AgentSidebar({
         }
       }
       return [];
-    },
-  );
+    })
+    .filter(
+      ({ conversation }) => !activeOnly || isActiveConversation(conversation),
+    );
   const moveThread = (
     cwd: string,
     conversations: readonly ThreadConversation[],
@@ -331,19 +332,6 @@ export function AgentSidebar({
         !archivedThreadIds.has(threadConversationId(candidate)) &&
         !pinnedThreadIds.has(threadConversationId(candidate)),
     );
-    const position = activeConversations.findIndex(
-      (candidate) => threadConversationId(candidate) === id,
-    );
-    const moveBy = (offset: -1 | 1): void => {
-      const target = activeConversations[position + offset];
-      if (target === undefined) return;
-      moveThread(
-        workspaceGroup.folder.value,
-        activeConversations,
-        id,
-        threadConversationId(target),
-      );
-    };
     const importing =
       conversation.kind === 'saved' &&
       importingSessionPath === conversation.session.path;
@@ -352,8 +340,6 @@ export function AgentSidebar({
       <ThreadRow
         key={id}
         archived={archived}
-        canMoveDown={!archived && position < activeConversations.length - 1}
-        canMoveUp={!archived && position > 0}
         detail={detail}
         disabled={importingSessionPath !== null}
         dragging={draggedThread?.id === id}
@@ -364,14 +350,17 @@ export function AgentSidebar({
           conversation.session.activeSessionId === selectedSessionId
         }
         thread={conversation}
-        onArchiveChange={(nextArchived) =>
+        onArchiveChange={(nextArchived) => {
+          if (nextArchived) {
+            setArchiveUndo({ id, name: conversation.session.name });
+          }
           setManagement((current) => {
             const unpinned = nextArchived
               ? setThreadPinned(current, id, false)
               : current;
             return setThreadArchived(unpinned, id, nextArchived);
-          })
-        }
+          });
+        }}
         onDragEnd={() => setDraggedThread(null)}
         onDragStart={(event: DragEvent<HTMLLIElement>) => {
           if (archived || pinned) return;
@@ -397,8 +386,6 @@ export function AgentSidebar({
           );
           setDraggedThread(null);
         }}
-        onMoveDown={() => moveBy(1)}
-        onMoveUp={() => moveBy(-1)}
         onOpen={() => openThread(conversation)}
         onPinChange={(nextPinned) =>
           setManagement((current) =>
@@ -413,23 +400,29 @@ export function AgentSidebar({
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader className="gap-0 px-2 pb-1 pt-3">
-        <section
-          aria-label="Pinned tasks"
-          className="mb-1 border-b border-sidebar-border pb-2"
-        >
-          <div className="flex h-8 items-center px-2">
-            <SidebarGroupLabel className="h-auto flex-1 px-0 text-[11px] font-medium tracking-[0.08em] uppercase">
-              Pinned
-            </SidebarGroupLabel>
-            <span className="text-[10px] tabular-nums text-muted-foreground">
-              {pinnedConversations.length}
-            </span>
-          </div>
-          {pinnedConversations.length === 0 ? (
-            <p className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground/70">
-              Pin a task to reach it from any repository.
-            </p>
-          ) : (
+        {pinnedConversations.length > 0 || draggedThread !== null ? (
+          <section
+            aria-label="Pinned tasks"
+            className="mb-1 pb-1"
+            onDragOver={(event) => {
+              if (draggedThread === null) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (draggedThread === null) return;
+              setManagement((current) =>
+                setThreadPinned(current, draggedThread.id, true),
+              );
+              setDraggedThread(null);
+            }}
+          >
+            <div className="flex h-7 items-center px-2">
+              <SidebarGroupLabel className="h-auto flex-1 px-0 text-[10px] font-medium tracking-[0.08em] uppercase">
+                {pinnedConversations.length === 0 ? 'Drop to pin' : 'Pinned'}
+              </SidebarGroupLabel>
+            </div>
             <ul className="flex flex-col gap-0.5">
               {pinnedConversations.map(
                 ({ conversation, repository, workspace: workspaceGroup }) =>
@@ -444,8 +437,8 @@ export function AgentSidebar({
                 ),
               )}
             </ul>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         <div className="flex h-8 items-center gap-0.5 px-2">
           <SidebarGroupLabel className="h-auto flex-1 px-0 text-[11px] font-medium tracking-[0.08em] uppercase">
@@ -456,11 +449,11 @@ export function AgentSidebar({
             variant="ghost"
             size="icon-xs"
             aria-label={
-              activeOnly ? 'Show all repositories' : 'Show active repositories'
+              activeOnly ? 'Show all Agents' : 'Show active Agents'
             }
             aria-pressed={activeOnly}
             title={
-              activeOnly ? 'Show all repositories' : 'Show active repositories'
+              activeOnly ? 'Show all Agents' : 'Show active Agents'
             }
             onClick={() => setActiveOnly((current) => !current)}
           >
@@ -498,16 +491,12 @@ export function AgentSidebar({
                 const activeFor = (workspaceGroup: WorkspaceGroup) =>
                   workspaceGroup.conversations.filter(
                     (conversation) =>
+                      (!activeOnly || isActiveConversation(conversation)) &&
                       !archivedThreadIds.has(
                         threadConversationId(conversation),
                       ) &&
                       !pinnedThreadIds.has(threadConversationId(conversation)),
                   );
-                const activeConversations = repository.conversations.filter(
-                  (conversation) =>
-                    !archivedThreadIds.has(threadConversationId(conversation)) &&
-                    !pinnedThreadIds.has(threadConversationId(conversation)),
-                );
                 return (
                   <li key={folder.value} aria-label={`${folder.label} repository`}>
                     <div className="flex items-center gap-0.5">
@@ -518,12 +507,11 @@ export function AgentSidebar({
                         aria-label={folder.label}
                         aria-controls={conversationsId}
                         aria-expanded={!folded}
-                        onClick={() => {
-                          changeFolder(folder.value);
+                        onClick={() =>
                           setManagement((current) =>
                             setRepositoryFolded(current, folder.value, !folded),
-                          );
-                        }}
+                          )
+                        }
                       >
                         <ChevronRightIcon
                           aria-hidden="true"
@@ -532,9 +520,6 @@ export function AgentSidebar({
                         />
                         <FolderIcon aria-hidden="true" />
                         <span className="truncate">{folder.label}</span>
-                        <span className="ml-auto text-xs font-normal tabular-nums text-muted-foreground">
-                          {activeConversations.length}
-                        </span>
                       </Button>
                       <Button
                         type="button"
@@ -543,12 +528,7 @@ export function AgentSidebar({
                         aria-label={`New Agent in ${folder.label}`}
                         title={`New Agent in ${folder.label}`}
                         disabled={creatingAgent}
-                        onClick={() => {
-                          setManagement((current) =>
-                            setRepositoryFolded(current, folder.value, false),
-                          );
-                          startAgentDraft(folder.value);
-                        }}
+                        onClick={() => startAgentDraft(folder.value)}
                       >
                         {creatingAgent && selectedCwd === folder.value ? (
                           <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
@@ -560,7 +540,7 @@ export function AgentSidebar({
                     <ul
                       id={conversationsId}
                       hidden={folded}
-                      className="mt-0.5 ml-3 flex flex-col gap-0.5 border-l border-sidebar-border pl-2"
+                      className="mt-0.5 ml-4 flex flex-col gap-0.5"
                     >
                       {rootWorkspace === undefined
                         ? null
@@ -584,27 +564,10 @@ export function AgentSidebar({
                             aria-label={`${workspaceLabel} worktree`}
                             className="mt-1"
                           >
-                            <div className="flex items-center gap-0.5">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className="h-7 min-w-0 flex-1 justify-start gap-2 px-2 text-xs font-medium aria-current:bg-sidebar-accent"
-                                aria-label={`Worktree ${workspaceLabel}`}
-                                aria-current={
-                                  selectedCwd === workspaceGroup.folder.value
-                                    ? 'location'
-                                    : undefined
-                                }
-                                onClick={() =>
-                                  changeFolder(workspaceGroup.folder.value)
-                                }
-                              >
-                                <GitBranchIcon aria-hidden="true" />
-                                <span className="truncate">{workspaceLabel}</span>
-                                <span className="ml-auto font-normal tabular-nums text-muted-foreground">
-                                  {workspaceConversations.length}
-                                </span>
-                              </Button>
+                            <div className="flex h-7 items-center gap-0.5 px-2">
+                              <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
+                                {workspaceLabel}
+                              </span>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -624,7 +587,7 @@ export function AgentSidebar({
                                 )}
                               </Button>
                             </div>
-                            <ul className="ml-3 flex flex-col gap-0.5 border-l border-sidebar-border pl-2">
+                            <ul className="ml-2 flex flex-col gap-0.5">
                               {workspaceConversations.map((conversation) =>
                                 renderThread(
                                   conversation,
@@ -646,6 +609,31 @@ export function AgentSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {archiveUndo === null ? null : (
+        <div
+          className="fixed bottom-16 left-3 z-50 flex w-64 items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-xs shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="min-w-0 flex-1 truncate">
+            Archived {archiveUndo.name}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setManagement((current) =>
+                setThreadArchived(current, archiveUndo.id, false),
+              );
+              setArchiveUndo(null);
+            }}
+          >
+            Undo
+          </Button>
+        </div>
+      )}
 
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <SidebarMenu>

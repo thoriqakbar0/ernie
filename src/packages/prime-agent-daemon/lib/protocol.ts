@@ -14,6 +14,7 @@ import type {
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
   PrimeAgentSession,
+  PrimeAgentSessionActivity,
   PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
@@ -62,11 +63,6 @@ function modelKey(provider: string, id: string): string {
   return JSON.stringify([provider, id]);
 }
 
-function pathBasename(path: string): string {
-  const segments = path.split(/[\\/]/u).filter((segment) => segment.length > 0);
-  return segments.at(-1) ?? path;
-}
-
 function parseModel(value: unknown): PrimeAgentModel | null {
   if (!isRecord(value)) return null;
 
@@ -78,7 +74,7 @@ function parseModel(value: unknown): PrimeAgentModel | null {
   return { key: modelKey(provider, id), id, name, provider };
 }
 
-function sessionName(value: Record<string, unknown>, cwd: string): string {
+function sessionName(value: Record<string, unknown>): string {
   const explicitName = nonEmptyString(value.sessionName);
   if (explicitName !== null) return explicitName;
 
@@ -89,13 +85,10 @@ function sessionName(value: Record<string, unknown>, cwd: string): string {
       : firstMessage;
   }
 
-  return pathBasename(cwd);
+  return 'New Agent';
 }
 
-function savedSessionName(
-  value: Record<string, unknown>,
-  cwd: string,
-): string {
+function savedSessionName(value: Record<string, unknown>): string {
   const explicitName = nonEmptyString(value.name);
   if (explicitName !== null) return explicitName;
 
@@ -106,7 +99,30 @@ function savedSessionName(
       : firstMessage;
   }
 
-  return pathBasename(cwd);
+  return 'New Agent';
+}
+
+function parseSessionActivity(
+  value: Record<string, unknown>,
+): PrimeAgentSessionActivity | null {
+  const activity = value.activity;
+  const sessionActions = value.sessionActions;
+  if (
+    (activity !== 'working' && activity !== 'idle') ||
+    !isRecord(sessionActions) ||
+    typeof sessionActions.queuedCount !== 'number' ||
+    !Number.isSafeInteger(sessionActions.queuedCount) ||
+    sessionActions.queuedCount < 0 ||
+    (value.taskState !== undefined &&
+      value.taskState !== 'needs_input' &&
+      value.taskState !== 'completed')
+  ) {
+    return null;
+  }
+
+  if (activity === 'working') return 'working';
+  if (sessionActions.queuedCount > 0) return 'queued';
+  return value.taskState === 'needs_input' ? 'needs_input' : 'idle';
 }
 
 function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
@@ -133,7 +149,7 @@ function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
     cwd,
     modifiedAt,
     messageCount,
-    name: savedSessionName(value, cwd),
+    name: savedSessionName(value),
   };
 }
 
@@ -145,10 +161,12 @@ function parseSession(
 
   const activeSessionId = nonEmptyString(value.activeSessionId);
   const cwd = nonEmptyString(value.cwd);
+  const activity = parseSessionActivity(value);
   const attachedClients = value.attachedClients;
   if (
     activeSessionId === null ||
     cwd === null ||
+    activity === null ||
     value.runtimeKind === 'subagent' ||
     typeof attachedClients !== 'number' ||
     (requireAttachedClient && attachedClients < 1)
@@ -161,8 +179,9 @@ function parseSession(
 
   return {
     activeSessionId,
+    activity,
     cwd,
-    name: sessionName(value, cwd),
+    name: sessionName(value),
     model: parsedModel,
     modifiedAt: nonEmptyString(value.modified),
     sessionPath: nonEmptyString(value.sessionFile),
@@ -173,9 +192,20 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
   if (!isRecord(value)) return null;
 
   const activeSessionId = nonEmptyString(value.activeSessionId);
+  const activity = value.activity;
   const cwd = nonEmptyString(value.cwd);
   const name = nonEmptyString(value.name);
-  if (activeSessionId === null || cwd === null || name === null) return null;
+  if (
+    activeSessionId === null ||
+    (activity !== 'working' &&
+      activity !== 'queued' &&
+      activity !== 'needs_input' &&
+      activity !== 'idle') ||
+    cwd === null ||
+    name === null
+  ) {
+    return null;
+  }
 
   const parsedModel = value.model === null ? null : parseModel(value.model);
   if (value.model !== null && parsedModel === null) return null;
@@ -189,6 +219,7 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
 
   return {
     activeSessionId,
+    activity,
     cwd,
     name,
     model: parsedModel,

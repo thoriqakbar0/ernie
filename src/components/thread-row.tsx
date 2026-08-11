@@ -1,8 +1,6 @@
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  ArrowDownIcon,
-  ArrowUpIcon,
   EllipsisIcon,
   GripVerticalIcon,
   LoaderCircleIcon,
@@ -31,8 +29,6 @@ import {
 
 interface ThreadRowProps {
   readonly archived: boolean;
-  readonly canMoveDown: boolean;
-  readonly canMoveUp: boolean;
   readonly detail: string | null;
   readonly disabled: boolean;
   readonly dragging: boolean;
@@ -44,8 +40,6 @@ interface ThreadRowProps {
   readonly onDragEnd: () => void;
   readonly onDragStart: (event: DragEvent<HTMLLIElement>) => void;
   readonly onDrop: (event: DragEvent<HTMLLIElement>) => void;
-  readonly onMoveDown: () => void;
-  readonly onMoveUp: () => void;
   readonly onOpen: () => void;
   readonly onPinChange: (pinned: boolean) => void;
   readonly onRename: () => void;
@@ -54,8 +48,6 @@ interface ThreadRowProps {
 /** Interactive Trove thread row with menu, context menu, and drag affordance. */
 export function ThreadRow({
   archived,
-  canMoveDown,
-  canMoveUp,
   detail,
   disabled,
   dragging,
@@ -67,13 +59,34 @@ export function ThreadRow({
   onDragEnd,
   onDragStart,
   onDrop,
-  onMoveDown,
-  onMoveUp,
   onOpen,
   onPinChange,
   onRename,
 }: ThreadRowProps): React.JSX.Element {
   const reorderable = !archived && !pinned;
+  const activity = thread.kind === 'live' ? thread.session.activity : 'idle';
+
+  const activityMark = {
+    working: (
+      <LoaderCircleIcon
+        aria-label="Working"
+        className="size-3 animate-spin text-muted-foreground motion-reduce:animate-none"
+      />
+    ),
+    queued: (
+      <span
+        aria-label="Queued"
+        className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+      />
+    ),
+    needs_input: (
+      <span
+        aria-label="Needs attention"
+        className="size-1.5 shrink-0 rounded-full bg-amber-400"
+      />
+    ),
+    idle: null,
+  }[activity];
 
   return (
     <ContextMenu>
@@ -132,9 +145,14 @@ export function ThreadRow({
               className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none"
               aria-label="Opening saved session"
             />
-          ) : pinned || detail === null ? null : (
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-              {detail}
+          ) : (
+            <span className="flex shrink-0 items-center gap-1.5">
+              {activityMark}
+              {pinned || detail === null ? null : (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {detail}
+                </span>
+              )}
             </span>
           )}
         </Button>
@@ -164,18 +182,6 @@ export function ThreadRow({
                 {pinned ? 'Unpin' : 'Pin to top'}
               </MenuItem>
             )}
-            {!reorderable ? null : (
-              <MenuItem disabled={!canMoveUp} onClick={onMoveUp}>
-                <ArrowUpIcon />
-                Move up
-              </MenuItem>
-            )}
-            {!reorderable ? null : (
-              <MenuItem disabled={!canMoveDown} onClick={onMoveDown}>
-                <ArrowDownIcon />
-                Move down
-              </MenuItem>
-            )}
             <MenuSeparator />
             <MenuItem onClick={() => onArchiveChange(!archived)}>
               {archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
@@ -193,18 +199,6 @@ export function ThreadRow({
           <ContextMenuItem onClick={() => onPinChange(!pinned)}>
             {pinned ? <PinOffIcon /> : <PinIcon />}
             {pinned ? 'Unpin' : 'Pin to top'}
-          </ContextMenuItem>
-        )}
-        {!reorderable ? null : (
-          <ContextMenuItem disabled={!canMoveUp} onClick={onMoveUp}>
-            <ArrowUpIcon />
-            Move up
-          </ContextMenuItem>
-        )}
-        {!reorderable ? null : (
-          <ContextMenuItem disabled={!canMoveDown} onClick={onMoveDown}>
-            <ArrowDownIcon />
-            Move down
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />

@@ -6,9 +6,17 @@ export interface PrimeAgentModel {
   readonly provider: string;
 }
 
+/** Truthful activity states shown for one connected Prime Agent session. */
+export type PrimeAgentSessionActivity =
+  | 'working'
+  | 'queued'
+  | 'needs_input'
+  | 'idle';
+
 /** A live top-level Prime Agent session that Ernie can control. */
 export interface PrimeAgentSession {
   readonly activeSessionId: string;
+  readonly activity: PrimeAgentSessionActivity;
   readonly cwd: string;
   readonly name: string;
   readonly model: PrimeAgentModel | null;

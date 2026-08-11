@@ -161,9 +161,11 @@ test('keeps only connected top-level daemon sessions', () => {
     sessions: [
       {
         activeSessionId: 'root-active',
+        activity: 'working',
         attachedClients: 1,
         cwd: '/workspace/ernie',
         runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
         sessionFile: '/sessions/root-active.jsonl',
         firstMessage: 'Build the desktop',
         modified: '2026-08-10T10:00:00.000Z',
@@ -175,15 +177,19 @@ test('keeps only connected top-level daemon sessions', () => {
       },
       {
         activeSessionId: 'root-detached',
+        activity: 'idle',
         attachedClients: 0,
         cwd: '/workspace/ernie',
         runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
       },
       {
         activeSessionId: 'child-active',
+        activity: 'working',
         attachedClients: 1,
         cwd: '/workspace/ernie',
         runtimeKind: 'subagent',
+        sessionActions: { queuedCount: 0 },
       },
     ],
   });
@@ -193,6 +199,7 @@ test('keeps only connected top-level daemon sessions', () => {
     value: [
       {
         activeSessionId: 'root-active',
+        activity: 'working',
         cwd: '/workspace/ernie',
         name: 'Build the desktop',
         model: {
@@ -206,6 +213,62 @@ test('keeps only connected top-level daemon sessions', () => {
       },
     ],
   });
+});
+
+test('projects truthful live activity from Prime Agent summaries', () => {
+  const result = parsePrimeAgentDaemonSessions({
+    sessions: [
+      {
+        activeSessionId: 'working-agent',
+        activity: 'working',
+        attachedClients: 1,
+        cwd: '/workspace/ernie',
+        runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
+      },
+      {
+        activeSessionId: 'queued-agent',
+        activity: 'idle',
+        attachedClients: 1,
+        cwd: '/workspace/ernie',
+        runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 2 },
+      },
+      {
+        activeSessionId: 'attention-agent',
+        activity: 'idle',
+        attachedClients: 1,
+        cwd: '/workspace/ernie',
+        runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
+        taskState: 'needs_input',
+      },
+      {
+        activeSessionId: 'idle-agent',
+        activity: 'idle',
+        attachedClients: 1,
+        cwd: '/workspace/ernie',
+        runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
+        taskState: 'completed',
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    result.ok
+      ? result.value.map((session) => [
+          session.activeSessionId,
+          session.activity,
+        ])
+      : result,
+    [
+      ['working-agent', 'working'],
+      ['queued-agent', 'queued'],
+      ['attention-agent', 'needs_input'],
+      ['idle-agent', 'idle'],
+    ],
+  );
 });
 
 test('keeps models from configured daemon providers', () => {
@@ -233,17 +296,20 @@ test('keeps models from configured daemon providers', () => {
 test('parses a newly created detached session before Ernie attaches', () => {
   const result = parsePrimeAgentDaemonCreatedSession({
     activeSessionId: 'new-agent',
+    activity: 'idle',
     attachedClients: 0,
     cwd: '/workspace/ernie',
     runtimeKind: 'top-level',
+    sessionActions: { queuedCount: 0 },
   });
 
   assert.deepEqual(result, {
     ok: true,
     value: {
       activeSessionId: 'new-agent',
+      activity: 'idle',
       cwd: '/workspace/ernie',
-      name: 'ernie',
+      name: 'New Agent',
       model: null,
       modifiedAt: null,
       sessionPath: null,
@@ -304,6 +370,33 @@ test('keeps and orders durable top-level Prime Agent sessions', () => {
   });
 });
 
+test('uses a neutral title for an unnamed saved Agent', () => {
+  const result = parsePrimeAgentDaemonSavedSessions({
+    sessions: [
+      {
+        cwd: '/workspace/ernie',
+        id: 'unnamed',
+        messageCount: 0,
+        modified: '2026-08-10T10:00:00.000Z',
+        path: '/sessions/unnamed.jsonl',
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: [
+      {
+        cwd: '/workspace/ernie',
+        messageCount: 0,
+        modifiedAt: '2026-08-10T10:00:00.000Z',
+        name: 'New Agent',
+        path: '/sessions/unnamed.jsonl',
+      },
+    ],
+  });
+});
+
 test('keeps and orders only skill commands from the daemon', () => {
   const result = parsePrimeAgentDaemonSkills({
     commands: [
@@ -344,8 +437,9 @@ test('validates created sessions and skills after IPC', () => {
       ok: true,
       value: {
         activeSessionId: 'new-agent',
+        activity: 'idle',
         cwd: '/workspace/ernie',
-        name: 'ernie',
+        name: 'New Agent',
         model: null,
         modifiedAt: null,
         sessionPath: null,

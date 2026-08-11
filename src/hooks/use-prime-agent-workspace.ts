@@ -85,6 +85,7 @@ export interface PrimeAgentWorkspaceController {
 const defaultRlmMaxDepth = 1;
 const maximumRlmMaxDepth = 20;
 const rlmMaxDepthStorageKey = 'ernie:rlm-max-depth:v1';
+const workspaceRefreshIntervalMs = 1_500;
 
 function parseStoredRlmMaxDepth(value: string | null): number {
   if (value === null || value.trim().length === 0) return defaultRlmMaxDepth;
@@ -241,6 +242,61 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       Effect.runFork(Fiber.interrupt(fiber));
     };
   }, []);
+
+  useEffect(() => {
+    if (loadingWorkspace) return;
+
+    let active = true;
+    let refreshing = false;
+    let interruptRefresh: (() => void) | null = null;
+    const refreshWorkspace = Effect.fn('Workspace.refresh')(function* () {
+      const rawWorkspace = yield* Effect.tryPromise(() =>
+        window.ernie.listPrimeAgentWorkspace(),
+      );
+      if (!active) return;
+      const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
+      if (!result.ok) return;
+
+      yield* Effect.sync(() => {
+        setWorkspace(result.value);
+        setSelectedCwd((current) => current ?? result.value.currentCwd);
+      });
+    });
+    const refresh = (): void => {
+      if (
+        !active ||
+        refreshing ||
+        document.visibilityState === 'hidden'
+      ) {
+        return;
+      }
+
+      refreshing = true;
+      const fiber = Effect.runFork(
+        refreshWorkspace().pipe(
+          Effect.catchAll(() => Effect.void),
+          Effect.ensuring(
+            Effect.sync(() => {
+              refreshing = false;
+              interruptRefresh = null;
+            }),
+          ),
+        ),
+      );
+      interruptRefresh = () => {
+        Effect.runFork(Fiber.interrupt(fiber));
+      };
+    };
+    const interval = window.setInterval(refresh, workspaceRefreshIntervalMs);
+    document.addEventListener('visibilitychange', refresh);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+      interruptRefresh?.();
+    };
+  }, [loadingWorkspace]);
 
   useEffect(() => {
     if (selectedCwd === null) {
@@ -538,7 +594,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const taskResult = parsePrimeAgentTaskReceiptResult(rawTaskResult);
 
       return yield* Effect.sync(() => {
-        connectAgentSession(result.value);
+        connectAgentSession(
+          taskResult.ok
+            ? { ...result.value, activity: 'queued' }
+            : result.value,
+        );
         setStatus(
           taskResult.ok ? 'Task sent to Prime Agent.' : taskResult.error.message,
         );

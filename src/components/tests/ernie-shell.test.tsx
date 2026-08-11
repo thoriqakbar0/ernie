@@ -36,6 +36,7 @@ afterEach(() => {
 
 test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
   const createdSessions: unknown[] = [];
+  let sessionCreated = false;
   let modelCatalogRequests = 0;
   const submittedTasks: Array<{
     activeSessionId: string;
@@ -46,14 +47,31 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     signalReady: () => undefined,
     listPrimeAgentWorkspace: async () => ({
       ok: true,
-      value: { currentCwd: '/workspace/ernie', sessions: [] },
+      value: {
+        currentCwd: '/workspace/ernie',
+        sessions: sessionCreated
+          ? [
+              {
+                activeSessionId: 'blank-agent',
+                activity: 'working',
+                cwd: '/workspace/kastuli',
+                name: 'Blank Agent',
+                model: null,
+                modifiedAt: null,
+                sessionPath: null,
+              },
+            ]
+          : [],
+      },
     }),
     createPrimeAgentSession: async (creation: unknown) => {
       createdSessions.push(creation);
+      sessionCreated = true;
       return {
         ok: true,
         value: {
           activeSessionId: 'blank-agent',
+          activity: 'idle',
           cwd: '/workspace/kastuli',
           name: 'Blank Agent',
           model: null,
@@ -195,6 +213,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       .getByRole('button', { name: 'Blank Agent' })
       .getAttribute('aria-current'),
     'page',
+  );
+  await waitFor(
+    () => assert.ok(within(document.body).getByLabelText('Working')),
+    { timeout: 2_500 },
   );
   await waitFor(() => assert.equal(modelCatalogRequests, 1));
   assert.equal(

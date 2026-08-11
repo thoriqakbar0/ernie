@@ -1,5 +1,4 @@
 import {
-  ArchiveIcon,
   ArchiveRestoreIcon,
   ChevronRightIcon,
   FolderIcon,
@@ -40,7 +39,6 @@ import { useThreadManagement } from '@/hooks/use-thread-management';
 import {
   moveRepositoryThread,
   orderRepositoryThreadIds,
-  setArchiveFolded,
   setRepositoryFolded,
   setThreadArchived,
 } from '@/packages/thread-management';
@@ -199,14 +197,6 @@ export function AgentSidebar({
           !archivedThreadIds.has(threadConversationId(conversation)),
       ),
   );
-  const archivedConversations = repositories.flatMap((repository) =>
-    repository.conversations
-      .filter((conversation) =>
-        archivedThreadIds.has(threadConversationId(conversation)),
-      )
-      .map((conversation) => ({ conversation, folder: repository.folder })),
-  );
-
   const moveThread = (
     cwd: string,
     conversations: readonly ThreadConversation[],
@@ -434,53 +424,6 @@ export function AgentSidebar({
                 );
               })}
             </ul>
-
-            {archivedConversations.length > 0 ? (
-              <div className="mt-3 border-t border-sidebar-border pt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 w-full justify-start gap-2 px-2 text-sm font-medium"
-                  aria-controls="archived-conversations"
-                  aria-expanded={!management.archiveFolded}
-                  onClick={() =>
-                    setManagement((current) =>
-                      setArchiveFolded(current, !current.archiveFolded),
-                    )
-                  }
-                >
-                  <ChevronRightIcon
-                    aria-hidden="true"
-                    className="transition-transform duration-150 data-[expanded=true]:rotate-90 motion-reduce:transition-none"
-                    data-expanded={!management.archiveFolded}
-                  />
-                  <ArchiveIcon aria-hidden="true" />
-                  Archived
-                  <span className="ml-auto text-xs font-normal tabular-nums text-muted-foreground">
-                    {archivedConversations.length}
-                  </span>
-                </Button>
-                <ul
-                  id="archived-conversations"
-                  hidden={management.archiveFolded}
-                  className="mt-0.5 flex flex-col gap-0.5 pl-3"
-                >
-                  {archivedConversations.map(({ conversation, folder }) => {
-                    const repository = repositories.find(
-                      (candidate) => candidate.folder.value === folder.value,
-                    );
-                    return repository === undefined
-                      ? null
-                      : renderThread(
-                          conversation,
-                          repository,
-                          true,
-                          folder.label,
-                        );
-                  })}
-                </ul>
-              </div>
-            ) : null}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

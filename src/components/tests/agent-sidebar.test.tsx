@@ -259,7 +259,7 @@ test('user can rename a thread from its Trove menu', async () => {
   ]);
 });
 
-test('user can archive and restore a thread', async () => {
+test('archived threads leave the sidebar without an archived section', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
@@ -283,27 +283,7 @@ test('user can archive and restore a thread', async () => {
     }),
     null,
   );
-  const archive = within(document.body).getByRole('button', { name: /Archived/u });
-  await user.click(archive);
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Codebase rating feedback',
-    }),
-  );
-
-  await user.click(
-    within(document.body).getByRole('button', {
-      name: 'Manage Codebase rating feedback',
-    }),
-  );
-  await user.click(within(document.body).getByRole('menuitem', { name: 'Restore' }));
-
   assert.equal(within(document.body).queryByRole('button', { name: /Archived/u }), null);
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Codebase rating feedback',
-    }),
-  );
 });
 
 test('user can reorder threads by dragging one row onto another', () => {

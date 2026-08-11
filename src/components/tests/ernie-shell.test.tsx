@@ -34,7 +34,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-test('user can create a blank Prime Agent session in the selected repository before sending its first task', async () => {
+test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
   const createdSessions: unknown[] = [];
   let createdRlmMaxDepth = 1;
   const submittedTasks: Array<{
@@ -100,6 +100,10 @@ test('user can create a blank Prime Agent session in the selected repository bef
       ok: true,
       value: { cwd, current: 'main', names: ['main'] },
     }),
+    readPrimeAgentGitWorkspace: async (cwd) => ({
+      ok: true,
+      value: { branchName: 'main', cwd, repositoryCwd: cwd },
+    }),
     switchPrimeAgentGitBranch: async () => ({ ok: false }),
     deletePrimeAgentGitBranch: async () => ({ ok: false }),
     renamePrimeAgentGitBranch: async () => ({ ok: false }),
@@ -150,33 +154,19 @@ test('user can create a blank Prime Agent session in the selected repository bef
     within(document.body).queryByRole('button', { name: 'Model' }),
     null,
   );
-  const repositoryButton = within(document.body).getByRole('button', {
-    name: 'kastuli',
-  });
-  await user.click(repositoryButton);
-  assert.equal(repositoryButton.getAttribute('aria-expanded'), 'false');
-
   await user.click(
-    within(document.body).getByRole('button', { name: 'Start Agent' }),
+    within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),
   );
 
-  await waitFor(() => {
-    assert.deepEqual(createdSessions, [
-      { cwd: '/workspace/kastuli', rlmMaxDepth: 5 },
-    ]);
-    assert.equal(
-      within(document.body)
-        .getByRole('button', { name: 'Blank Agent' })
-        .getAttribute('aria-current'),
-      'page',
-    );
-  });
+  await waitFor(() => assert.deepEqual(createdSessions, []));
   assert.deepEqual(submittedTasks, []);
-  assert.ok(
-    await within(document.body).findByRole('button', { name: 'Depth 5' }),
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Start Agent' }),
+    null,
   );
-  assert.ok(
-    within(document.body).getByRole('button', { name: 'Add context' }),
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Add context' }),
+    null,
   );
 
   await user.type(
@@ -187,14 +177,27 @@ test('user can create a blank Prime Agent session in the selected repository bef
   );
 
   await waitFor(() =>
-    assert.deepEqual(submittedTasks, [
-      {
-        activeSessionId: 'blank-agent',
-        message: 'Polish the sidebar',
-      },
+    assert.deepEqual(createdSessions, [
+      { cwd: '/workspace/kastuli', rlmMaxDepth: 5 },
     ]),
   );
+  assert.deepEqual(submittedTasks, [
+    {
+      activeSessionId: 'blank-agent',
+      message: 'Polish the sidebar',
+    },
+  ]);
   assert.deepEqual(createdSessions, [
     { cwd: '/workspace/kastuli', rlmMaxDepth: 5 },
   ]);
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'Blank Agent' })
+      .getAttribute('aria-current'),
+    'page',
+  );
+  assert.ok(
+    await within(document.body).findByRole('button', { name: 'Depth 5' }),
+  );
+  assert.ok(within(document.body).getByRole('button', { name: 'Add context' }));
 });

@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { Effect } from 'effect';
 
 import type {
   PrimeAgentGitBranches,
+  PrimeAgentGitWorkspace,
   PrimeAgentResult,
 } from '../types';
 import {
@@ -25,6 +26,7 @@ type GitOperation =
   | 'delete_branch'
   | 'initialize_repository'
   | 'read_branches'
+  | 'read_workspace'
   | 'rename_branch'
   | 'switch_branch';
 
@@ -138,6 +140,83 @@ function parseWorkspaceDirectory(
     }),
   );
 }
+
+/** Resolve a workspace to its stable Git repository and branch identity. */
+export const readLocalGitWorkspace = Effect.fn('Git.readLocalGitWorkspace')(
+  function* (cwd: unknown) {
+    const parsedCwd = yield* parseWorkspaceDirectory(cwd);
+    if (!parsedCwd.ok) return parsedCwd;
+
+    const canonicalResult = yield* tryExternal(() =>
+      realpath(parsedCwd.value),
+    ).pipe(
+      Effect.match({
+        onFailure: (error): PrimeAgentResult<string> => {
+          reportGitFailure('read_workspace', error);
+          return {
+            ok: false,
+            error: {
+              code: 'request_failed',
+              message: 'Ernie could not identify the local Git workspace.',
+            },
+          };
+        },
+        onSuccess: (canonicalCwd): PrimeAgentResult<string> => ({
+          ok: true,
+          value: canonicalCwd,
+        }),
+      }),
+    );
+    if (!canonicalResult.ok) return canonicalResult;
+    const canonicalCwd = canonicalResult.value;
+
+    return yield* tryExternal(() =>
+      execFileAsync(
+        'git',
+        ['-C', canonicalCwd, 'worktree', 'list', '--porcelain'],
+        { encoding: 'utf8', timeout: gitTimeoutMs },
+      ),
+    ).pipe(
+      Effect.match({
+        onFailure: (error): PrimeAgentResult<PrimeAgentGitWorkspace> => {
+          if (errorCode(error) === 128) {
+            return {
+              ok: true,
+              value: {
+                branchName: null,
+                cwd: canonicalCwd,
+                repositoryCwd: canonicalCwd,
+              },
+            };
+          }
+          reportGitFailure('read_workspace', error);
+          return {
+            ok: false,
+            error: {
+              code: 'request_failed',
+              message: 'Ernie could not identify the local Git workspace.',
+            },
+          };
+        },
+        onSuccess: ({ stdout }): PrimeAgentResult<PrimeAgentGitWorkspace> => {
+          const worktrees = parseGitWorktreeList(stdout);
+          const repositoryCwd = worktrees[0]?.cwd ?? canonicalCwd;
+          const workspace = worktrees.find(
+            (record) => record.cwd === canonicalCwd,
+          );
+          return {
+            ok: true,
+            value: {
+              branchName: workspace?.branchName ?? null,
+              cwd: canonicalCwd,
+              repositoryCwd,
+            },
+          };
+        },
+      }),
+    );
+  },
+);
 
 /** Read local branches without changing the repository. */
 export const readLocalGitBranches = Effect.fn('Git.readLocalGitBranches')(

@@ -18,7 +18,6 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
 
         <CurrentWorkspace
           busy={workspace.busy}
-          creatingAgent={workspace.creatingAgent}
           folders={workspace.folders}
           gitBranch={workspace.gitBranch}
           gitBranchBusy={workspace.gitBranchBusy}
@@ -28,7 +27,6 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           rlmMaxDepth={workspace.rlmMaxDepth}
           rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
           selectedCwd={workspace.selectedCwd}
-          selectedSessionId={workspace.selectedSessionId}
           changeFolder={workspace.changeFolder}
           chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
           changeGitBranch={workspace.changeGitBranch}
@@ -36,7 +34,6 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           deleteGitBranch={workspace.deleteGitBranch}
           initializeGitRepository={workspace.initializeGitRepository}
           createGitWorktree={workspace.createGitWorktree}
-          createAgentSession={workspace.createAgentSession}
         />
 
         <TaskComposer

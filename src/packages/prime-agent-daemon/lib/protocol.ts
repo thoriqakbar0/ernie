@@ -4,6 +4,7 @@ import type {
   PrimeAgentGitBranches,
   PrimeAgentGitBranchRename,
   PrimeAgentGitBranchSelection,
+  PrimeAgentGitWorkspace,
   PrimeAgentGitWorktree,
   PrimeAgentGitWorktreeCreation,
   PrimeAgentModel,
@@ -584,6 +585,23 @@ function parseGitWorktree(value: unknown): PrimeAgentGitWorktree | null {
   return cwd === null || branchName === null ? null : { cwd, branchName };
 }
 
+function parseGitWorkspace(value: unknown): PrimeAgentGitWorkspace | null {
+  if (!isRecord(value)) return null;
+
+  const cwd = nonEmptyString(value.cwd);
+  const repositoryCwd = nonEmptyString(value.repositoryCwd);
+  const branchName =
+    value.branchName === null ? null : nonEmptyString(value.branchName);
+  if (
+    cwd === null ||
+    repositoryCwd === null ||
+    (value.branchName !== null && branchName === null)
+  ) {
+    return null;
+  }
+  return { cwd, repositoryCwd, branchName };
+}
+
 function parseTaskReceipt(value: unknown): PrimeAgentTaskReceipt | null {
   return isRecord(value) && value.accepted === true ? { accepted: true } : null;
 }
@@ -708,6 +726,13 @@ export function parseGitWorktreeResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentGitWorktree> {
   return parseResult(value, parseGitWorktree);
+}
+
+/** Parse Git repository identity after it crosses the Electron IPC boundary. */
+export function parseGitWorkspaceResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentGitWorkspace> {
+  return parseResult(value, parseGitWorkspace);
 }
 
 /** Parse a local Git branch change from the isolated renderer. */

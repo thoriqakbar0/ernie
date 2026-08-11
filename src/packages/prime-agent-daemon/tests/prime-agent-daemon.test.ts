@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rename, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, realpath, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -9,6 +9,7 @@ import { Effect } from 'effect';
 
 import {
   parsePrimeAgentGitBranchesResult,
+  parsePrimeAgentGitWorkspaceResult,
   parsePrimeAgentGitWorktreeResult,
 } from '../git-client';
 import {
@@ -33,6 +34,7 @@ import {
   deleteLocalGitBranch,
   initializeLocalGitRepository,
   readLocalGitBranches,
+  readLocalGitWorkspace,
   renameLocalGitBranch,
   switchLocalGitBranch,
 } from '../git-server';
@@ -95,6 +97,7 @@ testInTempDirectory(
   'ernie-prime-agent-',
   (cwd) => {
     const socketPath = join(cwd, 'prime-agent.sock');
+    const sessionDirectoryPath = join(cwd, 'sessions');
     const daemon = createPrimeAgentDaemon({
       currentCwd: cwd,
       daemonEntrypointPath: primeAgentCliPath,
@@ -103,6 +106,7 @@ testInTempDirectory(
         process.cwd(),
         'src/packages/session-name-hook/index.ts',
       ),
+      sessionDirectoryPath,
       socketPath,
     });
 
@@ -141,6 +145,13 @@ testInTempDirectory(
         ok: true,
         value: { maxDepth: 3, source: 'chat' },
       });
+      const savedSessionFiles = yield* Effect.tryPromise(() =>
+        readdir(sessionDirectoryPath),
+      );
+      assert.equal(
+        savedSessionFiles.filter((name) => name.endsWith('.jsonl')).length,
+        1,
+      );
     }).pipe(Effect.ensuring(shutdown));
   },
 );
@@ -506,6 +517,26 @@ test('parses a created Git worktree after IPC', () => {
   });
 });
 
+test('parses linked Git workspace identity after IPC', () => {
+  const result = parsePrimeAgentGitWorkspaceResult({
+    ok: true,
+    value: {
+      branchName: 'feature/calm-ui',
+      cwd: '/workspace/ernie-worktrees/feature/calm-ui',
+      repositoryCwd: '/workspace/ernie',
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      branchName: 'feature/calm-ui',
+      cwd: '/workspace/ernie-worktrees/feature/calm-ui',
+      repositoryCwd: '/workspace/ernie',
+    },
+  });
+});
+
 testInTempDirectory(
   'reads local branches through the Git process',
   'ernie-git-',
@@ -712,6 +743,15 @@ testInTempDirectory(
 
       assert.deepEqual(firstResult, expected);
       assert.deepEqual(retryResult, expected);
+      const workspace = yield* readLocalGitWorkspace(worktreeCwd);
+      assert.deepEqual(workspace, {
+        ok: true,
+        value: {
+          branchName: 'feature/calm-ui',
+          cwd: worktreeCwd,
+          repositoryCwd: join(canonicalRoot, 'repository'),
+        },
+      });
       const branch = yield* runGit([
         '-C',
         worktreeCwd,

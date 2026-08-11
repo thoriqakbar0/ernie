@@ -3,6 +3,7 @@ export {
   deleteLocalGitBranch,
   initializeLocalGitRepository,
   readLocalGitBranches,
+  readLocalGitWorkspace,
   renameLocalGitBranch,
   switchLocalGitBranch,
 } from './lib/git';

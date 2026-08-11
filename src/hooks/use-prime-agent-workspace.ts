@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   parsePrimeAgentGitBranchesResult,
+  parsePrimeAgentGitWorkspaceResult,
   parsePrimeAgentGitWorktreeResult,
+  type PrimeAgentGitWorkspace,
 } from '@/packages/prime-agent-daemon/git-client';
 import {
   parsePrimeAgentModelResult,
@@ -25,7 +27,9 @@ import {
 
 /** One folder choice derived from live Prime Agent sessions. */
 export interface PrimeAgentFolderChoice {
+  readonly branchName: string | null;
   readonly label: string;
+  readonly repositoryCwd: string;
   readonly value: string;
 }
 
@@ -61,7 +65,7 @@ export interface PrimeAgentWorkspaceController {
   readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
   readonly changeFolder: (cwd: string | null) => void;
-  readonly createAgentSession: (cwd: string) => void;
+  readonly startAgentDraft: (cwd: string) => void;
   readonly createAgentWithTask: (
     cwd: string,
     message: string,
@@ -156,6 +160,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [savingModel, setSavingModel] = useState(false);
   const [gitBranchBusy, setGitBranchBusy] = useState(false);
   const [gitWorktreeError, setGitWorktreeError] = useState<string | null>(null);
+  const [gitWorkspaces, setGitWorkspaces] = useState<
+    ReadonlyMap<string, PrimeAgentGitWorkspace>
+  >(new Map());
   const [savingRlmDepth, setSavingRlmDepth] = useState(false);
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
@@ -382,7 +389,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     };
   }, [selectedSessionId]);
 
-  const folders = useMemo(() => {
+  const workspacePaths = useMemo(() => {
     const paths = new Set([
       ...(workspace === null
         ? []
@@ -393,8 +400,67 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       ...savedSessions.map((session) => session.cwd),
       ...addedCwds,
     ]);
-    return [...paths].map((cwd) => ({ label: folderName(cwd), value: cwd }));
+    return [...paths];
   }, [addedCwds, savedSessions, workspace]);
+
+  useEffect(() => {
+    let active = true;
+    const identifyWorkspaces = Effect.fn('Workspace.identifyGitWorkspaces')(
+      function* () {
+        const identified = yield* Effect.all(
+          workspacePaths.map((cwd) =>
+            Effect.tryPromise(() =>
+              window.ernie.readPrimeAgentGitWorkspace(cwd),
+            ).pipe(
+              Effect.map(parsePrimeAgentGitWorkspaceResult),
+              Effect.map((result) =>
+                result.ok ? ([cwd, result.value] as const) : null,
+              ),
+              Effect.catchAll(() => Effect.succeed(null)),
+            ),
+          ),
+          { concurrency: 'unbounded' },
+        );
+        if (!active) return;
+        yield* Effect.sync(() => {
+          setGitWorkspaces(
+            new Map(
+              identified.filter(
+                (
+                  entry,
+                ): entry is readonly [string, PrimeAgentGitWorkspace] =>
+                  entry !== null,
+              ),
+            ),
+          );
+        });
+      },
+    );
+    const fiber = Effect.runFork(identifyWorkspaces());
+    return () => {
+      active = false;
+      Effect.runFork(Fiber.interrupt(fiber));
+    };
+  }, [workspacePaths]);
+
+  const folders = useMemo(
+    () =>
+      workspacePaths.map((cwd) => {
+        const identity = gitWorkspaces.get(cwd);
+        const repositoryCwd = identity?.repositoryCwd ?? cwd;
+        const branchName =
+          identity !== undefined && identity.cwd !== identity.repositoryCwd
+            ? identity.branchName
+            : null;
+        return {
+          branchName,
+          label: branchName ?? folderName(cwd),
+          repositoryCwd,
+          value: cwd,
+        };
+      }),
+    [gitWorkspaces, workspacePaths],
+  );
 
   const agents = useMemo(
     () =>
@@ -444,39 +510,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function createAgentSession(cwd: string): void {
-    if (creatingAgent) return;
-
-    const create = Effect.fn('Workspace.createAgent')(function* () {
-      yield* Effect.sync(() => {
-        setCreatingAgent(true);
-        setSelectedCwd(cwd);
-        setSelectedSessionId(null);
-        setGitWorktreeError(null);
-        setStatus('Creating a new Agent…');
-      });
-      const result = yield* requestAgentSession(cwd);
-      if (!result.ok) {
-        yield* Effect.sync(() => setStatus(result.error.message));
-        return;
-      }
-
-      yield* Effect.sync(() => {
-        connectAgentSession(result.value);
-        setStatus('New Agent ready for a first task.');
-      });
-    });
-
-    Effect.runFork(
-      create().pipe(
-        Effect.catchAll(() =>
-          Effect.sync(() =>
-            setStatus('Ernie could not create a new Agent.'),
-          ),
-        ),
-        Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
-      ),
-    );
+  function startAgentDraft(cwd: string): void {
+    setSelectedCwd(cwd);
+    setSelectedSessionId(null);
+    setGitWorktreeError(null);
+    setStatus('New Agent draft ready. Send its first task to start it.');
   }
 
   function createAgentWithTask(
@@ -1076,7 +1114,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     savedSessions,
     status,
     changeFolder,
-    createAgentSession,
+    startAgentDraft,
     createAgentWithTask,
     loadSavedSessions,
     importSession,

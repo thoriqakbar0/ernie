@@ -51,6 +51,9 @@ export const primeAgentSubmitTaskChannel = 'ernie:prime-agent:submit-task';
 /** IPC channel that reads local branches for one workspace. */
 export const primeAgentGitBranchesChannel = 'ernie:prime-agent:git-branches';
 
+/** IPC channel that resolves one workspace to its Git repository identity. */
+export const primeAgentGitWorkspaceChannel = 'ernie:prime-agent:git-workspace';
+
 /** IPC channel that switches one workspace to a local branch. */
 export const primeAgentSwitchGitBranchChannel =
   'ernie:prime-agent:switch-git-branch';
@@ -96,6 +99,7 @@ export type ErnieRendererApi = Readonly<{
     submission: PrimeAgentTaskSubmission,
   ) => Promise<unknown>;
   listPrimeAgentGitBranches: (cwd: string) => Promise<unknown>;
+  readPrimeAgentGitWorkspace: (cwd: string) => Promise<unknown>;
   switchPrimeAgentGitBranch: (
     selection: PrimeAgentGitBranchSelection,
   ) => Promise<unknown>;

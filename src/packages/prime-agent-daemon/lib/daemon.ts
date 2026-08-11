@@ -87,7 +87,8 @@ export function createPrimeAgentDaemon(
   if (
     configuration.daemonEntrypointPath.trim().length === 0 ||
     configuration.executablePath.trim().length === 0 ||
-    configuration.sessionNameExtensionPath.trim().length === 0
+    configuration.sessionNameExtensionPath.trim().length === 0 ||
+    configuration.sessionDirectoryPath?.trim().length === 0
   ) {
     throw new Error('Prime Agent process and extension paths must not be empty.');
   }
@@ -296,6 +297,9 @@ export function createPrimeAgentDaemon(
             config: {
               cwd: request.cwd,
               extensions: [configuration.sessionNameExtensionPath],
+              ...(configuration.sessionDirectoryPath === undefined
+                ? {}
+                : { sessionDir: configuration.sessionDirectoryPath }),
             },
             lifecycle: 'resident',
           }

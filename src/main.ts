@@ -9,6 +9,7 @@ import {
   deleteLocalGitBranch,
   initializeLocalGitRepository,
   readLocalGitBranches,
+  readLocalGitWorkspace,
   renameLocalGitBranch,
   switchLocalGitBranch,
 } from './packages/prime-agent-daemon/git-server';
@@ -18,6 +19,7 @@ import {
   primeAgentCreateSessionChannel,
   primeAgentCreateGitWorktreeChannel,
   primeAgentGitBranchesChannel,
+  primeAgentGitWorkspaceChannel,
   primeAgentInitializeGitChannel,
   primeAgentDeleteGitBranchChannel,
   primeAgentImportSessionChannel,
@@ -137,6 +139,9 @@ function registerPrimeAgentHandlers(): void {
   );
   ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: unknown) =>
     Effect.runPromise(readLocalGitBranches(cwd)),
+  );
+  ipcMain.handle(primeAgentGitWorkspaceChannel, (_event, cwd: unknown) =>
+    Effect.runPromise(readLocalGitWorkspace(cwd)),
   );
   ipcMain.handle(
     primeAgentSwitchGitBranchChannel,

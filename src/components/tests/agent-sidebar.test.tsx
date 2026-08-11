@@ -18,7 +18,7 @@ afterEach(() => {
 
 function renderSidebar(actions: {
   readonly addRepository: () => void;
-  readonly createAgentSession: (cwd: string) => void;
+  readonly startAgentDraft: (cwd: string) => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
@@ -32,8 +32,24 @@ function renderSidebar(actions: {
           importingSessionPath={null}
           renamingSession={false}
           folders={[
-            { label: 'ernie', value: '/workspace/ernie' },
-            { label: 'kastuli', value: '/workspace/kastuli' },
+            {
+              branchName: null,
+              label: 'ernie',
+              repositoryCwd: '/workspace/ernie',
+              value: '/workspace/ernie',
+            },
+            {
+              branchName: 'feature/calm-ui',
+              label: 'calm-ui',
+              repositoryCwd: '/workspace/ernie',
+              value: '/workspace/ernie-worktrees/feature/calm-ui',
+            },
+            {
+              branchName: null,
+              label: 'kastuli',
+              repositoryCwd: '/workspace/kastuli',
+              value: '/workspace/kastuli',
+            },
           ]}
           selectedCwd="/workspace/ernie"
           selectedSessionId="ernie-agent"
@@ -54,6 +70,14 @@ function renderSidebar(actions: {
               name: 'General chat',
               sessionPath: '/sessions/general-agent.jsonl',
             },
+            {
+              activeSessionId: 'worktree-agent',
+              cwd: '/workspace/ernie-worktrees/feature/calm-ui',
+              modifiedAt: null,
+              model: null,
+              name: 'Calm worktree task',
+              sessionPath: '/sessions/worktree-agent.jsonl',
+            },
           ]}
           savedSessions={[
             {
@@ -66,7 +90,7 @@ function renderSidebar(actions: {
           ]}
           changeFolder={() => undefined}
           chooseWorkspaceDirectory={actions.addRepository}
-          createAgentSession={actions.createAgentSession}
+          startAgentDraft={actions.startAgentDraft}
           importSession={actions.importSession}
           renameSession={actions.renameSession}
           selectSession={actions.selectSession}
@@ -81,7 +105,7 @@ test('user can select a nested Agent conversation', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: (activeSessionId) => selectedSessions.push(activeSessionId),
@@ -98,7 +122,7 @@ test('user can fold and unfold a repository conversation list', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -138,15 +162,44 @@ test('user can fold and unfold a repository conversation list', async () => {
   );
 });
 
-test('user can add a repository and create an Agent inside one', async () => {
+test('linked Git worktrees nest inside their repository', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  assert.equal(
+    within(document.body).queryByRole('listitem', {
+      name: 'calm-ui repository',
+    }),
+    null,
+  );
+  const ernieRepository = within(document.body).getByRole('listitem', {
+    name: 'ernie repository',
+  });
+  const worktree = within(ernieRepository).getByRole('listitem', {
+    name: 'feature/calm-ui worktree',
+  });
+  assert.ok(within(worktree).getByRole('button', { name: 'Calm worktree task' }));
+  assert.ok(
+    within(worktree).getByRole('button', {
+      name: 'New Agent in feature/calm-ui',
+    }),
+  );
+});
+
+test('user can add a repository and start a local Agent draft inside one', async () => {
   let repositoryRequests = 0;
-  const agentCwds: string[] = [];
+  const draftCwds: string[] = [];
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => {
       repositoryRequests += 1;
     },
-    createAgentSession: (cwd) => agentCwds.push(cwd),
+    startAgentDraft: (cwd) => draftCwds.push(cwd),
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -162,13 +215,13 @@ test('user can add a repository and create an Agent inside one', async () => {
   );
 
   assert.equal(repositoryRequests, 1);
-  assert.deepEqual(agentCwds, ['/workspace/ernie']);
+  assert.deepEqual(draftCwds, ['/workspace/ernie']);
 });
 
 test('sidebar omits the standalone session import action', () => {
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -185,7 +238,7 @@ test('sidebar omits the standalone session import action', () => {
 test('sidebar reports that Prime Agent is ready', () => {
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -199,7 +252,7 @@ test('saved conversations appear inside their repository and open in place', asy
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: (sessionPath) => importedPaths.push(sessionPath),
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -222,7 +275,7 @@ test('user can rename a thread from its Trove menu', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: (rename) => renames.push(rename),
     selectSession: () => undefined,
@@ -255,7 +308,7 @@ test('archived threads leave the sidebar without an archived section', async () 
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -280,7 +333,7 @@ test('archived threads leave the sidebar without an archived section', async () 
 test('user can reorder threads by dragging one row onto another', () => {
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -324,7 +377,7 @@ test('user can reorder threads by dragging one row onto another', () => {
 test('thread actions open from a right-click context menu', () => {
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -346,7 +399,7 @@ test('pinned threads lift above repositories and return when unpinned', async ()
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
-    createAgentSession: () => undefined,
+    startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,

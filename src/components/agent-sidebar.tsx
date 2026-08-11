@@ -2,6 +2,7 @@ import {
   ChevronRightIcon,
   FolderIcon,
   FolderPlusIcon,
+  GitBranchIcon,
   ListFilterIcon,
   LoaderCircleIcon,
   PlusIcon,
@@ -55,14 +56,20 @@ type AgentSidebarProps = Pick<
   | 'sessions'
   | 'changeFolder'
   | 'chooseWorkspaceDirectory'
-  | 'createAgentSession'
+  | 'startAgentDraft'
   | 'importSession'
   | 'renameSession'
   | 'selectSession'
 >;
 
+interface WorkspaceGroup {
+  readonly folder: PrimeAgentFolderChoice;
+  readonly conversations: readonly ThreadConversation[];
+}
+
 interface RepositoryGroup {
   readonly folder: PrimeAgentFolderChoice;
+  readonly workspaces: readonly WorkspaceGroup[];
   readonly conversations: readonly ThreadConversation[];
 }
 
@@ -74,6 +81,7 @@ interface DraggedThread {
 interface LocatedConversation {
   readonly conversation: ThreadConversation;
   readonly repository: RepositoryGroup;
+  readonly workspace: WorkspaceGroup;
 }
 
 function conversationFallbackIdentity(cwd: string, name: string): string {
@@ -111,7 +119,7 @@ export function AgentSidebar({
   sessions,
   changeFolder,
   chooseWorkspaceDirectory,
-  createAgentSession,
+  startAgentDraft,
   importSession,
   renameSession,
   selectSession,
@@ -152,12 +160,15 @@ export function AgentSidebar({
 
     revealCreatedSession.current = false;
     if (selectedCwd === null || selectedSessionId === null) return;
+    const repositoryCwd =
+      folders.find((folder) => folder.value === selectedCwd)?.repositoryCwd ??
+      selectedCwd;
     setManagement((current) =>
-      setRepositoryFolded(current, selectedCwd, false),
+      setRepositoryFolded(current, repositoryCwd, false),
     );
-  }, [creatingAgent, selectedCwd, selectedSessionId, setManagement]);
+  }, [creatingAgent, folders, selectedCwd, selectedSessionId, setManagement]);
 
-  const repositories = useMemo<readonly RepositoryGroup[]>(
+  const workspaceGroups = useMemo<readonly WorkspaceGroup[]>(
     () =>
       folders.map((folder) => {
         const liveSessions = sessions.filter(
@@ -214,6 +225,47 @@ export function AgentSidebar({
     [folders, management, savedSessions, sessions],
   );
 
+  const repositories = useMemo<readonly RepositoryGroup[]>(() => {
+    const grouped = new Map<string, WorkspaceGroup[]>();
+    for (const workspaceGroup of workspaceGroups) {
+      const current = grouped.get(workspaceGroup.folder.repositoryCwd) ?? [];
+      grouped.set(workspaceGroup.folder.repositoryCwd, [
+        ...current,
+        workspaceGroup,
+      ]);
+    }
+
+    return [...grouped.entries()].map(([repositoryCwd, workspaces]) => {
+      const rootWorkspace = workspaces.find(
+        (workspaceGroup) => workspaceGroup.folder.value === repositoryCwd,
+      );
+      const folder =
+        rootWorkspace?.folder ??
+        ({
+          branchName: null,
+          label:
+            repositoryCwd.split(/[\\/]/u).filter(Boolean).at(-1) ??
+            repositoryCwd,
+          repositoryCwd,
+          value: repositoryCwd,
+        } satisfies PrimeAgentFolderChoice);
+      const orderedWorkspaces = [...workspaces].sort((left, right) => {
+        if (left.folder.value === repositoryCwd) return -1;
+        if (right.folder.value === repositoryCwd) return 1;
+        return (left.folder.branchName ?? left.folder.label).localeCompare(
+          right.folder.branchName ?? right.folder.label,
+        );
+      });
+      return {
+        folder,
+        workspaces: orderedWorkspaces,
+        conversations: orderedWorkspaces.flatMap(
+          (workspaceGroup) => workspaceGroup.conversations,
+        ),
+      };
+    });
+  }, [workspaceGroups]);
+
   const visibleRepositories = repositories.filter(
     (repository) =>
       !activeOnly ||
@@ -226,14 +278,16 @@ export function AgentSidebar({
   const pinnedConversations = management.pinnedThreadIds.flatMap(
     (threadId): readonly LocatedConversation[] => {
       for (const repository of repositories) {
-        const conversation = repository.conversations.find(
-          (candidate) => threadConversationId(candidate) === threadId,
-        );
-        if (
-          conversation !== undefined &&
-          !archivedThreadIds.has(threadConversationId(conversation))
-        ) {
-          return [{ conversation, repository }];
+        for (const workspaceGroup of repository.workspaces) {
+          const conversation = workspaceGroup.conversations.find(
+            (candidate) => threadConversationId(candidate) === threadId,
+          );
+          if (
+            conversation !== undefined &&
+            !archivedThreadIds.has(threadConversationId(conversation))
+          ) {
+            return [{ conversation, repository, workspace: workspaceGroup }];
+          }
         }
       }
       return [];
@@ -266,13 +320,13 @@ export function AgentSidebar({
 
   const renderThread = (
     conversation: ThreadConversation,
-    repository: RepositoryGroup,
+    workspaceGroup: WorkspaceGroup,
     pinned: boolean,
     archived: boolean,
     detail: string | null,
   ): React.JSX.Element => {
     const id = threadConversationId(conversation);
-    const activeConversations = repository.conversations.filter(
+    const activeConversations = workspaceGroup.conversations.filter(
       (candidate) =>
         !archivedThreadIds.has(threadConversationId(candidate)) &&
         !pinnedThreadIds.has(threadConversationId(candidate)),
@@ -284,7 +338,7 @@ export function AgentSidebar({
       const target = activeConversations[position + offset];
       if (target === undefined) return;
       moveThread(
-        repository.folder.value,
+        workspaceGroup.folder.value,
         activeConversations,
         id,
         threadConversationId(target),
@@ -323,7 +377,7 @@ export function AgentSidebar({
           if (archived || pinned) return;
           event.dataTransfer.effectAllowed = 'move';
           event.dataTransfer.setData('text/plain', id);
-          setDraggedThread({ cwd: repository.folder.value, id });
+          setDraggedThread({ cwd: workspaceGroup.folder.value, id });
         }}
         onDrop={(event: DragEvent<HTMLLIElement>) => {
           event.preventDefault();
@@ -331,12 +385,12 @@ export function AgentSidebar({
             archived ||
             pinned ||
             draggedThread === null ||
-            draggedThread.cwd !== repository.folder.value
+            draggedThread.cwd !== workspaceGroup.folder.value
           ) {
             return;
           }
           moveThread(
-            repository.folder.value,
+            workspaceGroup.folder.value,
             activeConversations,
             draggedThread.id,
             id,
@@ -377,13 +431,16 @@ export function AgentSidebar({
             </p>
           ) : (
             <ul className="flex flex-col gap-0.5">
-              {pinnedConversations.map(({ conversation, repository }) =>
+              {pinnedConversations.map(
+                ({ conversation, repository, workspace: workspaceGroup }) =>
                 renderThread(
                   conversation,
-                  repository,
+                  workspaceGroup,
                   true,
                   false,
-                  repository.folder.label,
+                  workspaceGroup.folder.branchName === null
+                    ? repository.folder.label
+                    : `${repository.folder.label} · ${workspaceGroup.folder.branchName}`,
                 ),
               )}
             </ul>
@@ -430,6 +487,22 @@ export function AgentSidebar({
                 const { folder } = repository;
                 const folded = foldedRepositoryPaths.has(folder.value);
                 const conversationsId = `repository-${index}-conversations`;
+                const rootWorkspace = repository.workspaces.find(
+                  (workspaceGroup) =>
+                    workspaceGroup.folder.value === folder.value,
+                );
+                const worktrees = repository.workspaces.filter(
+                  (workspaceGroup) =>
+                    workspaceGroup.folder.value !== folder.value,
+                );
+                const activeFor = (workspaceGroup: WorkspaceGroup) =>
+                  workspaceGroup.conversations.filter(
+                    (conversation) =>
+                      !archivedThreadIds.has(
+                        threadConversationId(conversation),
+                      ) &&
+                      !pinnedThreadIds.has(threadConversationId(conversation)),
+                  );
                 const activeConversations = repository.conversations.filter(
                   (conversation) =>
                     !archivedThreadIds.has(threadConversationId(conversation)) &&
@@ -474,7 +547,7 @@ export function AgentSidebar({
                           setManagement((current) =>
                             setRepositoryFolded(current, folder.value, false),
                           );
-                          createAgentSession(folder.value);
+                          startAgentDraft(folder.value);
                         }}
                       >
                         {creatingAgent && selectedCwd === folder.value ? (
@@ -489,15 +562,82 @@ export function AgentSidebar({
                       hidden={folded}
                       className="mt-0.5 ml-3 flex flex-col gap-0.5 border-l border-sidebar-border pl-2"
                     >
-                      {activeConversations.map((conversation) =>
-                        renderThread(
-                          conversation,
-                          repository,
-                          false,
-                          false,
-                          sessionAge(conversation.session.modifiedAt),
-                        ),
-                      )}
+                      {rootWorkspace === undefined
+                        ? null
+                        : activeFor(rootWorkspace).map((conversation) =>
+                            renderThread(
+                              conversation,
+                              rootWorkspace,
+                              false,
+                              false,
+                              sessionAge(conversation.session.modifiedAt),
+                            ),
+                          )}
+                      {worktrees.map((workspaceGroup) => {
+                        const workspaceLabel =
+                          workspaceGroup.folder.branchName ??
+                          workspaceGroup.folder.label;
+                        const workspaceConversations = activeFor(workspaceGroup);
+                        return (
+                          <li
+                            key={workspaceGroup.folder.value}
+                            aria-label={`${workspaceLabel} worktree`}
+                            className="mt-1"
+                          >
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-7 min-w-0 flex-1 justify-start gap-2 px-2 text-xs font-medium aria-current:bg-sidebar-accent"
+                                aria-label={`Worktree ${workspaceLabel}`}
+                                aria-current={
+                                  selectedCwd === workspaceGroup.folder.value
+                                    ? 'location'
+                                    : undefined
+                                }
+                                onClick={() =>
+                                  changeFolder(workspaceGroup.folder.value)
+                                }
+                              >
+                                <GitBranchIcon aria-hidden="true" />
+                                <span className="truncate">{workspaceLabel}</span>
+                                <span className="ml-auto font-normal tabular-nums text-muted-foreground">
+                                  {workspaceConversations.length}
+                                </span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={`New Agent in ${workspaceLabel}`}
+                                title={`New Agent in ${workspaceLabel}`}
+                                disabled={creatingAgent}
+                                onClick={() =>
+                                  startAgentDraft(workspaceGroup.folder.value)
+                                }
+                              >
+                                {creatingAgent &&
+                                selectedCwd === workspaceGroup.folder.value ? (
+                                  <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
+                                ) : (
+                                  <PlusIcon aria-hidden="true" />
+                                )}
+                              </Button>
+                            </div>
+                            <ul className="ml-3 flex flex-col gap-0.5 border-l border-sidebar-border pl-2">
+                              {workspaceConversations.map((conversation) =>
+                                renderThread(
+                                  conversation,
+                                  workspaceGroup,
+                                  false,
+                                  false,
+                                  sessionAge(conversation.session.modifiedAt),
+                                ),
+                              )}
+                            </ul>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </li>
                 );

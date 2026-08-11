@@ -76,6 +76,13 @@ export interface PrimeAgentGitWorktree {
   readonly branchName: string;
 }
 
+/** Git repository identity for one repository root or linked worktree. */
+export interface PrimeAgentGitWorkspace {
+  readonly cwd: string;
+  readonly repositoryCwd: string;
+  readonly branchName: string | null;
+}
+
 /** Stable failure categories returned across the Electron IPC boundary. */
 export type PrimeAgentFailureCode =
   | 'invalid_request'
@@ -100,6 +107,7 @@ export interface PrimeAgentDaemonConfiguration {
   readonly daemonEntrypointPath: string;
   readonly executablePath: string;
   readonly sessionNameExtensionPath: string;
+  readonly sessionDirectoryPath?: string;
   readonly socketPath?: string;
 }
 

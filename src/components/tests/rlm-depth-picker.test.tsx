@@ -2,6 +2,7 @@ import '@happy-dom/global-registrator/register.js';
 
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
+import { useState } from 'react';
 
 import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -9,6 +10,20 @@ import userEvent from '@testing-library/user-event';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 
 afterEach(cleanup);
+
+function StatefulDepthPicker(): React.JSX.Element {
+  const [depth, setDepth] = useState(5);
+
+  return (
+    <RlmDepthPicker
+      busy={false}
+      depth={depth}
+      onDepthChange={(nextDepth) => {
+        if (nextDepth !== null) setDepth(Number(nextDepth));
+      }}
+    />
+  );
+}
 
 async function openDepthEditor(
   user: ReturnType<typeof userEvent.setup>,
@@ -66,6 +81,33 @@ test('user can decrease the RLM depth by one', async () => {
   );
 
   assert.deepEqual(requestedDepths, ['4']);
+});
+
+test('popover stays open for repeated RLM depth changes', async () => {
+  const user = userEvent.setup();
+
+  render(<StatefulDepthPicker />);
+
+  await openDepthEditor(user, 5);
+  const increaseButton = within(document.body).getByRole('button', {
+    name: 'Increase Agent depth',
+  });
+
+  await user.click(increaseButton);
+  await user.click(increaseButton);
+
+  assert.ok(
+    within(document.body).getByRole('button', { name: 'Depth 7' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('dialog', {
+      name: 'Adjust Agent depth',
+    }),
+  );
+  assert.equal(
+    within(document.body).getByLabelText('Current Agent depth').textContent,
+    '7',
+  );
 });
 
 test('pointer adjustment releases focus after changing depth', async () => {

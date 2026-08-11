@@ -221,7 +221,6 @@ export function CurrentWorkspace({
       </Select>
 
       <RlmDepthPicker
-        key={rlmDepth}
         busy={rlmDepthBusy}
         depth={rlmDepth}
         onDepthChange={changeRlmDepth}

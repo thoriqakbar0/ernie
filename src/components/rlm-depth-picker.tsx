@@ -22,8 +22,8 @@ const maximumRlmDepth = 20;
  *
  *   0ms   depth changes; old numeral morphs into the new numeral
  * ───────────────────────────────────────────── */
-const depthValueMorph = {
-  spring: { stiffness: 420, damping: 34, mass: 0.7 },
+const DEPTH_VALUE_MORPH = {
+  spring: { stiffness: 540, damping: 36, mass: 0.6 },
   scale: false,
 } as const;
 
@@ -65,8 +65,8 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
         <span>Depth</span>
         <TextMorph
           as="span"
-          ease={depthValueMorph.spring}
-          scale={depthValueMorph.scale}
+          ease={DEPTH_VALUE_MORPH.spring}
+          scale={DEPTH_VALUE_MORPH.scale}
           respectReducedMotion
           className="font-medium tabular-nums text-foreground"
         >
@@ -111,8 +111,8 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
               >
                 <TextMorph
                   as="span"
-                  ease={depthValueMorph.spring}
-                  scale={depthValueMorph.scale}
+                  ease={DEPTH_VALUE_MORPH.spring}
+                  scale={DEPTH_VALUE_MORPH.scale}
                   respectReducedMotion
                   className="inline-block"
                 >

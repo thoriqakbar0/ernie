@@ -191,6 +191,10 @@ test('focused chat groups completed work and keeps output streams distinct', asy
   const work = within(document.body).getByRole('region', {
     name: 'Work: 2 steps, done',
   });
+  assert.doesNotMatch(work.className, /border/u);
+  const workHeader = work.querySelector('header');
+  assert.ok(workHeader);
+  assert.match(workHeader.className, /min-h-8/u);
   await user.click(within(work).getByRole('button', { name: 'Expand work' }));
   assert.equal(
     within(work).getAllByRole('region', { name: /IPython cell/u }).length,

@@ -281,9 +281,9 @@ function ExecutionRun({
   return (
     <section
       aria-label={`Work: ${countLabel}, ${status}`}
-      className="overflow-hidden border-y border-border/70"
+      className="overflow-hidden"
     >
-      <header className="flex min-h-9 items-center gap-2 px-1 text-xs">
+      <header className="flex min-h-8 items-center gap-2 px-1 text-xs">
         <Button
           type="button"
           variant="ghost"
@@ -306,7 +306,7 @@ function ExecutionRun({
         </span>
       </header>
       {!expanded ? null : (
-        <div className="divide-y divide-border/60 border-t border-border/60">
+        <div className="divide-y divide-border/60">
           {cells.map(({ cell, number }) => (
             <IpythonCell key={cell.id} cell={cell} number={number} />
           ))}

@@ -214,7 +214,7 @@ export function App() {
           <view className='ProductMark'>
             <text className='ProductMarkText'>E</text>
           </view>
-          <text className='ProductName'>Ernie</text>
+          <text className='ProductName'>Ernie + Lynx</text>
         </view>
         <view className='TitleActions'>
           <view className='PrototypeStatus'>

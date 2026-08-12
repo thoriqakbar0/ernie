@@ -11,6 +11,7 @@ test('renders the first Ernie Agent roster slice', async () => {
   if (root === undefined) throw new Error('The Lynx element root is missing.')
   const screen = getQueriesForElement(root)
 
+  expect(await screen.findByText('Ernie + Lynx')).toBeInTheDocument()
   expect(await screen.findByText('Prime Agent')).toBeInTheDocument()
   expect(
     await screen.findByText('Start the Lynx port as a customizable v1.'),

@@ -22,22 +22,19 @@ export function TaskSurface({
     workspace.selectedSessionId
       ? workspace.selectedSessionView
       : null;
-  const chatReady =
-    selectedSessionView?.messages.some(
-      (message) => message.role === 'assistant',
-    ) ?? false;
+  const chatVisible = selectedSessionView !== null;
   const agentUnavailable = workspace.primeAgentConnection === 'unavailable';
 
   return (
     <div
       className={
-        chatReady
+        chatVisible
           ? 'flex h-full min-h-0 w-full flex-col'
           : 'w-full py-[clamp(1rem,12vh,6rem)]'
       }
     >
       <Field
-        className={`mx-auto w-full gap-2 ${chatReady ? 'min-h-0 max-w-none flex-1' : 'max-w-[50rem]'}`}
+        className={`mx-auto w-full gap-2 ${chatVisible ? 'min-h-0 max-w-none flex-1' : 'max-w-[50rem]'}`}
       >
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
@@ -64,22 +61,20 @@ export function TaskSurface({
             initializeGitRepository={workspace.initializeGitRepository}
             createGitWorktree={workspace.createGitWorktree}
           />
-        ) : chatReady && selectedSessionView !== null ? (
-          <>
-            <div className="min-h-0 w-full flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-[48rem]">
-                <AgentChat
-                  onOpenSpawnedSession={workspace.openSpawnedSession}
-                  sessionView={selectedSessionView}
-                />
-              </div>
+        ) : selectedSessionView !== null ? (
+          <div className="min-h-0 w-full flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-[48rem]">
+              <AgentChat
+                onOpenSpawnedSession={workspace.openSpawnedSession}
+                sessionView={selectedSessionView}
+              />
             </div>
-          </>
+          </div>
         ) : null}
 
         <div
           className={
-            chatReady
+            chatVisible
               ? 'mx-auto w-full max-w-[48rem] shrink-0 bg-background/95 pt-3 pb-1 backdrop-blur-sm'
               : undefined
           }

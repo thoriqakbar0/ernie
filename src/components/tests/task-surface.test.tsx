@@ -99,7 +99,7 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
   assert.equal(retries, 1);
 });
 
-test('working Agent keeps the empty response area quiet', () => {
+test('working Agent shows its hydrated conversation before a response', () => {
   render(
     <TaskSurface
       workspace={{
@@ -107,6 +107,28 @@ test('working Agent keeps the empty response area quiet', () => {
         primeAgentConnection: 'ready',
         selectedCwd: '/workspace/ernie',
         selectedSessionId: 'active-agent',
+        selectedSessionView: {
+          activeSessionId: 'active-agent',
+          isStreaming: true,
+          messages: [
+            {
+              id: 'active-agent:0',
+              role: 'user',
+              text: 'Inspect the daemon',
+            },
+          ],
+          rlmMaxDepth: 1,
+          sessionName: 'Inspect the daemon',
+          spawnedSessions: [],
+          transcript: [
+            {
+              id: 'active-agent:0',
+              kind: 'message',
+              role: 'user',
+              text: 'Inspect the daemon',
+            },
+          ],
+        },
         sessions: [
           {
             activeSessionId: 'active-agent',
@@ -123,12 +145,59 @@ test('working Agent keeps the empty response area quiet', () => {
     />,
   );
 
-  assert.equal(within(document.body).queryByText('Agent working'), null);
-  assert.equal(
-    within(document.body).queryByText('Waiting for the first response'),
-    null,
-  );
+  assert.ok(within(document.body).getByRole('region', { name: 'Conversation' }));
+  assert.ok(within(document.body).getByRole('article', { name: 'Your message' }));
   assert.ok(
     within(document.body).getByRole('textbox', { name: 'Give Ernie a task' }),
   );
+});
+
+test('settled Agent keeps its AI response visible', () => {
+  render(
+    <TaskSurface
+      workspace={{
+        ...unavailableWorkspace(),
+        primeAgentConnection: 'ready',
+        selectedCwd: '/workspace/ernie',
+        selectedSessionId: 'settled-agent',
+        selectedSessionView: {
+          activeSessionId: 'settled-agent',
+          isStreaming: false,
+          messages: [
+            {
+              id: 'settled-agent:0',
+              role: 'assistant',
+              text: 'The daemon is healthy.',
+            },
+          ],
+          rlmMaxDepth: 1,
+          sessionName: 'Inspect the daemon',
+          spawnedSessions: [],
+          transcript: [
+            {
+              id: 'settled-agent:0',
+              kind: 'message',
+              role: 'assistant',
+              text: 'The daemon is healthy.',
+            },
+          ],
+        },
+        sessions: [
+          {
+            activeSessionId: 'settled-agent',
+            activity: 'settled',
+            cwd: '/workspace/ernie',
+            model: null,
+            modifiedAt: null,
+            name: 'Settled Agent',
+            sessionPath: null,
+          },
+        ],
+      }}
+      onRetryConnection={() => undefined}
+    />,
+  );
+
+  assert.ok(within(document.body).getByRole('article', { name: 'Agent response' }));
+  assert.ok(within(document.body).getByText('The daemon is healthy.'));
 });

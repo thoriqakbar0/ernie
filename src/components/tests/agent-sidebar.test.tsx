@@ -144,7 +144,7 @@ test('user can select a nested Agent conversation', async () => {
   assert.deepEqual(selectedSessions, ['general-agent']);
 });
 
-test('user can fold and unfold a repository conversation list', async () => {
+test('space remains selectable while folding and unfolding its Agent list', async () => {
   const changedFolders: Array<string | null> = [];
   const user = userEvent.setup();
   renderSidebar({
@@ -179,7 +179,7 @@ test('user can fold and unfold a repository conversation list', async () => {
     }),
     null,
   );
-  assert.deepEqual(changedFolders, []);
+  assert.deepEqual(changedFolders, ['/workspace/ernie']);
 
   await user.click(repositoryButton);
 
@@ -189,12 +189,18 @@ test('user can fold and unfold a repository conversation list', async () => {
       name: 'Codebase rating feedback',
     }),
   );
+  assert.deepEqual(changedFolders, [
+    '/workspace/ernie',
+    '/workspace/ernie',
+  ]);
 });
 
-test('opening one repository folds the previously open repository', async () => {
+test('selecting a space changes the composer workspace and folds the previous space', async () => {
+  const changedFolders: Array<string | null> = [];
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
+    changeFolder: (cwd) => changedFolders.push(cwd),
     startAgentDraft: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
@@ -207,6 +213,7 @@ test('opening one repository folds the previously open repository', async () => 
 
   assert.equal(ernie.getAttribute('aria-expanded'), 'false');
   assert.equal(kastuli.getAttribute('aria-expanded'), 'true');
+  assert.deepEqual(changedFolders, ['/workspace/kastuli']);
 });
 
 test('only the plus action starts a draft without changing the tree', async () => {

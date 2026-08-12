@@ -256,6 +256,7 @@ export function AgentSidebar({
   selectedCwd,
   selectedSessionId,
   sessions,
+  changeFolder,
   addWorkspaceDirectory,
   startAgentDraft,
   importSession,
@@ -1037,6 +1038,7 @@ export function AgentSidebar({
                                   aria-expanded={expanded}
                                   onClick={() => {
                                     setRevealedWorkspaceCwd(null);
+                                    changeFolder(folder.value);
                                     setManagement((current) =>
                                       setExpandedRepository(
                                         current,

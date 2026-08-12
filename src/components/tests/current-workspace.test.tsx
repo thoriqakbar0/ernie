@@ -48,6 +48,7 @@ const folders = [
 test('Trove launch controls change workspace and Git branch', async () => {
   const changedFolders: Array<string | null> = [];
   const changedBranches: Array<string | null> = [];
+  let directoryPickerOpenCount = 0;
   const user = userEvent.setup();
 
   render(
@@ -63,7 +64,9 @@ test('Trove launch controls change workspace and Git branch', async () => {
       rlmMaxDepthBusy={false}
       selectedCwd="/workspace/ernie"
       changeFolder={(cwd) => changedFolders.push(cwd)}
-      chooseWorkspaceDirectory={() => undefined}
+      chooseWorkspaceDirectory={() => {
+        directoryPickerOpenCount += 1;
+      }}
       changeGitBranch={(branch) => changedBranches.push(branch)}
       changeRlmMaxDepth={() => undefined}
       deleteGitBranch={() => undefined}
@@ -77,6 +80,18 @@ test('Trove launch controls change workspace and Git branch', async () => {
     within(document.body).getByRole('combobox', { name: 'Folder location' }),
   );
   assert.ok(document.querySelector('[data-slot="combobox-content"]'));
+  const workspacePicker = within(document.body).getByRole('dialog', {
+    name: 'Choose workspace directory',
+  });
+  const search = within(workspacePicker).getByRole('combobox', {
+    name: 'Search workspaces',
+  });
+  assert.equal(search.getAttribute('placeholder'), 'Search workspaces…');
+  const separator = within(workspacePicker).getByRole('separator');
+  const chooseAnotherFolder = within(workspacePicker).getByRole('button', {
+    name: 'Choose another folder…',
+  });
+  assert.equal(separator.nextElementSibling, chooseAnotherFolder);
   const parentDirectories = within(document.body).getAllByLabelText(
     'Parent directory /workspace',
   );
@@ -86,12 +101,15 @@ test('Trove launch controls change workspace and Git branch', async () => {
       (directory) => directory.textContent === '/workspace',
     ),
   );
-  await user.type(
-    within(document.body).getByRole('combobox', {
-      name: 'Search workspace directories',
+  await user.type(search, 'missing-workspace');
+  assert.ok(within(workspacePicker).getByText('No matching workspaces.'));
+  assert.ok(
+    within(workspacePicker).getByRole('button', {
+      name: 'Choose another folder…',
     }),
-    '/workspace/kastuli',
   );
+  await user.clear(search);
+  await user.type(search, '/workspace/kastuli');
   assert.equal(
     within(document.body).queryByRole('option', { name: /ernie/u }),
     null,
@@ -100,6 +118,16 @@ test('Trove launch controls change workspace and Git branch', async () => {
     within(document.body).getByRole('option', { name: /kastuli/u }),
   );
   assert.deepEqual(changedFolders, ['/workspace/kastuli']);
+
+  await user.click(
+    within(document.body).getByRole('combobox', { name: 'Folder location' }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Choose another folder…',
+    }),
+  );
+  assert.equal(directoryPickerOpenCount, 1);
 
   await user.click(
     within(document.body).getByRole('button', { name: 'Git branch: main' }),

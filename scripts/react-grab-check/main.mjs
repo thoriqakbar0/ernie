@@ -18,8 +18,9 @@ const sidebarRailSelector = '[data-sidebar="rail"]';
 const sidebarWidthStorageKey = 'ernie:sidebar-width:v1';
 const workspaceFolderTriggerSelector = '#workspace-folder';
 const workspaceSearchSelector =
-  'input[aria-label="Search workspace directories"]';
-const newDirectorySelector = 'button[aria-label="New directory"]';
+  'input[aria-label="Search workspaces"]';
+const workspaceDirectoryActionSelector =
+  'button[data-workspace-directory-action]';
 
 function waitForRendererReady(window, startedAt) {
   return Effect.callback((resume) => {
@@ -194,13 +195,13 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
     const workspacePicker = yield* executeJavaScript(window, `(() => {
       const search = document.querySelector(${JSON.stringify(workspaceSearchSelector)});
       const list = document.querySelector('[role="listbox"]');
-      const newDirectory = document.querySelector(${JSON.stringify(newDirectorySelector)});
+      const directoryAction = document.querySelector(${JSON.stringify(workspaceDirectoryActionSelector)});
       if (!(list instanceof HTMLElement)) {
         return {
           apiExists: typeof window.ernie.chooseWorkspaceDirectory === 'function',
           searchExists: search instanceof HTMLInputElement,
           scrollContained: false,
-          newDirectoryExists: newDirectory instanceof HTMLButtonElement,
+          directoryActionExists: directoryAction instanceof HTMLButtonElement,
         };
       }
       const style = getComputedStyle(list);
@@ -210,7 +211,7 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
         scrollContained:
           style.maxHeight !== 'none' &&
           (style.overflowY === 'auto' || style.overflowY === 'scroll'),
-        newDirectoryExists: newDirectory instanceof HTMLButtonElement,
+        directoryActionExists: directoryAction instanceof HTMLButtonElement,
       };
     })()`);
     const workspacePickerReady =
@@ -218,7 +219,7 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
       workspacePicker.apiExists &&
       workspacePicker.searchExists &&
       workspacePicker.scrollContained &&
-      workspacePicker.newDirectoryExists;
+      workspacePicker.directoryActionExists;
 
     if (!workspacePickerReady) {
       process.stdout.write(

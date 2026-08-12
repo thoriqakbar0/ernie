@@ -28,6 +28,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import type {
   PrimeAgentFolderChoice,
   PrimeAgentWorkspaceController,
@@ -139,14 +140,14 @@ export function CurrentWorkspace({
               <ComboboxInputGroup className="h-8 border-transparent bg-muted/40 focus-within:border-transparent focus-within:ring-0 dark:bg-muted/30">
                 <ComboboxSearchIcon className="[&_svg]:size-3.5" />
                 <ComboboxInput
-                  aria-label="Search workspace directories"
+                  aria-label="Search workspaces"
                   className="text-sm"
-                  placeholder="Find a directory…"
+                  placeholder="Search workspaces…"
                   spellCheck={false}
                 />
               </ComboboxInputGroup>
             </div>
-            <ComboboxEmpty>No directories found.</ComboboxEmpty>
+            <ComboboxEmpty>No matching workspaces.</ComboboxEmpty>
             <ComboboxList className="max-h-52 overflow-y-auto overscroll-contain scroll-py-1 [scrollbar-gutter:stable]">
               {(folder: PrimeAgentFolderChoice, index: number) => {
                 const parentPath = compactParentPath(folder.value);
@@ -172,19 +173,20 @@ export function CurrentWorkspace({
                 );
               }}
             </ComboboxList>
+            <Separator className="-mx-1 my-1 w-auto" />
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              aria-label="New directory"
-              className="mt-1 w-full justify-start px-2 text-sm font-normal text-muted-foreground"
+              data-workspace-directory-action=""
+              className="h-9 w-full justify-start px-2 text-sm font-normal text-foreground"
               onClick={() => {
                 setFolderPickerOpen(false);
                 chooseWorkspaceDirectory();
               }}
             >
               <FolderPlusIcon aria-hidden="true" />
-              New directory…
+              Choose another folder…
             </Button>
           </ComboboxContent>
         </Combobox>

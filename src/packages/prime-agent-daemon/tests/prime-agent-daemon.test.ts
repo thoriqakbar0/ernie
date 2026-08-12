@@ -90,9 +90,14 @@ function testInTempDirectory(
         Effect.tryPromise(() => mkdtemp(join(tmpdir(), prefix))),
         use,
         (cwd) =>
-          Effect.tryPromise(() => rm(cwd, { force: true, recursive: true })).pipe(
-            Effect.orDie,
-          ),
+          Effect.tryPromise(() =>
+            rm(cwd, {
+              force: true,
+              maxRetries: 5,
+              recursive: true,
+              retryDelay: 25,
+            }),
+          ).pipe(Effect.orDie),
       ),
     ),
   );

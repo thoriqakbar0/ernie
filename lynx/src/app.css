@@ -1,0 +1,520 @@
+:root {
+  background-color: #fbf8f2;
+  --canvas: #fbf8f2;
+  --surface: #fffdf8;
+  --ink: #11192c;
+  --muted: #687083;
+  --navy: #142e72;
+  --navy-soft: #e8edf9;
+  --coral: #ed6254;
+  --coral-soft: #fff0ec;
+  --moss: #3c8a43;
+  --moss-soft: #eaf5e9;
+  --line: #dad7cf;
+}
+
+text {
+  color: var(--ink);
+}
+
+.App {
+  min-height: 100vh;
+  background-color: var(--canvas);
+  display: flex;
+  flex-direction: column;
+}
+
+.TitleBar {
+  height: 68px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ProductIdentity,
+.PrototypeStatus,
+.TitleActions,
+.AgentMeta,
+.DetailHeading,
+.Metadata {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.ProductIdentity {
+  gap: 10px;
+}
+
+.ProductMark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background-color: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ProductMarkText {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ProductName {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.PrototypeStatus {
+  gap: 7px;
+}
+
+.TitleActions {
+  gap: 14px;
+}
+
+.PrototypeDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--moss);
+}
+
+.PrototypeLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.CustomizeButton {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.CustomizeButton--active {
+  border-color: var(--navy);
+  background-color: var(--navy-soft);
+}
+
+.CustomizeButtonText {
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.Customizer {
+  min-height: 78px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 36px;
+}
+
+.CustomizerTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.CustomizerGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.CustomizerLabel {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.ChoiceRow {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+}
+
+.Choice {
+  min-width: 64px;
+  min-height: 27px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.Choice--selected {
+  border-color: var(--navy);
+  background-color: var(--navy);
+}
+
+.ChoiceText {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.Choice--selected .ChoiceText {
+  color: #ffffff;
+}
+
+.Workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+}
+
+.Roster {
+  width: 36%;
+  min-width: 300px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+
+.Roster--compact {
+  width: 29%;
+  min-width: 250px;
+}
+
+.Roster--balanced {
+  width: 36%;
+  min-width: 300px;
+}
+
+.Roster--wide {
+  width: 46%;
+  min-width: 380px;
+}
+
+.SectionHeader {
+  height: 54px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.SectionTitle {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.SectionCount {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.AgentList {
+  flex: 1;
+}
+
+.AgentRow {
+  min-height: 116px;
+  padding: 17px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.AgentRow--selected {
+  background-color: var(--navy-soft);
+  box-shadow: 3px 0 0 var(--navy) inset;
+}
+
+.StatusDot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.StatusDot--working {
+  background-color: var(--moss);
+}
+
+.StatusDot--needs-input {
+  background-color: var(--coral);
+}
+
+.StatusDot--settled {
+  background-color: #9a9eaa;
+}
+
+.AgentRowContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.AgentName {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.AgentObjective {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.AgentMeta {
+  margin-top: 11px;
+  justify-content: space-between;
+}
+
+.WorkspaceName,
+.MetadataValue {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.WorkspaceName {
+  color: var(--muted);
+}
+
+.Activity {
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.Activity--working {
+  color: #28672f;
+  background-color: var(--moss-soft);
+}
+
+.Activity--needs-input {
+  color: #a73c31;
+  background-color: var(--coral-soft);
+}
+
+.Activity--settled {
+  color: #626775;
+  background-color: #eeece7;
+}
+
+.AgentDetail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.DetailHeader {
+  padding: 30px 40px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.DetailHeading {
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.DetailTitle {
+  font-size: 30px;
+  font-weight: 720;
+  letter-spacing: -0.5px;
+}
+
+.DetailObjective {
+  margin-top: 13px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.Metadata {
+  margin-top: 14px;
+  gap: 8px;
+}
+
+.MetadataValue {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.MetadataDivider {
+  color: #a4a6ad;
+}
+
+.Conversation {
+  flex: 1;
+  padding: 26px 40px;
+}
+
+.Message {
+  max-width: 86%;
+  margin-bottom: 15px;
+  padding: 13px 15px;
+  border-radius: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.Message--assistant {
+  border: 1px solid var(--line);
+  background-color: var(--surface);
+}
+
+.Message--user {
+  margin-left: auto;
+  background-color: var(--navy-soft);
+}
+
+.MessageRole {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.MessageText {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.LatestUpdate {
+  margin-top: 10px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background-color: var(--surface);
+}
+
+.UpdateTitle {
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.UpdateBody {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.Composer {
+  margin: 0 40px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background-color: var(--surface);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.Composer--focused {
+  min-height: 52px;
+}
+
+.Composer--roomy {
+  min-height: 74px;
+  padding: 13px;
+}
+
+.TaskInput {
+  flex: 1;
+  height: 38px;
+  padding: 0 10px;
+  color: var(--ink);
+  font-size: 13px;
+  background-color: transparent;
+}
+
+.Composer--roomy .TaskInput {
+  height: 48px;
+  font-size: 14px;
+}
+
+.SendButton {
+  min-width: 58px;
+  height: 36px;
+  border-radius: 9px;
+  background-color: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.SendButton--disabled {
+  opacity: 0.38;
+}
+
+.SendButtonText {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.ComposerNote {
+  margin: 8px 40px 16px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+@media (max-width: 720px) {
+  .Workspace {
+    flex-direction: column;
+  }
+
+  .Roster {
+    width: 100%;
+    min-width: 0;
+    max-height: 45vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .AgentDetail {
+    min-height: 55vh;
+  }
+
+  .DetailTitle {
+    font-size: 24px;
+  }
+
+  .DetailHeader,
+  .Conversation {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .Composer {
+    margin-left: 24px;
+    margin-right: 24px;
+  }
+
+  .ComposerNote {
+    margin-left: 24px;
+    margin-right: 24px;
+  }
+
+  .Customizer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+}

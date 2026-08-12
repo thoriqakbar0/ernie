@@ -1023,7 +1023,7 @@ export function AgentSidebar({
 
                     return (
                       <li key={folder.value} aria-label={`${folder.label} repository`}>
-                        <div className="flex items-center gap-0.5">
+                        <div className="group/repository relative flex items-center">
                           <ContextMenu>
                             <ContextMenuTrigger
                               render={
@@ -1031,7 +1031,7 @@ export function AgentSidebar({
                                   type="button"
                                   variant="ghost"
                                   data-sidebar-tree-row
-                                  className={`h-9 min-w-0 flex-1 justify-start gap-2 px-2 text-[13px] font-medium ${selectedCwd === folder.value ? 'bg-sidebar-accent/60' : ''}`}
+                                  className={`h-9 min-w-0 flex-1 justify-start gap-2 px-2 pr-9 text-[13px] font-medium ${selectedCwd === folder.value ? 'bg-sidebar-accent/60' : ''}`}
                                   aria-label={folder.label}
                                   aria-controls={conversationsId}
                                   aria-expanded={expanded}
@@ -1101,6 +1101,7 @@ export function AgentSidebar({
                             type="button"
                             variant="ghost"
                             size="icon-xs"
+                            className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-120 group-focus-within/repository:pointer-events-auto group-focus-within/repository:opacity-100 group-hover/repository:pointer-events-auto group-hover/repository:opacity-100 motion-reduce:transition-none"
                             aria-label={`New Agent in ${folder.label}`}
                             title={`New Agent in ${folder.label}`}
                             disabled={creatingAgent}
@@ -1207,7 +1208,7 @@ export function AgentSidebar({
                                       <ContextMenuTrigger
                                         render={
                                           <div
-                                            className={`flex h-8 items-center gap-1 px-2 ${selectedCwd === workspace.folder.value ? 'rounded-lg bg-sidebar-accent/60' : ''}`}
+                                            className={`group/worktree flex h-8 items-center gap-1 px-2 ${selectedCwd === workspace.folder.value ? 'rounded-lg bg-sidebar-accent/60' : ''}`}
                                           />
                                         }
                                       >
@@ -1232,6 +1233,7 @@ export function AgentSidebar({
                                           type="button"
                                           variant="ghost"
                                           size="icon-xs"
+                                          className="pointer-events-none opacity-0 transition-opacity duration-120 group-focus-within/worktree:pointer-events-auto group-focus-within/worktree:opacity-100 group-hover/worktree:pointer-events-auto group-hover/worktree:opacity-100 motion-reduce:transition-none"
                                           aria-label={`New Agent in ${workspaceLabel}`}
                                           title={`New Agent in ${workspaceLabel}`}
                                           disabled={creatingAgent}

@@ -1,16 +1,25 @@
-import { Combobox } from '@base-ui/react/combobox';
 import {
-  CheckIcon,
-  ChevronDownIcon,
   CloudIcon,
   FolderPlusIcon,
   LaptopIcon,
-  SearchIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 
 import { GitBranchDropdown } from '@/components/git-branch-dropdown';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
+import { Button } from '@/components/trovecn/ui/button';
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxIcon,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxSearchIcon,
+  ComboboxTrigger,
+} from '@/components/trovecn/ui/combobox';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Select,
@@ -84,7 +93,7 @@ export function CurrentWorkspace({
         <FieldLabel htmlFor="workspace-folder" className="sr-only">
           Folder location
         </FieldLabel>
-        <Combobox.Root
+        <Combobox
           items={folders}
           value={selectedFolder}
           open={folderPickerOpen}
@@ -92,86 +101,76 @@ export function CurrentWorkspace({
           onValueChange={(folder) => changeFolder(folder?.value ?? null)}
           isItemEqualToValue={(folder, value) => folder.value === value.value}
         >
-          <Combobox.Trigger
+          <ComboboxTrigger
             id="workspace-folder"
-            className="flex h-8 max-w-48 items-center justify-between gap-1.5 rounded-lg border border-input bg-card px-3 text-sm whitespace-nowrap outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                className="max-w-48 justify-between bg-card px-3 font-normal"
+              />
+            }
             disabled={loadingWorkspace}
           >
             <span className="min-w-0 truncate">
-              <Combobox.Value placeholder="Workspace" />
+              {selectedFolder?.label ?? 'Workspace'}
             </span>
-            <Combobox.Icon>
-              <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
-            </Combobox.Icon>
-          </Combobox.Trigger>
-          <Combobox.Portal>
-            <Combobox.Positioner
-              align="start"
-              sideOffset={4}
-              className="isolate z-50 outline-none"
-            >
-              <Combobox.Popup
-                aria-label="Choose workspace directory"
-                className="relative isolate z-50 w-72 max-w-(--available-width) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
-              >
-                <div className="relative border-b border-border p-2">
-                  <SearchIcon
-                    aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <Combobox.Input
-                    aria-label="Search workspace directories"
-                    placeholder="Search directories"
-                    spellCheck={false}
-                    className="h-8 w-full rounded-md bg-muted/60 pr-2 pl-8 text-sm outline-none select-text placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-                  />
-                </div>
-                <Combobox.Empty className="text-center text-sm text-muted-foreground [&:not(:empty)]:px-3 [&:not(:empty)]:py-6">
-                  No directories found.
-                </Combobox.Empty>
-                <Combobox.List className="max-h-52 overflow-y-auto overscroll-contain p-1 scroll-py-1 outline-none [scrollbar-gutter:stable] data-empty:p-0">
-                  {(folder: PrimeAgentFolderChoice, index: number) => (
-                    <Combobox.Item
-                      key={folder.value}
-                      value={folder}
-                      index={index}
-                      className="relative flex min-h-11 cursor-default items-center gap-2 rounded-md py-1 pr-8 pl-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate">{folder.label}</div>
-                        <div
-                          className="truncate text-xs text-muted-foreground"
-                          title={folder.value}
-                        >
-                          {folder.value}
-                        </div>
-                      </div>
-                      <Combobox.ItemIndicator className="absolute right-2 flex size-4 items-center justify-center">
-                        <CheckIcon className="size-4" />
-                      </Combobox.ItemIndicator>
-                    </Combobox.Item>
-                  )}
-                </Combobox.List>
-                <Combobox.Separator className="h-px bg-border" />
-                <button
-                  type="button"
-                  aria-label="New directory"
-                  className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 active:bg-accent/80 motion-reduce:transition-none"
-                  onClick={() => {
-                    setFolderPickerOpen(false);
-                    chooseWorkspaceDirectory();
-                  }}
+            <ComboboxIcon />
+          </ComboboxTrigger>
+          <ComboboxContent
+            aria-label="Choose workspace directory"
+            className="w-72 max-w-(--available-width)"
+            sideOffset={4}
+          >
+            <div className="p-1">
+              <ComboboxInputGroup className="bg-muted/60">
+                <ComboboxSearchIcon />
+                <ComboboxInput
+                  aria-label="Search workspace directories"
+                  placeholder="Search directories"
+                  spellCheck={false}
+                />
+              </ComboboxInputGroup>
+            </div>
+            <ComboboxEmpty>No directories found.</ComboboxEmpty>
+            <ComboboxList className="max-h-52 overflow-y-auto overscroll-contain scroll-py-1 [scrollbar-gutter:stable]">
+              {(folder: PrimeAgentFolderChoice, index: number) => (
+                <ComboboxItem
+                  key={folder.value}
+                  value={folder}
+                  index={index}
+                  className="min-h-11"
                 >
-                  <FolderPlusIcon
-                    aria-hidden="true"
-                    className="size-4 text-muted-foreground"
-                  />
-                  New directory…
-                </button>
-              </Combobox.Popup>
-            </Combobox.Positioner>
-          </Combobox.Portal>
-        </Combobox.Root>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-foreground">
+                      {folder.label}
+                    </div>
+                    <div
+                      className="truncate text-xs text-muted-foreground"
+                      title={folder.value}
+                    >
+                      {folder.value}
+                    </div>
+                  </div>
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+            <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label="New directory"
+              className="w-full justify-start px-2 font-normal text-muted-foreground"
+              onClick={() => {
+                setFolderPickerOpen(false);
+                chooseWorkspaceDirectory();
+              }}
+            >
+              <FolderPlusIcon aria-hidden="true" />
+              New directory…
+            </Button>
+          </ComboboxContent>
+        </Combobox>
       </Field>
 
       <GitBranchDropdown

@@ -1,8 +1,5 @@
-import { Menu } from '@base-ui/react/menu';
 import {
-  CheckIcon,
   ChevronDownIcon,
-  ChevronRightIcon,
   FolderGit2Icon,
   GitBranchIcon,
   GitBranchPlusIcon,
@@ -12,6 +9,20 @@ import {
 import { useRef, useState } from 'react';
 
 import { GitWorktreeDialog } from '@/components/git-worktree-dialog';
+import { Button } from '@/components/trovecn/ui/button';
+import {
+  Menu,
+  MenuContent,
+  MenuGroup,
+  MenuItem,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
+  MenuTrigger,
+} from '@/components/trovecn/ui/menu';
 
 interface GitBranchDropdownProps {
   readonly branches: readonly string[];
@@ -25,10 +36,6 @@ interface GitBranchDropdownProps {
   readonly createWorktree: (branchName: string) => void;
 }
 
-const popupClass =
-  'relative z-50 min-w-48 overflow-hidden rounded-xl bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden';
-const itemClass =
-  'relative flex min-h-9 cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground';
 const branchListClass =
   'max-h-52 overflow-y-auto overscroll-contain scroll-py-1 [scrollbar-gutter:stable]';
 
@@ -59,10 +66,16 @@ export function GitBranchDropdown({
 
   return (
     <>
-      <Menu.Root>
-        <Menu.Trigger
+      <Menu>
+        <MenuTrigger
           ref={triggerRef}
-          className="relative inline-flex h-8 min-w-[106px] max-w-[180px] items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-normal text-foreground outline-none transition-opacity select-none after:absolute after:inset-x-0 after:-inset-y-1 hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-pressed:bg-muted data-[loading=true]:opacity-50 disabled:pointer-events-none disabled:opacity-50"
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              className="relative min-w-[106px] max-w-[180px] justify-start bg-card px-3 font-normal after:absolute after:inset-x-0 after:-inset-y-1 data-[loading=true]:opacity-50"
+            />
+          }
           aria-label={`Git branch: ${branchLabel}${loading ? ', loading' : ''}`}
           aria-describedby={statusId}
           aria-busy={loading}
@@ -88,104 +101,71 @@ export function GitBranchDropdown({
               className="size-3.5 shrink-0 text-muted-foreground"
             />
           )}
-        </Menu.Trigger>
+        </MenuTrigger>
 
-        <Menu.Portal>
-          <Menu.Positioner
-            className="isolate z-50 outline-hidden"
-            sideOffset={4}
-            align="start"
-          >
-            <Menu.Popup className={popupClass}>
-              {branches.length === 0 ? (
-                <Menu.Item className={itemClass} onClick={initializeGit}>
-                  <GitBranchPlusIcon
-                    aria-hidden="true"
-                    className="size-4 shrink-0"
-                  />
-                  <span>Initialize Git with main</span>
-                </Menu.Item>
-              ) : (
-                <>
-                  <Menu.Group className={branchListClass}>
-                    {branches.map((name) => (
-                      <Menu.Item
-                        key={name}
-                        className={itemClass}
-                        aria-current={name === currentBranch ? 'true' : undefined}
-                        onClick={() => changeBranch(name)}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{name}</span>
-                        {name === currentBranch ? (
-                          <CheckIcon
-                            aria-hidden="true"
-                            className="size-4 shrink-0"
-                          />
-                        ) : null}
-                      </Menu.Item>
-                    ))}
-                  </Menu.Group>
-
-                  <Menu.Separator className="-mx-1 my-1 h-px bg-border" />
-                  <Menu.Item
-                    className={itemClass}
-                    onClick={() => setWorktreeDialogOpen(true)}
+        <MenuContent align="start" sideOffset={4} className="min-w-48">
+          {branches.length === 0 ? (
+            <MenuItem className="min-h-9" onClick={initializeGit}>
+              <GitBranchPlusIcon aria-hidden="true" />
+              <span>Initialize Git with main</span>
+            </MenuItem>
+          ) : (
+            <>
+              <MenuRadioGroup
+                value={currentBranch ?? ''}
+                onValueChange={changeBranch}
+                className={branchListClass}
+              >
+                {branches.map((name) => (
+                  <MenuRadioItem
+                    key={name}
+                    value={name}
+                    indicator="check"
+                    className="min-h-9 data-checked:bg-active data-checked:text-foreground"
                   >
-                    <FolderGit2Icon
-                      aria-hidden="true"
-                      className="size-4 shrink-0"
-                    />
-                    <span>New worktree…</span>
-                  </Menu.Item>
-                  <Menu.SubmenuRoot>
-                    <Menu.SubmenuTrigger
-                      className={`${itemClass} text-destructive data-highlighted:text-destructive`}
-                      disabled={deletableBranches.length === 0}
-                    >
-                      <Trash2Icon
-                        aria-hidden="true"
-                        className="size-4 shrink-0"
-                      />
-                      <span className="flex-1">Delete branch</span>
-                      <ChevronRightIcon
-                        aria-hidden="true"
-                        className="size-4 shrink-0"
-                      />
-                    </Menu.SubmenuTrigger>
-                    <Menu.Portal>
-                      <Menu.Positioner
-                        className="isolate z-50 outline-hidden"
-                        sideOffset={4}
-                        alignOffset={-4}
+                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+
+              <MenuSeparator />
+              <MenuItem
+                className="min-h-9"
+                onClick={() => setWorktreeDialogOpen(true)}
+              >
+                <FolderGit2Icon aria-hidden="true" />
+                <span>New worktree…</span>
+              </MenuItem>
+              <MenuSub>
+                <MenuSubTrigger
+                  className="min-h-9 text-destructive data-highlighted:text-destructive"
+                  disabled={deletableBranches.length === 0}
+                >
+                  <Trash2Icon aria-hidden="true" />
+                  <span className="flex-1">Delete branch</span>
+                </MenuSubTrigger>
+                <MenuSubContent className="min-w-48">
+                  <MenuGroup className={branchListClass}>
+                    {deletableBranches.map((name) => (
+                      <MenuItem
+                        key={name}
+                        variant="destructive"
+                        className="min-h-9"
+                        onClick={() => confirmDelete(name)}
                       >
-                        <Menu.Popup className={popupClass}>
-                          <Menu.Group className={branchListClass}>
-                            {deletableBranches.map((name) => (
-                              <Menu.Item
-                                key={name}
-                                className={`${itemClass} text-destructive data-highlighted:text-destructive`}
-                                onClick={() => confirmDelete(name)}
-                              >
-                                <Trash2Icon
-                                  aria-hidden="true"
-                                  className="size-4 shrink-0"
-                                />
-                                <span className="min-w-0 flex-1 truncate">
-                                  {name}
-                                </span>
-                              </Menu.Item>
-                            ))}
-                          </Menu.Group>
-                        </Menu.Popup>
-                      </Menu.Positioner>
-                    </Menu.Portal>
-                  </Menu.SubmenuRoot>
-                </>
-              )}
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
+                        <Trash2Icon aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {name}
+                        </span>
+                      </MenuItem>
+                    ))}
+                  </MenuGroup>
+                </MenuSubContent>
+              </MenuSub>
+            </>
+          )}
+        </MenuContent>
+      </Menu>
 
       <GitWorktreeDialog
         open={worktreeDialogOpen}

@@ -119,8 +119,10 @@ function renderSidebar(actions: {
           }
           startAgentDraft={actions.startAgentDraft}
           importSession={actions.importSession}
+          onOpenSettings={() => undefined}
           renameSession={actions.renameSession}
           selectSession={actions.selectSession}
+          settingsOpen={false}
         />
       </SidebarProvider>
     </TooltipProvider>,

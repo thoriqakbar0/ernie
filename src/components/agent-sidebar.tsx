@@ -97,7 +97,10 @@ type AgentSidebarProps = Pick<
   | 'importSession'
   | 'renameSession'
   | 'selectSession'
->;
+> & {
+  readonly onOpenSettings: () => void;
+  readonly settingsOpen: boolean;
+};
 
 interface WorkspaceGroup {
   readonly folder: PrimeAgentFolderChoice;
@@ -307,6 +310,8 @@ export function AgentSidebar({
   importSession,
   renameSession,
   selectSession,
+  onOpenSettings,
+  settingsOpen,
 }: AgentSidebarProps): React.JSX.Element {
   const [renameTarget, setRenameTarget] = useState<ThreadConversation | null>(
     null,
@@ -1399,10 +1404,20 @@ export function AgentSidebar({
               size="default"
               tooltip="Settings"
               className="h-9"
+              aria-label={
+                primeAgentConnection === 'ready'
+                  ? 'Settings'
+                  : primeAgentConnection === 'connecting'
+                    ? 'Ernie Connecting'
+                    : 'Ernie Agent unavailable'
+              }
+              isActive={settingsOpen}
               onClick={() => {
                 if (primeAgentConnection === 'unavailable') {
                   setConnectionDetailsOpen(true);
+                  return;
                 }
+                onOpenSettings();
               }}
             >
               <img

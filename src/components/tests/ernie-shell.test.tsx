@@ -239,19 +239,45 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   );
   await user.click(within(document.body).getByRole('button', { name: 'Agents' }));
 
-  assert.equal(within(document.body).queryByText('annotate'), null);
+  assert.equal(
+    within(document.body).queryByRole('region', { name: 'Settings' }),
+    null,
+  );
   await user.click(
     within(document.body).getByRole('button', { name: 'Application settings' }),
   );
-  const annotateItem = within(document.body).getByRole('menuitemcheckbox', {
+  const settings = within(document.body).getByRole('region', {
+    name: 'Settings',
+  });
+  const annotateSwitch = within(settings).getByRole('switch', {
     name: 'Annotate',
   });
-  assert.equal(annotateItem.getAttribute('aria-checked'), 'false');
+  assert.equal(annotateSwitch.getAttribute('aria-checked'), 'false');
+  await user.click(within(settings).getByRole('button', { name: 'Manage' }));
   assert.ok(
-    within(document.body).getByRole('menuitem', { name: 'Reload renderer' }),
+    await within(document.body).findByRole('dialog', { name: 'Plugins' }),
   );
-  await user.click(annotateItem);
+  await user.keyboard('{Escape}');
+  await waitFor(() =>
+    assert.equal(
+      within(document.body).queryByRole('dialog', { name: 'Plugins' }),
+      null,
+    ),
+  );
+  await user.click(annotateSwitch);
   assert.deepEqual(reactGrabChanges, [true]);
+  await user.click(
+    within(settings).getByRole('button', { name: 'Back to Agent' }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Settings' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('region', { name: 'Settings' }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Application settings' }),
+  );
 
   assert.ok(
     await within(document.body).findByRole('button', {

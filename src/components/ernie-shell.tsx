@@ -1,10 +1,4 @@
-import {
-  MoonIcon,
-  PuzzleIcon,
-  RefreshCwIcon,
-  SettingsIcon,
-  SunIcon,
-} from 'lucide-react';
+import { SettingsIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
@@ -13,6 +7,7 @@ import {
   PluginActivityBar,
 } from '@/components/plugin-activity-bar';
 import { PluginManagerDialog } from '@/components/plugin-manager-dialog';
+import { SettingsPage } from '@/components/settings-page';
 import { TaskSurface } from '@/components/task-surface';
 import {
   SidebarInset,
@@ -21,13 +16,6 @@ import {
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/trovecn/ui/button';
-import {
-  Menu,
-  MenuCheckboxItem,
-  MenuContent,
-  MenuItem,
-  MenuTrigger,
-} from '@/components/trovecn/ui/menu';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 import {
   browserPluginViewId,
@@ -62,7 +50,7 @@ export function ErnieShell({
   const [activeViewId, setActiveViewId] = useState(agentsViewId);
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const [pluginError, setPluginError] = useState<string | null>(null);
-  const themeAction = darkModeEnabled ? 'Use light mode' : 'Use dark mode';
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const agentsActive = activeViewId === agentsViewId;
   const activePluginView = pluginViews.find((view) => view.id === activeViewId) ?? null;
   const selectedSession = workspace.sessions.find(
@@ -94,6 +82,7 @@ export function ErnieShell({
   }, [pluginHost]);
 
   const selectView = (viewId: string): void => {
+    setSettingsOpen(false);
     if (viewId === agentsViewId) {
       setPluginError(null);
       setActiveViewId(agentsViewId);
@@ -118,7 +107,29 @@ export function ErnieShell({
           onSelectView={selectView}
         />
         <SidebarProvider defaultOpen className="min-w-0 flex-1">
-          {agentsActive ? <AgentSidebar {...workspace} /> : null}
+          {agentsActive ? (
+            <AgentSidebar
+              {...workspace}
+              changeFolder={(cwd) => {
+                setSettingsOpen(false);
+                workspace.changeFolder(cwd);
+              }}
+              importSession={(sessionPath) => {
+                setSettingsOpen(false);
+                workspace.importSession(sessionPath);
+              }}
+              onOpenSettings={() => setSettingsOpen(true)}
+              selectSession={(activeSessionId) => {
+                setSettingsOpen(false);
+                workspace.selectSession(activeSessionId);
+              }}
+              settingsOpen={settingsOpen}
+              startAgentDraft={(cwd) => {
+                setSettingsOpen(false);
+                workspace.startAgentDraft(cwd);
+              }}
+            />
+          ) : null}
 
           <SidebarInset className="h-svh min-w-0 overflow-hidden">
             <header className="z-20 flex h-12 shrink-0 items-center gap-3 border-b border-border/50 bg-background/90 px-3 backdrop-blur-md sm:px-4">
@@ -130,18 +141,22 @@ export function ErnieShell({
               ) : null}
               <div className="flex min-w-0 items-center gap-2">
                 <h1 className="max-w-[min(42vw,32rem)] truncate text-sm font-medium text-foreground">
-                  {agentsActive
-                    ? (selectedSessionView?.sessionName ??
-                      selectedSession?.name ??
-                      'New Agent')
-                    : (activePluginView?.title ?? 'Plugin')}
+                  {settingsOpen
+                    ? 'Settings'
+                    : agentsActive
+                      ? (selectedSessionView?.sessionName ??
+                        selectedSession?.name ??
+                        'New Agent')
+                      : (activePluginView?.title ?? 'Plugin')}
                 </h1>
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {agentsActive
-                    ? `${workspace.repoName}${workspace.gitBranch === null ? '' : ` · ${workspace.gitBranch}`}`
-                    : 'Built-in plugin'}
-                </span>
-                {!agentsActive || sessionStatus === null ? null : (
+                {settingsOpen ? null : (
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    {agentsActive
+                      ? `${workspace.repoName}${workspace.gitBranch === null ? '' : ` · ${workspace.gitBranch}`}`
+                      : 'Built-in plugin'}
+                  </span>
+                )}
+                {settingsOpen || !agentsActive || sessionStatus === null ? null : (
                   <span
                     className={`text-xs font-medium ${sessionStatus === 'done' ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
                   >
@@ -155,74 +170,59 @@ export function ErnieShell({
                   variant="ghost"
                   size="icon"
                   className="size-9"
-                  aria-label={themeAction}
-                  title={themeAction}
-                  onClick={() => onDarkModeEnabledChange(!darkModeEnabled)}
+                  aria-label="Application settings"
+                  aria-pressed={settingsOpen}
+                  title="Application settings"
+                  onClick={() => setSettingsOpen((open) => !open)}
                 >
-                  {darkModeEnabled ? (
-                    <SunIcon aria-hidden="true" />
-                  ) : (
-                    <MoonIcon aria-hidden="true" />
-                  )}
+                  <SettingsIcon aria-hidden="true" />
                 </Button>
-                <Menu>
-                  <MenuTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-9"
-                        aria-label="Application settings"
-                      />
-                    }
-                  >
-                    <SettingsIcon aria-hidden="true" />
-                  </MenuTrigger>
-                  <MenuContent align="end" sideOffset={6}>
-                    <MenuItem onClick={() => setPluginManagerOpen(true)}>
-                      <PuzzleIcon aria-hidden="true" />
-                      Plugins
-                    </MenuItem>
-                    <MenuCheckboxItem
-                      checked={reactGrabEnabled}
-                      onCheckedChange={onReactGrabEnabledChange}
-                    >
-                      Annotate
-                    </MenuCheckboxItem>
-                    <MenuItem onClick={onReload}>
-                      <RefreshCwIcon aria-hidden="true" />
-                      Reload renderer
-                    </MenuItem>
-                  </MenuContent>
-                </Menu>
               </div>
             </header>
 
-            <section
-              className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
-                agentsActive ? 'px-6 pt-4 pb-6 sm:px-10' : ''
-              }`}
-            >
-              {agentsActive ? (
-                <TaskSurface workspace={workspace} onRetryConnection={onReload} />
-              ) : activeViewId === browserPluginViewId && !pluginManagerOpen ? (
-                <BrowserPluginView
-                  renderer={window.ernie}
-                  executeCommand={(commandId) =>
-                    pluginHost.executeCommand(commandId)
+            {settingsOpen ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <SettingsPage
+                  backLabel={
+                    agentsActive
+                      ? 'Back to Agent'
+                      : `Back to ${activePluginView?.title ?? 'plugin'}`
                   }
+                  darkModeEnabled={darkModeEnabled}
+                  onClose={() => setSettingsOpen(false)}
+                  onDarkModeEnabledChange={onDarkModeEnabledChange}
+                  onOpenPlugins={() => setPluginManagerOpen(true)}
+                  onReactGrabEnabledChange={onReactGrabEnabledChange}
+                  onReload={onReload}
+                  reactGrabEnabled={reactGrabEnabled}
                 />
-              ) : null}
-              {pluginError === null ? null : (
-                <div
-                  role="alert"
-                  className="m-4 rounded-lg border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive"
-                >
-                  {pluginError}
-                </div>
-              )}
-            </section>
+              </div>
+            ) : (
+              <section
+                className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
+                  agentsActive ? 'px-6 pt-4 pb-6 sm:px-10' : ''
+                }`}
+              >
+                {agentsActive ? (
+                  <TaskSurface workspace={workspace} onRetryConnection={onReload} />
+                ) : activeViewId === browserPluginViewId && !pluginManagerOpen ? (
+                  <BrowserPluginView
+                    renderer={window.ernie}
+                    executeCommand={(commandId) =>
+                      pluginHost.executeCommand(commandId)
+                    }
+                  />
+                ) : null}
+                {pluginError === null ? null : (
+                  <div
+                    role="alert"
+                    className="m-4 rounded-lg border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive"
+                  >
+                    {pluginError}
+                  </div>
+                )}
+              </section>
+            )}
           </SidebarInset>
         </SidebarProvider>
       </div>

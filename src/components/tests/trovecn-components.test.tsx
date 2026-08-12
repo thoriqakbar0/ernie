@@ -23,6 +23,7 @@ import * as Tabs from '@/components/trovecn/ui/tabs';
 import * as Tooltip from '@/components/trovecn/ui/tooltip';
 import { Conversation } from '@/components/trovecn/ai-workbench/conversation';
 import { PromptComposer } from '@/components/trovecn/ai-workbench/prompt-composer';
+import { motionSafeProps } from '@/components/trovecn/lib/motion-safe-props';
 
 afterEach(cleanup);
 
@@ -45,6 +46,16 @@ test('every trove/cn registry component module loads', () => {
   ];
 
   assert.equal(modules.every((module) => Object.keys(module).length > 0), true);
+});
+
+test('Motion boundary rejects native callbacks it cannot preserve', () => {
+  assert.throws(
+    () =>
+      motionSafeProps<HTMLDivElement>({
+        onDrag: () => undefined,
+      }),
+    /onDrag cannot cross a Motion render boundary/u,
+  );
 });
 
 test('conversation renders authored messages', () => {

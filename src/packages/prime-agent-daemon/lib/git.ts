@@ -61,7 +61,7 @@ function diagnosticText(value: JsonValue): string | null {
 
 function errorField(cause: unknown, field: 'stderr'): JsonValue {
   return Predicate.isRecord(cause) && field in cause
-    ? parseJsonValue(cause[field])
+    ? (parseJsonValue(cause[field]) ?? null)
     : null;
 }
 

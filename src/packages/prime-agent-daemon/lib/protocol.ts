@@ -39,13 +39,13 @@ import {
   type JsonValue,
 } from '../../json-value';
 
-function nonEmptyString(value: JsonValue): string | null {
+function nonEmptyString(value: JsonValue | undefined): string | null {
   if (!isJsonString(value)) return null;
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
 }
 
-function textContent(value: JsonValue): string {
+function textContent(value: JsonValue | undefined): string {
   if (isJsonString(value)) return value.trim();
   if (!Array.isArray(value)) return '';
   return value
@@ -58,24 +58,24 @@ function textContent(value: JsonValue): string {
     .trim();
 }
 
-function optionalText(value: JsonValue): string | null {
+function optionalText(value: JsonValue | undefined): string | null {
   return isJsonString(value) && value.length > 0 ? value : null;
 }
 
-function optionalDuration(value: JsonValue): number | null {
+function optionalDuration(value: JsonValue | undefined): number | null {
   return isJsonNumber(value) && Number.isFinite(value) && value >= 0
     ? value
     : null;
 }
 
-function tracebackLines(value: JsonValue): readonly string[] {
+function tracebackLines(value: JsonValue | undefined): readonly string[] {
   return Array.isArray(value)
     ? value.filter(isJsonString)
     : [];
 }
 
 function ipythonAttachments(
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): readonly PrimeAgentIpythonAttachment[] {
   if (!Array.isArray(value)) return [];
   const attachments: PrimeAgentIpythonAttachment[] = [];
@@ -321,7 +321,9 @@ export function parseSessionViewData(
   };
 }
 
-function parseSessionViewDto(value: JsonValue): PrimeAgentSessionView | null {
+function parseSessionViewDto(
+  value: JsonValue | undefined,
+): PrimeAgentSessionView | null {
   if (
     !isJsonRecord(value) ||
     !Array.isArray(value.messages) ||
@@ -482,7 +484,7 @@ function failure(
   return { ok: false, error: { code, message } };
 }
 
-function parseFailure(value: JsonValue): PrimeAgentFailure | null {
+function parseFailure(value: JsonValue | undefined): PrimeAgentFailure | null {
   if (!isJsonRecord(value)) return null;
 
   const code = value.code;
@@ -504,7 +506,7 @@ function modelKey(provider: string, id: string): string {
   return JSON.stringify([provider, id]);
 }
 
-function parseModel(value: JsonValue): PrimeAgentModel | null {
+function parseModel(value: JsonValue | undefined): PrimeAgentModel | null {
   if (!isJsonRecord(value)) return null;
 
   const id = nonEmptyString(value.id);
@@ -567,7 +569,9 @@ function parseSessionActivity(
   return value.taskState === 'completed' ? 'settled' : 'idle';
 }
 
-function parseSavedSession(value: JsonValue): PrimeAgentSavedSession | null {
+function parseSavedSession(
+  value: JsonValue | undefined,
+): PrimeAgentSavedSession | null {
   if (!isJsonRecord(value)) return null;
 
   const path = nonEmptyString(value.path);
@@ -606,7 +610,7 @@ function parseSavedSession(value: JsonValue): PrimeAgentSavedSession | null {
 }
 
 function parseSession(
-  value: JsonValue,
+  value: JsonValue | undefined,
   requireAttachedClient: boolean,
 ): PrimeAgentSession | null {
   if (!isJsonRecord(value)) return null;
@@ -640,7 +644,9 @@ function parseSession(
   };
 }
 
-function parseSessionDto(value: JsonValue): PrimeAgentSession | null {
+function parseSessionDto(
+  value: JsonValue | undefined,
+): PrimeAgentSession | null {
   if (!isJsonRecord(value)) return null;
 
   const activeSessionId = nonEmptyString(value.activeSessionId);
@@ -681,7 +687,9 @@ function parseSessionDto(value: JsonValue): PrimeAgentSession | null {
   };
 }
 
-function parseSavedSessionDto(value: JsonValue): PrimeAgentSavedSession | null {
+function parseSavedSessionDto(
+  value: JsonValue | undefined,
+): PrimeAgentSavedSession | null {
   if (!isJsonRecord(value)) return null;
 
   const path = nonEmptyString(value.path);
@@ -710,7 +718,7 @@ function parseSavedSessionDto(value: JsonValue): PrimeAgentSavedSession | null {
 }
 
 function parseSavedSessions(
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): readonly PrimeAgentSavedSession[] | null {
   if (!Array.isArray(value)) return null;
 
@@ -722,7 +730,9 @@ function parseSavedSessions(
       );
 }
 
-function parseModels(value: JsonValue): readonly PrimeAgentModel[] | null {
+function parseModels(
+  value: JsonValue | undefined,
+): readonly PrimeAgentModel[] | null {
   if (!Array.isArray(value)) return null;
 
   const models: PrimeAgentModel[] = [];
@@ -963,7 +973,7 @@ export function parseSessionRename(
 
 /** Parse RLM maximum-depth state returned by the Prime Agent daemon. */
 export function parseRlmDepthData(
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PrimeAgentResult<PrimeAgentRlmDepth> {
   if (!isJsonRecord(value)) {
     return failure('protocol_error', 'Prime Agent returned invalid RLM depth data.');
@@ -1011,7 +1021,7 @@ export function parseRlmDepthSelection(
 
 function parseResult<T>(
   value: JsonValue,
-  parseValue: (input: JsonValue) => T | null,
+  parseValue: (input: JsonValue | undefined) => T | null,
 ): PrimeAgentResult<T> {
   if (!isJsonRecord(value) || !isJsonBoolean(value.ok)) {
     return failure('protocol_error', 'Ernie received an invalid daemon response.');
@@ -1030,7 +1040,9 @@ function parseResult<T>(
     : { ok: true, value: parsedValue };
 }
 
-function parseWorkspace(value: JsonValue): PrimeAgentWorkspace | null {
+function parseWorkspace(
+  value: JsonValue | undefined,
+): PrimeAgentWorkspace | null {
   if (!isJsonRecord(value)) return null;
   const currentCwd = nonEmptyString(value.currentCwd);
   if (currentCwd === null || !Array.isArray(value.sessions)) return null;
@@ -1046,7 +1058,9 @@ function parseWorkspace(value: JsonValue): PrimeAgentWorkspace | null {
   };
 }
 
-function parseGitBranches(value: JsonValue): PrimeAgentGitBranches | null {
+function parseGitBranches(
+  value: JsonValue | undefined,
+): PrimeAgentGitBranches | null {
   if (!isJsonRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
@@ -1077,7 +1091,9 @@ function parseGitBranches(value: JsonValue): PrimeAgentGitBranches | null {
   };
 }
 
-function parseGitWorktree(value: JsonValue): PrimeAgentGitWorktree | null {
+function parseGitWorktree(
+  value: JsonValue | undefined,
+): PrimeAgentGitWorktree | null {
   if (!isJsonRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
@@ -1085,7 +1101,9 @@ function parseGitWorktree(value: JsonValue): PrimeAgentGitWorktree | null {
   return cwd === null || branchName === null ? null : { cwd, branchName };
 }
 
-function parseGitWorkspace(value: JsonValue): PrimeAgentGitWorkspace | null {
+function parseGitWorkspace(
+  value: JsonValue | undefined,
+): PrimeAgentGitWorkspace | null {
   if (!isJsonRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
@@ -1102,29 +1120,33 @@ function parseGitWorkspace(value: JsonValue): PrimeAgentGitWorkspace | null {
   return { cwd, repositoryCwd, branchName };
 }
 
-function parseTaskReceipt(value: JsonValue): PrimeAgentTaskReceipt | null {
+function parseTaskReceipt(
+  value: JsonValue | undefined,
+): PrimeAgentTaskReceipt | null {
   return isJsonRecord(value) && value.accepted === true ? { accepted: true } : null;
 }
 
 function parseRefinementReceipt(
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PrimeAgentRefinementReceipt | null {
   return isJsonRecord(value) && value.refined === true ? { refined: true } : null;
 }
 
 function parseSessionRenameReceipt(
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PrimeAgentSessionRenameReceipt | null {
   if (!isJsonRecord(value)) return null;
   const name = nonEmptyString(value.name);
   return name === null ? null : { name };
 }
 
-function parseSessionResultValue(value: JsonValue): PrimeAgentSession | null {
+function parseSessionResultValue(
+  value: JsonValue | undefined,
+): PrimeAgentSession | null {
   return parseSessionDto(value);
 }
 
-function parseSkill(value: JsonValue): PrimeAgentSkill | null {
+function parseSkill(value: JsonValue | undefined): PrimeAgentSkill | null {
   if (!isJsonRecord(value)) return null;
 
   const command = nonEmptyString(value.command);
@@ -1146,7 +1168,9 @@ function parseSkill(value: JsonValue): PrimeAgentSkill | null {
   return { command, content, description, name };
 }
 
-function parseSkills(value: JsonValue): readonly PrimeAgentSkill[] | null {
+function parseSkills(
+  value: JsonValue | undefined,
+): readonly PrimeAgentSkill[] | null {
   if (!Array.isArray(value)) return null;
 
   const skills: PrimeAgentSkill[] = [];
@@ -1367,7 +1391,9 @@ export function parseModelResult(
   return parseResult(value, parseModel);
 }
 
-function parseRlmDepth(value: JsonValue): PrimeAgentRlmDepth | null {
+function parseRlmDepth(
+  value: JsonValue | undefined,
+): PrimeAgentRlmDepth | null {
   const result = parseRlmDepthData(value);
   return result.ok ? result.value : null;
 }

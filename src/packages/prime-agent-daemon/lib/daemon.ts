@@ -53,7 +53,7 @@ function responseData(response: DaemonResponse): PrimeAgentResult<JsonValue> {
     return failure('request_failed', 'Prime Agent could not complete the request.');
   }
   const value = parseJsonValue(response.data);
-  return value === null && response.data !== null
+  return value === undefined
     ? failure('protocol_error', 'Prime Agent returned non-serializable data.')
     : { ok: true, value };
 }
@@ -274,7 +274,7 @@ export function createPrimeAgentDaemon(
           const catalog = parseSkillResourceCatalogData(response.value);
           if (!catalog.ok) return catalog;
 
-          const skills = yield* Effect.forEach(
+          const loadedSkills = yield* Effect.forEach(
             catalog.value,
             (skill) =>
               Effect.tryPromise(() => readFile(skill.filePath, 'utf8')).pipe(
@@ -284,17 +284,24 @@ export function createPrimeAgentDaemon(
                       'Prime Agent skill file could not be read.',
                       cause,
                     );
-                    return '';
+                    return null;
                   }),
                 ),
-                Effect.map((content) => ({
-                  command: `/skill:${skill.name}`,
-                  content,
-                  description: skill.description,
-                  name: skill.name,
-                })),
+                Effect.map((content) =>
+                  content === null
+                    ? null
+                    : {
+                        command: `/skill:${skill.name}`,
+                        content,
+                        description: skill.description,
+                        name: skill.name,
+                      },
+                ),
               ),
             { concurrency: 8 },
+          );
+          const skills = loadedSkills.filter(
+            (skill): skill is NonNullable<typeof skill> => skill !== null,
           );
           return { ok: true, value: skills } as const;
         }),

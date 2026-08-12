@@ -617,13 +617,17 @@ function parseSession(
   const cwd = nonEmptyString(value.cwd);
   const activity = parseSessionActivity(value);
   const attachedClients = value.attachedClients;
+  const remainsLiveWithoutClient =
+    activity === 'working' ||
+    activity === 'queued' ||
+    activity === 'needs_input';
   if (
     activeSessionId === null ||
     cwd === null ||
     activity === null ||
     value.runtimeKind === 'subagent' ||
     !isJsonNumber(attachedClients) ||
-    (requireAttachedClient && attachedClients < 1)
+    (requireAttachedClient && attachedClients < 1 && !remainsLiveWithoutClient)
   ) {
     return null;
   }

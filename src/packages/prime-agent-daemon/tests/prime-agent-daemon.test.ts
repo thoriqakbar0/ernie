@@ -391,7 +391,7 @@ testInTempDirectory(
   },
 );
 
-test('keeps only connected top-level daemon sessions', () => {
+test('keeps active or connected top-level daemon sessions', () => {
   const result = parsePrimeAgentDaemonSessions({
     sessions: [
       {
@@ -417,6 +417,15 @@ test('keeps only connected top-level daemon sessions', () => {
         cwd: '/workspace/ernie',
         runtimeKind: 'top-level',
         sessionActions: { queuedCount: 0 },
+      },
+      {
+        activeSessionId: 'root-running-detached',
+        activity: 'working',
+        attachedClients: 0,
+        cwd: '/workspace/ernie',
+        runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
+        firstMessage: 'Keep the running chat visible',
       },
       {
         activeSessionId: 'child-active',
@@ -445,6 +454,15 @@ test('keeps only connected top-level daemon sessions', () => {
         },
         modifiedAt: '2026-08-10T10:00:00.000Z',
         sessionPath: '/sessions/root-active.jsonl',
+      },
+      {
+        activeSessionId: 'root-running-detached',
+        activity: 'working',
+        cwd: '/workspace/ernie',
+        name: 'Keep the running chat visible',
+        model: null,
+        modifiedAt: null,
+        sessionPath: null,
       },
     ],
   });

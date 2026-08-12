@@ -1,4 +1,7 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { Effect } from 'effect';
@@ -8,9 +11,122 @@ const host = '127.0.0.1';
 const port = 5173;
 const rendererUrl = `http://${host}:${port}`;
 const shutdownTimeoutMs = 5_000;
+const electronApplicationPath = fileURLToPath(
+  new URL('../node_modules/electron/dist/Electron.app', import.meta.url),
+);
 const electronCliPath = fileURLToPath(
   new URL('../node_modules/electron/cli.js', import.meta.url),
 );
+const developmentApplicationPath = fileURLToPath(
+  new URL('../.build/Ernie-development.app', import.meta.url),
+);
+const developmentApplicationMarkerPath = path.join(
+  developmentApplicationPath,
+  'Contents',
+  'Resources',
+  '.ernie-electron-source',
+);
+const runFile = promisify(execFile);
+
+async function prepareDevelopmentApplication() {
+  const resolvedElectronApplicationPath = await realpath(
+    electronApplicationPath,
+  );
+  const sourceIdentity = `${resolvedElectronApplicationPath}\n`;
+
+  try {
+    if (
+      (await readFile(developmentApplicationMarkerPath, 'utf8')) ===
+      sourceIdentity
+    ) {
+      return path.join(
+        developmentApplicationPath,
+        'Contents',
+        'MacOS',
+        'Ernie',
+      );
+    }
+
+    await rename(
+      developmentApplicationPath,
+      `${developmentApplicationPath}.stale-${Date.now()}`,
+    );
+  } catch (error) {
+    if (
+      typeof error !== 'object' ||
+      error === null ||
+      !('code' in error) ||
+      error.code !== 'ENOENT'
+    ) {
+      throw error;
+    }
+  }
+
+  await mkdir(path.dirname(developmentApplicationPath), { recursive: true });
+  await runFile('/bin/cp', [
+    '-cR',
+    resolvedElectronApplicationPath,
+    developmentApplicationPath,
+  ]);
+
+  const infoPlistPath = path.join(
+    developmentApplicationPath,
+    'Contents',
+    'Info.plist',
+  );
+  const originalExecutablePath = path.join(
+    developmentApplicationPath,
+    'Contents',
+    'MacOS',
+    'Electron',
+  );
+  const brandedExecutablePath = path.join(
+    developmentApplicationPath,
+    'Contents',
+    'MacOS',
+    'Ernie',
+  );
+
+  await rename(originalExecutablePath, brandedExecutablePath);
+  await runFile('/usr/bin/plutil', [
+    '-replace',
+    'CFBundleDisplayName',
+    '-string',
+    'Ernie',
+    infoPlistPath,
+  ]);
+  await runFile('/usr/bin/plutil', [
+    '-replace',
+    'CFBundleName',
+    '-string',
+    'Ernie',
+    infoPlistPath,
+  ]);
+  await runFile('/usr/bin/plutil', [
+    '-replace',
+    'CFBundleExecutable',
+    '-string',
+    'Ernie',
+    infoPlistPath,
+  ]);
+  await runFile('/usr/bin/plutil', [
+    '-replace',
+    'CFBundleIdentifier',
+    '-string',
+    'com.thoriq.ernie.development',
+    infoPlistPath,
+  ]);
+  await writeFile(developmentApplicationMarkerPath, sourceIdentity);
+  await runFile('/usr/bin/codesign', [
+    '--force',
+    '--deep',
+    '--sign',
+    '-',
+    developmentApplicationPath,
+  ]);
+
+  return brandedExecutablePath;
+}
 
 function errorMetadata(error) {
   return {
@@ -40,7 +156,19 @@ const development = Effect.fn('Development.start')(function* () {
   yield* Effect.tryPromise(() => viteServer.listen());
   viteServer.printUrls();
 
-  const electron = spawn(process.execPath, [electronCliPath, '.'], {
+  const electronLaunch =
+    process.platform === 'darwin'
+      ? {
+          executable: yield* Effect.tryPromise(() =>
+            prepareDevelopmentApplication(),
+          ),
+          arguments: ['.'],
+        }
+      : {
+          executable: process.execPath,
+          arguments: [electronCliPath, '.'],
+        };
+  const electron = spawn(electronLaunch.executable, electronLaunch.arguments, {
     env: {
       ...process.env,
       ERNIE_RENDERER_URL: rendererUrl,

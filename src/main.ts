@@ -1,7 +1,11 @@
 import path from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
-import type { IpcMainEvent, OpenDialogOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
+import type {
+  IpcMainEvent,
+  MenuItemConstructorOptions,
+  OpenDialogOptions,
+} from 'electron';
 import { Effect } from 'effect';
 
 import {
@@ -43,6 +47,63 @@ const rendererReadyTimeoutMs = 5_000;
 const developmentRendererUrlEnvironmentName = 'ERNIE_RENDERER_URL';
 
 app.setName('Ernie');
+
+function installMacApplicationMenu(): void {
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: 'Ernie',
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    { label: 'File', submenu: [{ role: 'close' }] },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 class RendererReadyTimeoutError extends Error {
   readonly _tag = 'RendererReadyTimeoutError';
@@ -340,6 +401,7 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   registerPrimeAgentHandlers();
 
   if (process.platform === 'darwin' && app.dock !== undefined) {
+    installMacApplicationMenu();
     app.dock.setIcon(path.join(__dirname, '../renderer/ernie-logo.png'));
   }
 

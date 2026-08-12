@@ -38,11 +38,11 @@ export function TaskSurface({
   return (
     <div
       className={
-        chatReady ? 'flex min-h-full w-full flex-col' : 'my-auto w-full'
+        chatReady ? 'flex h-full min-h-0 w-full flex-col' : 'my-auto w-full'
       }
     >
       <Field
-        className={`mx-auto w-full gap-2 ${chatReady ? 'min-h-full max-w-[44rem] flex-1' : 'max-w-[50rem]'}`}
+        className={`mx-auto w-full gap-2 ${chatReady ? 'min-h-0 max-w-none flex-1' : 'max-w-[50rem]'}`}
       >
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
@@ -71,7 +71,7 @@ export function TaskSurface({
           />
         ) : chatReady && selectedSessionView !== null ? (
           <>
-            <header className="flex items-center gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
+            <header className="mx-auto flex w-full max-w-[44rem] items-center gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
               <h1 className="font-medium text-foreground">
                 {selectedSessionView.sessionName ?? selectedSession?.name ?? 'Agent'}
               </h1>
@@ -91,12 +91,14 @@ export function TaskSurface({
                     : 'done'}
               </span>
             </header>
-            <div className="min-h-0 flex-1">
-              <AgentChat
-                depth={workspace.selectedSessionRlmMaxDepth}
-                onOpenSpawnedSession={workspace.openSpawnedSession}
-                sessionView={selectedSessionView}
-              />
+            <div className="min-h-0 w-full flex-1 overflow-y-auto">
+              <div className="mx-auto w-full max-w-[44rem]">
+                <AgentChat
+                  depth={workspace.selectedSessionRlmMaxDepth}
+                  onOpenSpawnedSession={workspace.openSpawnedSession}
+                  sessionView={selectedSessionView}
+                />
+              </div>
             </div>
           </>
         ) : (
@@ -111,7 +113,7 @@ export function TaskSurface({
         <div
           className={
             chatReady
-              ? 'sticky bottom-0 z-10 -mx-2 bg-background/95 px-2 pt-3 pb-1 backdrop-blur-sm'
+              ? 'mx-auto w-full max-w-[44rem] shrink-0 bg-background/95 pt-3 pb-1 backdrop-blur-sm'
               : undefined
           }
         >

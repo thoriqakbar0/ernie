@@ -82,7 +82,7 @@ export function ErnieShell({
             </div>
           </header>
 
-          <section className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-5 pb-6 sm:px-10">
+          <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-5 pb-6 sm:px-10">
             <TaskSurface workspace={workspace} onRetryConnection={onReload} />
           </section>
         </SidebarInset>

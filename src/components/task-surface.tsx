@@ -1,15 +1,22 @@
+import { RefreshCwIcon } from 'lucide-react';
+
 import { AgentChat } from '@/components/agent-chat';
 import { CurrentWorkspace } from '@/components/current-workspace';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Button } from '@/components/trovecn/ui/button';
 import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
 
 interface TaskSurfaceProps {
+  readonly onRetryConnection: () => void;
   readonly workspace: PrimeAgentWorkspaceController;
 }
 
 /** Ernie's primary task input and its connected execution environment. */
-export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element {
+export function TaskSurface({
+  onRetryConnection,
+  workspace,
+}: TaskSurfaceProps): React.JSX.Element {
   const selectedSession = workspace.sessions.find(
     (session) => session.activeSessionId === workspace.selectedSessionId,
   );
@@ -22,6 +29,7 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
     selectedSessionView?.messages.some(
       (message) => message.role === 'assistant',
     ) ?? false;
+  const agentUnavailable = workspace.primeAgentConnection === 'unavailable';
 
   return (
     <div
@@ -38,7 +46,8 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
 
         {workspace.selectedSessionId === null ? (
           <CurrentWorkspace
-            busy={workspace.busy}
+            busy={workspace.busy || agentUnavailable}
+            disabled={agentUnavailable}
             folders={workspace.folders}
             gitBranch={workspace.gitBranch}
             gitBranchBusy={workspace.gitBranchBusy}
@@ -92,9 +101,29 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
           selectedModelKey={workspace.selectedModelKey}
           selectedSessionId={workspace.selectedSessionId}
           selectedSessionRlmMaxDepth={workspace.selectedSessionRlmMaxDepth}
+          disabled={agentUnavailable}
           changeModel={workspace.changeModel}
           createAgentWithTask={workspace.createAgentWithTask}
         />
+
+        {agentUnavailable ? (
+          <div
+            className="flex items-center justify-center gap-2 pt-1 text-xs text-muted-foreground"
+            role="status"
+          >
+            <span>Prime Agent is unavailable.</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="h-6 px-2 text-xs text-foreground"
+              onClick={onRetryConnection}
+            >
+              <RefreshCwIcon aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        ) : null}
       </Field>
 
       <p id="workspace-status" className="sr-only" role="status">

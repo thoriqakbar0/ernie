@@ -52,6 +52,7 @@ type CurrentWorkspaceProps = Pick<
   | 'initializeGitRepository'
   | 'createGitWorktree'
 > & {
+  readonly disabled?: boolean;
   readonly folders: readonly PrimeAgentFolderChoice[];
 };
 
@@ -73,6 +74,7 @@ function compactParentPath(path: string): string {
 /** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
   busy,
+  disabled = false,
   folders,
   gitBranch,
   gitBranchBusy,
@@ -121,7 +123,7 @@ export function CurrentWorkspace({
                 className="max-w-48 justify-between bg-card px-3 font-normal"
               />
             }
-            disabled={loadingWorkspace}
+            disabled={disabled || loadingWorkspace}
           >
             <span className="min-w-0 truncate">
               {selectedFolder?.label ?? 'Workspace'}
@@ -191,7 +193,7 @@ export function CurrentWorkspace({
       <GitBranchDropdown
         branches={gitBranches}
         currentBranch={gitBranch}
-        disabled={busy || loadingWorkspace || selectedCwd === null}
+        disabled={disabled || busy || loadingWorkspace || selectedCwd === null}
         loading={gitBranchBusy}
         statusId="workspace-status"
         changeBranch={changeGitBranch}
@@ -204,6 +206,7 @@ export function CurrentWorkspace({
         <SelectTrigger
           aria-label="Execution location"
           className="bg-card px-3 text-sm font-normal text-muted-foreground"
+          disabled={disabled}
         >
           <LaptopIcon aria-hidden="true" />
           <span>This Mac</span>
@@ -235,7 +238,7 @@ export function CurrentWorkspace({
       </Select>
 
       <RlmDepthPicker
-        busy={rlmMaxDepthBusy}
+        busy={disabled || rlmMaxDepthBusy}
         depth={rlmMaxDepth}
         onDepthChange={changeRlmMaxDepth}
       />

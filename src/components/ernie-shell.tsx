@@ -80,7 +80,7 @@ export function ErnieShell({
           </header>
 
           <section className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-[clamp(1.5rem,6vh,4rem)] sm:px-10">
-            <TaskSurface workspace={workspace} />
+            <TaskSurface workspace={workspace} onRetryConnection={onReload} />
           </section>
         </SidebarInset>
       </SidebarProvider>

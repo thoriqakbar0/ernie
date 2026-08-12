@@ -34,10 +34,14 @@ type TaskComposerProps = Pick<
   | 'selectedSessionId'
   | 'changeModel'
   | 'createAgentWithTask'
-> & { readonly selectedSessionRlmMaxDepth?: number | null };
+> & {
+  readonly disabled?: boolean;
+  readonly selectedSessionRlmMaxDepth?: number | null;
+};
 
 /** Compose and submit one task without rerendering workspace controls. */
 export const TaskComposer = memo(function TaskComposer({
+  disabled = false,
   modelBusy,
   models,
   skills,
@@ -214,8 +218,10 @@ export const TaskComposer = memo(function TaskComposer({
 
   return (
     <>
-      <form onSubmit={submitTask}>
-        <InputGroup className="min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm">
+      <form onSubmit={submitTask} aria-disabled={disabled}>
+        <InputGroup
+          className={`min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm transition-opacity ${disabled ? 'opacity-45' : ''}`}
+        >
           {skillsOpen ? (
             <div
               id={skillsListId}
@@ -294,6 +300,7 @@ export const TaskComposer = memo(function TaskComposer({
                 size="icon-sm"
                 className="size-8 rounded-full bg-muted text-foreground"
                 aria-label="Add context"
+                disabled={disabled}
               >
                 <PlusIcon />
               </InputGroupButton>
@@ -311,6 +318,7 @@ export const TaskComposer = memo(function TaskComposer({
             aria-autocomplete="list"
             aria-controls={skillsOpen ? skillsListId : undefined}
             aria-expanded={skillsOpen}
+            disabled={disabled}
             aria-activedescendant={
               skillsOpen && matchingSkills.length > 0
                 ? `${skillsListId}-${activeSkillIndex}`
@@ -327,6 +335,7 @@ export const TaskComposer = memo(function TaskComposer({
               aria-label="Send task"
               title="Send task (Enter)"
               disabled={
+                disabled ||
                 !task.canSubmit ||
                 task.submitting ||
                 skillQueryKind === 'single-vector'

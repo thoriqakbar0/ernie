@@ -98,3 +98,37 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
   await user.click(within(document.body).getByRole('button', { name: 'Retry' }));
   assert.equal(retries, 1);
 });
+
+test('working Agent keeps the empty response area quiet', () => {
+  render(
+    <TaskSurface
+      workspace={{
+        ...unavailableWorkspace(),
+        primeAgentConnection: 'ready',
+        selectedCwd: '/workspace/ernie',
+        selectedSessionId: 'active-agent',
+        sessions: [
+          {
+            activeSessionId: 'active-agent',
+            activity: 'working',
+            cwd: '/workspace/ernie',
+            model: null,
+            modifiedAt: null,
+            name: 'Active Agent',
+            sessionPath: null,
+          },
+        ],
+      }}
+      onRetryConnection={() => undefined}
+    />,
+  );
+
+  assert.equal(within(document.body).queryByText('Agent working'), null);
+  assert.equal(
+    within(document.body).queryByText('Waiting for the first response'),
+    null,
+  );
+  assert.ok(
+    within(document.body).getByRole('textbox', { name: 'Give Ernie a task' }),
+  );
+});

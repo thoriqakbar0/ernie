@@ -17,9 +17,6 @@ export function TaskSurface({
   onRetryConnection,
   workspace,
 }: TaskSurfaceProps): React.JSX.Element {
-  const selectedSession = workspace.sessions.find(
-    (session) => session.activeSessionId === workspace.selectedSessionId,
-  );
   const selectedSessionView =
     workspace.selectedSessionView?.activeSessionId ===
     workspace.selectedSessionId
@@ -76,14 +73,7 @@ export function TaskSurface({
               </div>
             </div>
           </>
-        ) : (
-          <p className="text-center text-xs text-muted-foreground" role="status">
-            {selectedSession?.activity === 'working' ||
-            selectedSession?.activity === 'queued'
-              ? 'Agent working'
-              : 'Waiting for the first response'}
-          </p>
-        )}
+        ) : null}
 
         <div
           className={

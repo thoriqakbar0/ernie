@@ -395,6 +395,23 @@ test('Agents are grouped by truthful status without an active filter', () => {
   ]);
 });
 
+test('needs-input summaries stay compact without losing their meaning', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  const summaries = within(document.body).getAllByTitle('1 Agent needs input');
+  assert.equal(summaries.length, 2);
+  for (const summary of summaries) {
+    assert.equal(summary.textContent, '1 Agent needs input');
+    assert.equal(summary.querySelector('[aria-hidden="true"]') !== null, true);
+  }
+});
+
 test('user can add a repository and start a local Agent draft inside one', async () => {
   let repositoryRequests = 0;
   const draftCwds: string[] = [];

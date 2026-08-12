@@ -4,6 +4,7 @@ import {
   FolderOpenIcon,
   FolderPlusIcon,
   CopyIcon,
+  MessageCircleQuestionIcon,
   PanelLeftCloseIcon,
   PencilIcon,
   PlusIcon,
@@ -211,6 +212,38 @@ function activityOrder(activity: PrimeAgentSessionActivity): number {
     idle: 3,
     settled: 4,
   }[activity];
+}
+
+function ActivitySummary({
+  needsInputCount,
+  workingCount,
+}: {
+  readonly needsInputCount: number;
+  readonly workingCount: number;
+}): React.JSX.Element | null {
+  if (needsInputCount === 0 && workingCount === 0) return null;
+
+  const needsInputLabel = `${needsInputCount} ${needsInputCount === 1 ? 'Agent needs' : 'Agents need'} input`;
+
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
+      {needsInputCount > 0 ? (
+        <span
+          className="inline-flex items-center gap-0.5 font-medium text-sidebar-foreground"
+          title={needsInputLabel}
+        >
+          <MessageCircleQuestionIcon aria-hidden="true" className="size-3" />
+          <span className="tabular-nums">{needsInputCount}</span>
+          <span className="sr-only">
+            {needsInputCount === 1 ? ' Agent needs input' : ' Agents need input'}
+          </span>
+        </span>
+      ) : null}
+      {workingCount > 0 ? (
+        <span className="tabular-nums">{workingCount} working</span>
+      ) : null}
+    </span>
+  );
 }
 
 function modifiedTime(conversation: ThreadConversation): number {
@@ -1070,14 +1103,10 @@ export function AgentSidebar({
                               />
                               <FolderIcon aria-hidden="true" />
                               <span className="truncate">{folder.label}</span>
-                              <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
-                                {needsInputCount > 0 ? (
-                                  <span className="font-medium">
-                                    {needsInputCount} needs input
-                                  </span>
-                                ) : null}
-                                {workingCount > 0 ? `${workingCount} working` : null}
-                              </span>
+                              <ActivitySummary
+                                needsInputCount={needsInputCount}
+                                workingCount={workingCount}
+                              />
                             </ContextMenuTrigger>
                             <ContextMenuContent>
                               <ContextMenuItem
@@ -1233,16 +1262,10 @@ export function AgentSidebar({
                                         >
                                           {workspaceLabel}
                                         </span>
-                                        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-                                          {workspaceNeedsInputCount > 0 ? (
-                                            <span className="font-medium">
-                                              {workspaceNeedsInputCount} needs input
-                                            </span>
-                                          ) : null}
-                                          {workspaceWorkingCount > 0
-                                            ? `${workspaceWorkingCount} working`
-                                            : null}
-                                        </span>
+                                        <ActivitySummary
+                                          needsInputCount={workspaceNeedsInputCount}
+                                          workingCount={workspaceWorkingCount}
+                                        />
                                         <Button
                                           type="button"
                                           variant="ghost"

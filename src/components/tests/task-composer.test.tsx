@@ -80,6 +80,19 @@ test('user can detect and insert a Prime Agent skill', async () => {
   assert.equal(within(document.body).queryByRole('listbox'), null);
 });
 
+test('skill results scroll without moving the popup heading', async () => {
+  const user = userEvent.setup();
+  renderTaskComposer();
+
+  await user.type(within(document.body).getByRole('textbox'), '/');
+
+  const results = document.querySelector('[data-slot="skill-results"]');
+  assert.ok(results);
+  assert.equal(results.classList.contains('overflow-y-auto'), true);
+  assert.equal(results.classList.contains('overscroll-contain'), true);
+  assert.ok(within(document.body).getByText('Skills'));
+});
+
 test('user can select a detected skill with the keyboard', async () => {
   const user = userEvent.setup();
   renderTaskComposer();

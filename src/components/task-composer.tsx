@@ -131,28 +131,33 @@ export const TaskComposer = memo(function TaskComposer({
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
                 Skills
               </p>
-              {matchingSkills.map((skill, index) => (
-                <button
-                  id={`${skillsListId}-${index}`}
-                  key={skill.command}
-                  type="button"
-                  role="option"
-                  aria-selected={index === activeSkillIndex}
-                  className="flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent aria-selected:bg-accent"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => insertSkill(skill.command)}
-                  onMouseEnter={() => setActiveSkillIndex(index)}
-                >
-                  <code className="shrink-0 text-sm text-foreground">
-                    {skill.command}
-                  </code>
-                  {skill.description === null ? null : (
-                    <span className="truncate text-sm text-muted-foreground">
-                      {skill.description}
-                    </span>
-                  )}
-                </button>
-              ))}
+              <div
+                data-slot="skill-results"
+                className="max-h-56 overflow-y-auto overscroll-contain"
+              >
+                {matchingSkills.map((skill, index) => (
+                  <button
+                    id={`${skillsListId}-${index}`}
+                    key={skill.command}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeSkillIndex}
+                    className="flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent aria-selected:bg-accent"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertSkill(skill.command)}
+                    onMouseEnter={() => setActiveSkillIndex(index)}
+                  >
+                    <code className="shrink-0 text-sm text-foreground">
+                      {skill.command}
+                    </code>
+                    {skill.description === null ? null : (
+                      <span className="truncate text-sm text-muted-foreground">
+                        {skill.description}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 

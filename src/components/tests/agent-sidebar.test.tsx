@@ -571,9 +571,11 @@ test('compact search finds hidden settled Agents and restores the tree after ope
     { savedSessions },
   );
 
-  await user.click(
-    within(document.body).getByRole('button', { name: 'Search Agents' }),
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Search Agents' }),
+    null,
   );
+  fireEvent.keyDown(window, { key: 'k', metaKey: true });
   const search = within(document.body).getByRole('searchbox', {
     name: 'Search repositories, worktrees, and Agents',
   });

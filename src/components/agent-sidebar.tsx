@@ -779,8 +779,8 @@ export function AgentSidebar({
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader className="gap-0 px-2 pb-1 pt-3">
-        <div className="flex h-8 items-center px-1">
-          {searchOpen ? (
+        {searchOpen ? (
+          <div className="flex h-8 items-center px-1">
             <div className="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-lg bg-sidebar-accent px-2">
               <SearchIcon aria-hidden="true" className="size-3.5 text-muted-foreground" />
               <input
@@ -811,19 +811,8 @@ export function AgentSidebar({
                 <XIcon aria-hidden="true" />
               </Button>
             </div>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Search Agents"
-              title="Search Agents (⌘K)"
-              onClick={() => setSearchOpen(true)}
-            >
-              <SearchIcon aria-hidden="true" />
-            </Button>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         {pinnedConversations.length > 0 || draggedThread !== null ? (
           <section

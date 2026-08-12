@@ -212,7 +212,10 @@ test('focused chat groups completed work and keeps output streams distinct', asy
   assert.match(cell.textContent ?? '', /42/u);
   assert.ok(within(cell).getByText('stdout'));
   assert.ok(within(cell).getByText('result'));
-  assert.ok(within(cell).getByRole('button', { name: 'Copy IPython code' }));
+  assert.equal(
+    within(cell).queryByRole('button', { name: 'Copy IPython code' }),
+    null,
+  );
 });
 
 test('focused chat expands only the newest work while streaming', () => {

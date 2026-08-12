@@ -3,7 +3,6 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  CopyIcon,
   ExternalLinkIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -109,7 +108,6 @@ function IpythonCell({
   readonly cell: Extract<PrimeAgentTranscriptItem, { kind: 'ipython' }>;
   readonly number: number;
 }): React.JSX.Element {
-  const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(
     cell.status === 'running' ||
       cell.status === 'starting' ||
@@ -127,17 +125,6 @@ function IpythonCell({
       : cell.status === 'ok'
         ? 'text-emerald-600 dark:text-emerald-400'
         : 'text-muted-foreground';
-
-  async function copyCode(): Promise<void> {
-    if (navigator.clipboard === undefined) return;
-    try {
-      await navigator.clipboard.writeText(cell.code);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1_600);
-    } catch {
-      // Restricted clipboard contexts leave the source selectable.
-    }
-  }
 
   return (
     <section
@@ -173,16 +160,6 @@ function IpythonCell({
         {durationLabel(cell.durationMs) === null ? null : (
           <span>{durationLabel(cell.durationMs)}</span>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground"
-          aria-label="Copy IPython code"
-          onClick={() => void copyCode()}
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </Button>
       </header>
       {!expanded ? null : <pre className="mx-2 mb-2 overflow-x-auto rounded-md bg-muted/35 px-3 py-2.5 font-mono text-[12px] leading-5 text-foreground">
         <code>{cell.code}</code>

@@ -1,6 +1,8 @@
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
   EllipsisIcon,
   PencilIcon,
   PinIcon,
@@ -42,6 +44,8 @@ interface ThreadRowProps {
   readonly onDragStart: (event: DragEvent<HTMLLIElement>) => void;
   readonly onDrop: (event: DragEvent<HTMLLIElement>) => void;
   readonly onOpen: () => void;
+  readonly onMoveDown?: (() => void) | undefined;
+  readonly onMoveUp?: (() => void) | undefined;
   readonly onPinChange: (pinned: boolean) => void;
   readonly onRename: () => void;
 }
@@ -63,18 +67,29 @@ export function ThreadRow({
   onDragStart,
   onDrop,
   onOpen,
+  onMoveDown,
+  onMoveUp,
   onPinChange,
   onRename,
 }: ThreadRowProps): React.JSX.Element {
   const reorderable = !archived;
 
+  const activityLabel = {
+    working: 'working',
+    queued: 'queued',
+    needs_input: 'needs input',
+    idle: null,
+    settled: null,
+  }[activity];
+
   const activityMark = {
-    working: null,
+    working: (
+      <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+        working
+      </span>
+    ),
     queued: (
-      <span
-        aria-label="Queued"
-        className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
-      />
+      <span className="shrink-0 text-[11px] text-muted-foreground">queued</span>
     ),
     needs_input: (
       <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
@@ -111,11 +126,8 @@ export function ThreadRow({
           data-active={selected}
           data-sidebar-tree-row
           aria-current={selected ? 'page' : undefined}
-          aria-label={
-            thread.kind === 'saved'
-              ? `${label}, saved session`
-              : label
-          }
+          aria-description={activityLabel ?? undefined}
+          aria-label={thread.kind === 'saved' ? `${label}, saved session` : label}
           title={label}
           className={`h-8 min-w-0 flex-1 justify-start rounded-lg border-s-2 ps-2 pe-16 text-start text-sidebar-foreground hover:bg-sidebar-accent ${selected ? 'border-sidebar-foreground/35 bg-sidebar-accent' : 'border-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
@@ -170,6 +182,23 @@ export function ThreadRow({
                 {pinned ? 'Unpin' : 'Pin to top'}
               </MenuItem>
             )}
+            {archived || (onMoveUp === undefined && onMoveDown === undefined) ? null : (
+              <>
+                <MenuSeparator />
+                {onMoveUp === undefined ? null : (
+                  <MenuItem onClick={onMoveUp}>
+                    <ArrowUpIcon />
+                    Move up
+                  </MenuItem>
+                )}
+                {onMoveDown === undefined ? null : (
+                  <MenuItem onClick={onMoveDown}>
+                    <ArrowDownIcon />
+                    Move down
+                  </MenuItem>
+                )}
+              </>
+            )}
             <MenuSeparator />
             <MenuItem onClick={() => onArchiveChange(!archived)}>
               {archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
@@ -188,6 +217,23 @@ export function ThreadRow({
             {pinned ? <PinOffIcon /> : <PinIcon />}
             {pinned ? 'Unpin' : 'Pin to top'}
           </ContextMenuItem>
+        )}
+        {archived || (onMoveUp === undefined && onMoveDown === undefined) ? null : (
+          <>
+            <ContextMenuSeparator />
+            {onMoveUp === undefined ? null : (
+              <ContextMenuItem onClick={onMoveUp}>
+                <ArrowUpIcon />
+                Move up
+              </ContextMenuItem>
+            )}
+            {onMoveDown === undefined ? null : (
+              <ContextMenuItem onClick={onMoveDown}>
+                <ArrowDownIcon />
+                Move down
+              </ContextMenuItem>
+            )}
+          </>
         )}
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onArchiveChange(!archived)}>

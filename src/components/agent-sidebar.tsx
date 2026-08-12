@@ -321,6 +321,7 @@ export function AgentSidebar({
   const [connectionDetailsOpen, setConnectionDetailsOpen] = useState(false);
   const [draggedThread, setDraggedThread] = useState<DraggedThread | null>(null);
   const [archiveUndo, setArchiveUndo] = useState<ArchiveUndo | null>(null);
+  const [archiveExpanded, setArchiveExpanded] = useState(false);
   const [pinsExpanded, setPinsExpanded] = useState(false);
   const [settledExpandedPaths, setSettledExpandedPaths] = useState(
     () => new Set<string>(),
@@ -359,12 +360,6 @@ export function AgentSidebar({
     : selectedLiveSession === undefined
       ? null
       : threadConversationId({ kind: 'live', session: selectedLiveSession });
-
-  useEffect(() => {
-    if (archiveUndo === null) return;
-    const timeout = window.setTimeout(() => setArchiveUndo(null), 5_000);
-    return () => window.clearTimeout(timeout);
-  }, [archiveUndo]);
 
   useEffect(() => {
     const openSearch = (event: globalThis.KeyboardEvent): void => {
@@ -584,6 +579,12 @@ export function AgentSidebar({
     0,
     pinnedConversations.length - collapsedPinLimit,
   );
+  const archivedConversations = management.archivedThreadIds.flatMap(
+    (threadId): readonly LocatedConversation[] => {
+      const located = locatedConversations.get(threadId);
+      return located === undefined ? [] : [located];
+    },
+  );
 
   const searchResults = useMemo<readonly SearchResult[]>(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
@@ -702,6 +703,7 @@ export function AgentSidebar({
     pinned: boolean,
     detail: string | null,
     visibleConversations: readonly ThreadConversation[],
+    archived = false,
   ): React.JSX.Element => {
     const id = threadConversationId(conversation);
     const importing =
@@ -709,12 +711,25 @@ export function AgentSidebar({
       importingSessionPath === conversation.session.path;
     const activity = conversationActivity(conversation, connected);
     const label = conversationLabel(conversation, sessionPreviews);
+    const conversationIndex = visibleConversations.findIndex(
+      (candidate) => threadConversationId(candidate) === id,
+    );
+    const moveToIndex = (targetIndex: number): void => {
+      const target = visibleConversations[targetIndex];
+      if (target === undefined) return;
+      const targetId = threadConversationId(target);
+      if (pinned) {
+        setManagement((current) => movePinnedThread(current, id, targetId));
+      } else {
+        moveThread(workspace.folder.value, visibleConversations, id, targetId);
+      }
+    };
 
     return (
       <ThreadRow
         key={id}
         activity={activity}
-        archived={false}
+        archived={archived}
         detail={detail}
         disabled={importingSessionPath !== null}
         dragging={draggedThread?.id === id}
@@ -724,11 +739,15 @@ export function AgentSidebar({
         selected={id === selectedThreadId}
         thread={conversation}
         onArchiveChange={(archived) => {
-          if (!archived) return;
-          setArchiveUndo({ id, name: conversation.session.name, wasPinned: pinned });
-          setManagement((current) =>
-            setThreadArchived(setThreadPinned(current, id, false), id, true),
-          );
+          if (archived) {
+            setArchiveUndo({ id, name: conversation.session.name, wasPinned: pinned });
+            setManagement((current) =>
+              setThreadArchived(setThreadPinned(current, id, false), id, true),
+            );
+          } else {
+            setManagement((current) => setThreadArchived(current, id, false));
+            if (archiveUndo?.id === id) setArchiveUndo(null);
+          }
         }}
         onDragEnd={() => setDraggedThread(null)}
         onDragStart={(event: DragEvent<HTMLLIElement>) => {
@@ -758,6 +777,16 @@ export function AgentSidebar({
           setDraggedThread(null);
         }}
         onOpen={() => openThread(conversation)}
+        onMoveDown={
+          archived || conversationIndex < 0 || conversationIndex >= visibleConversations.length - 1
+            ? undefined
+            : () => moveToIndex(conversationIndex + 1)
+        }
+        onMoveUp={
+          archived || conversationIndex <= 0
+            ? undefined
+            : () => moveToIndex(conversationIndex - 1)
+        }
         onPinChange={(nextPinned) =>
           setManagement((current) => setThreadPinned(current, id, nextPinned))
         }
@@ -843,7 +872,7 @@ export function AgentSidebar({
             }}
           >
             <div className="flex h-7 items-center px-2">
-              <SidebarGroupLabel className="h-auto flex-1 px-0 text-[10px] font-medium tracking-[0.08em] uppercase">
+              <SidebarGroupLabel className="h-auto flex-1 px-0 text-xs font-medium">
                 {pinnedConversations.length === 0 ? 'Drop to pin' : 'Pinned'}
               </SidebarGroupLabel>
             </div>
@@ -857,7 +886,7 @@ export function AgentSidebar({
                     workspace.folder.value === repository.folder.value
                       ? repository.folder.label
                       : `${repository.folder.label} · ${workspace.folder.branchName ?? workspace.folder.label}`,
-                    workspace.conversations,
+                    pinnedConversations.map((item) => item.conversation),
                   ),
               )}
             </ul>
@@ -876,8 +905,8 @@ export function AgentSidebar({
         ) : null}
 
         <div className="flex h-8 items-center gap-0.5 px-2">
-          <SidebarGroupLabel className="h-auto flex-1 px-0 text-[11px] font-medium tracking-[0.08em] uppercase">
-            Spaces
+          <SidebarGroupLabel className="h-auto flex-1 px-0 text-xs font-medium">
+            Repositories
           </SidebarGroupLabel>
           <Button
             type="button"
@@ -1379,6 +1408,41 @@ export function AgentSidebar({
                 </ul>
               )}
             </div>
+            {archivedConversations.length === 0 ? null : (
+              <section aria-label="Archived conversations" className="mt-2 border-t border-sidebar-border pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start gap-1.5 px-2 text-xs font-medium"
+                  aria-expanded={archiveExpanded}
+                  onClick={() => setArchiveExpanded((current) => !current)}
+                >
+                  <ChevronRightIcon
+                    aria-hidden="true"
+                    className={`size-3 transition-transform motion-reduce:transition-none ${archiveExpanded ? 'rotate-90' : ''}`}
+                  />
+                  Archived ({archivedConversations.length})
+                </Button>
+                {archiveExpanded ? (
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {archivedConversations.map(
+                      ({ conversation, repository, workspace }) =>
+                        renderThread(
+                          conversation,
+                          workspace,
+                          false,
+                          workspace.folder.value === repository.folder.value
+                            ? repository.folder.label
+                            : `${repository.folder.label} · ${workspace.folder.branchName ?? workspace.folder.label}`,
+                          [],
+                          true,
+                        ),
+                    )}
+                  </ul>
+                ) : null}
+              </section>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
@@ -1408,6 +1472,15 @@ export function AgentSidebar({
           >
             Undo
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Dismiss archive notification"
+            onClick={() => setArchiveUndo(null)}
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
         </div>
       )}
 
@@ -1423,7 +1496,7 @@ export function AgentSidebar({
                   ? 'Settings'
                   : primeAgentConnection === 'connecting'
                     ? 'Ernie Connecting'
-                    : 'Ernie Agent unavailable'
+                    : 'Ernie Prime Agent unavailable'
               }
               isActive={settingsOpen}
               onClick={() => {
@@ -1456,7 +1529,7 @@ export function AgentSidebar({
                   />
                   {primeAgentConnection === 'connecting'
                     ? 'Connecting…'
-                    : 'Agent unavailable'}
+                    : 'Prime Agent unavailable'}
                 </span>
               )}
               <SettingsIcon aria-hidden="true" />
@@ -1515,7 +1588,7 @@ export function AgentSidebar({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Agent unavailable</DialogTitle>
+            <DialogTitle>Prime Agent unavailable</DialogTitle>
             <DialogDescription>
               Ernie could not reach Prime Agent. Restart Ernie, then try again.
             </DialogDescription>

@@ -75,7 +75,7 @@ export function RepositoryDialog({
                 id={inputId}
                 autoFocus
                 value={label}
-                className="mt-2 h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none transition-shadow focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                className="mt-2 h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none transition-shadow focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
                 onChange={(event) => setLabel(event.target.value)}
               />
             </>

@@ -76,7 +76,7 @@ const components: Components = {
 /** Renders Prime Agent markdown with T3 Code's safe parsing foundation. */
 export function ChatMarkdown({ className, text }: ChatMarkdownProps): React.JSX.Element {
   return (
-    <div className={cn('w-full min-w-0 text-sm leading-7 text-foreground', className)}>
+    <div className={cn('w-full min-w-0 text-base leading-6 text-foreground', className)}>
       <ReactMarkdown
         components={components}
         rehypePlugins={[rehypeRaw, rehypeSanitize]}

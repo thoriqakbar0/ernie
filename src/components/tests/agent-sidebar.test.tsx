@@ -403,7 +403,11 @@ test('sidebar hides empty pin furniture and counts only working Agents', () => {
     name: 'ernie',
   });
   assert.match(ernieRepository.textContent ?? '', /1 working/u);
-  assert.equal(within(document.body).queryByLabelText('Working'), null);
+  const workingThread = within(document.body).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+  assert.equal(workingThread.getAttribute('aria-description'), 'working');
+  assert.ok(within(document.body).getAllByText('working').length > 0);
 });
 
 test('settled spaces stay quiet', () => {
@@ -510,8 +514,8 @@ test('user can add a repository and start a local Agent draft inside one', async
     selectSession: () => undefined,
   });
 
-  assert.ok(within(document.body).getByText('Spaces'));
-  assert.equal(within(document.body).queryByText('Repositories'), null);
+  assert.ok(within(document.body).getByText('Repositories'));
+  assert.equal(within(document.body).queryByText('Spaces'), null);
 
   await user.click(
     within(document.body).getByRole('button', { name: 'Add repository' }),
@@ -567,7 +571,7 @@ test('ready footer stays quiet while unavailable state reveals recovery details'
     },
     { primeAgentConnection: 'unavailable' },
   );
-  assert.ok(within(document.body).getByText('Agent unavailable'));
+  assert.ok(within(document.body).getByText('Prime Agent unavailable'));
   assert.doesNotMatch(
     within(document.body).getByRole('button', { name: 'ernie' }).textContent ?? '',
     /working/u,
@@ -575,7 +579,7 @@ test('ready footer stays quiet while unavailable state reveals recovery details'
   assert.equal(within(document.body).queryByText(/needs input/u), null);
   await user.click(
     within(document.body).getByRole('button', {
-      name: /Ernie Agent unavailable/u,
+      name: /Ernie Prime Agent unavailable/u,
     }),
   );
   assert.ok(
@@ -770,7 +774,7 @@ test('user can rename a thread from its Trove menu', async () => {
   ]);
 });
 
-test('archived threads leave the sidebar without an archived section', async () => {
+test('archived threads remain recoverable from undo and the archive', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
@@ -793,13 +797,81 @@ test('archived threads leave the sidebar without an archived section', async () 
     }),
     null,
   );
-  assert.equal(within(document.body).queryByRole('button', { name: /Archived/u }), null);
+  const archive = within(document.body).getByRole('region', {
+    name: 'Archived conversations',
+  });
+  await user.click(within(archive).getByRole('button', { name: 'Archived (1)' }));
+  assert.ok(
+    within(archive).getByRole('button', {
+      name: 'Codebase rating feedback',
+    }),
+  );
 
   await user.click(within(document.body).getByRole('button', { name: 'Undo' }));
   assert.ok(
     within(document.body).getByRole('button', {
       name: 'Codebase rating feedback',
     }),
+  );
+});
+
+test('thread action menu provides keyboard-accessible reordering', async () => {
+  const user = userEvent.setup();
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      sessions: [
+        {
+          activeSessionId: 'ernie-agent',
+          activity: 'idle',
+          cwd: '/workspace/ernie',
+          modifiedAt: null,
+          model: null,
+          name: 'Codebase rating feedback',
+          sessionPath: '/sessions/ernie-agent.jsonl',
+        },
+      ],
+      savedSessions: [
+        {
+          activity: 'idle',
+          cwd: '/workspace/ernie',
+          messageCount: 12,
+          modifiedAt: '2026-08-10T10:00:00.000Z',
+          name: 'Saved architecture review',
+          path: '/sessions/saved-architecture.jsonl',
+        },
+      ],
+    },
+  );
+
+  const actions = within(document.body).getByRole('button', {
+    name: 'More actions for Saved architecture review',
+  });
+  actions.focus();
+  await user.keyboard('{Enter}');
+  const moveUp = within(document.body).getByRole('menuitem', { name: 'Move up' });
+  moveUp.focus();
+  await user.keyboard('{Enter}');
+
+  const repository = within(document.body).getByRole('listitem', {
+    name: 'ernie repository',
+  });
+  const threadButtons = within(repository)
+    .getAllByRole('button')
+    .filter((button) =>
+      ['Codebase rating feedback', 'Saved architecture review, saved session'].includes(
+        button.getAttribute('aria-label') ?? '',
+      ),
+    );
+  assert.deepEqual(
+    threadButtons.map((button) => button.getAttribute('aria-label')),
+    ['Saved architecture review, saved session', 'Codebase rating feedback'],
   );
 });
 
@@ -895,7 +967,7 @@ test('thread actions open from a right-click context menu', () => {
     within(document.body)
       .getAllByRole('menuitem')
       .map((item) => item.textContent?.trim()),
-    ['Rename', 'Pin to top', 'Archive'],
+    ['Rename', 'Pin to top', 'Move down', 'Archive'],
   );
 });
 

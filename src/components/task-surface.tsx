@@ -31,7 +31,9 @@ export function TaskSurface({
   return (
     <div
       className={
-        chatReady ? 'flex h-full min-h-0 w-full flex-col' : 'my-auto w-full'
+        chatReady
+          ? 'flex h-full min-h-0 w-full flex-col'
+          : 'w-full py-[clamp(1rem,12vh,6rem)]'
       }
     >
       <Field
@@ -65,7 +67,7 @@ export function TaskSurface({
         ) : chatReady && selectedSessionView !== null ? (
           <>
             <div className="min-h-0 w-full flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-[44rem]">
+              <div className="mx-auto w-full max-w-[65ch]">
                 <AgentChat
                   onOpenSpawnedSession={workspace.openSpawnedSession}
                   sessionView={selectedSessionView}

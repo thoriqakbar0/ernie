@@ -249,7 +249,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     null,
   );
   await user.click(
-    within(document.body).getByRole('button', { name: 'Application settings' }),
+    within(document.body).getByRole('button', { name: 'Settings' }),
   );
   const settings = within(document.body).getByRole('region', {
     name: 'Settings',
@@ -304,7 +304,13 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).getByRole('region', { name: 'Settings' }),
   );
   await user.click(
-    within(document.body).getByRole('button', { name: 'Application settings' }),
+    within(document.body).getByRole('button', { name: 'Back to Agent' }),
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: 'Application settings',
+    }),
+    null,
   );
 
   assert.ok(

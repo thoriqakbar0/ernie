@@ -1,4 +1,3 @@
-import { SettingsIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
@@ -16,7 +15,6 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Button } from '@/components/trovecn/ui/button';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
@@ -246,20 +244,6 @@ export function ErnieShell({
                     {sessionStatus}
                   </span>
                 )}
-              </div>
-              <div className="ms-auto flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-9"
-                  aria-label="Application settings"
-                  aria-pressed={settingsOpen}
-                  title="Application settings"
-                  onClick={() => setSettingsOpen((open) => !open)}
-                >
-                  <SettingsIcon aria-hidden="true" />
-                </Button>
               </div>
             </header>
 

@@ -24,11 +24,28 @@ const skills = [
   },
 ] as const;
 
-test('recognizes only an isolated slash skill query', () => {
-  assert.equal(parseSkillQuery('/'), '');
-  assert.equal(parseSkillQuery('/skill:'), '');
-  assert.equal(parseSkillQuery('/interface'), 'interface');
-  assert.equal(parseSkillQuery('/skill:tdd'), 'tdd');
+test('recognizes only isolated skill-search hotkeys', () => {
+  assert.deepEqual(parseSkillQuery('/'), { kind: 'full-text', term: '' });
+  assert.deepEqual(parseSkillQuery('/skill:'), {
+    kind: 'full-text',
+    term: '',
+  });
+  assert.deepEqual(parseSkillQuery('/interface'), {
+    kind: 'full-text',
+    term: 'interface',
+  });
+  assert.deepEqual(parseSkillQuery('/skill:tdd'), {
+    kind: 'full-text',
+    term: 'tdd',
+  });
+  assert.deepEqual(parseSkillQuery('//'), {
+    kind: 'single-vector',
+    term: '',
+  });
+  assert.deepEqual(parseSkillQuery('// help me review accessibility'), {
+    kind: 'single-vector',
+    term: 'help me review accessibility',
+  });
   assert.equal(parseSkillQuery('use /tdd'), null);
   assert.equal(parseSkillQuery('/tdd now'), null);
 });

@@ -104,6 +104,28 @@ test('user can select a detected skill with the keyboard', async () => {
   assert.equal((composer as HTMLTextAreaElement).value, '/skill:tdd ');
 });
 
+test('double slash opens natural-language skill search', async () => {
+  const user = userEvent.setup();
+  renderTaskComposer();
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, '//');
+
+  assert.ok(
+    within(document.body).getByText('Natural language · //'),
+  );
+  assert.equal(
+    within(document.body).getAllByRole('option').length,
+    skills.length,
+  );
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'Send task' })
+      .hasAttribute('disabled'),
+    true,
+  );
+});
+
 test('a new Agent draft can find a skill despite a typing mistake', async () => {
   const user = userEvent.setup();
   render(

@@ -504,7 +504,7 @@ export function AgentChat({
               }
               className={
                 item.role === 'user'
-                  ? 'flex justify-end border-t border-border/50 pt-6'
+                  ? 'flex justify-end pt-6'
                   : followsExecution
                     ? 'max-w-[42rem] border-t-2 border-foreground/15 pt-6 text-lede leading-7 text-foreground before:mb-4 before:block before:text-[11px] before:font-medium before:tracking-[0.08em] before:text-muted-foreground before:uppercase before:content-["Answer"]'
                     : 'max-w-[42rem] text-lede leading-7 text-foreground'

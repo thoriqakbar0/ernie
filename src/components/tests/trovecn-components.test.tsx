@@ -88,6 +88,29 @@ test('focused chat does not duplicate composer depth', () => {
   assert.equal(within(document.body).queryByText('depth 2'), null);
 });
 
+test('focused chat keeps user messages free of a divider', () => {
+  render(
+    <AgentChat
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: false,
+        messages: [{ id: 'one', role: 'user', text: 'hello' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Hello',
+        spawnedSessions: [],
+        transcript: [
+          { id: 'one', kind: 'message', role: 'user', text: 'hello' },
+        ],
+      }}
+    />,
+  );
+
+  const message = within(document.body).getByRole('article', {
+    name: 'Your message',
+  });
+  assert.doesNotMatch(message.className, /border-t/u);
+});
+
 test('focused chat renders Prime Agent markdown as document structure', () => {
   render(
     <AgentChat

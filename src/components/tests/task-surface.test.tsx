@@ -55,6 +55,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
+    openSpawnedSession: () => undefined,
     chooseWorkspaceDirectory: () => undefined,
     addWorkspaceDirectory: async () => null,
     changeGitBranch: () => undefined,

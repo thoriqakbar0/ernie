@@ -70,9 +70,14 @@ test('focused chat keeps depth beside the composer when no Agents spawned', () =
       depth={2}
       sessionView={{
         activeSessionId: 'root',
+        isStreaming: false,
         messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
         rlmMaxDepth: 2,
+        sessionName: 'Ready',
         spawnedSessions: [],
+        transcript: [
+          { id: 'one', kind: 'message', role: 'assistant', text: 'ready' },
+        ],
       }}
     />,
   );
@@ -90,6 +95,7 @@ test('focused chat renders Prime Agent markdown as document structure', () => {
       depth={2}
       sessionView={{
         activeSessionId: 'root',
+        isStreaming: false,
         messages: [
           {
             id: 'one',
@@ -98,47 +104,100 @@ test('focused chat renders Prime Agent markdown as document structure', () => {
           },
         ],
         rlmMaxDepth: 2,
+        sessionName: 'Verdict',
         spawnedSessions: [],
-      }}
-    />,
-  );
-
-  assert.equal(within(document.body).getByText('Verdict:').tagName, 'STRONG');
-  assert.equal(within(document.body).getAllByRole('listitem').length, 2);
-  assert.ok(within(document.body).getByRole('button', { name: 'Copy response' }));
-});
-
-test('focused chat reveals a recursively indexed spawned Agent tree', async () => {
-  const user = userEvent.setup();
-  render(
-    <AgentChat
-      depth={2}
-      sessionView={{
-        activeSessionId: 'root',
-        messages: [{ id: 'one', role: 'assistant', text: 'working' }],
-        rlmMaxDepth: 2,
-        spawnedSessions: [
+        transcript: [
           {
-            id: 'research',
-            name: 'Research',
-            parentId: null,
-            status: 'working',
-          },
-          {
-            id: 'verify',
-            name: 'Verify',
-            parentId: 'research',
-            status: 'done',
+            id: 'one',
+            kind: 'message',
+            role: 'assistant',
+            text: '**Verdict:** strong\n\n- clear\n- calm',
           },
         ],
       }}
     />,
   );
 
-  await user.click(
-    within(document.body).getByRole('button', {
-      name: 'depth 2 · 1 working · 2 spawned',
-    }),
+  assert.equal(within(document.body).getByText('Verdict:').tagName, 'STRONG');
+  assert.equal(within(document.body).getAllByRole('listitem').length, 2);
+});
+
+test('focused chat renders IPython code and output in chronological cells', () => {
+  render(
+    <AgentChat
+      depth={2}
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: false,
+        messages: [{ id: 'one', role: 'assistant', text: 'calculated' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Calculate',
+        spawnedSessions: [],
+        transcript: [
+          {
+            attachments: [],
+            code: 'answer = 6 * 7\nanswer',
+            durationMs: 18,
+            id: 'cell-1',
+            kind: 'ipython',
+            result: '42',
+            status: 'ok',
+            stderr: null,
+            stdout: 'calculated\n',
+            traceback: [],
+          },
+        ],
+      }}
+    />,
+  );
+
+  const cell = within(document.body).getByRole('region', {
+    name: 'IPython cell 1',
+  });
+  assert.match(cell.textContent ?? '', /answer = 6 \* 7\s+answer/u);
+  assert.match(cell.textContent ?? '', /calculated\s+42/u);
+  assert.ok(within(cell).getByRole('button', { name: 'Copy IPython code' }));
+});
+
+test('focused chat reveals a recursively indexed spawned Agent tree', () => {
+  render(
+    <AgentChat
+      depth={2}
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: true,
+        messages: [{ id: 'one', role: 'assistant', text: 'working' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Working',
+        spawnedSessions: [
+          {
+            activeSessionId: 'research-active',
+            activity: 'ipython',
+            durationMs: 1200,
+            error: null,
+            id: 'research',
+            name: 'Research',
+            parentId: null,
+            recap: 'Reviewing the code',
+            status: 'working',
+          },
+          {
+            activeSessionId: 'verify-active',
+            activity: null,
+            durationMs: 800,
+            error: null,
+            id: 'verify',
+            name: 'Verify',
+            parentId: 'research',
+            recap: 'Tests passed',
+            status: 'done',
+          },
+        ],
+        transcript: [
+          { id: 'one', kind: 'message', role: 'assistant', text: 'working' },
+        ],
+      }}
+    />,
   );
 
   const spawnedAgents = within(document.body).getByRole('region', {

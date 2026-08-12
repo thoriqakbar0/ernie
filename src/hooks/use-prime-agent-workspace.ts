@@ -25,6 +25,7 @@ import {
   type PrimeAgentSkill,
   type PrimeAgentWorkspace,
 } from '@/packages/prime-agent-daemon/client';
+import { sessionNameFromFirstMessage } from '@/packages/session-name-hook';
 
 /** One folder choice derived from live Prime Agent sessions. */
 export interface PrimeAgentFolderChoice {
@@ -77,6 +78,7 @@ export interface PrimeAgentWorkspaceController {
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
+  readonly openSpawnedSession: (activeSessionId: string) => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly addWorkspaceDirectory: () => Promise<string | null>;
   readonly changeGitBranch: (name: string | null) => void;
@@ -470,6 +472,20 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         if (!view.ok || view.value.activeSessionId !== activeSessionId) return;
         yield* Effect.sync(() => {
           setSelectedSessionView(view.value);
+          if (view.value.sessionName !== null) {
+            setWorkspace((current) =>
+              current === null
+                ? null
+                : {
+                    ...current,
+                    sessions: current.sessions.map((session) =>
+                      session.activeSessionId === activeSessionId
+                        ? { ...session, name: view.value.sessionName ?? session.name }
+                        : session,
+                    ),
+                  },
+            );
+          }
         });
       },
     );
@@ -662,7 +678,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       return yield* Effect.sync(() => {
         connectAgentSession(
           taskResult.ok
-            ? { ...result.value, activity: 'queued' }
+            ? {
+                ...result.value,
+                activity: 'queued',
+                name:
+                  sessionNameFromFirstMessage(message) ?? result.value.name,
+              }
             : result.value,
         );
         setStatus(
@@ -833,6 +854,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     setSelectedSessionId(session.activeSessionId);
     setGitWorktreeError(null);
     setStatus('Connected to Prime Agent.');
+  }
+
+  function openSpawnedSession(activeSessionId: string): void {
+    setSelectedSessionId(activeSessionId);
+    setStatus('Opened spawned Agent conversation.');
   }
 
   function pickWorkspaceDirectory(select: boolean): Promise<string | null> {
@@ -1194,6 +1220,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     importSession,
     renameSession,
     selectSession,
+    openSpawnedSession,
     chooseWorkspaceDirectory,
     addWorkspaceDirectory,
     changeGitBranch,

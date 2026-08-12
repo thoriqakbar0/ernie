@@ -14,6 +14,7 @@ import {
 import type {
   PrimeAgentModel,
   PrimeAgentChatMessage,
+  PrimeAgentIpythonAttachment,
   PrimeAgentModelSelection,
   PrimeAgentResult,
   PrimeAgentRlmDepth,
@@ -29,6 +30,7 @@ import type {
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
+  PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 } from './types';
 
@@ -56,6 +58,7 @@ function orderModels(
 export type {
   PrimeAgentModel,
   PrimeAgentChatMessage,
+  PrimeAgentIpythonAttachment,
   PrimeAgentModelSelection,
   PrimeAgentResult,
   PrimeAgentRlmDepth,
@@ -71,6 +74,7 @@ export type {
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
+  PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 };
 

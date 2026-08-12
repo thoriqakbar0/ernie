@@ -30,6 +30,10 @@ export function TaskSurface({
       (message) => message.role === 'assistant',
     ) ?? false;
   const agentUnavailable = workspace.primeAgentConnection === 'unavailable';
+  const workingAgentCount =
+    selectedSessionView?.spawnedSessions.filter(
+      (session) => session.status === 'working' || session.status === 'queued',
+    ).length ?? 0;
 
   return (
     <div
@@ -69,14 +73,28 @@ export function TaskSurface({
           <>
             <header className="flex items-center gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
               <h1 className="font-medium text-foreground">
-                {selectedSession?.name ?? 'Agent'}
+                {selectedSessionView.sessionName ?? selectedSession?.name ?? 'Agent'}
               </h1>
               <span>{workspace.repoName}</span>
               {workspace.gitBranch === null ? null : <span>· {workspace.gitBranch}</span>}
+              <span
+                className={
+                  workingAgentCount > 0 || selectedSessionView.isStreaming
+                    ? 'ml-auto text-muted-foreground'
+                    : 'ml-auto text-emerald-600 dark:text-emerald-400'
+                }
+              >
+                {workingAgentCount > 0
+                  ? `${workingAgentCount} working`
+                  : selectedSessionView.isStreaming
+                    ? 'working'
+                    : 'done'}
+              </span>
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <AgentChat
                 depth={workspace.selectedSessionRlmMaxDepth}
+                onOpenSpawnedSession={workspace.openSpawnedSession}
                 sessionView={selectedSessionView}
               />
             </div>

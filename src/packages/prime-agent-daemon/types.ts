@@ -32,20 +32,56 @@ export interface PrimeAgentChatMessage {
   readonly text: string;
 }
 
+/** One chronologically placed item in Prime Agent's visible working transcript. */
+export type PrimeAgentTranscriptItem =
+  | Readonly<{
+      id: string;
+      kind: 'message';
+      role: 'user' | 'assistant';
+      text: string;
+    }>
+  | Readonly<{
+      attachments: readonly PrimeAgentIpythonAttachment[];
+      code: string;
+      durationMs: number | null;
+      id: string;
+      kind: 'ipython';
+      result: string | null;
+      status: 'running' | 'starting' | 'ok' | 'error' | 'aborted';
+      stderr: string | null;
+      stdout: string | null;
+      traceback: readonly string[];
+    }>;
+
+/** One media artifact returned by an IPython execution. */
+export interface PrimeAgentIpythonAttachment {
+  readonly data: string;
+  readonly mimeType: 'image/gif' | 'image/jpeg' | 'image/png' | 'image/webp';
+  readonly path: string | null;
+}
+
 /** One real spawned session reported by Prime Agent's RLM runtime. */
 export interface PrimeAgentSpawnedSession {
+  readonly activeSessionId: string | null;
+  readonly activity: string | null;
+  readonly durationMs: number | null;
+  readonly error: string | null;
   readonly id: string;
   readonly name: string;
   readonly parentId: string | null;
+  readonly recap: string | null;
   readonly status: 'queued' | 'working' | 'done' | 'error' | 'cancelled';
 }
 
 /** Focused chat data loaded from one Prime Agent attach snapshot. */
 export interface PrimeAgentSessionView {
   readonly activeSessionId: string;
+  readonly isStreaming: boolean;
   readonly messages: readonly PrimeAgentChatMessage[];
   readonly rlmMaxDepth: number;
+  readonly sessionName: string | null;
   readonly spawnedSessions: readonly PrimeAgentSpawnedSession[];
+  readonly transcript: readonly PrimeAgentTranscriptItem[];
 }
 
 /** A durable Prime Agent session that can be reopened in Ernie. */

@@ -7,6 +7,7 @@ import type {
   PrimeAgentGitWorkspace,
   PrimeAgentGitWorktree,
   PrimeAgentGitWorktreeCreation,
+  PrimeAgentIpythonAttachment,
   PrimeAgentModel,
   PrimeAgentModelSelection,
   PrimeAgentResult,
@@ -24,6 +25,7 @@ import type {
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
+  PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 } from '../types';
 
@@ -50,6 +52,49 @@ function textContent(value: unknown): string {
     .trim();
 }
 
+function optionalText(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function optionalDuration(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
+
+function tracebackLines(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((line): line is string => typeof line === 'string')
+    : [];
+}
+
+function ipythonAttachments(
+  value: unknown,
+): readonly PrimeAgentIpythonAttachment[] {
+  if (!Array.isArray(value)) return [];
+  const attachments: PrimeAgentIpythonAttachment[] = [];
+  for (const attachment of value) {
+    if (!isRecord(attachment)) continue;
+    const mimeType = attachment.mimeType;
+    const data = nonEmptyString(attachment.data);
+    if (
+      data === null ||
+      (mimeType !== 'image/gif' &&
+        mimeType !== 'image/jpeg' &&
+        mimeType !== 'image/png' &&
+        mimeType !== 'image/webp')
+    ) {
+      continue;
+    }
+    attachments.push({
+      data,
+      mimeType,
+      path: optionalText(attachment.path),
+    });
+  }
+  return attachments;
+}
+
 /** Parse one focused attach snapshot into Ernie's narrow chat projection. */
 export function parseSessionViewData(
   value: unknown,
@@ -74,22 +119,139 @@ export function parseSessionViewData(
   if (!rlmDepth.ok) return rlmDepth;
 
   const messages: PrimeAgentChatMessage[] = [];
+  const transcript: PrimeAgentTranscriptItem[] = [];
+  const ipythonIndexById = new Map<string, number>();
   value.snapshot.messages.forEach((message, index) => {
-    if (
-      !isRecord(message) ||
-      (message.role !== 'user' && message.role !== 'assistant')
-    ) {
+    if (!isRecord(message)) return;
+
+    if (message.role === 'toolResult') {
+      const toolCallId = nonEmptyString(message.toolCallId);
+      const transcriptIndex =
+        toolCallId === null ? undefined : ipythonIndexById.get(toolCallId);
+      if (transcriptIndex === undefined) return;
+
+      const pending = transcript[transcriptIndex];
+      if (pending?.kind !== 'ipython') return;
+      const details = isRecord(message.details) ? message.details : null;
+      const rawStatus = details?.status;
+      const status =
+        rawStatus === 'ok' ||
+        rawStatus === 'error' ||
+        rawStatus === 'aborted' ||
+        rawStatus === 'starting'
+          ? rawStatus
+          : message.isError === true
+            ? 'error'
+            : 'ok';
+      const error = details !== null && isRecord(details.error)
+        ? details.error
+        : null;
+      transcript[transcriptIndex] = {
+        ...pending,
+        attachments: ipythonAttachments(details?.attachments),
+        durationMs: optionalDuration(details?.durationMs),
+        result: optionalText(details?.result) ?? optionalText(textContent(message.content)),
+        status,
+        stderr:
+          optionalText(details?.stderr) ??
+          (error === null
+            ? null
+            : [nonEmptyString(error.ename), nonEmptyString(error.evalue)]
+                .filter((part): part is string => part !== null)
+                .join(': ') || null),
+        stdout: optionalText(details?.stdout),
+        traceback: tracebackLines(error?.traceback),
+      };
       return;
     }
+
+    if (message.role !== 'user' && message.role !== 'assistant') return;
     const text = textContent(message.content);
     if (text.length > 0) {
-      messages.push({
+      const chatMessage = {
         id: `${activeSessionId}:${index}`,
         role: message.role,
         text,
-      });
+      } as const;
+      messages.push(chatMessage);
     }
+
+    if (message.role === 'user') {
+      if (text.length > 0) {
+        transcript.push({
+          id: `${activeSessionId}:${index}`,
+          kind: 'message',
+          role: 'user',
+          text,
+        });
+      }
+      return;
+    }
+
+    if (!Array.isArray(message.content)) {
+      if (text.length > 0) {
+        transcript.push({
+          id: `${activeSessionId}:${index}:text:0`,
+          kind: 'message',
+          role: 'assistant',
+          text,
+        });
+      }
+      return;
+    }
+
+    message.content.forEach((part, partIndex) => {
+      if (!isRecord(part)) return;
+      if (part.type === 'text') {
+        const partText = nonEmptyString(part.text);
+        if (partText !== null) {
+          transcript.push({
+            id: `${activeSessionId}:${index}:text:${partIndex}`,
+            kind: 'message',
+            role: 'assistant',
+            text: partText,
+          });
+        }
+        return;
+      }
+      if (
+        part.type !== 'toolCall' ||
+        part.name !== 'ipython' ||
+        !isRecord(part.arguments)
+      ) {
+        return;
+      }
+      const id = nonEmptyString(part.id);
+      const code = optionalText(part.arguments.code);
+      if (id === null || code === null) return;
+      ipythonIndexById.set(id, transcript.length);
+      transcript.push({
+        attachments: [],
+        code,
+        durationMs: null,
+        id,
+        kind: 'ipython',
+        result: null,
+        status: 'running',
+        stderr: null,
+        stdout: null,
+        traceback: [],
+      });
+    });
   });
+
+  const snapshotState = isRecord(value.snapshot.state)
+    ? value.snapshot.state
+    : null;
+  if (
+    snapshotState !== null &&
+    snapshotState.isStreaming !== undefined &&
+    typeof snapshotState.isStreaming !== 'boolean'
+  ) {
+    return failure('protocol_error', 'Prime Agent returned invalid session state.');
+  }
+  const isStreaming = snapshotState?.isStreaming === true;
+  const focusedSessionName = nonEmptyString(snapshotState?.sessionName);
 
   const children = value.snapshot.children;
   if (children !== undefined && !Array.isArray(children)) {
@@ -121,16 +283,34 @@ export function parseSessionViewData(
     ) {
       return failure('protocol_error', 'Prime Agent returned invalid spawned sessions.');
     }
-    if (name !== null) spawnedSessions.push({ id, name, parentId, status });
+    if (name !== null) {
+      const activity = isRecord(child.activity)
+        ? nonEmptyString(child.activity.toolName) ?? nonEmptyString(child.activity.kind)
+        : null;
+      spawnedSessions.push({
+        activeSessionId: nonEmptyString(child.activeSessionId),
+        activity,
+        durationMs: optionalDuration(child.durationMs),
+        error: optionalText(child.error),
+        id,
+        name,
+        parentId,
+        recap: optionalText(child.recap) ?? optionalText(child.answerPreview),
+        status,
+      });
+    }
   }
 
   return {
     ok: true,
     value: {
       activeSessionId,
+      isStreaming,
       messages,
       rlmMaxDepth: rlmDepth.value.maxDepth,
+      sessionName: focusedSessionName,
       spawnedSessions,
+      transcript,
     },
   };
 }
@@ -139,7 +319,8 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
   if (
     !isRecord(value) ||
     !Array.isArray(value.messages) ||
-    !Array.isArray(value.spawnedSessions)
+    !Array.isArray(value.spawnedSessions) ||
+    !Array.isArray(value.transcript)
   ) {
     return null;
   }
@@ -147,6 +328,7 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
   const rlmMaxDepth = value.rlmMaxDepth;
   if (
     activeSessionId === null ||
+    typeof value.isStreaming !== 'boolean' ||
     typeof rlmMaxDepth !== 'number' ||
     !Number.isSafeInteger(rlmMaxDepth) ||
     rlmMaxDepth < 0
@@ -172,14 +354,29 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
   const spawnedSessions: PrimeAgentSpawnedSession[] = [];
   for (const session of value.spawnedSessions) {
     if (!isRecord(session)) return null;
+    const activeSessionId =
+      session.activeSessionId === null
+        ? null
+        : nonEmptyString(session.activeSessionId);
+    const activity =
+      session.activity === null ? null : nonEmptyString(session.activity);
+    const durationMs =
+      session.durationMs === null ? null : optionalDuration(session.durationMs);
+    const error = session.error === null ? null : optionalText(session.error);
     const id = nonEmptyString(session.id);
     const name = nonEmptyString(session.name);
     const parentId =
       session.parentId === null ? null : nonEmptyString(session.parentId);
+    const recap = session.recap === null ? null : optionalText(session.recap);
     if (
+      (session.activeSessionId !== null && activeSessionId === null) ||
+      (session.activity !== null && activity === null) ||
+      (session.durationMs !== null && durationMs === null) ||
+      (session.error !== null && error === null) ||
       id === null ||
       name === null ||
       (session.parentId !== null && parentId === null) ||
+      (session.recap !== null && recap === null) ||
       (session.status !== 'queued' &&
         session.status !== 'working' &&
         session.status !== 'done' &&
@@ -188,10 +385,88 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
     ) {
       return null;
     }
-    spawnedSessions.push({ id, name, parentId, status: session.status });
+    spawnedSessions.push({
+      activeSessionId,
+      activity,
+      durationMs,
+      error,
+      id,
+      name,
+      parentId,
+      recap,
+      status: session.status,
+    });
   }
 
-  return { activeSessionId, messages, rlmMaxDepth, spawnedSessions };
+  const transcript: PrimeAgentTranscriptItem[] = [];
+  for (const item of value.transcript) {
+    if (!isRecord(item)) return null;
+    const id = nonEmptyString(item.id);
+    if (id === null) return null;
+    if (item.kind === 'message') {
+      const text = nonEmptyString(item.text);
+      if (
+        text === null ||
+        (item.role !== 'user' && item.role !== 'assistant')
+      ) {
+        return null;
+      }
+      transcript.push({ id, kind: 'message', role: item.role, text });
+      continue;
+    }
+    if (item.kind !== 'ipython') return null;
+    const attachments = ipythonAttachments(item.attachments);
+    const code = optionalText(item.code);
+    const durationMs =
+      item.durationMs === null ? null : optionalDuration(item.durationMs);
+    const result = item.result === null ? null : optionalText(item.result);
+    const stderr = item.stderr === null ? null : optionalText(item.stderr);
+    const stdout = item.stdout === null ? null : optionalText(item.stdout);
+    if (
+      code === null ||
+      !Array.isArray(item.attachments) ||
+      attachments.length !== item.attachments.length ||
+      (item.durationMs !== null && durationMs === null) ||
+      (item.result !== null && result === null) ||
+      (item.stderr !== null && stderr === null) ||
+      (item.stdout !== null && stdout === null) ||
+      !Array.isArray(item.traceback) ||
+      !item.traceback.every((line) => typeof line === 'string') ||
+      (item.status !== 'running' &&
+        item.status !== 'starting' &&
+        item.status !== 'ok' &&
+        item.status !== 'error' &&
+        item.status !== 'aborted')
+    ) {
+      return null;
+    }
+    transcript.push({
+      attachments,
+      code,
+      durationMs,
+      id,
+      kind: 'ipython',
+      result,
+      status: item.status,
+      stderr,
+      stdout,
+      traceback: item.traceback,
+    });
+  }
+
+  const parsedSessionName =
+    value.sessionName === null ? null : nonEmptyString(value.sessionName);
+  if (value.sessionName !== null && parsedSessionName === null) return null;
+
+  return {
+    activeSessionId,
+    isStreaming: value.isStreaming,
+    messages,
+    rlmMaxDepth,
+    sessionName: parsedSessionName,
+    spawnedSessions,
+    transcript,
+  };
 }
 
 function failure(

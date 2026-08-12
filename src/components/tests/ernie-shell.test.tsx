@@ -112,12 +112,28 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       ok: true,
       value: {
         activeSessionId,
+        isStreaming: false,
         messages: [
           { id: 'task', role: 'user', text: 'Polish the sidebar' },
           { id: 'reply', role: 'assistant', text: 'I am working on it.' },
         ],
         rlmMaxDepth: 5,
+        sessionName: 'Polish the sidebar',
         spawnedSessions: [],
+        transcript: [
+          {
+            id: 'task',
+            kind: 'message',
+            role: 'user',
+            text: 'Polish the sidebar',
+          },
+          {
+            id: 'reply',
+            kind: 'message',
+            role: 'assistant',
+            text: 'I am working on it.',
+          },
+        ],
       },
     }),
     setPrimeAgentModel: async () => ({ ok: false }),
@@ -277,7 +293,9 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     name: 'Conversation',
   });
   assert.match(conversation.className, /select-text/u);
-  assert.ok(within(document.body).getByRole('heading', { name: 'Blank Agent' }));
+  assert.ok(
+    within(document.body).getByRole('heading', { name: 'Polish the sidebar' }),
+  );
   assert.ok(within(document.body).getByText('I am working on it.'));
 
   await user.click(

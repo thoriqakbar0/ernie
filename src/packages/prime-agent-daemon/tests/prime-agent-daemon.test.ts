@@ -50,16 +50,48 @@ test('projects focused chat messages and named spawned sessions', () => {
         { role: 'user', content: 'Build the chat' },
         {
           role: 'assistant',
-          content: [{ type: 'text', text: 'I am working on it.' }],
+          content: [
+            { type: 'text', text: 'I am working on it.' },
+            {
+              type: 'toolCall',
+              id: 'cell-1',
+              name: 'ipython',
+              arguments: { code: 'value = 6 * 7\nvalue' },
+            },
+          ],
         },
-        { role: 'toolResult', content: 'internal result' },
+        {
+          role: 'toolResult',
+          toolCallId: 'cell-1',
+          toolName: 'ipython',
+          content: [{ type: 'text', text: '42' }],
+          isError: false,
+          details: {
+            attachments: [
+              {
+                data: 'aW1hZ2U=',
+                mimeType: 'image/png',
+                path: '/tmp/chart.png',
+              },
+            ],
+            durationMs: 18,
+            status: 'ok',
+            stdout: 'calculated\n',
+            result: '42',
+          },
+        },
       ],
+      state: { isStreaming: false, sessionName: 'Build transcript' },
       children: [
         {
           id: 'research',
+          activeSessionId: 'research-active',
           sessionName: 'Research protocol',
           label: 'fallback label',
           status: 'running',
+          durationMs: 1200,
+          recap: 'Reading protocol types',
+          activity: { kind: 'executing', toolName: 'ipython' },
         },
         {
           id: 'tests',
@@ -80,22 +112,66 @@ test('projects focused chat messages and named spawned sessions', () => {
     ok: true,
     value: {
       activeSessionId: 'root-agent',
+      isStreaming: false,
       messages: [
         { id: 'root-agent:0', role: 'user', text: 'Build the chat' },
         { id: 'root-agent:1', role: 'assistant', text: 'I am working on it.' },
       ],
       rlmMaxDepth: 2,
+      sessionName: 'Build transcript',
+      transcript: [
+        {
+          id: 'root-agent:0',
+          kind: 'message',
+          role: 'user',
+          text: 'Build the chat',
+        },
+        {
+          id: 'root-agent:1:text:0',
+          kind: 'message',
+          role: 'assistant',
+          text: 'I am working on it.',
+        },
+        {
+          attachments: [
+            {
+              data: 'aW1hZ2U=',
+              mimeType: 'image/png',
+              path: '/tmp/chart.png',
+            },
+          ],
+          code: 'value = 6 * 7\nvalue',
+          durationMs: 18,
+          id: 'cell-1',
+          kind: 'ipython',
+          result: '42',
+          status: 'ok',
+          stderr: null,
+          stdout: 'calculated\n',
+          traceback: [],
+        },
+      ],
       spawnedSessions: [
         {
+          activeSessionId: 'research-active',
+          activity: 'ipython',
+          durationMs: 1200,
+          error: null,
           id: 'research',
           name: 'Research protocol',
           parentId: null,
+          recap: 'Reading protocol types',
           status: 'working',
         },
         {
+          activeSessionId: null,
+          activity: null,
+          durationMs: null,
+          error: null,
           id: 'tests',
           name: 'Verify behavior',
           parentId: 'research',
+          recap: null,
           status: 'done',
         },
       ],

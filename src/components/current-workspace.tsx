@@ -60,6 +60,16 @@ const executionTargets = [
   { label: 'Cloud', value: 'cloud' },
 ];
 
+function compactParentPath(path: string): string {
+  const lastSeparator = path.lastIndexOf('/');
+  const parentPath = lastSeparator <= 0 ? '/' : path.slice(0, lastSeparator);
+  const macHomePath = /^\/Users\/[^/]+(?=\/|$)/u.exec(parentPath)?.[0];
+
+  return macHomePath === undefined
+    ? parentPath
+    : `~${parentPath.slice(macHomePath.length)}`;
+}
+
 /** Workspace context shown above Ernie's primary task input. */
 export function CurrentWorkspace({
   busy,
@@ -136,20 +146,29 @@ export function CurrentWorkspace({
             </div>
             <ComboboxEmpty>No directories found.</ComboboxEmpty>
             <ComboboxList className="max-h-52 overflow-y-auto overscroll-contain scroll-py-1 [scrollbar-gutter:stable]">
-              {(folder: PrimeAgentFolderChoice, index: number) => (
-                <ComboboxItem
-                  key={folder.value}
-                  value={folder}
-                  index={index}
-                  className="h-9 min-h-0 py-0 pr-7 text-sm data-[selected]:bg-muted/60"
-                  title={folder.value}
-                >
-                  <span className="min-w-0 flex-1 truncate text-foreground">
-                    {folder.label}
-                  </span>
-                  <span className="sr-only">{folder.value}</span>
-                </ComboboxItem>
-              )}
+              {(folder: PrimeAgentFolderChoice, index: number) => {
+                const parentPath = compactParentPath(folder.value);
+
+                return (
+                  <ComboboxItem
+                    key={folder.value}
+                    value={folder}
+                    index={index}
+                    className="h-9 min-h-0 py-0 pr-7 text-sm data-[selected]:bg-muted/60"
+                    title={folder.value}
+                  >
+                    <span className="max-w-28 shrink-0 truncate text-foreground">
+                      {folder.label}
+                    </span>
+                    <span
+                      className="ml-auto min-w-0 flex-1 truncate text-right text-[11px] text-muted-foreground/65"
+                      aria-label={`Parent directory ${parentPath}`}
+                    >
+                      {parentPath}
+                    </span>
+                  </ComboboxItem>
+                );
+              }}
             </ComboboxList>
             <Button
               type="button"

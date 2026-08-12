@@ -335,6 +335,9 @@ test('user can add a repository and start a local Agent draft inside one', async
     selectSession: () => undefined,
   });
 
+  assert.ok(within(document.body).getByText('Spaces'));
+  assert.equal(within(document.body).queryByText('Repositories'), null);
+
   await user.click(
     within(document.body).getByRole('button', { name: 'Add repository' }),
   );

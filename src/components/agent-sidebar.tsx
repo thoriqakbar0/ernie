@@ -830,7 +830,7 @@ export function AgentSidebar({
 
         <div className="flex h-8 items-center gap-0.5 px-2">
           <SidebarGroupLabel className="h-auto flex-1 px-0 text-[11px] font-medium tracking-[0.08em] uppercase">
-            Repositories
+            Spaces
           </SidebarGroupLabel>
           <Button
             type="button"

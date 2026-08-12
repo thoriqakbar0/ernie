@@ -266,7 +266,7 @@ test('projects truthful live activity from Prime Agent summaries', () => {
       ['working-agent', 'working'],
       ['queued-agent', 'queued'],
       ['attention-agent', 'needs_input'],
-      ['idle-agent', 'idle'],
+      ['idle-agent', 'settled'],
     ],
   );
 });
@@ -327,6 +327,7 @@ test('keeps and orders durable top-level Prime Agent sessions', () => {
         messageCount: 4,
         modified: '2026-08-09T10:00:00.000Z',
         path: '/sessions/older.jsonl',
+        taskState: 'completed',
       },
       {
         cwd: '/workspace/ernie',
@@ -338,6 +339,7 @@ test('keeps and orders durable top-level Prime Agent sessions', () => {
         rlmDepth: 1,
       },
       {
+        activity: 'idle',
         cwd: '/workspace/kastuli',
         firstMessage: 'Fallback message',
         id: 'newer',
@@ -353,6 +355,7 @@ test('keeps and orders durable top-level Prime Agent sessions', () => {
     ok: true,
     value: [
       {
+        activity: 'idle',
         cwd: '/workspace/kastuli',
         messageCount: 12,
         modifiedAt: '2026-08-10T10:00:00.000Z',
@@ -360,6 +363,7 @@ test('keeps and orders durable top-level Prime Agent sessions', () => {
         path: '/sessions/newer.jsonl',
       },
       {
+        activity: 'settled',
         cwd: '/workspace/ernie',
         messageCount: 4,
         modifiedAt: '2026-08-09T10:00:00.000Z',
@@ -387,6 +391,7 @@ test('uses a neutral title for an unnamed saved Agent', () => {
     ok: true,
     value: [
       {
+        activity: 'idle',
         cwd: '/workspace/ernie',
         messageCount: 0,
         modifiedAt: '2026-08-10T10:00:00.000Z',
@@ -452,6 +457,7 @@ test('validates created sessions and skills after IPC', () => {
       ok: true,
       value: [
         {
+          activity: 'idle',
           cwd: '/workspace/ernie',
           messageCount: 4,
           modifiedAt: '2026-08-10T10:00:00.000Z',

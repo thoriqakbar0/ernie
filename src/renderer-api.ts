@@ -78,6 +78,9 @@ export const primeAgentCreateGitWorktreeChannel =
 export const chooseWorkspaceDirectoryChannel =
   'ernie:workspace:choose-directory';
 
+/** IPC channel that reveals a workspace path in Finder. */
+export const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
+
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
@@ -114,6 +117,7 @@ export type ErnieRendererApi = Readonly<{
     creation: PrimeAgentGitWorktreeCreation,
   ) => Promise<unknown>;
   chooseWorkspaceDirectory: () => Promise<unknown>;
+  revealWorkspacePath: (workspacePath: string) => Promise<unknown>;
 }>;
 
 declare global {

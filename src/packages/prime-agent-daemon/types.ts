@@ -11,7 +11,8 @@ export type PrimeAgentSessionActivity =
   | 'working'
   | 'queued'
   | 'needs_input'
-  | 'idle';
+  | 'idle'
+  | 'settled';
 
 /** A live top-level Prime Agent session that Ernie can control. */
 export interface PrimeAgentSession {
@@ -26,6 +27,7 @@ export interface PrimeAgentSession {
 
 /** A durable Prime Agent session that can be reopened in Ernie. */
 export interface PrimeAgentSavedSession {
+  readonly activity: Extract<PrimeAgentSessionActivity, 'needs_input' | 'idle' | 'settled'>;
   readonly cwd: string;
   readonly messageCount: number;
   readonly modifiedAt: string;

@@ -1,19 +1,23 @@
 /** Durable, reversible organization for Ernie's thread sidebar. */
 export interface ThreadManagementState {
-  readonly archiveFolded: boolean;
   readonly archivedThreadIds: readonly string[];
-  readonly foldedRepositoryPaths: readonly string[];
+  readonly expandedRepositoryPath: string | null;
+  readonly hiddenRepositoryPaths: readonly string[];
   readonly orderByRepository: Readonly<Record<string, readonly string[]>>;
   readonly pinnedThreadIds: readonly string[];
+  readonly repositoryLabels: Readonly<Record<string, string>>;
+  readonly repositoryOrder: readonly string[];
 }
 
 /** The safe initial state when no thread preferences exist. */
 export const emptyThreadManagementState: ThreadManagementState = {
-  archiveFolded: true,
   archivedThreadIds: [],
-  foldedRepositoryPaths: [],
+  expandedRepositoryPath: null,
+  hiddenRepositoryPaths: [],
   orderByRepository: {},
   pinnedThreadIds: [],
+  repositoryLabels: {},
+  repositoryOrder: [],
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,24 +34,58 @@ function parseUniqueStrings(value: unknown): readonly string[] | null {
     : null;
 }
 
+function parseStringRecord(value: unknown): Readonly<Record<string, string>> | null {
+  if (!isRecord(value)) return null;
+  const result: Record<string, string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key.length === 0 || typeof item !== 'string' || item.trim().length === 0) {
+      return null;
+    }
+    result[key] = item.trim();
+  }
+  return result;
+}
+
 /** Parse unknown persisted preferences into valid thread-management state. */
 export function parseThreadManagementState(
   value: unknown,
 ): ThreadManagementState {
-  if (!isRecord(value) || typeof value.archiveFolded !== 'boolean') {
+  if (!isRecord(value)) {
     return emptyThreadManagementState;
   }
 
   const archivedThreadIds = parseUniqueStrings(value.archivedThreadIds);
-  const foldedRepositoryPaths = parseUniqueStrings(value.foldedRepositoryPaths);
+  const hiddenRepositoryPaths =
+    value.hiddenRepositoryPaths === undefined
+      ? []
+      : parseUniqueStrings(value.hiddenRepositoryPaths);
   const pinnedThreadIds =
     value.pinnedThreadIds === undefined
       ? []
       : parseUniqueStrings(value.pinnedThreadIds);
+  const repositoryLabels =
+    value.repositoryLabels === undefined
+      ? {}
+      : parseStringRecord(value.repositoryLabels);
+  const repositoryOrder =
+    value.repositoryOrder === undefined
+      ? []
+      : parseUniqueStrings(value.repositoryOrder);
+  const expandedRepositoryPath =
+    value.expandedRepositoryPath === undefined ||
+    value.expandedRepositoryPath === null
+      ? null
+      : typeof value.expandedRepositoryPath === 'string' &&
+          value.expandedRepositoryPath.length > 0
+        ? value.expandedRepositoryPath
+        : undefined;
   if (
     archivedThreadIds === null ||
-    foldedRepositoryPaths === null ||
+    hiddenRepositoryPaths === null ||
     pinnedThreadIds === null ||
+    repositoryLabels === null ||
+    repositoryOrder === null ||
+    expandedRepositoryPath === undefined ||
     !isRecord(value.orderByRepository)
   ) {
     return emptyThreadManagementState;
@@ -65,11 +103,13 @@ export function parseThreadManagementState(
   }
 
   return {
-    archiveFolded: value.archiveFolded,
     archivedThreadIds,
-    foldedRepositoryPaths,
+    expandedRepositoryPath,
+    hiddenRepositoryPaths,
     orderByRepository,
     pinnedThreadIds,
+    repositoryLabels,
+    repositoryOrder,
   };
 }
 
@@ -114,28 +154,87 @@ export function setThreadPinned(
   };
 }
 
-/** Persist whether one repository's thread list is folded. */
-export function setRepositoryFolded(
+/** Reorder one pinned Agent without changing its pinned membership. */
+export function movePinnedThread(
+  state: ThreadManagementState,
+  sourceThreadId: string,
+  targetThreadId: string,
+): ThreadManagementState {
+  const sourceIndex = state.pinnedThreadIds.indexOf(sourceThreadId);
+  const targetIndex = state.pinnedThreadIds.indexOf(targetThreadId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return state;
+
+  const pinnedThreadIds = [...state.pinnedThreadIds];
+  const [source] = pinnedThreadIds.splice(sourceIndex, 1);
+  if (source === undefined) return state;
+  pinnedThreadIds.splice(targetIndex, 0, source);
+  return { ...state, pinnedThreadIds };
+}
+
+/** Persist the only repository whose contents are disclosed. */
+export function setExpandedRepository(
+  state: ThreadManagementState,
+  repositoryPath: string | null,
+): ThreadManagementState {
+  return { ...state, expandedRepositoryPath: repositoryPath };
+}
+
+/** Hide or restore one repository without deleting its durable organization. */
+export function setRepositoryHidden(
   state: ThreadManagementState,
   repositoryPath: string,
-  folded: boolean,
+  hidden: boolean,
 ): ThreadManagementState {
   return {
     ...state,
-    foldedRepositoryPaths: updateMembership(
-      state.foldedRepositoryPaths,
+    hiddenRepositoryPaths: updateMembership(
+      state.hiddenRepositoryPaths,
       repositoryPath,
-      folded,
+      hidden,
     ),
   };
 }
 
-/** Persist whether the archived-thread section is folded. */
-export function setArchiveFolded(
+/** Assign or clear the display label for one repository. */
+export function setRepositoryLabel(
   state: ThreadManagementState,
-  folded: boolean,
+  repositoryPath: string,
+  label: string | null,
 ): ThreadManagementState {
-  return { ...state, archiveFolded: folded };
+  const repositoryLabels = { ...state.repositoryLabels };
+  const normalized = label?.trim() ?? '';
+  if (normalized.length === 0) {
+    delete repositoryLabels[repositoryPath];
+  } else {
+    repositoryLabels[repositoryPath] = normalized;
+  }
+  return { ...state, repositoryLabels };
+}
+
+/** Append newly discovered repositories without activity-based reordering. */
+export function rememberRepositoryPaths(
+  state: ThreadManagementState,
+  repositoryPaths: readonly string[],
+): ThreadManagementState {
+  const known = new Set(state.repositoryOrder);
+  const additions = repositoryPaths.filter((path) => !known.has(path));
+  return additions.length === 0
+    ? state
+    : { ...state, repositoryOrder: [...state.repositoryOrder, ...additions] };
+}
+
+/** Apply first-seen repository order while retaining new repository paths. */
+export function orderRepositoryPaths(
+  state: ThreadManagementState,
+  repositoryPaths: readonly string[],
+): readonly string[] {
+  const available = new Set(repositoryPaths);
+  const ordered = state.repositoryOrder.filter((path) => available.has(path));
+  const orderedSet = new Set(ordered);
+  return [
+    ...ordered,
+    ...repositoryPaths.filter((path) => !orderedSet.has(path)),
+  ];
 }
 
 /** Apply a repository's saved order while retaining newly discovered threads. */

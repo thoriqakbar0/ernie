@@ -74,6 +74,7 @@ export interface PrimeAgentWorkspaceController {
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
   readonly chooseWorkspaceDirectory: () => void;
+  readonly addWorkspaceDirectory: () => Promise<string | null>;
   readonly changeGitBranch: (name: string | null) => void;
   readonly deleteGitBranch: (name: string) => void;
   readonly initializeGitRepository: () => void;
@@ -255,7 +256,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       );
       if (!active) return;
       const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
-      if (!result.ok) return;
+      if (!result.ok) {
+        yield* Effect.sync(() => setWorkspace(null));
+        return;
+      }
 
       yield* Effect.sync(() => {
         setWorkspace(result.value);
@@ -274,7 +278,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       refreshing = true;
       const fiber = Effect.runFork(
         refreshWorkspace().pipe(
-          Effect.catchAll(() => Effect.void),
+        Effect.catchAll(() =>
+          Effect.sync(() => {
+            if (active) setWorkspace(null);
+          }),
+        ),
           Effect.ensuring(
             Effect.sync(() => {
               refreshing = false;
@@ -491,19 +499,20 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   const folders = useMemo(
     () =>
-      workspacePaths.map((cwd) => {
+      workspacePaths.flatMap((cwd): readonly PrimeAgentFolderChoice[] => {
         const identity = gitWorkspaces.get(cwd);
-        const repositoryCwd = identity?.repositoryCwd ?? cwd;
+        if (identity === undefined) return [];
+        const repositoryCwd = identity.repositoryCwd;
         const branchName =
-          identity !== undefined && identity.cwd !== identity.repositoryCwd
+          identity.cwd !== identity.repositoryCwd
             ? identity.branchName
             : null;
-        return {
+        return [{
           branchName,
           label: branchName ?? folderName(cwd),
           repositoryCwd,
           value: cwd,
-        };
+        }];
       }),
     [gitWorkspaces, workspacePaths],
   );
@@ -769,7 +778,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     setStatus('Connected to Prime Agent.');
   }
 
-  function chooseWorkspaceDirectory(): void {
+  function pickWorkspaceDirectory(select: boolean): Promise<string | null> {
     const chooseDirectory = Effect.fn('Workspace.chooseDirectory')(function* () {
       yield* Effect.sync(() => {
         setChoosingDirectory(true);
@@ -783,11 +792,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         yield* Effect.sync(() =>
           setStatus('Ernie received an invalid directory selection.'),
         );
-        return;
+        return null;
       }
       if (selection.value === null) {
         yield* Effect.sync(() => setStatus('Directory selection canceled.'));
-        return;
+        return null;
       }
 
       const cwd = selection.value;
@@ -795,22 +804,34 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setAddedCwds((current) =>
           current.includes(cwd) ? current : [...current, cwd],
         );
-        setSelectedCwd(cwd);
-        setSelectedSessionId(null);
-        setStatus('New Agent workspace selected.');
+        if (select) {
+          setSelectedCwd(cwd);
+          setSelectedSessionId(null);
+        }
+        setStatus(select ? 'New Agent workspace selected.' : 'Repository added.');
       });
+      return cwd;
     });
 
-    Effect.runFork(
+    return Effect.runPromise(
       chooseDirectory().pipe(
         Effect.catchAll(() =>
-          Effect.sync(() =>
-            setStatus('Ernie could not open the directory picker.'),
-          ),
+          Effect.sync(() => {
+            setStatus('Ernie could not open the directory picker.');
+            return null;
+          }),
         ),
         Effect.ensuring(Effect.sync(() => setChoosingDirectory(false))),
       ),
     );
+  }
+
+  function chooseWorkspaceDirectory(): void {
+    void pickWorkspaceDirectory(true);
+  }
+
+  function addWorkspaceDirectory(): Promise<string | null> {
+    return pickWorkspaceDirectory(false);
   }
 
   const changeModel = useCallback(function changeModel(
@@ -1115,6 +1136,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     renameSession,
     selectSession,
     chooseWorkspaceDirectory,
+    addWorkspaceDirectory,
     changeGitBranch,
     deleteGitBranch,
     initializeGitRepository,

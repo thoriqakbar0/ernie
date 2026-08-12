@@ -3,7 +3,6 @@ import {
   ArchiveRestoreIcon,
   EllipsisIcon,
   GripVerticalIcon,
-  LoaderCircleIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
@@ -26,9 +25,11 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from '@/components/trovecn/ui/menu';
+import type { PrimeAgentSessionActivity } from '@/packages/prime-agent-daemon/client';
 
 interface ThreadRowProps {
   readonly archived: boolean;
+  readonly activity: PrimeAgentSessionActivity;
   readonly detail: string | null;
   readonly disabled: boolean;
   readonly dragging: boolean;
@@ -48,6 +49,7 @@ interface ThreadRowProps {
 /** Interactive Trove thread row with menu, context menu, and drag affordance. */
 export function ThreadRow({
   archived,
+  activity,
   detail,
   disabled,
   dragging,
@@ -63,16 +65,10 @@ export function ThreadRow({
   onPinChange,
   onRename,
 }: ThreadRowProps): React.JSX.Element {
-  const reorderable = !archived && !pinned;
-  const activity = thread.kind === 'live' ? thread.session.activity : 'idle';
+  const reorderable = !archived;
 
   const activityMark = {
-    working: (
-      <LoaderCircleIcon
-        aria-label="Working"
-        className="size-3 animate-spin text-muted-foreground motion-reduce:animate-none"
-      />
-    ),
+    working: null,
     queued: (
       <span
         aria-label="Queued"
@@ -86,6 +82,7 @@ export function ThreadRow({
       />
     ),
     idle: null,
+    settled: null,
   }[activity];
 
   return (
@@ -107,55 +104,50 @@ export function ThreadRow({
           />
         }
       >
-        {pinned ? (
-          <PinIcon
-            aria-hidden="true"
-            className="absolute left-1 size-3.5 text-muted-foreground"
-          />
-        ) : (
-          <GripVerticalIcon
-            aria-hidden="true"
-            className="absolute left-1 size-3.5 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-60 group-focus-within/thread:opacity-60"
-          />
-        )}
+        <GripVerticalIcon
+          aria-hidden="true"
+          className="absolute left-1 size-3.5 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-60 group-focus-within/thread:opacity-60"
+        />
         <Button
           type="button"
           variant="ghost"
           disabled={disabled}
           data-active={selected}
+          data-sidebar-tree-row
           aria-current={selected ? 'page' : undefined}
           aria-label={
             thread.kind === 'saved'
               ? `${thread.session.name}, saved session`
               : thread.session.name
           }
-          className={`${pinned ? 'h-10' : 'h-9'} min-w-0 flex-1 justify-start gap-2 rounded-lg pl-5 pr-1 text-left font-normal text-sidebar-foreground data-active:bg-sidebar-accent hover:bg-sidebar-accent`}
+          title={thread.session.name}
+          className={`h-8 min-w-0 flex-1 justify-start rounded-lg pl-5 pr-16 text-left text-sidebar-foreground hover:bg-sidebar-accent ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
         >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate">{thread.session.name}</span>
+          <span className="min-w-0 flex-1 truncate">
+            <span>{thread.session.name}</span>
             {pinned && detail !== null ? (
-              <span className="block truncate text-[10px] text-muted-foreground">
-                {detail}
-              </span>
+              <span className="text-xs text-muted-foreground"> · {detail}</span>
             ) : null}
           </span>
-          {importing ? (
-            <LoaderCircleIcon
-              className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none"
-              aria-label="Opening saved session"
-            />
-          ) : (
-            <span className="flex shrink-0 items-center gap-1.5">
-              {activityMark}
-              {pinned || detail === null ? null : (
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {detail}
-                </span>
-              )}
-            </span>
-          )}
         </Button>
+        {importing ? (
+          <span
+            aria-label="Opening saved session"
+            className="absolute right-8 size-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none"
+          />
+        ) : (
+          <>
+            <span className="absolute right-8 group-hover/thread:hidden group-focus-within/thread:hidden">
+              {activityMark}
+            </span>
+            {pinned || detail === null ? null : (
+              <span className="pointer-events-none absolute right-8 text-xs tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-100 group-focus-within/thread:opacity-100">
+                {detail}
+              </span>
+            )}
+          </>
+        )}
         <Menu>
           <MenuTrigger
             render={

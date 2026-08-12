@@ -31,6 +31,18 @@ const SIDEBAR_MAX_WIDTH = 384
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+const SIDEBAR_WIDTH_STORAGE_KEY = "ernie:sidebar-width:v1"
+
+function loadSidebarWidth() {
+  try {
+    const value = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
+    return Number.isFinite(value) && value >= SIDEBAR_MIN_WIDTH && value <= SIDEBAR_MAX_WIDTH
+      ? value
+      : SIDEBAR_DEFAULT_WIDTH
+  } catch {
+    return SIDEBAR_DEFAULT_WIDTH
+  }
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -70,9 +82,11 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
-  const [sidebarWidth, setSidebarWidthState] = React.useState(
-    SIDEBAR_DEFAULT_WIDTH
-  )
+  const [sidebarWidth, setSidebarWidthState] = React.useState(loadSidebarWidth)
+
+  React.useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
+  }, [sidebarWidth])
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.

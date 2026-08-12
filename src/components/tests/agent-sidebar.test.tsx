@@ -3,97 +3,118 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { PrimeAgentSessionRename } from '@/packages/prime-agent-daemon/client';
+import type { PrimeAgentFolderChoice } from '@/hooks/use-prime-agent-workspace';
+import type {
+  PrimeAgentSavedSession,
+  PrimeAgentSession,
+  PrimeAgentSessionRename,
+} from '@/packages/prime-agent-daemon/client';
 
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
 });
 
+interface SidebarFixtureOverrides {
+  readonly folders?: readonly PrimeAgentFolderChoice[];
+  readonly primeAgentConnection?: 'connecting' | 'ready' | 'unavailable';
+  readonly savedSessions?: readonly PrimeAgentSavedSession[];
+  readonly selectedCwd?: string;
+  readonly selectedSessionId?: string | null;
+  readonly sessions?: readonly PrimeAgentSession[];
+}
+
 function renderSidebar(actions: {
-  readonly addRepository: () => void;
+  readonly addRepository: () => Promise<string | null> | string | null | void;
   readonly changeFolder?: (cwd: string | null) => void;
   readonly startAgentDraft: (cwd: string) => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
-}): void {
+}, overrides: SidebarFixtureOverrides = {}): void {
+  const folders = overrides.folders ?? [
+    {
+      branchName: null,
+      label: 'ernie',
+      repositoryCwd: '/workspace/ernie',
+      value: '/workspace/ernie',
+    },
+    {
+      branchName: 'feature/calm-ui',
+      label: 'calm-ui',
+      repositoryCwd: '/workspace/ernie',
+      value: '/workspace/ernie-worktrees/feature/calm-ui',
+    },
+    {
+      branchName: null,
+      label: 'kastuli',
+      repositoryCwd: '/workspace/kastuli',
+      value: '/workspace/kastuli',
+    },
+  ];
+  const sessions = overrides.sessions ?? [
+    {
+      activeSessionId: 'ernie-agent',
+      activity: 'working',
+      cwd: '/workspace/ernie',
+      modifiedAt: null,
+      model: null,
+      name: 'Codebase rating feedback',
+      sessionPath: '/sessions/ernie-agent.jsonl',
+    },
+    {
+      activeSessionId: 'general-agent',
+      activity: 'idle',
+      cwd: '/workspace/kastuli',
+      modifiedAt: null,
+      model: null,
+      name: 'General chat',
+      sessionPath: '/sessions/general-agent.jsonl',
+    },
+    {
+      activeSessionId: 'worktree-agent',
+      activity: 'needs_input',
+      cwd: '/workspace/ernie-worktrees/feature/calm-ui',
+      modifiedAt: null,
+      model: null,
+      name: 'Calm worktree task',
+      sessionPath: '/sessions/worktree-agent.jsonl',
+    },
+  ] satisfies readonly PrimeAgentSession[];
+  const savedSessions = overrides.savedSessions ?? [
+    {
+      activity: 'settled',
+      cwd: '/workspace/ernie',
+      messageCount: 12,
+      modifiedAt: '2026-08-10T10:00:00.000Z',
+      name: 'Saved architecture review',
+      path: '/sessions/saved-architecture.jsonl',
+    },
+  ] satisfies readonly PrimeAgentSavedSession[];
+
   render(
     <TooltipProvider>
       <SidebarProvider>
         <AgentSidebar
           creatingAgent={false}
-          primeAgentConnection="ready"
+          primeAgentConnection={overrides.primeAgentConnection ?? 'ready'}
           importingSessionPath={null}
           renamingSession={false}
-          folders={[
-            {
-              branchName: null,
-              label: 'ernie',
-              repositoryCwd: '/workspace/ernie',
-              value: '/workspace/ernie',
-            },
-            {
-              branchName: 'feature/calm-ui',
-              label: 'calm-ui',
-              repositoryCwd: '/workspace/ernie',
-              value: '/workspace/ernie-worktrees/feature/calm-ui',
-            },
-            {
-              branchName: null,
-              label: 'kastuli',
-              repositoryCwd: '/workspace/kastuli',
-              value: '/workspace/kastuli',
-            },
-          ]}
-          selectedCwd="/workspace/ernie"
-          selectedSessionId="ernie-agent"
-          sessions={[
-            {
-              activeSessionId: 'ernie-agent',
-              activity: 'working',
-              cwd: '/workspace/ernie',
-              modifiedAt: null,
-              model: null,
-              name: 'Codebase rating feedback',
-              sessionPath: '/sessions/ernie-agent.jsonl',
-            },
-            {
-              activeSessionId: 'general-agent',
-              activity: 'idle',
-              cwd: '/workspace/kastuli',
-              modifiedAt: null,
-              model: null,
-              name: 'General chat',
-              sessionPath: '/sessions/general-agent.jsonl',
-            },
-            {
-              activeSessionId: 'worktree-agent',
-              activity: 'needs_input',
-              cwd: '/workspace/ernie-worktrees/feature/calm-ui',
-              modifiedAt: null,
-              model: null,
-              name: 'Calm worktree task',
-              sessionPath: '/sessions/worktree-agent.jsonl',
-            },
-          ]}
-          savedSessions={[
-            {
-              cwd: '/workspace/ernie',
-              messageCount: 12,
-              modifiedAt: '2026-08-10T10:00:00.000Z',
-              name: 'Saved architecture review',
-              path: '/sessions/saved-architecture.jsonl',
-            },
-          ]}
+          folders={folders}
+          selectedCwd={overrides.selectedCwd ?? '/workspace/ernie'}
+          selectedSessionId={overrides.selectedSessionId ?? 'ernie-agent'}
+          sessions={sessions}
+          savedSessions={savedSessions}
           changeFolder={actions.changeFolder ?? (() => undefined)}
-          chooseWorkspaceDirectory={actions.addRepository}
+          addWorkspaceDirectory={async () =>
+            (await actions.addRepository()) ?? null
+          }
           startAgentDraft={actions.startAgentDraft}
           importSession={actions.importSession}
           renameSession={actions.renameSession}
@@ -115,6 +136,7 @@ test('user can select a nested Agent conversation', async () => {
     selectSession: (activeSessionId) => selectedSessions.push(activeSessionId),
   });
 
+  await user.click(within(document.body).getByRole('button', { name: 'kastuli' }));
   await user.click(
     within(document.body).getByRole('button', { name: 'General chat' }),
   );
@@ -167,6 +189,24 @@ test('user can fold and unfold a repository conversation list', async () => {
       name: 'Codebase rating feedback',
     }),
   );
+});
+
+test('opening one repository folds the previously open repository', async () => {
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  const ernie = within(document.body).getByRole('button', { name: 'ernie' });
+  const kastuli = within(document.body).getByRole('button', { name: 'kastuli' });
+  await user.click(kastuli);
+
+  assert.equal(ernie.getAttribute('aria-expanded'), 'false');
+  assert.equal(kastuli.getAttribute('aria-expanded'), 'true');
 });
 
 test('only the plus action starts a draft without changing the tree', async () => {
@@ -230,7 +270,7 @@ test('linked Git worktrees nest inside their repository', () => {
   );
 });
 
-test('sidebar hides empty pinned furniture and repository counts', () => {
+test('sidebar hides empty pin furniture and counts only working Agents', () => {
   renderSidebar({
     addRepository: () => undefined,
     startAgentDraft: () => undefined,
@@ -246,11 +286,11 @@ test('sidebar hides empty pinned furniture and repository counts', () => {
   const ernieRepository = within(document.body).getByRole('button', {
     name: 'ernie',
   });
-  assert.equal(ernieRepository.textContent?.trim(), 'ernie');
+  assert.match(ernieRepository.textContent ?? '', /1 working/u);
+  assert.equal(within(document.body).queryByLabelText('Working'), null);
 });
 
-test('active filter shows only working, queued, or attention-needed Agents', async () => {
-  const user = userEvent.setup();
+test('Agents are grouped by truthful status without an active filter', () => {
   renderSidebar({
     addRepository: () => undefined,
     startAgentDraft: () => undefined,
@@ -259,36 +299,26 @@ test('active filter shows only working, queued, or attention-needed Agents', asy
     selectSession: () => undefined,
   });
 
-  assert.ok(within(document.body).getByLabelText('Working'));
-  assert.ok(within(document.body).getByLabelText('Needs attention'));
-  await user.click(
-    within(document.body).getByRole('button', {
-      name: 'Show active Agents',
-    }),
-  );
-
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Codebase rating feedback',
-    }),
-  );
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Calm worktree task',
-    }),
-  );
+  assert.ok(within(document.body).getAllByLabelText('Needs attention').length > 0);
   assert.equal(
-    within(document.body).queryByRole('listitem', {
-      name: 'kastuli repository',
-    }),
+    within(document.body).queryByRole('button', { name: 'Show active Agents' }),
     null,
   );
-  assert.equal(
-    within(document.body).queryByRole('button', {
-      name: 'Saved architecture review, saved session',
-    }),
-    null,
-  );
+  const ernie = within(document.body).getByRole('listitem', {
+    name: 'ernie repository',
+  });
+  const agentNames = within(ernie)
+    .getAllByRole('button')
+    .map((button) => button.getAttribute('aria-label'))
+    .filter((label) =>
+      ['Codebase rating feedback', 'Saved architecture review, saved session'].includes(
+        label ?? '',
+      ),
+    );
+  assert.deepEqual(agentNames, [
+    'Codebase rating feedback',
+    'Saved architecture review, saved session',
+  ]);
 });
 
 test('user can add a repository and start a local Agent draft inside one', async () => {
@@ -335,7 +365,8 @@ test('sidebar omits the standalone session import action', () => {
   );
 });
 
-test('sidebar reports that Prime Agent is ready', () => {
+test('ready footer stays quiet while unavailable state reveals recovery details', async () => {
+  const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
     startAgentDraft: () => undefined,
@@ -344,7 +375,134 @@ test('sidebar reports that Prime Agent is ready', () => {
     selectSession: () => undefined,
   });
 
-  assert.ok(within(document.body).getByText('Prime Agent ready'));
+  assert.equal(within(document.body).queryByText('Prime Agent ready'), null);
+  assert.ok(within(document.body).getByText('Ernie'));
+
+  cleanup();
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { primeAgentConnection: 'unavailable' },
+  );
+  assert.ok(within(document.body).getByText('Agent unavailable'));
+  assert.doesNotMatch(
+    within(document.body).getByRole('button', { name: 'ernie' }).textContent ?? '',
+    /working/u,
+  );
+  assert.equal(within(document.body).queryByLabelText('Needs attention'), null);
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: /Ernie Agent unavailable/u,
+    }),
+  );
+  assert.ok(
+    within(document.body).getByText(
+      'Ernie could not reach Prime Agent. Restart Ernie, then try again.',
+    ),
+  );
+});
+
+test('shows three recent settled Agents and discloses only the hidden remainder', async () => {
+  const user = userEvent.setup();
+  const savedSessions = Array.from({ length: 5 }, (_, index) => ({
+    activity: 'settled' as const,
+    cwd: '/workspace/ernie',
+    messageCount: 1,
+    modifiedAt: `2026-08-${String(10 - index).padStart(2, '0')}T10:00:00.000Z`,
+    name: `Settled ${index + 1}`,
+    path: `/sessions/settled-${index + 1}.jsonl`,
+  }));
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { savedSessions },
+  );
+
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Settled 1, saved session',
+    }),
+  );
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Settled 3, saved session',
+    }),
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: 'Settled 4, saved session',
+    }),
+    null,
+  );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Settled (2)' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Settled 5, saved session',
+    }),
+  );
+  assert.ok(within(document.body).getByRole('button', { name: 'Hide settled' }));
+});
+
+test('compact search finds hidden settled Agents and restores the tree after opening', async () => {
+  const importedPaths: string[] = [];
+  const user = userEvent.setup();
+  const savedSessions = Array.from({ length: 4 }, (_, index) => ({
+    activity: 'settled' as const,
+    cwd: '/workspace/ernie',
+    messageCount: 1,
+    modifiedAt: `2026-08-${String(10 - index).padStart(2, '0')}T10:00:00.000Z`,
+    name: index === 3 ? 'Buried architecture' : `Recent ${index + 1}`,
+    path: `/sessions/search-${index + 1}.jsonl`,
+  }));
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: (path) => importedPaths.push(path),
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { savedSessions },
+  );
+
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Search Agents' }),
+  );
+  const search = within(document.body).getByRole('searchbox', {
+    name: 'Search repositories, worktrees, and Agents',
+  });
+  await user.type(search, 'buried');
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Buried architecture, saved session',
+    }),
+  );
+
+  assert.deepEqual(importedPaths, ['/sessions/search-4.jsonl']);
+  assert.equal(
+    within(document.body).queryByRole('searchbox', {
+      name: 'Search repositories, worktrees, and Agents',
+    }),
+    null,
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: /Buried architecture/u,
+    }),
+    null,
+  );
 });
 
 test('saved conversations appear inside their repository and open in place', async () => {
@@ -437,14 +595,39 @@ test('archived threads leave the sidebar without an archived section', async () 
   );
 });
 
-test('user can reorder threads by dragging one row onto another', () => {
-  renderSidebar({
-    addRepository: () => undefined,
-    startAgentDraft: () => undefined,
-    importSession: () => undefined,
-    renameSession: () => undefined,
-    selectSession: () => undefined,
-  });
+test('user can reorder Agents inside one status group', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      sessions: [
+        {
+          activeSessionId: 'ernie-agent',
+          activity: 'idle',
+          cwd: '/workspace/ernie',
+          modifiedAt: null,
+          model: null,
+          name: 'Codebase rating feedback',
+          sessionPath: '/sessions/ernie-agent.jsonl',
+        },
+      ],
+      savedSessions: [
+        {
+          activity: 'idle',
+          cwd: '/workspace/ernie',
+          messageCount: 12,
+          modifiedAt: '2026-08-10T10:00:00.000Z',
+          name: 'Saved architecture review',
+          path: '/sessions/saved-architecture.jsonl',
+        },
+      ],
+    },
+  );
   const repository = within(document.body).getByRole('listitem', {
     name: 'ernie repository',
   });
@@ -505,6 +688,79 @@ test('thread actions open from a right-click context menu', () => {
       .getAllByRole('menuitem')
       .map((item) => item.textContent?.trim()),
     ['Rename', 'Pin to top', 'Archive'],
+  );
+});
+
+test('repository context menu renames the display label only', async () => {
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+  fireEvent.contextMenu(
+    within(document.body).getByRole('button', { name: 'ernie' }),
+  );
+  await user.click(
+    within(document.body).getByRole('menuitem', {
+      name: 'Rename display label',
+    }),
+  );
+  const input = within(document.body).getByRole('textbox', {
+    name: 'Repository label',
+  });
+  await user.clear(input);
+  await user.type(input, 'Ernie app');
+  await user.click(within(document.body).getByRole('button', { name: 'Rename' }));
+
+  assert.ok(within(document.body).getByRole('button', { name: 'Ernie app' }));
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'ernie' }),
+    null,
+  );
+});
+
+test('removing a repository is non-destructive and re-adding restores it', async () => {
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => '/workspace/kastuli',
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+  fireEvent.contextMenu(
+    within(document.body).getByRole('button', { name: 'kastuli' }),
+  );
+  await user.click(
+    within(document.body).getByRole('menuitem', {
+      name: 'Remove from sidebar',
+    }),
+  );
+  assert.ok(
+    within(document.body).getByText(
+      'This only removes it from the sidebar. Files, Git worktrees, and Agents stay untouched.',
+    ),
+  );
+  await user.click(within(document.body).getByRole('button', { name: 'Remove' }));
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'kastuli' }),
+    null,
+  );
+
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Add repository' }),
+  );
+  await waitFor(() =>
+    assert.ok(within(document.body).getByRole('button', { name: 'kastuli' })),
+  );
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'kastuli' })
+      .getAttribute('aria-expanded'),
+    'true',
   );
 });
 
@@ -571,7 +827,12 @@ test('pinned threads lift above repositories and return when unpinned', async ()
       name: 'Codebase rating feedback',
     }),
   );
-  assert.ok(within(pinnedTasks).getByText('ernie'));
+  assert.match(
+    within(pinnedTasks).getByRole('button', {
+      name: 'Codebase rating feedback',
+    }).textContent ?? '',
+    /ernie/u,
+  );
   assert.equal(
     within(ernieRepository).queryByRole('button', {
       name: 'Codebase rating feedback',

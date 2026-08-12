@@ -122,7 +122,8 @@ function parseSessionActivity(
 
   if (activity === 'working') return 'working';
   if (sessionActions.queuedCount > 0) return 'queued';
-  return value.taskState === 'needs_input' ? 'needs_input' : 'idle';
+  if (value.taskState === 'needs_input') return 'needs_input';
+  return value.taskState === 'completed' ? 'settled' : 'idle';
 }
 
 function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
@@ -132,6 +133,7 @@ function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
   const cwd = nonEmptyString(value.cwd);
   const modifiedAt = nonEmptyString(value.modified);
   const messageCount = value.messageCount;
+  const taskState = value.taskState;
   if (
     path === null ||
     cwd === null ||
@@ -139,12 +141,21 @@ function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
     !Number.isFinite(Date.parse(modifiedAt)) ||
     typeof messageCount !== 'number' ||
     !Number.isSafeInteger(messageCount) ||
-    messageCount < 0
+    messageCount < 0 ||
+    (taskState !== undefined &&
+      taskState !== 'needs_input' &&
+      taskState !== 'completed')
   ) {
     return null;
   }
 
   return {
+    activity:
+      taskState === 'completed'
+        ? 'settled'
+        : taskState === 'needs_input'
+          ? 'needs_input'
+          : 'idle',
     path,
     cwd,
     modifiedAt,
@@ -200,7 +211,8 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
     (activity !== 'working' &&
       activity !== 'queued' &&
       activity !== 'needs_input' &&
-      activity !== 'idle') ||
+      activity !== 'idle' &&
+      activity !== 'settled') ||
     cwd === null ||
     name === null
   ) {
@@ -236,6 +248,7 @@ function parseSavedSessionDto(value: unknown): PrimeAgentSavedSession | null {
   const name = nonEmptyString(value.name);
   const modifiedAt = nonEmptyString(value.modifiedAt);
   const messageCount = value.messageCount;
+  const activity = value.activity;
   if (
     path === null ||
     cwd === null ||
@@ -244,12 +257,15 @@ function parseSavedSessionDto(value: unknown): PrimeAgentSavedSession | null {
     !Number.isFinite(Date.parse(modifiedAt)) ||
     typeof messageCount !== 'number' ||
     !Number.isSafeInteger(messageCount) ||
-    messageCount < 0
+    messageCount < 0 ||
+    (activity !== 'needs_input' &&
+      activity !== 'idle' &&
+      activity !== 'settled')
   ) {
     return null;
   }
 
-  return { path, cwd, name, modifiedAt, messageCount };
+  return { activity, path, cwd, name, modifiedAt, messageCount };
 }
 
 function parseSavedSessions(

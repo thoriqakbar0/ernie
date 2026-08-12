@@ -28,6 +28,7 @@ const primeAgentInitializeGitChannel = 'ernie:prime-agent:initialize-git';
 const primeAgentCreateGitWorktreeChannel =
   'ernie:prime-agent:create-git-worktree';
 const chooseWorkspaceDirectoryChannel = 'ernie:workspace:choose-directory';
+const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
 
 const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
@@ -89,6 +90,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   chooseWorkspaceDirectory() {
     return ipcRenderer.invoke(chooseWorkspaceDirectoryChannel);
+  },
+  revealWorkspacePath(workspacePath) {
+    return ipcRenderer.invoke(revealWorkspacePathChannel, workspacePath);
   },
 });
 

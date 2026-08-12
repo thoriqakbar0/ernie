@@ -84,11 +84,20 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       ok: true,
       value: [
         {
+          activity: 'idle',
           cwd: '/workspace/kastuli',
           messageCount: 1,
           modifiedAt: '2026-08-11T10:00:00.000Z',
           name: 'Saved Agent',
           path: '/sessions/kastuli.jsonl',
+        },
+        {
+          activity: 'settled',
+          cwd: '/workspace/ernie-prime-agent-deleted',
+          messageCount: 1,
+          modifiedAt: '2026-08-10T10:00:00.000Z',
+          name: 'Stale test Agent',
+          path: '/sessions/stale.jsonl',
         },
       ],
     }),
@@ -113,16 +122,20 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       ok: true,
       value: { cwd, current: 'main', names: ['main'] },
     }),
-    readPrimeAgentGitWorkspace: async (cwd) => ({
-      ok: true,
-      value: { branchName: 'main', cwd, repositoryCwd: cwd },
-    }),
+    readPrimeAgentGitWorkspace: async (cwd) =>
+      cwd.endsWith('deleted')
+        ? { ok: false }
+        : {
+            ok: true,
+            value: { branchName: 'main', cwd, repositoryCwd: cwd },
+          },
     switchPrimeAgentGitBranch: async () => ({ ok: false }),
     deletePrimeAgentGitBranch: async () => ({ ok: false }),
     renamePrimeAgentGitBranch: async () => ({ ok: false }),
     initializePrimeAgentGit: async () => ({ ok: false }),
     createPrimeAgentGitWorktree: async () => ({ ok: false }),
     chooseWorkspaceDirectory: async () => null,
+    revealWorkspacePath: async () => true,
   };
   Object.defineProperty(window, 'ernie', {
     configurable: true,
@@ -140,7 +153,18 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     />,
   );
 
-  assert.ok(await within(document.body).findByText('Prime Agent ready'));
+  assert.ok(
+    await within(document.body).findByRole('button', {
+      name: 'New Agent in kastuli',
+    }),
+  );
+  assert.equal(within(document.body).queryByText('Prime Agent ready'), null);
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: 'Stale test Agent, saved session',
+    }),
+    null,
+  );
   assert.ok(
     within(document.body).getByRole('region', {
       name: 'New Agent settings',
@@ -210,12 +234,23 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   ]);
   assert.equal(
     within(document.body)
-      .getByRole('button', { name: 'Blank Agent' })
-      .getAttribute('aria-current'),
-    'page',
+      .getByRole('button', { name: 'ernie' })
+      .getAttribute('aria-expanded'),
+    'true',
+  );
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'kastuli' })
+      .getAttribute('aria-expanded'),
+    'false',
   );
   await waitFor(
-    () => assert.ok(within(document.body).getByLabelText('Working')),
+    () =>
+      assert.match(
+        within(document.body).getByRole('button', { name: 'kastuli' })
+          .textContent ?? '',
+        /1 working/u,
+      ),
     { timeout: 2_500 },
   );
   await waitFor(() => assert.equal(modelCatalogRequests, 1));
@@ -258,6 +293,9 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).getByRole('region', {
       name: 'New Agent settings',
     }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'kastuli' }),
   );
   assert.equal(
     within(document.body)

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import type { IpcMainEvent, OpenDialogOptions } from 'electron';
 import { Effect } from 'effect';
 
@@ -35,6 +35,7 @@ import {
   primeAgentSwitchGitBranchChannel,
   primeAgentWorkspaceChannel,
   rendererReadyChannel,
+  revealWorkspacePathChannel,
 } from './renderer-api';
 
 const rendererReadyTimeoutMs = 5_000;
@@ -183,6 +184,13 @@ function registerPrimeAgentHandlers(): void {
         ),
       ),
     );
+  });
+  ipcMain.handle(revealWorkspacePathChannel, (_event, workspacePath: unknown) => {
+    if (typeof workspacePath !== 'string' || workspacePath.trim().length === 0) {
+      return false;
+    }
+    shell.showItemInFolder(workspacePath);
+    return true;
   });
   app.once('will-quit', () => daemon.close());
 }

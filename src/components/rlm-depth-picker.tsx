@@ -11,6 +11,7 @@ import {
 
 interface RlmDepthPickerProps {
   readonly busy: boolean;
+  readonly compact?: boolean;
   readonly depth: number | null;
   readonly onDepthChange: (depth: string | null) => void;
 }
@@ -30,6 +31,7 @@ const DEPTH_VALUE_MORPH = {
 /** Edit the active Prime Agent session's delegation depth from zero through twenty. */
 export const RlmDepthPicker = memo(function RlmDepthPicker({
   busy,
+  compact = false,
   depth,
   onDepthChange,
 }: RlmDepthPickerProps): React.JSX.Element {
@@ -53,12 +55,17 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
         render={
           <Button
             type="button"
-            variant="outline"
+            variant={compact ? 'ghost' : 'outline'}
+            size={compact ? 'xs' : 'default'}
             disabled={busy}
             aria-label={
               depth === null ? 'Depth unavailable' : `Depth ${depth}`
             }
-            className="gap-2 px-3 font-normal text-muted-foreground"
+            className={
+              compact
+                ? 'gap-1 px-2 font-normal text-muted-foreground'
+                : 'gap-2 px-3 font-normal text-muted-foreground'
+            }
           />
         }
       >

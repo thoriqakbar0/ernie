@@ -1,6 +1,7 @@
 import { ArrowUpIcon, PlusIcon } from 'lucide-react';
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import {
   InputGroup,
   InputGroupAddon,
@@ -33,12 +34,14 @@ type TaskComposerProps = Pick<
   | 'selectedCwd'
   | 'selectedModelKey'
   | 'selectedSessionId'
+  | 'selectedSessionRlmMaxDepth'
+  | 'selectedSessionRlmMaxDepthBusy'
   | 'changeModel'
+  | 'changeSelectedSessionRlmMaxDepth'
   | 'createAgentWithTask'
 > & {
   readonly disabled?: boolean;
   readonly isGenerating?: boolean;
-  readonly selectedSessionRlmMaxDepth?: number | null;
 };
 
 /** Compose and submit one task without rerendering workspace controls. */
@@ -51,8 +54,10 @@ export const TaskComposer = memo(function TaskComposer({
   selectedCwd,
   selectedModelKey,
   selectedSessionId,
-  selectedSessionRlmMaxDepth = null,
+  selectedSessionRlmMaxDepth,
+  selectedSessionRlmMaxDepthBusy,
   changeModel,
+  changeSelectedSessionRlmMaxDepth,
   createAgentWithTask,
 }: TaskComposerProps): React.JSX.Element {
   const task = usePrimeAgentTask(
@@ -411,7 +416,12 @@ export const TaskComposer = memo(function TaskComposer({
               </Select>
             )}
             {selectedSessionRlmMaxDepth === null ? null : (
-              <span className="px-2">depth {selectedSessionRlmMaxDepth}</span>
+              <RlmDepthPicker
+                busy={disabled || selectedSessionRlmMaxDepthBusy}
+                compact
+                depth={selectedSessionRlmMaxDepth}
+                onDepthChange={changeSelectedSessionRlmMaxDepth}
+              />
             )}
           </div>
         )}

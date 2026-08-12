@@ -8,6 +8,25 @@ import userEvent from '@testing-library/user-event';
 
 import { TaskComposer } from '@/components/task-composer';
 
+Object.defineProperty(Element.prototype, 'getAnimations', {
+  configurable: true,
+  value: () => [],
+});
+Object.defineProperty(Element.prototype, 'animate', {
+  configurable: true,
+  value: () => {
+    const animation = { cancel: () => undefined };
+    Object.defineProperty(animation, 'onfinish', {
+      set: (finish: unknown) => {
+        if (typeof finish === 'function') {
+          queueMicrotask(() => finish());
+        }
+      },
+    });
+    return animation;
+  },
+});
+
 const skills = [
   {
     command: '/skill:interface-review',
@@ -30,6 +49,18 @@ const models = [
   },
 ] as const;
 
+const activeSessionDepthProps = {
+  changeSelectedSessionRlmMaxDepth: () => undefined,
+  selectedSessionRlmMaxDepth: 5,
+  selectedSessionRlmMaxDepthBusy: false,
+} as const;
+
+const newSessionDepthProps = {
+  changeSelectedSessionRlmMaxDepth: () => undefined,
+  selectedSessionRlmMaxDepth: null,
+  selectedSessionRlmMaxDepthBusy: false,
+} as const;
+
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
@@ -38,6 +69,7 @@ afterEach(() => {
 function renderTaskComposer(): void {
   render(
     <TaskComposer
+      {...activeSessionDepthProps}
       modelBusy={false}
       models={models}
       skills={skills}
@@ -71,6 +103,7 @@ test('working Agent keeps an editable follow-up queue', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      {...activeSessionDepthProps}
       isGenerating
       modelBusy={false}
       models={models}
@@ -86,6 +119,12 @@ test('working Agent keeps an editable follow-up queue', async () => {
   const composer = within(document.body).getByRole('textbox');
   assert.equal(composer.getAttribute('placeholder'), 'Add a follow-up…');
   assert.ok(within(document.body).getByRole('button', { name: 'Queue task' }));
+  assert.equal(
+    within(document.body)
+      .getByRole('button', { name: 'Depth 5' })
+      .hasAttribute('disabled'),
+    false,
+  );
   const workingStatus = within(document.body).getByText(
     'Working · follow-ups queue',
   );
@@ -147,6 +186,7 @@ test('Shift+Enter remains a newline before an Agent exists', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
       skills={skills}
@@ -255,6 +295,7 @@ test('a new Agent draft can find a skill despite a typing mistake', async () => 
   const user = userEvent.setup();
   render(
     <TaskComposer
+      {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
       skills={skills}
@@ -281,6 +322,7 @@ test('a new Agent starts only after its first non-empty task', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
       skills={skills}
@@ -328,6 +370,7 @@ test('a failed Agent start keeps the first task draft', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
       skills={skills}
@@ -359,6 +402,7 @@ test('restores a separate persisted draft for each space', async () => {
   const renderSpace = (selectedCwd: string) =>
     render(
       <TaskComposer
+        {...newSessionDepthProps}
         modelBusy={false}
         models={[]}
         skills={skills}

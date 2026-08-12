@@ -104,8 +104,14 @@ export function TaskSurface({
             selectedModelKey={workspace.selectedModelKey}
             selectedSessionId={workspace.selectedSessionId}
             selectedSessionRlmMaxDepth={workspace.selectedSessionRlmMaxDepth}
+            selectedSessionRlmMaxDepthBusy={
+              workspace.selectedSessionRlmMaxDepthBusy
+            }
             disabled={agentUnavailable}
             changeModel={workspace.changeModel}
+            changeSelectedSessionRlmMaxDepth={
+              workspace.changeSelectedSessionRlmMaxDepth
+            }
             createAgentWithTask={workspace.createAgentWithTask}
           />
         </div>

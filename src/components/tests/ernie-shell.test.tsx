@@ -40,7 +40,12 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     Parameters<ErnieRendererApi['createPrimeAgentSession']>[0]
   > = [];
   let sessionCreated = false;
+  let liveDepth = 5;
   let modelCatalogRequests = 0;
+  const changedSessionDepths: Array<{
+    activeSessionId: string;
+    maxDepth: number;
+  }> = [];
   const submittedTasks: Array<{
     activeSessionId: string;
     message: string;
@@ -120,7 +125,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
           { id: 'task', role: 'user', text: 'Polish the sidebar' },
           { id: 'reply', role: 'assistant', text: 'I am working on it.' },
         ],
-        rlmMaxDepth: 5,
+        rlmMaxDepth: liveDepth,
         sessionName: 'Polish the sidebar',
         spawnedSessions: [],
         transcript: [
@@ -144,7 +149,14 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       ok: true,
       value: { maxDepth: 17, source: 'chat' },
     }),
-    setPrimeAgentRlmDepth: async () => ({ ok: false }),
+    setPrimeAgentRlmDepth: async (selection) => {
+      changedSessionDepths.push(selection);
+      liveDepth = selection.maxDepth;
+      return {
+        ok: true,
+        value: { maxDepth: liveDepth, source: 'chat' },
+      };
+    },
     submitPrimeAgentTask: async (submission) => {
       submittedTasks.push(submission);
       return { ok: true, value: { accepted: true } };
@@ -318,6 +330,22 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).getByRole('heading', { name: 'Polish the sidebar' }),
   );
   assert.ok(within(document.body).getByText('I am working on it.'));
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Depth 5' }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Increase Agent depth',
+    }),
+  );
+  await waitFor(() =>
+    assert.deepEqual(changedSessionDepths, [
+      { activeSessionId: 'blank-agent', maxDepth: 6 },
+    ]),
+  );
+  assert.ok(
+    within(document.body).getByRole('button', { name: 'Depth 6' }),
+  );
 
   await user.click(
     within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),

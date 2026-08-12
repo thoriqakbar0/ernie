@@ -45,6 +45,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     selectedSessionId: null,
     selectedSessionView: null,
     selectedSessionRlmMaxDepth: null,
+    selectedSessionRlmMaxDepthBusy: false,
     sessionPreviews: {},
     sessions: [],
     savedSessions: [],
@@ -65,6 +66,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     createGitWorktree: () => undefined,
     changeModel: () => undefined,
     changeRlmMaxDepth: () => undefined,
+    changeSelectedSessionRlmMaxDepth: () => undefined,
   };
 }
 

@@ -70,7 +70,6 @@ export function TaskSurface({
             <div className="min-h-0 w-full flex-1 overflow-y-auto">
               <div className="mx-auto w-full max-w-[44rem]">
                 <AgentChat
-                  depth={workspace.selectedSessionRlmMaxDepth}
                   onOpenSpawnedSession={workspace.openSpawnedSession}
                   sessionView={selectedSessionView}
                 />

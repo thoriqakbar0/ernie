@@ -314,6 +314,7 @@ function SidebarTrigger({
   )
 }
 
+/** Resize the desktop sidebar by pointer or keyboard, and toggle it on activation. */
 function SidebarRail({
   className,
   onClick,
@@ -323,7 +324,7 @@ function SidebarRail({
   onPointerUp,
   ...props
 }: React.ComponentProps<"button">) {
-  const { setSidebarWidth, sidebarWidth, state, toggleSidebar } = useSidebar()
+  const { setOpen, setSidebarWidth, sidebarWidth, state, toggleSidebar } = useSidebar()
   const dragState = React.useRef<{
     pointerId: number
     side: "left" | "right"
@@ -336,8 +337,14 @@ function SidebarRail({
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Resize or toggle sidebar"
-      tabIndex={-1}
+      role="separator"
+      aria-label="Resize sidebar; press Enter to toggle"
+      aria-orientation="vertical"
+      aria-valuemax={SIDEBAR_MAX_WIDTH}
+      aria-valuemin={SIDEBAR_MIN_WIDTH}
+      aria-valuenow={sidebarWidth}
+      aria-valuetext={`${sidebarWidth} pixels`}
+      tabIndex={0}
       onClick={(event) => {
         onClick?.(event)
         if (event.defaultPrevented) return
@@ -396,9 +403,39 @@ function SidebarRail({
         dragState.current = null
         didDrag.current = false
       }}
-      title="Resize or toggle sidebar"
+      onKeyDown={(event) => {
+        const side = event.currentTarget.closest<HTMLElement>("[data-side]")
+          ?.dataset.side
+        const direction = side === "right" ? -1 : 1
+        const resizeStep = 16
+
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault()
+          setOpen(true)
+          const arrowDirection = event.key === "ArrowRight" ? 1 : -1
+          setSidebarWidth(sidebarWidth + resizeStep * arrowDirection * direction)
+          return
+        }
+        if (event.key === "Home") {
+          event.preventDefault()
+          setOpen(true)
+          setSidebarWidth(SIDEBAR_MIN_WIDTH)
+          return
+        }
+        if (event.key === "End") {
+          event.preventDefault()
+          setOpen(true)
+          setSidebarWidth(SIDEBAR_MAX_WIDTH)
+          return
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          toggleSidebar()
+        }
+      }}
+      title="Resize sidebar; press Enter to toggle"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 touch-none select-none transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
+        "absolute inset-y-0 z-20 hidden w-4 touch-none select-none transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border focus-visible:outline-none focus-visible:after:bg-sidebar-ring sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar",

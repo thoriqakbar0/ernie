@@ -335,7 +335,7 @@ test('settled spaces stay quiet', () => {
   const repository = within(document.body).getByRole('listitem', {
     name: 'leslie repository',
   });
-  assert.equal(within(repository).queryByText('attention'), null);
+  assert.equal(within(repository).queryByText(/needs input/u), null);
   assert.doesNotMatch(repository.textContent ?? '', /working/u);
 });
 
@@ -348,7 +348,7 @@ test('Agents are grouped by truthful status without an active filter', () => {
     selectSession: () => undefined,
   });
 
-  assert.ok(within(document.body).getAllByText('attention').length > 0);
+  assert.ok(within(document.body).getAllByText(/needs input/u).length > 0);
   assert.equal(
     within(document.body).queryByRole('button', { name: 'Show active Agents' }),
     null,
@@ -446,7 +446,7 @@ test('ready footer stays quiet while unavailable state reveals recovery details'
     within(document.body).getByRole('button', { name: 'ernie' }).textContent ?? '',
     /working/u,
   );
-  assert.equal(within(document.body).queryByText('attention'), null);
+  assert.equal(within(document.body).queryByText(/needs input/u), null);
   await user.click(
     within(document.body).getByRole('button', {
       name: /Ernie Agent unavailable/u,

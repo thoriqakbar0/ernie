@@ -76,10 +76,8 @@ export function ThreadRow({
       />
     ),
     needs_input: (
-      <span
-        className="shrink-0 text-[10px] font-medium text-amber-700 dark:text-amber-400"
-      >
-        attention
+      <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+        needs input
       </span>
     ),
     idle: null,

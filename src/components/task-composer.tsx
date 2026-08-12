@@ -349,9 +349,9 @@ export const TaskComposer = memo(function TaskComposer({
         </InputGroup>
 
         {selectedSessionId === null ? null : (
-          <div className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-1 text-xs text-muted-foreground">
             {isGenerating ? (
-              <span className="px-2 font-medium text-foreground/70">
+              <span className="basis-full px-2 text-center font-medium text-foreground/70 min-[30rem]:basis-auto">
                 Working · follow-ups queue
               </span>
             ) : null}

@@ -17,7 +17,6 @@ import type {
 } from '@/packages/prime-agent-daemon/client';
 
 interface AgentChatProps {
-  readonly depth: number | null;
   readonly onOpenSpawnedSession?: (activeSessionId: string) => void;
   readonly sessionView: PrimeAgentSessionView;
 }
@@ -29,10 +28,78 @@ function durationLabel(durationMs: number | null): string | null {
     : `${(durationMs / 1_000).toFixed(durationMs < 10_000 ? 1 : 0)}s`;
 }
 
-function executionOutput(item: Extract<PrimeAgentTranscriptItem, { kind: 'ipython' }>): string {
-  return [item.stdout, item.stderr, item.result, ...item.traceback]
-    .filter((part): part is string => part !== null && part.length > 0)
-    .join('\n');
+interface ExecutionOutputPart {
+  readonly content: string;
+  readonly kind: 'result' | 'stderr' | 'stdout' | 'traceback';
+  readonly label: string;
+}
+
+interface NumberedIpythonCell {
+  readonly cell: Extract<PrimeAgentTranscriptItem, { kind: 'ipython' }>;
+  readonly number: number;
+}
+
+type TranscriptBlock =
+  | Readonly<{
+      id: string;
+      item: Extract<PrimeAgentTranscriptItem, { kind: 'message' }>;
+      kind: 'message';
+    }>
+  | Readonly<{
+      cells: readonly NumberedIpythonCell[];
+      id: string;
+      kind: 'execution';
+    }>;
+
+function executionOutputParts(
+  item: Extract<PrimeAgentTranscriptItem, { kind: 'ipython' }>,
+): readonly ExecutionOutputPart[] {
+  const parts: ExecutionOutputPart[] = [];
+  if (item.stdout !== null && item.stdout.length > 0) {
+    parts.push({ content: item.stdout, kind: 'stdout', label: 'stdout' });
+  }
+  if (item.result !== null && item.result.length > 0) {
+    parts.push({ content: item.result, kind: 'result', label: 'result' });
+  }
+  if (item.stderr !== null && item.stderr.length > 0) {
+    parts.push({ content: item.stderr, kind: 'stderr', label: 'stderr' });
+  }
+  if (item.traceback.length > 0) {
+    parts.push({
+      content: item.traceback.join('\n'),
+      kind: 'traceback',
+      label: 'traceback',
+    });
+  }
+  return parts;
+}
+
+function transcriptBlocks(
+  transcript: readonly PrimeAgentTranscriptItem[],
+): readonly TranscriptBlock[] {
+  const blocks: TranscriptBlock[] = [];
+  let cellNumber = 0;
+
+  for (const item of transcript) {
+    if (item.kind === 'message') {
+      blocks.push({ id: item.id, item, kind: 'message' });
+      continue;
+    }
+
+    cellNumber += 1;
+    const numberedCell = { cell: item, number: cellNumber };
+    const latest = blocks.at(-1);
+    if (latest?.kind === 'execution') {
+      blocks[blocks.length - 1] = {
+        ...latest,
+        cells: [...latest.cells, numberedCell],
+      };
+      continue;
+    }
+    blocks.push({ cells: [numberedCell], id: item.id, kind: 'execution' });
+  }
+
+  return blocks;
 }
 
 function IpythonCell({
@@ -44,10 +111,16 @@ function IpythonCell({
 }): React.JSX.Element {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(
-    cell.status === 'running' || cell.status === 'starting' || cell.status === 'error',
+    cell.status === 'running' ||
+      cell.status === 'starting' ||
+      cell.status === 'error' ||
+      cell.status === 'aborted',
   );
-  const output = executionOutput(cell);
-  const outputLines = output.length === 0 ? 0 : output.split('\n').length;
+  const outputParts = executionOutputParts(cell);
+  const outputLines = outputParts.reduce(
+    (total, part) => total + part.content.split('\n').length,
+    0,
+  );
   const tone =
     cell.status === 'error'
       ? 'text-destructive'
@@ -69,14 +142,14 @@ function IpythonCell({
   return (
     <section
       aria-label={`IPython cell ${number}`}
-      className="overflow-hidden rounded-lg border border-border/70 bg-muted/15"
+      className="group/cell overflow-hidden"
     >
-      <header className={`flex min-h-9 items-center gap-2 px-2 text-xs ${expanded ? 'border-b border-border/60' : ''}`}>
+      <header className={`flex min-h-8 items-center gap-2 px-2 text-xs ${expanded ? 'border-b border-border/60' : ''}`}>
         <Button
           type="button"
           variant="ghost"
           size="icon-xs"
-          className="text-muted-foreground"
+          className="text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 aria-expanded:opacity-100 motion-reduce:transition-none"
           aria-label={`${expanded ? 'Collapse' : 'Expand'} IPython cell ${number}`}
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
@@ -114,17 +187,24 @@ function IpythonCell({
       {!expanded ? null : <pre className="overflow-x-auto px-3 py-3 font-mono text-[12px] leading-5 text-foreground">
         <code>{cell.code}</code>
       </pre>}
-      {!expanded || output.length === 0 ? null : (
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] border-t border-border/60">
-          <span className="px-3 py-3 font-mono text-[11px] text-muted-foreground">
-            Out [{number}]
-          </span>
-          <pre
-            tabIndex={0}
-            className="max-h-56 overflow-auto border-l border-border/60 px-3 py-3 font-mono text-[12px] leading-5 whitespace-pre-wrap text-foreground [scrollbar-gutter:stable]"
-          >
-            {output}
-          </pre>
+      {!expanded || outputParts.length === 0 ? null : (
+        <div className="flex flex-col border-t border-border/60">
+          {outputParts.map((part) => (
+            <div
+              key={part.kind}
+              className="grid grid-cols-[4.5rem_minmax(0,1fr)] border-b border-border/40 last:border-b-0"
+            >
+              <span className="px-3 py-3 font-mono text-[11px] text-muted-foreground">
+                {part.label}
+              </span>
+              <pre
+                tabIndex={0}
+                className={`max-h-56 overflow-auto border-l border-border/60 px-3 py-3 font-mono text-[12px] leading-5 whitespace-pre-wrap [scrollbar-gutter:stable] ${part.kind === 'stderr' || part.kind === 'traceback' ? 'text-destructive' : 'text-foreground'}`}
+              >
+                {part.content}
+              </pre>
+            </div>
+          ))}
         </div>
       )}
       {!expanded || cell.attachments.length === 0 ? null : (
@@ -158,6 +238,77 @@ function IpythonCell({
                 )}
               </figcaption>
             </figure>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ExecutionRun({
+  active,
+  cells,
+}: {
+  readonly active: boolean;
+  readonly cells: readonly NumberedIpythonCell[];
+}): React.JSX.Element {
+  const containsError = cells.some(({ cell }) => cell.status === 'error');
+  const containsAborted = cells.some(({ cell }) => cell.status === 'aborted');
+  const containsRunning = cells.some(
+    ({ cell }) => cell.status === 'running' || cell.status === 'starting',
+  );
+  const [expanded, setExpanded] = useState(
+    active || containsError || containsAborted || containsRunning,
+  );
+
+  useEffect(() => {
+    if (active || containsError || containsAborted || containsRunning) {
+      setExpanded(true);
+      return;
+    }
+    setExpanded(false);
+  }, [active, containsAborted, containsError, containsRunning]);
+
+  const countLabel = `${cells.length} ${cells.length === 1 ? 'step' : 'steps'}`;
+  const status = containsError
+    ? 'needs attention'
+    : containsAborted
+      ? 'interrupted'
+    : active || containsRunning
+      ? 'working'
+      : 'done';
+
+  return (
+    <section
+      aria-label={`Work: ${countLabel}, ${status}`}
+      className="overflow-hidden border-y border-border/70"
+    >
+      <header className="flex min-h-9 items-center gap-2 px-1 text-xs">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} work`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <ChevronRightIcon
+            aria-hidden="true"
+            className={`transition-transform ${expanded ? 'rotate-90' : ''}`}
+          />
+        </Button>
+        <span className="font-medium text-foreground">Work</span>
+        <span className="text-muted-foreground">{countLabel}</span>
+        <span
+          className={`ml-auto font-medium ${containsError ? 'text-destructive' : 'text-muted-foreground'}`}
+        >
+          {status}
+        </span>
+      </header>
+      {!expanded ? null : (
+        <div className="divide-y divide-border/60 border-t border-border/60">
+          {cells.map(({ cell, number }) => (
+            <IpythonCell key={cell.id} cell={cell} number={number} />
           ))}
         </div>
       )}
@@ -301,11 +452,14 @@ export function AgentChat({
     return index;
   }, [sessionView.spawnedSessions]);
   const roots = childrenByParent.get(null) ?? [];
-  const lastExecutionIndex = sessionView.transcript.reduce(
-    (latest, item, index) => (item.kind === 'ipython' ? index : latest),
+  const blocks = useMemo(
+    () => transcriptBlocks(sessionView.transcript),
+    [sessionView.transcript],
+  );
+  const latestExecutionBlockIndex = blocks.reduce(
+    (latest, block, index) => (block.kind === 'execution' ? index : latest),
     -1,
   );
-  let cellNumber = 0;
 
   useEffect(() => {
     const scrollArea = transcriptRef.current?.parentElement;
@@ -329,12 +483,19 @@ export function AgentChat({
 
   return (
     <section ref={transcriptRef} aria-label="Conversation" className="relative w-full select-text pb-6">
-      <div className="space-y-6">
-        {sessionView.transcript.map((item, index) => {
-          if (item.kind === 'ipython') {
-            cellNumber += 1;
-            return <IpythonCell key={item.id} cell={item} number={cellNumber} />;
+      <div className="flex flex-col gap-6">
+        {blocks.map((block, index) => {
+          if (block.kind === 'execution') {
+            return (
+              <ExecutionRun
+                key={block.id}
+                active={sessionView.isStreaming && index === latestExecutionBlockIndex}
+                cells={block.cells}
+              />
+            );
           }
+          const item = block.item;
+          const followsExecution = blocks[index - 1]?.kind === 'execution';
           return (
             <article
               key={item.id}
@@ -344,7 +505,7 @@ export function AgentChat({
               className={
                 item.role === 'user'
                   ? 'flex justify-end border-t border-border/50 pt-6'
-                  : index > lastExecutionIndex && lastExecutionIndex >= 0
+                  : followsExecution
                     ? 'max-w-[42rem] border-t-2 border-foreground/15 pt-6 text-lede leading-7 text-foreground before:mb-4 before:block before:text-[11px] before:font-medium before:tracking-[0.08em] before:text-muted-foreground before:uppercase before:content-["Answer"]'
                     : 'max-w-[42rem] text-lede leading-7 text-foreground'
               }

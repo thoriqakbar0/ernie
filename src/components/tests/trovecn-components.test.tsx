@@ -64,10 +64,9 @@ test('conversation renders authored messages', () => {
   assert.ok(within(document.body).getByRole('button', { name: 'Copy message' }));
 });
 
-test('focused chat keeps depth beside the composer when no Agents spawned', () => {
+test('focused chat does not duplicate composer depth', () => {
   render(
     <AgentChat
-      depth={2}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -92,7 +91,6 @@ test('focused chat keeps depth beside the composer when no Agents spawned', () =
 test('focused chat renders Prime Agent markdown as document structure', () => {
   render(
     <AgentChat
-      depth={2}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -122,11 +120,10 @@ test('focused chat renders Prime Agent markdown as document structure', () => {
   assert.equal(within(document.body).getAllByRole('listitem').length, 2);
 });
 
-test('focused chat collapses completed IPython code and output until requested', async () => {
+test('focused chat groups completed work and keeps output streams distinct', async () => {
   const user = userEvent.setup();
   render(
     <AgentChat
-      depth={2}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -147,25 +144,112 @@ test('focused chat collapses completed IPython code and output until requested',
             stdout: 'calculated\n',
             traceback: [],
           },
+          {
+            attachments: [],
+            code: 'print("verified")',
+            durationMs: 6,
+            id: 'cell-2',
+            kind: 'ipython',
+            result: null,
+            status: 'ok',
+            stderr: null,
+            stdout: 'verified\n',
+            traceback: [],
+          },
         ],
       }}
     />,
   );
 
-  const cell = within(document.body).getByRole('region', {
+  assert.equal(
+    within(document.body).queryByRole('region', { name: 'IPython cell 1' }),
+    null,
+  );
+  const work = within(document.body).getByRole('region', {
+    name: 'Work: 2 steps, done',
+  });
+  await user.click(within(work).getByRole('button', { name: 'Expand work' }));
+  assert.equal(
+    within(work).getAllByRole('region', { name: /IPython cell/u }).length,
+    2,
+  );
+  const cell = within(work).getByRole('region', {
     name: 'IPython cell 1',
   });
   assert.equal(within(cell).queryByText('42'), null);
   await user.click(within(cell).getByRole('button', { name: 'Expand IPython cell 1' }));
   assert.match(cell.textContent ?? '', /answer = 6 \* 7\s+answer/u);
-  assert.match(cell.textContent ?? '', /calculated\s+42/u);
+  assert.match(cell.textContent ?? '', /calculated/u);
+  assert.match(cell.textContent ?? '', /42/u);
+  assert.ok(within(cell).getByText('stdout'));
+  assert.ok(within(cell).getByText('result'));
   assert.ok(within(cell).getByRole('button', { name: 'Copy IPython code' }));
+});
+
+test('focused chat expands only the newest work while streaming', () => {
+  render(
+    <AgentChat
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: true,
+        messages: [{ id: 'checkpoint', role: 'assistant', text: 'checking' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Check',
+        spawnedSessions: [],
+        transcript: [
+          {
+            attachments: [],
+            code: 'first = inspect_repository()',
+            durationMs: 18,
+            id: 'cell-1',
+            kind: 'ipython',
+            result: 'ready',
+            status: 'ok',
+            stderr: null,
+            stdout: null,
+            traceback: [],
+          },
+          {
+            id: 'checkpoint',
+            kind: 'message',
+            role: 'assistant',
+            text: 'checking',
+          },
+          {
+            attachments: [],
+            code: 'verify_repository()',
+            durationMs: null,
+            id: 'cell-2',
+            kind: 'ipython',
+            result: null,
+            status: 'running',
+            stderr: null,
+            stdout: null,
+            traceback: [],
+          },
+        ],
+      }}
+    />,
+  );
+
+  const completedWork = within(document.body).getByRole('region', {
+    name: 'Work: 1 step, done',
+  });
+  const activeWork = within(document.body).getByRole('region', {
+    name: 'Work: 1 step, working',
+  });
+  assert.equal(
+    within(completedWork).queryByRole('region', { name: 'IPython cell 1' }),
+    null,
+  );
+  assert.ok(
+    within(activeWork).getByRole('region', { name: 'IPython cell 2' }),
+  );
 });
 
 test('focused chat reveals a recursively indexed spawned Agent tree', () => {
   render(
     <AgentChat
-      depth={2}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: true,

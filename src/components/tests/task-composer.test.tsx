@@ -86,7 +86,10 @@ test('working Agent keeps an editable follow-up queue', async () => {
   const composer = within(document.body).getByRole('textbox');
   assert.equal(composer.getAttribute('placeholder'), 'Add a follow-up…');
   assert.ok(within(document.body).getByRole('button', { name: 'Queue task' }));
-  assert.ok(within(document.body).getByText('Working · follow-ups queue'));
+  const workingStatus = within(document.body).getByText(
+    'Working · follow-ups queue',
+  );
+  assert.match(workingStatus.className, /basis-full/u);
 
   await user.type(composer, 'Review the tests next');
   assert.equal(

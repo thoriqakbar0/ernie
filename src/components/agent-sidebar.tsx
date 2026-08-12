@@ -927,11 +927,11 @@ export function AgentSidebar({
                       (conversation) =>
                         conversationActivity(conversation, connected) === 'working',
                     ).length;
-                    const needsAttention = unarchived.some(
+                    const needsInputCount = unarchived.filter(
                       (conversation) =>
                         conversationActivity(conversation, connected) ===
                         'needs_input',
-                    );
+                    ).length;
                     const settled = unarchived
                       .filter(
                         (conversation) =>
@@ -1056,12 +1056,10 @@ export function AgentSidebar({
                               />
                               <FolderIcon aria-hidden="true" />
                               <span className="truncate">{folder.label}</span>
-                              <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[10px] font-normal text-muted-foreground">
-                                {needsAttention ? (
-                                  <span
-                                    className="font-medium text-amber-700 dark:text-amber-400"
-                                  >
-                                    attention
+                              <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
+                                {needsInputCount > 0 ? (
+                                  <span className="font-medium">
+                                    {needsInputCount} needs input
                                   </span>
                                 ) : null}
                                 {workingCount > 0 ? `${workingCount} working` : null}
@@ -1169,11 +1167,11 @@ export function AgentSidebar({
                                     conversationActivity(conversation, connected) ===
                                     'working',
                                 ).length;
-                                const workspaceNeedsAttention = workspaceUnarchived.some(
+                                const workspaceNeedsInputCount = workspaceUnarchived.filter(
                                   (conversation) =>
                                     conversationActivity(conversation, connected) ===
                                     'needs_input',
-                                );
+                                ).length;
                                 return (
                                   <li
                                     key={workspace.folder.value}
@@ -1221,12 +1219,10 @@ export function AgentSidebar({
                                         >
                                           {workspaceLabel}
                                         </span>
-                                        <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                                          {workspaceNeedsAttention ? (
-                                            <span
-                                              className="font-medium text-amber-700 dark:text-amber-400"
-                                            >
-                                              attention
+                                        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                                          {workspaceNeedsInputCount > 0 ? (
+                                            <span className="font-medium">
+                                              {workspaceNeedsInputCount} needs input
                                             </span>
                                           ) : null}
                                           {workspaceWorkingCount > 0

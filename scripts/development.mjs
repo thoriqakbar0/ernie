@@ -53,7 +53,7 @@ async function prepareDevelopmentApplication() {
     );
   } catch (error) {
     if (
-      !Predicate.isRecord(error) ||
+      !Predicate.isObject(error) ||
       !('code' in error) ||
       error.code !== 'ENOENT'
     ) {
@@ -131,7 +131,7 @@ function errorMetadata(error) {
   return {
     name: Predicate.isError(error) ? error.name : 'NonError',
     code:
-      Predicate.isRecord(error) &&
+      Predicate.isObject(error) &&
       'code' in error &&
       (Predicate.isString(error.code) || Predicate.isNumber(error.code))
         ? error.code
@@ -245,7 +245,7 @@ const development = Effect.fn('Development.start')(function* () {
 
 Effect.runFork(
   development().pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.sync(() => {
         console.error('Ernie development startup failed.', errorMetadata(error));
         process.exitCode = 1;

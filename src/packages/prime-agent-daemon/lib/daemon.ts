@@ -5,7 +5,7 @@ import type {
 } from 'prime-agent' with { 'resolution-mode': 'import' };
 import { readFile } from 'node:fs/promises';
 import { Effect, Predicate, Schedule } from 'effect';
-import { parseJsonValue, type JsonValue } from '../../json-value';
+import { parseJsonValue, type JsonValue } from '../../json-value/index.js';
 
 import type {
   PrimeAgentDaemon,
@@ -14,8 +14,8 @@ import type {
   PrimeAgentResult,
   PrimeAgentSession,
   PrimeAgentSessionRenameReceipt,
-} from '../types';
-import { startPrimeAgentDaemonProcess } from './daemon-process';
+} from '../types.js';
+import { startPrimeAgentDaemonProcess } from './daemon-process.js';
 import {
   parseActiveSessionId,
   parseCreatedSessionData,
@@ -33,7 +33,7 @@ import {
   parseSessionViewData,
   parseSkillResourceCatalogData,
   parseTaskSubmission,
-} from './protocol';
+} from './protocol.js';
 
 const connectTimeoutMs = 3_000;
 const daemonProbeTimeoutMs = 250;
@@ -129,7 +129,7 @@ export function createPrimeAgentDaemon(
   const establishDaemonReadiness = loadRuntime.pipe(
     Effect.flatMap((runtime) =>
       probeDaemon(runtime).pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           startPrimeAgentDaemonProcess(configuration, runtime.socketPath).pipe(
             Effect.andThen(
               probeDaemon(runtime).pipe(
@@ -171,7 +171,7 @@ export function createPrimeAgentDaemon(
           (activeClient) => Effect.sync(() => activeClient.close()),
         ),
       ),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         invalidateDaemonReadiness.pipe(
           Effect.andThen(
             Effect.sync(() => {
@@ -278,7 +278,7 @@ export function createPrimeAgentDaemon(
             catalog.value,
             (skill) =>
               Effect.tryPromise(() => readFile(skill.filePath, 'utf8')).pipe(
-                Effect.catchAll((cause) =>
+                Effect.catch((cause) =>
                   Effect.sync(() => {
                     reportOperationalFailure(
                       'Prime Agent skill file could not be read.',
@@ -467,7 +467,7 @@ export function createPrimeAgentDaemon(
             }),
         );
       }),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         invalidateDaemonReadiness.pipe(
           Effect.andThen(
             Effect.sync(() => {

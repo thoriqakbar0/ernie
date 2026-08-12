@@ -1,5 +1,5 @@
-export { createPrimeAgentDaemon } from './lib/daemon';
-import type { JsonValue } from '../json-value';
+export { createPrimeAgentDaemon } from './lib/daemon.js';
+import type { JsonValue } from '../json-value/index.js';
 import {
   parseCreatedSessionData,
   parseModelCatalogData,
@@ -9,7 +9,7 @@ import {
   parseSessionViewData,
   parseSkillResourceCatalogData,
   type PrimeAgentSkillResource,
-} from './lib/protocol';
+} from './lib/protocol.js';
 
 import type {
   PrimeAgentDaemon,
@@ -19,7 +19,7 @@ import type {
   PrimeAgentSavedSession,
   PrimeAgentSession,
   PrimeAgentSessionView,
-} from './types';
+} from './types.js';
 
 export type { PrimeAgentDaemon };
 

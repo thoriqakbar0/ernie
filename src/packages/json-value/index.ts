@@ -17,7 +17,7 @@ export interface JsonRecord {
 
 /** Narrow one serialized boundary value to a plain keyed record. */
 export function isJsonRecord(value: JsonValue): value is JsonRecord {
-  return Predicate.isRecord(value);
+  return Predicate.isObject(value);
 }
 
 /** Narrow one serialized boundary value to text. */
@@ -55,7 +55,7 @@ export function parseJsonValue(cause: unknown): JsonValue | null {
     }
     return values;
   }
-  if (!Predicate.isRecord(cause)) return null;
+  if (!Predicate.isObject(cause)) return null;
 
   const record: { [key: string]: JsonValue } = {};
   for (const [key, item] of Object.entries(cause)) {

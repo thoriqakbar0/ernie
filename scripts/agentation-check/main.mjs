@@ -1,18 +1,19 @@
-const path = require('node:path');
+import path from 'node:path';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { Effect, Fiber } = require('effect');
-const {
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { Effect, Fiber } from 'effect';
+
+import {
   primeAgentModelsChannel,
   primeAgentRlmDepthChannel,
   primeAgentSetModelChannel,
   primeAgentSetRlmDepthChannel,
   primeAgentWorkspaceChannel,
   rendererReadyChannel,
-} = require(path.resolve('.build/main/renderer-api.js'));
+} from '../../.build/main/renderer-api.js';
 
 const rendererReadyTimeoutMs = 5_000;
-const reloadButtonSelector = 'button[aria-label="Reload renderer"]';
+const settingsButtonSelector = 'button[aria-label="Application settings"]';
 const sidebarRailSelector = '[data-sidebar="rail"]';
 const workspaceFolderTriggerSelector = '#workspace-folder';
 const workspaceSearchSelector =
@@ -20,7 +21,7 @@ const workspaceSearchSelector =
 const newDirectorySelector = 'button[aria-label="New directory"]';
 
 function waitForRendererReady(window, startedAt) {
-  return Effect.async((resume) => {
+  return Effect.callback((resume) => {
     const cleanup = () => {
       clearTimeout(timeoutId);
       ipcMain.off(rendererReadyChannel, onReady);
@@ -51,7 +52,7 @@ function waitForRendererReady(window, startedAt) {
 }
 
 function waitForEvent(emitter, eventName) {
-  return Effect.async((resume) => {
+  return Effect.callback((resume) => {
     const onEvent = (...args) => {
       emitter.off(eventName, onEvent);
       resume(Effect.succeed(args));
@@ -66,8 +67,6 @@ function executeJavaScript(window, source) {
 }
 
 const checkAgentation = Effect.fn('Agentation.check')(function* () {
-  yield* Effect.tryPromise(() => app.whenReady());
-
   ipcMain.handle(primeAgentWorkspaceChannel, () => ({
     ok: true,
     value: { currentCwd: process.cwd(), sessions: [] },
@@ -91,7 +90,7 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.resolve('.build/main/preload.js'),
+      preload: path.resolve('.build/main/preload.cjs'),
       sandbox: true,
     },
   });
@@ -99,8 +98,8 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
     const startedAt = performance.now();
     const rendererReady = waitForRendererReady(window, startedAt);
     const readyToShow = waitForEvent(window, 'ready-to-show');
-    const rendererReadyFiber = yield* Effect.fork(rendererReady);
-    const readyToShowFiber = yield* Effect.fork(readyToShow);
+    const rendererReadyFiber = yield* Effect.forkChild(rendererReady);
+    const readyToShowFiber = yield* Effect.forkChild(readyToShow);
     yield* Effect.tryPromise(() =>
       window.loadFile(path.resolve('.build/renderer/index.html')),
     );
@@ -111,25 +110,33 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
     ]);
     const revealReadyMs = Math.round(performance.now() - startedAt);
 
-    const reloadButtonExists = yield* executeJavaScript(window, `(() => {
-      const reloadButton = document.querySelector(${JSON.stringify(reloadButtonSelector)});
-      return reloadButton instanceof HTMLButtonElement;
+    const settingsButtonExists = yield* executeJavaScript(window, `(() => {
+      const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
+      return settingsButton instanceof HTMLButtonElement;
     })()`);
 
-    if (!reloadButtonExists) {
-      process.stdout.write(`${JSON.stringify({ reloadButtonExists })}\n`);
+    if (!settingsButtonExists) {
+      process.stdout.write(`${JSON.stringify({ settingsButtonExists })}\n`);
       return 1;
     }
 
     const reloadStartedAt = performance.now();
     const reloaded = waitForEvent(window.webContents, 'did-finish-load');
     const reloadReady = waitForRendererReady(window, reloadStartedAt);
-    const reloadedFiber = yield* Effect.fork(reloaded);
-    const reloadReadyFiber = yield* Effect.fork(reloadReady);
+    const reloadedFiber = yield* Effect.forkChild(reloaded);
+    const reloadReadyFiber = yield* Effect.forkChild(reloadReady);
     yield* executeJavaScript(window, `(() => {
-      const reloadButton = document.querySelector(${JSON.stringify(reloadButtonSelector)});
-      if (!(reloadButton instanceof HTMLButtonElement)) return false;
-      reloadButton.click();
+      const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
+      if (!(settingsButton instanceof HTMLButtonElement)) return false;
+      settingsButton.click();
+      return true;
+    })()`);
+    yield* Effect.sleep(50);
+    yield* executeJavaScript(window, `(() => {
+      const reloadAction = [...document.querySelectorAll('[role="menuitem"]')]
+        .find((item) => item.textContent?.trim() === 'Reload renderer');
+      if (!(reloadAction instanceof HTMLElement)) return false;
+      reloadAction.click();
       return true;
     })()`);
     const [, reloadReadyMs] = yield* Effect.all([
@@ -275,7 +282,7 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
     process.stdout.write(
       `${JSON.stringify({
         ...state,
-        reloadButtonExists,
+        settingsButtonExists,
         sidebarResizable,
         sidebarWidthBefore: sidebarBeforeResize.width,
         sidebarWidthAfter: sidebarAfterResize?.width ?? null,
@@ -293,14 +300,15 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
   }).pipe(Effect.ensuring(Effect.sync(() => window.destroy())));
 });
 
-Effect.runFork(
-  checkAgentation().pipe(
-    Effect.catchAll((error) =>
-      Effect.sync(() => {
-        process.stderr.write(`${String(error)}\n`);
-        return 2;
-      }),
+void app.whenReady().then(() => {
+  void Effect.runPromise(
+    checkAgentation().pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          process.stderr.write(`${String(error)}\n`);
+          return 2;
+        }),
+      ),
     ),
-    Effect.tap((exitCode) => Effect.sync(() => app.exit(exitCode))),
-  ),
-);
+  ).then((exitCode) => app.exit(exitCode));
+});

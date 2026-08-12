@@ -3,6 +3,7 @@
   "productName": "Ernie",
   "version": "0.1.0",
   "description": "A desktop client for Prime Agent.",
+  "type": "module",
   "main": ".build/main/main.js",
   "private": true,
   "scripts": {
@@ -32,7 +33,7 @@
     "agentation": "https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "effect": "^3.22.1",
+    "effect": "4.0.0-beta.107",
     "iconoir-react": "^7.11.1",
     "liveline": "^0.0.7",
     "lucide-react": "0.468.0",

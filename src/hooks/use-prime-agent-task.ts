@@ -135,7 +135,7 @@ export function usePrimeAgentTask(
 
     Effect.runFork(
       submitTask().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not send the task to Prime Agent.'),
           ),
@@ -183,7 +183,7 @@ export function usePrimeAgentTask(
 
     Effect.runFork(
       refineSession().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not refine this Prime Agent session.'),
           ),

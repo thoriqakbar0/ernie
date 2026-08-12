@@ -1,6 +1,7 @@
 import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { runAgentRefreshStream } from '@/packages/agent-refresh-stream';
 import {
   parsePrimeAgentGitBranchesResult,
   parsePrimeAgentGitWorkspaceResult,
@@ -221,7 +222,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           Effect.tryPromise(() => window.ernie.listPrimeAgentWorkspace()),
           Effect.tryPromise(() =>
             window.ernie.listPrimeAgentSavedSessions(),
-          ).pipe(Effect.catchAll(() => Effect.succeed(null))),
+          ).pipe(Effect.catch(() => Effect.succeed(null))),
         ],
         { concurrency: 'unbounded' },
       );
@@ -258,7 +259,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     });
     const fiber = Effect.runFork(
       loadWorkspace().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() => {
             if (active) setStatus('The Prime Agent daemon is not available.');
           }),
@@ -280,14 +281,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   useEffect(() => {
     if (loadingWorkspace) return;
 
-    let active = true;
-    let refreshing = false;
-    let interruptRefresh: (() => void) | null = null;
     const refreshWorkspace = Effect.fn('Workspace.refresh')(function* () {
       const rawWorkspace = yield* Effect.tryPromise(() =>
         window.ernie.listPrimeAgentWorkspace(),
       );
-      if (!active) return;
       const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
       if (!result.ok) {
         yield* Effect.sync(() => setWorkspace(null));
@@ -299,43 +296,21 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setSelectedCwd((current) => current ?? result.value.currentCwd);
       });
     });
-    const refresh = (): void => {
-      if (
-        !active ||
-        refreshing ||
-        document.visibilityState === 'hidden'
-      ) {
-        return;
-      }
-
-      refreshing = true;
-      const fiber = Effect.runFork(
-        refreshWorkspace().pipe(
-        Effect.catchAll(() =>
+    const fiber = Effect.runFork(
+      runAgentRefreshStream({
+        interval: workspaceRefreshIntervalMs,
+        isVisible: () => document.visibilityState !== 'hidden',
+        onFailure: () =>
           Effect.sync(() => {
-            if (active) setWorkspace(null);
+            setWorkspace(null);
           }),
-        ),
-          Effect.ensuring(
-            Effect.sync(() => {
-              refreshing = false;
-              interruptRefresh = null;
-            }),
-          ),
-        ),
-      );
-      interruptRefresh = () => {
-        Effect.runFork(Fiber.interrupt(fiber));
-      };
-    };
-    const interval = window.setInterval(refresh, workspaceRefreshIntervalMs);
-    document.addEventListener('visibilitychange', refresh);
+        refresh: refreshWorkspace,
+        visibilityTarget: document,
+      }),
+    );
 
     return () => {
-      active = false;
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', refresh);
-      interruptRefresh?.();
+      Effect.runFork(Fiber.interrupt(fiber));
     };
   }, [loadingWorkspace]);
 
@@ -394,7 +369,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
     const fiber = Effect.runFork(
       loadGitBranches().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() => {
             if (!active) return;
             setGitBranch(null);
@@ -455,7 +430,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
     const fiber = Effect.runFork(
       loadSessionControls().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() => {
             if (!active) return;
             setModels([]);
@@ -484,15 +459,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     }
 
     const activeSessionId = selectedSessionId;
-    let active = true;
-    let refreshing = false;
-    let interruptRefresh: (() => void) | null = null;
     const refreshSession = Effect.fn('Workspace.refreshFocusedSession')(
       function* () {
         const rawView = yield* Effect.tryPromise(() =>
           window.ernie.getPrimeAgentSessionView(activeSessionId),
         );
-        if (!active) return;
         const view = parsePrimeAgentSessionViewResult(rawView);
         if (!view.ok || view.value.activeSessionId !== activeSessionId) return;
         yield* Effect.sync(() => {
@@ -522,30 +493,18 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         });
       },
     );
-    const refresh = (): void => {
-      if (!active || refreshing || document.visibilityState === 'hidden') return;
-      refreshing = true;
-      const fiber = Effect.runFork(
-        refreshSession().pipe(
-          Effect.catchAll(() => Effect.void),
-          Effect.ensuring(
-            Effect.sync(() => {
-              refreshing = false;
-              interruptRefresh = null;
-            }),
-          ),
-        ),
-      );
-      interruptRefresh = () => Effect.runFork(Fiber.interrupt(fiber));
-    };
-    refresh();
-    const interval = window.setInterval(refresh, workspaceRefreshIntervalMs);
-    document.addEventListener('visibilitychange', refresh);
+    const fiber = Effect.runFork(
+      runAgentRefreshStream({
+        interval: workspaceRefreshIntervalMs,
+        isVisible: () => document.visibilityState !== 'hidden',
+        onFailure: () => Effect.void,
+        refresh: refreshSession,
+        visibilityTarget: document,
+      }),
+    );
+
     return () => {
-      active = false;
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', refresh);
-      interruptRefresh?.();
+      Effect.runFork(Fiber.interrupt(fiber));
     };
   }, [selectedSessionId]);
 
@@ -576,7 +535,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
               Effect.map((result) =>
                 result.ok ? ([cwd, result.value] as const) : null,
               ),
-              Effect.catchAll(() => Effect.succeed(null)),
+              Effect.catch(() => Effect.succeed(null)),
             ),
           ),
           { concurrency: 'unbounded' },
@@ -730,7 +689,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     return Effect.runPromise(
       create().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() => {
             const message = 'Ernie could not create a new Agent.';
             setStatus(message);
@@ -771,7 +730,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       load().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not load saved Prime Agent sessions.'),
           ),
@@ -808,7 +767,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       importSavedSession().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not import the saved Agent.'),
           ),
@@ -867,7 +826,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       persistRename().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not rename the Agent conversation.'),
           ),
@@ -931,7 +890,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     return Effect.runPromise(
       chooseDirectory().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() => {
             setStatus('Ernie could not open the directory picker.');
             return null;
@@ -995,7 +954,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       updateModel().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('The Prime Agent daemon is not available.'),
           ),
@@ -1039,7 +998,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       switchGitBranch().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not connect to local Git.'),
           ),
@@ -1080,7 +1039,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       deleteBranch().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not connect to local Git.'),
           ),
@@ -1118,7 +1077,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       initializeGit().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not connect to local Git.'),
           ),
@@ -1175,7 +1134,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     Effect.runFork(
       createWorktree().pipe(
-        Effect.catchAll(() =>
+        Effect.catch(() =>
           Effect.sync(() => {
             const message = 'Ernie could not connect to local Git.';
             setGitWorktreeError(message);
@@ -1247,7 +1206,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
       Effect.runFork(
         updateDepth().pipe(
-          Effect.catchAll(() =>
+          Effect.catch(() =>
             Effect.sync(() =>
               setStatus('The Prime Agent daemon is not available.'),
             ),

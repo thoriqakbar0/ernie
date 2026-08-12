@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { ErnieRendererApi } from './renderer-api';
+import type { ErnieRendererApi } from './renderer-api.js' with {
+  'resolution-mode': 'import',
+};
 
 // Sandboxed preloads cannot load local runtime modules. Keep this literal in
 // sync with rendererReadyChannel in renderer-api.ts.

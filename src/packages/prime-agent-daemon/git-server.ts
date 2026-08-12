@@ -6,4 +6,4 @@ export {
   readLocalGitWorkspace,
   renameLocalGitBranch,
   switchLocalGitBranch,
-} from './lib/git';
+} from './lib/git.js';

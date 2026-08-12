@@ -21,7 +21,7 @@ Object.defineProperty(Element.prototype, 'animate', {
     _keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
     options?: number | KeyframeAnimationOptions,
   ) => {
-    if (Predicate.isRecord(options) && Predicate.isString(options.easing)) {
+    if (Predicate.isObject(options) && Predicate.isString(options.easing)) {
       assert.equal(options.easing.includes('NaN'), false);
     }
     const animation = { cancel: () => undefined };

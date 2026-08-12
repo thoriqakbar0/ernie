@@ -8,8 +8,8 @@ import type {
   PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentTaskSubmission,
-} from './packages/prime-agent-daemon/types';
-import type { JsonValue } from './packages/json-value';
+} from './packages/prime-agent-daemon/types.js';
+import type { JsonValue } from './packages/json-value/index.js';
 
 /** IPC channel emitted after the renderer has painted its required surface. */
 export const rendererReadyChannel = 'ernie:renderer-ready';

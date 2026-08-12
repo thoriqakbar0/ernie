@@ -1,4 +1,4 @@
-import type { JsonValue } from '../json-value';
+import type { JsonValue } from '../json-value/index.js';
 
 /** A model that the connected Prime Agent session can use. */
 export interface PrimeAgentModel {

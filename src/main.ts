@@ -7,7 +7,7 @@ import type {
   OpenDialogOptions,
 } from 'electron';
 import { Effect } from 'effect';
-import { isJsonString, type JsonValue } from './packages/json-value';
+import { isJsonString, type JsonValue } from './packages/json-value/index.js';
 
 import {
   createLocalGitWorktree,
@@ -17,8 +17,8 @@ import {
   readLocalGitWorkspace,
   renameLocalGitBranch,
   switchLocalGitBranch,
-} from './packages/prime-agent-daemon/git-server';
-import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server';
+} from './packages/prime-agent-daemon/git-server.js';
+import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js';
 import {
   chooseWorkspaceDirectoryChannel,
   primeAgentCreateSessionChannel,
@@ -43,7 +43,7 @@ import {
   primeAgentWorkspaceChannel,
   rendererReadyChannel,
   revealWorkspacePathChannel,
-} from './renderer-api';
+} from './renderer-api.js';
 
 const rendererReadyTimeoutMs = 5_000;
 const developmentRendererUrlEnvironmentName = 'ERNIE_RENDERER_URL';
@@ -153,12 +153,12 @@ function registerPrimeAgentHandlers(): void {
   const daemon = createPrimeAgentDaemon({
     currentCwd: process.cwd(),
     daemonEntrypointPath: path.join(
-      __dirname,
+      import.meta.dirname,
       'packages/prime-agent-daemon/daemon-runner.js',
     ),
     executablePath: process.execPath,
     sessionNameExtensionPath: path.join(
-      __dirname,
+      import.meta.dirname,
       'packages/session-name-hook/index.js',
     ),
   });
@@ -272,7 +272,7 @@ function registerPrimeAgentHandlers(): void {
 function waitForRendererReady(
   window: BrowserWindow,
 ): Effect.Effect<void, RendererReadyTimeoutError | WindowClosedBeforeReadyError> {
-  return Effect.async((resume) => {
+  return Effect.callback((resume) => {
     let settled = false;
 
     const cleanup = (): void => {
@@ -322,7 +322,7 @@ function waitForRendererReady(
 function waitForReadyToShow(
   window: BrowserWindow,
 ): Effect.Effect<void, WindowClosedBeforeReadyError> {
-  return Effect.async((resume) => {
+  return Effect.callback((resume) => {
     const cleanup = (): void => {
       window.off('ready-to-show', onReadyToShow);
       window.off('closed', onWindowClosed);
@@ -347,7 +347,7 @@ function waitForReadyToShow(
 
 const createWindow = Effect.fn('Ernie.createWindow')(function* () {
   const developmentRendererUrl = readDevelopmentRendererUrl();
-  const iconPath = path.join(__dirname, '../renderer/ernie-logo.png');
+  const iconPath = path.join(import.meta.dirname, '../renderer/ernie-logo.png');
   const window = new BrowserWindow({
     width: 1360,
     height: 900,
@@ -360,7 +360,7 @@ const createWindow = Effect.fn('Ernie.createWindow')(function* () {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(import.meta.dirname, 'preload.cjs'),
       sandbox: true,
     },
   });
@@ -377,7 +377,7 @@ const createWindow = Effect.fn('Ernie.createWindow')(function* () {
 
   const loadRenderer = Effect.tryPromise(() =>
     developmentRendererUrl === null
-      ? window.loadFile(path.join(__dirname, '../renderer/index.html'))
+      ? window.loadFile(path.join(import.meta.dirname, '../renderer/index.html'))
       : window.loadURL(developmentRendererUrl.href),
   );
 
@@ -407,7 +407,9 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
 
   if (process.platform === 'darwin' && app.dock !== undefined) {
     installMacApplicationMenu();
-    app.dock.setIcon(path.join(__dirname, '../renderer/ernie-logo.png'));
+    app.dock.setIcon(
+      path.join(import.meta.dirname, '../renderer/ernie-logo.png'),
+    );
   }
 
   yield* createWindow();
@@ -416,7 +418,7 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
     if (mainWindow === null || mainWindow.isDestroyed()) {
       Effect.runFork(
         createWindow().pipe(
-          Effect.catchAll((error) =>
+          Effect.catch((error) =>
             Effect.sync(() => reportStartupFailure(error)),
           ),
         ),
@@ -438,6 +440,6 @@ app.on('window-all-closed', () => {
 
 Effect.runFork(
   startApplication().pipe(
-    Effect.catchAll((error) => Effect.sync(() => reportStartupFailure(error))),
+    Effect.catch((error) => Effect.sync(() => reportStartupFailure(error))),
   ),
 );

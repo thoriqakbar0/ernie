@@ -282,7 +282,7 @@ testInTempDirectory(
         client.close();
         daemon.close();
       }
-    }).pipe(Effect.catchAll(() => Effect.sync(() => daemon.close())));
+    }).pipe(Effect.catch(() => Effect.sync(() => daemon.close())));
 
     return Effect.gen(function* () {
       const skillDirectory = join(

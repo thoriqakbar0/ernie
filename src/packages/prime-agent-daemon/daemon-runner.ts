@@ -20,7 +20,7 @@ Effect.runFork(
     Effect.flatMap(({ main }) =>
       Effect.tryPromise(() => main(process.argv.slice(2))),
     ),
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.sync(() => {
         console.error('Prime Agent daemon startup failed.', errorMetadata(error));
         process.exitCode = 1;

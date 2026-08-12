@@ -29,7 +29,7 @@ import type {
   PrimeAgentTaskSubmission,
   PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
-} from '../types';
+} from '../types.js';
 import {
   isJsonBoolean,
   isJsonNumber,
@@ -37,7 +37,7 @@ import {
   isJsonString,
   type JsonRecord,
   type JsonValue,
-} from '../../json-value';
+} from '../../json-value/index.js';
 
 function nonEmptyString(value: JsonValue): string | null {
   if (!isJsonString(value)) return null;

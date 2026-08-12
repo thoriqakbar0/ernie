@@ -3,15 +3,15 @@ import { mkdir, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { Effect, Predicate } from 'effect';
-import { parseJsonValue, type JsonValue } from '../../json-value';
+import { parseJsonValue, type JsonValue } from '../../json-value/index.js';
 
-import type { PrimeAgentGitWorkspace, PrimeAgentResult } from '../types';
+import type { PrimeAgentGitWorkspace, PrimeAgentResult } from '../types.js';
 import {
   parseGitBranchRename,
   parseGitBranchSelection,
   parseGitWorktreeCreation,
   parseWorkspaceCwd,
-} from './protocol';
+} from './protocol.js';
 
 const execFileAsync = promisify(execFile);
 const gitTimeoutMs = 3_000;
@@ -40,7 +40,7 @@ function tryExternal<A>(
 }
 
 function errorCode(cause: unknown): string | number | null {
-  if (!Predicate.isRecord(cause) || !('code' in cause)) {
+  if (!Predicate.isObject(cause) || !('code' in cause)) {
     return null;
   }
   return Predicate.isString(cause.code) || Predicate.isNumber(cause.code)
@@ -60,7 +60,7 @@ function diagnosticText(value: JsonValue): string | null {
 }
 
 function errorField(cause: unknown, field: 'stderr'): JsonValue {
-  return Predicate.isRecord(cause) && field in cause
+  return Predicate.isObject(cause) && field in cause
     ? parseJsonValue(cause[field])
     : null;
 }
@@ -258,7 +258,7 @@ export const readLocalGitBranches = Effect.fn('Git.readLocalGitBranches')(
         value: { cwd: parsedCwd.value, current, names },
       };
     }).pipe(
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           if (errorCode(error) === 128) {
             return {
@@ -302,7 +302,7 @@ export const initializeLocalGitRepository = Effect.fn(
     ),
   ).pipe(
     Effect.flatMap(() => readLocalGitBranches(parsedCwd.value)),
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.sync(() => {
         reportGitFailure('initialize_repository', error);
         return {
@@ -350,7 +350,7 @@ export const switchLocalGitBranch = Effect.fn('Git.switchLocalGitBranch')(
       ),
     ).pipe(
       Effect.flatMap(() => readLocalGitBranches(parsedSelection.value.cwd)),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           reportGitFailure('switch_branch', error);
           return {
@@ -411,7 +411,7 @@ export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
       ),
     ).pipe(
       Effect.flatMap(() => readLocalGitBranches(parsedSelection.value.cwd)),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           reportGitFailure('delete_branch', error);
           return {
@@ -490,7 +490,7 @@ export const renameLocalGitBranch = Effect.fn('Git.renameLocalGitBranch')(
       ),
     ).pipe(
       Effect.flatMap(() => readLocalGitBranches(parsedRename.value.cwd)),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           reportGitFailure('rename_branch', error);
           return {
@@ -640,7 +640,7 @@ export const createLocalGitWorktree = Effect.fn('Git.createLocalGitWorktree')(
         value: { cwd: destination, branchName },
       };
     }).pipe(
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           reportGitFailure('create_worktree', error);
           return {

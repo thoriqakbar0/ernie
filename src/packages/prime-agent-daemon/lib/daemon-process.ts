@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 import { Effect } from 'effect';
 
-import type { PrimeAgentDaemonConfiguration } from '../types';
+import type { PrimeAgentDaemonConfiguration } from '../types.js';
 
 /** Start one detached Prime Agent daemon process without owning its lifetime. */
 export function startPrimeAgentDaemonProcess(

@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, realpath, rename, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import { Effect } from 'effect';
+
+import { createSkillSearch } from '@/packages/skill-search';
 
 import {
   parsePrimeAgentGitBranchesResult,
@@ -93,7 +103,7 @@ function testEffect(name: string, effect: Effect.Effect<void, unknown>): void {
 }
 
 testInTempDirectory(
-  'starts and reuses an isolated Prime Agent daemon',
+  'starts Prime Agent and searches its real skill catalog',
   'ernie-prime-agent-',
   (cwd) => {
     const socketPath = join(cwd, 'prime-agent.sock');
@@ -123,6 +133,26 @@ testInTempDirectory(
     }).pipe(Effect.catchAll(() => Effect.sync(() => daemon.close())));
 
     return Effect.gen(function* () {
+      const skillDirectory = join(
+        cwd,
+        '.prime/agent/skills/interface-audit',
+      );
+      yield* Effect.tryPromise(() => mkdir(skillDirectory, { recursive: true }));
+      yield* Effect.tryPromise(() =>
+        writeFile(
+          join(skillDirectory, 'SKILL.md'),
+          [
+            '---',
+            'name: interface-audit',
+            'description: Inspect interface hierarchy.',
+            '---',
+            '',
+            'Inspect the interface hierarchy.',
+          ].join('\n'),
+          'utf8',
+        ),
+      );
+
       const coldResults = yield* Effect.all(
         [daemon.listWorkspace(), daemon.listWorkspace()],
         { concurrency: 'unbounded' },
@@ -151,6 +181,18 @@ testInTempDirectory(
       assert.equal(
         savedSessionFiles.filter((name) => name.endsWith('.jsonl')).length,
         1,
+      );
+
+      const skills = yield* daemon.listSkills(created.value.activeSessionId);
+      assert.equal(skills.ok, true);
+      if (!skills.ok) return;
+      assert.ok(skills.value.some((skill) => skill.name === 'interface-audit'));
+
+      const searchSkills = createSkillSearch(skills.value);
+      assert.ok(
+        searchSkills('interface-audt', 6).some(
+          (skill) => skill.name === 'interface-audit',
+        ),
       );
     }).pipe(Effect.ensuring(shutdown));
   },

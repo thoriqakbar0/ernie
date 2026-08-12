@@ -17,6 +17,10 @@ import {
 } from '@/components/ui/select';
 import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
 import { usePrimeAgentTask } from '@/hooks/use-prime-agent-task';
+import {
+  createSkillSearch,
+  parseSkillQuery,
+} from '@/packages/skill-search';
 
 type TaskComposerProps = Pick<
   PrimeAgentWorkspaceController,
@@ -50,19 +54,11 @@ export const TaskComposer = memo(function TaskComposer({
   const skillsListId = useId();
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
   const [skillsDismissed, setSkillsDismissed] = useState(false);
-  const skillQuery = skillSearchQuery(task.draft);
+  const skillQuery = parseSkillQuery(task.draft);
+  const searchSkills = useMemo(() => createSkillSearch(skills), [skills]);
   const matchingSkills = useMemo(
-    () =>
-      skillQuery === null || selectedSessionId === null
-        ? []
-        : skills
-            .filter((skill) =>
-              `${skill.name} ${skill.description ?? ''}`
-                .toLocaleLowerCase()
-                .includes(skillQuery),
-            )
-            .slice(0, 6),
-    [skillQuery, skills],
+    () => (skillQuery === null ? [] : searchSkills(skillQuery, 6)),
+    [searchSkills, skillQuery],
   );
   const skillsOpen = !skillsDismissed && matchingSkills.length > 0;
 
@@ -248,8 +244,3 @@ export const TaskComposer = memo(function TaskComposer({
     </>
   );
 });
-
-function skillSearchQuery(draft: string): string | null {
-  const match = /^\/(?:skill:)?([^\s]*)$/u.exec(draft);
-  return match?.[1]?.toLocaleLowerCase() ?? null;
-}

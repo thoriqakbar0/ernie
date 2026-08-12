@@ -91,6 +91,31 @@ test('user can select a detected skill with the keyboard', async () => {
   assert.equal((composer as HTMLTextAreaElement).value, '/skill:tdd ');
 });
 
+test('a new Agent draft can find a skill despite a typing mistake', async () => {
+  const user = userEvent.setup();
+  render(
+    <TaskComposer
+      modelBusy={false}
+      models={[]}
+      skills={skills}
+      selectedCwd="/workspace/ernie"
+      selectedModelKey={null}
+      selectedSessionId={null}
+      changeModel={() => undefined}
+      createAgentWithTask={async () => ({ ok: true })}
+    />,
+  );
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, '/interfce');
+
+  assert.ok(
+    within(document.body).getByRole('option', {
+      name: /\/skill:interface-review/u,
+    }),
+  );
+});
+
 test('a new Agent starts only after its first non-empty task', async () => {
   const submissions: Array<{ cwd: string; message: string }> = [];
   const user = userEvent.setup();

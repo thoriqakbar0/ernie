@@ -42,6 +42,8 @@ import {
 const rendererReadyTimeoutMs = 5_000;
 const developmentRendererUrlEnvironmentName = 'ERNIE_RENDERER_URL';
 
+app.setName('Ernie');
+
 class RendererReadyTimeoutError extends Error {
   readonly _tag = 'RendererReadyTimeoutError';
 

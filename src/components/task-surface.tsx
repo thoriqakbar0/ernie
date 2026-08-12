@@ -67,7 +67,7 @@ export function TaskSurface({
         ) : chatReady && selectedSessionView !== null ? (
           <>
             <div className="min-h-0 w-full flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-[65ch]">
+              <div className="mx-auto w-full max-w-[48rem]">
                 <AgentChat
                   onOpenSpawnedSession={workspace.openSpawnedSession}
                   sessionView={selectedSessionView}
@@ -80,7 +80,7 @@ export function TaskSurface({
         <div
           className={
             chatReady
-              ? 'mx-auto w-full max-w-[44rem] shrink-0 bg-background/95 pt-3 pb-1 backdrop-blur-sm'
+              ? 'mx-auto w-full max-w-[48rem] shrink-0 bg-background/95 pt-3 pb-1 backdrop-blur-sm'
               : undefined
           }
         >

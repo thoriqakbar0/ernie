@@ -122,7 +122,8 @@ test('focused chat renders Prime Agent markdown as document structure', () => {
   assert.equal(within(document.body).getAllByRole('listitem').length, 2);
 });
 
-test('focused chat renders IPython code and output in chronological cells', () => {
+test('focused chat collapses completed IPython code and output until requested', async () => {
+  const user = userEvent.setup();
   render(
     <AgentChat
       depth={2}
@@ -154,6 +155,8 @@ test('focused chat renders IPython code and output in chronological cells', () =
   const cell = within(document.body).getByRole('region', {
     name: 'IPython cell 1',
   });
+  assert.equal(within(cell).queryByText('42'), null);
+  await user.click(within(cell).getByRole('button', { name: 'Expand IPython cell 1' }));
   assert.match(cell.textContent ?? '', /answer = 6 \* 7\s+answer/u);
   assert.match(cell.textContent ?? '', /calculated\s+42/u);
   assert.ok(within(cell).getByRole('button', { name: 'Copy IPython code' }));

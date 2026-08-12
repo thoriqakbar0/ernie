@@ -1,10 +1,12 @@
 import {
+  ArrowDownIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
   ExternalLinkIcon,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ChatMarkdown } from '@/components/chat-markdown';
 import { Button } from '@/components/trovecn/ui/button';
@@ -41,7 +43,11 @@ function IpythonCell({
   readonly number: number;
 }): React.JSX.Element {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(
+    cell.status === 'running' || cell.status === 'starting' || cell.status === 'error',
+  );
   const output = executionOutput(cell);
+  const outputLines = output.length === 0 ? 0 : output.split('\n').length;
   const tone =
     cell.status === 'error'
       ? 'text-destructive'
@@ -65,10 +71,28 @@ function IpythonCell({
       aria-label={`IPython cell ${number}`}
       className="overflow-hidden rounded-lg border border-border/70 bg-muted/15"
     >
-      <header className="flex h-8 items-center gap-2 border-b border-border/60 px-3 text-[11px] text-muted-foreground">
-        <span className="font-mono text-foreground/75">In [{number}]</span>
-        <span>ipython</span>
-        <span className={`ml-auto ${tone}`}>
+      <header className={`flex min-h-9 items-center gap-2 px-2 text-xs ${expanded ? 'border-b border-border/60' : ''}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground"
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} IPython cell ${number}`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={`transition-transform ${expanded ? '' : '-rotate-90'}`}
+          />
+        </Button>
+        <span className="font-mono font-medium text-foreground/80">In [{number}]</span>
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          {expanded
+            ? 'ipython'
+            : `${cell.code.split('\n')[0]?.trim() || 'IPython'}${outputLines > 0 ? ` · ${outputLines} output ${outputLines === 1 ? 'line' : 'lines'}` : ''}`}
+        </span>
+        <span className={`font-medium ${tone}`}>
           {cell.status === 'running' || cell.status === 'starting'
             ? 'running'
             : cell.status}
@@ -87,10 +111,10 @@ function IpythonCell({
           {copied ? <CheckIcon /> : <CopyIcon />}
         </Button>
       </header>
-      <pre className="overflow-x-auto px-3 py-3 font-mono text-[12px] leading-5 text-foreground">
+      {!expanded ? null : <pre className="overflow-x-auto px-3 py-3 font-mono text-[12px] leading-5 text-foreground">
         <code>{cell.code}</code>
-      </pre>
-      {output.length === 0 ? null : (
+      </pre>}
+      {!expanded || output.length === 0 ? null : (
         <div className="grid grid-cols-[auto_minmax(0,1fr)] border-t border-border/60">
           <span className="px-3 py-3 font-mono text-[11px] text-muted-foreground">
             Out [{number}]
@@ -103,7 +127,7 @@ function IpythonCell({
           </pre>
         </div>
       )}
-      {cell.attachments.length === 0 ? null : (
+      {!expanded || cell.attachments.length === 0 ? null : (
         <div className="grid gap-2 border-t border-border/60 p-3 sm:grid-cols-2">
           {cell.attachments.map((attachment, index) => (
             <figure
@@ -185,19 +209,22 @@ function SpawnedSessionBranch({
   return (
     <li>
       <div className="flex min-h-8 items-start gap-1 rounded-md px-1 py-1 hover:bg-muted/40">
-        <button
-          type="button"
-          className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${session.name}`}
-          aria-expanded={expanded}
-          disabled={children.length === 0}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <ChevronRightIcon
-            aria-hidden="true"
-            className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
-          />
-        </button>
+        {children.length === 0 ? (
+          <span className="size-6 shrink-0" aria-hidden="true" />
+        ) : (
+          <button
+            type="button"
+            className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${session.name}`}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            <ChevronRightIcon
+              aria-hidden="true"
+              className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+            />
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-xs">
             <button
@@ -220,7 +247,7 @@ function SpawnedSessionBranch({
             {descendants === 0 ? null : (
               <span className="text-muted-foreground">{descendants}</span>
             )}
-            <span className={`ml-auto ${statusTone}`}>{statusLabel}</span>
+            <span className={`ml-auto font-medium ${statusTone}`}>{statusLabel}</span>
             {durationLabel(session.durationMs) === null ? null : (
               <span className="text-muted-foreground">
                 {durationLabel(session.durationMs)}
@@ -228,7 +255,7 @@ function SpawnedSessionBranch({
             )}
           </div>
           {session.recap === null && session.error === null ? null : (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
               {session.error ?? session.recap}
             </p>
           )}
@@ -255,6 +282,8 @@ export function AgentChat({
   onOpenSpawnedSession,
   sessionView,
 }: AgentChatProps): React.JSX.Element {
+  const transcriptRef = useRef<HTMLElement>(null);
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
   const childrenByParent = useMemo(() => {
     const sessionIds = new Set(
       sessionView.spawnedSessions.map((session) => session.id),
@@ -272,12 +301,36 @@ export function AgentChat({
     return index;
   }, [sessionView.spawnedSessions]);
   const roots = childrenByParent.get(null) ?? [];
+  const lastExecutionIndex = sessionView.transcript.reduce(
+    (latest, item, index) => (item.kind === 'ipython' ? index : latest),
+    -1,
+  );
   let cellNumber = 0;
 
+  useEffect(() => {
+    const scrollArea = transcriptRef.current?.parentElement;
+    if (scrollArea === null || scrollArea === undefined) return;
+    const update = (): void => {
+      const remaining =
+        scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
+      setAwayFromLatest(remaining > 160);
+    };
+    update();
+    scrollArea.addEventListener('scroll', update, { passive: true });
+    return () => scrollArea.removeEventListener('scroll', update);
+  }, [sessionView.transcript.length]);
+
+  function jumpToLatest(): void {
+    transcriptRef.current?.parentElement?.scrollTo({
+      behavior: 'smooth',
+      top: transcriptRef.current.parentElement.scrollHeight,
+    });
+  }
+
   return (
-    <section aria-label="Conversation" className="w-full select-text pb-6">
+    <section ref={transcriptRef} aria-label="Conversation" className="relative w-full select-text pb-6">
       <div className="space-y-6">
-        {sessionView.transcript.map((item) => {
+        {sessionView.transcript.map((item, index) => {
           if (item.kind === 'ipython') {
             cellNumber += 1;
             return <IpythonCell key={item.id} cell={item} number={cellNumber} />;
@@ -291,7 +344,9 @@ export function AgentChat({
               className={
                 item.role === 'user'
                   ? 'flex justify-end border-t border-border/50 pt-6'
-                  : 'max-w-[42rem] text-lede leading-7 text-foreground'
+                  : index > lastExecutionIndex && lastExecutionIndex >= 0
+                    ? 'max-w-[42rem] border-t-2 border-foreground/15 pt-6 text-lede leading-7 text-foreground before:mb-4 before:block before:text-[11px] before:font-medium before:tracking-[0.08em] before:text-muted-foreground before:uppercase before:content-["Answer"]'
+                    : 'max-w-[42rem] text-lede leading-7 text-foreground'
               }
             >
               {item.role === 'user' ? (
@@ -326,6 +381,19 @@ export function AgentChat({
             ))}
           </ul>
         </section>
+      )}
+
+      {!awayFromLatest ? null : (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="sticky bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
+          onClick={jumpToLatest}
+        >
+          <ArrowDownIcon aria-hidden="true" />
+          Jump to latest
+        </Button>
       )}
     </section>
   );

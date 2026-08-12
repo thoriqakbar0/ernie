@@ -192,10 +192,10 @@ test('focused chat groups completed work and keeps output streams distinct', asy
     name: 'Work: 2 steps, complete',
   });
   assert.doesNotMatch(work.className, /border/u);
-  const workHeader = work.querySelector('header');
-  assert.ok(workHeader);
-  assert.match(workHeader.className, /min-h-8/u);
-  const completedStatus = within(work).getByText('2 steps complete');
+  assert.match(work.className, /max-w-\[42rem\]/u);
+  const disclosure = within(work).getByRole('button', { name: 'Expand work' });
+  assert.match(disclosure.className, /bg-muted/u);
+  const completedStatus = within(work).getByText('complete');
   assert.match(completedStatus.parentElement?.className ?? '', /text-emerald/u);
   await user.click(within(work).getByRole('button', { name: 'Expand work' }));
   assert.equal(
@@ -383,8 +383,16 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
     name: 'Spawned agents',
   });
   assert.ok(spawnedAgents);
+  assert.doesNotMatch(spawnedAgents.className, /border/u);
+  assert.match(spawnedAgents.className, /max-w-\[42rem\]/u);
+  assert.ok(within(spawnedAgents).getByLabelText('2 spawned agents'));
   assert.ok(within(spawnedAgents).getByText('Research'));
   assert.ok(within(spawnedAgents).getByText('Verify'));
+  const nestedAgents = spawnedAgents.querySelector(
+    '[data-slot="spawned-agent-children"]',
+  );
+  assert.ok(nestedAgents);
+  assert.doesNotMatch(nestedAgents.className, /border/u);
   assert.ok(within(spawnedAgents).getByText('working'));
   assert.ok(within(spawnedAgents).getByText('done'));
 });

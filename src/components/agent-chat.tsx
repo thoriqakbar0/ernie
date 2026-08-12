@@ -142,9 +142,9 @@ function IpythonCell({
   return (
     <section
       aria-label={`IPython cell ${number}`}
-      className="group/cell overflow-hidden"
+      className="group/cell overflow-hidden rounded-lg bg-background/70"
     >
-      <header className={`flex min-h-8 items-center gap-2 px-2 text-xs ${expanded ? 'border-b border-border/60' : ''}`}>
+      <header className="flex min-h-8 items-center gap-2 px-2 text-xs">
         <Button
           type="button"
           variant="ghost"
@@ -184,11 +184,11 @@ function IpythonCell({
           {copied ? <CheckIcon /> : <CopyIcon />}
         </Button>
       </header>
-      {!expanded ? null : <pre className="overflow-x-auto px-3 py-3 font-mono text-[12px] leading-5 text-foreground">
+      {!expanded ? null : <pre className="mx-2 mb-2 overflow-x-auto rounded-md bg-muted/35 px-3 py-2.5 font-mono text-[12px] leading-5 text-foreground">
         <code>{cell.code}</code>
       </pre>}
       {!expanded || outputParts.length === 0 ? null : (
-        <div className="flex flex-col border-t border-border/60">
+        <div className="mx-2 mb-2 flex flex-col overflow-hidden rounded-md bg-muted/25">
           {outputParts.map((part) => (
             <div
               key={part.kind}
@@ -208,7 +208,7 @@ function IpythonCell({
         </div>
       )}
       {!expanded || cell.attachments.length === 0 ? null : (
-        <div className="grid gap-2 border-t border-border/60 p-3 sm:grid-cols-2">
+        <div className="grid gap-2 px-2 pb-2 sm:grid-cols-2">
           {cell.attachments.map((attachment, index) => (
             <figure
               key={`${attachment.path ?? attachment.mimeType}:${index}`}
@@ -286,34 +286,36 @@ function ExecutionRun({
   return (
     <section
       aria-label={`Work: ${countLabel}, ${status}`}
-      className="overflow-hidden"
+      className="w-full max-w-[42rem] overflow-hidden"
     >
-      <header className="flex min-h-8 items-center gap-2 px-1 text-xs">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} work`}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-        >
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="max-w-full justify-start gap-2 bg-muted/35 px-2.5 font-normal hover:bg-muted/60"
+        aria-label={`${expanded ? 'Collapse' : 'Expand'} work`}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
           <ChevronRightIcon
             aria-hidden="true"
             className={`transition-transform ${expanded ? 'rotate-90' : ''}`}
           />
-        </Button>
+        </span>
         <span className="font-medium text-foreground">Work</span>
-        <span className={`ml-auto flex items-center gap-1.5 font-medium ${statusTone}`}>
+        <span className="text-muted-foreground">{countLabel}</span>
+        <span className={`flex min-w-0 items-center gap-1 font-medium ${statusTone}`}>
           {status === 'complete' ? (
             <CheckIcon aria-hidden="true" className="size-3.5" />
           ) : (
             <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
           )}
-          <span>{countLabel} {status}</span>
+          <span className="truncate">{status}</span>
         </span>
-      </header>
+      </Button>
       {!expanded ? null : (
-        <div className="divide-y divide-border/60">
+        <div className="mt-2 flex flex-col gap-1 rounded-xl bg-muted/20 p-1">
           {cells.map(({ cell, number }) => (
             <IpythonCell key={cell.id} cell={cell} number={number} />
           ))}
@@ -366,7 +368,7 @@ function SpawnedSessionBranch({
 
   return (
     <li>
-      <div className="flex min-h-8 items-start gap-1 rounded-md px-1 py-1 hover:bg-muted/40">
+      <div className="flex min-h-8 items-start gap-1 rounded-lg px-2 py-1.5 hover:bg-muted/50">
         {children.length === 0 ? (
           <span className="size-6 shrink-0" aria-hidden="true" />
         ) : (
@@ -384,33 +386,42 @@ function SpawnedSessionBranch({
           </button>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              className="min-w-0 truncate font-medium text-foreground hover:underline disabled:no-underline"
-              disabled={
-                session.activeSessionId === null || onOpenSession === undefined
-              }
-              onClick={() => {
-                if (session.activeSessionId !== null) {
-                  onOpenSession?.(session.activeSessionId);
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                className="min-w-0 truncate text-start font-medium text-foreground hover:underline disabled:no-underline"
+                disabled={
+                  session.activeSessionId === null || onOpenSession === undefined
                 }
-              }}
-            >
-              {session.name}
-            </button>
-            {session.activeSessionId === null || onOpenSession === undefined ? null : (
-              <ExternalLinkIcon aria-hidden="true" className="size-3 text-muted-foreground" />
-            )}
-            {descendants === 0 ? null : (
-              <span className="text-muted-foreground">{descendants}</span>
-            )}
-            <span className={`ml-auto font-medium ${statusTone}`}>{statusLabel}</span>
-            {durationLabel(session.durationMs) === null ? null : (
-              <span className="text-muted-foreground">
-                {durationLabel(session.durationMs)}
-              </span>
-            )}
+                onClick={() => {
+                  if (session.activeSessionId !== null) {
+                    onOpenSession?.(session.activeSessionId);
+                  }
+                }}
+              >
+                {session.name}
+              </button>
+              {session.activeSessionId === null || onOpenSession === undefined ? null : (
+                <ExternalLinkIcon aria-hidden="true" className="size-3 text-muted-foreground" />
+              )}
+              {descendants === 0 ? null : (
+                <span
+                  aria-label={`${descendants} nested ${descendants === 1 ? 'agent' : 'agents'}`}
+                  className="text-muted-foreground"
+                >
+                  {descendants}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className={`font-medium ${statusTone}`}>{statusLabel}</span>
+              {durationLabel(session.durationMs) === null ? null : (
+                <span className="text-muted-foreground">
+                  {durationLabel(session.durationMs)}
+                </span>
+              )}
+            </div>
           </div>
           {session.recap === null && session.error === null ? null : (
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
@@ -420,7 +431,10 @@ function SpawnedSessionBranch({
         </div>
       </div>
       {!expanded || children.length === 0 ? null : (
-        <ul className="ml-4 border-l border-border/60 pl-2">
+        <ul
+          data-slot="spawned-agent-children"
+          className="ms-5 mt-1 flex flex-col gap-1"
+        >
           {children.map((child) => (
             <SpawnedSessionBranch
               key={child.id}
@@ -527,13 +541,18 @@ export function AgentChat({
       {roots.length === 0 ? null : (
         <section
           aria-label="Spawned agents"
-          className="mt-7 border-t border-border/60 pt-3"
+          className="mt-10 w-full max-w-[42rem]"
         >
-          <header className="mb-1 flex items-center gap-2 px-1 text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
-            agents
-            <span>{sessionView.spawnedSessions.length}</span>
+          <header className="mb-2 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+            <h2>Agents</h2>
+            <span
+              aria-label={`${sessionView.spawnedSessions.length} spawned agents`}
+              className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums"
+            >
+              {sessionView.spawnedSessions.length}
+            </span>
           </header>
-          <ul>
+          <ul className="flex flex-col gap-1 rounded-xl bg-muted/20 p-1">
             {roots.map((session) => (
               <SpawnedSessionBranch
                 key={session.id}

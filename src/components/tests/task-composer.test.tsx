@@ -67,6 +67,34 @@ test('connected Agent uses the compact quick composer', () => {
   assert.equal(composer.getAttribute('placeholder'), 'Ask Prime Agent…');
 });
 
+test('working Agent keeps an editable follow-up queue', async () => {
+  const user = userEvent.setup();
+  render(
+    <TaskComposer
+      isGenerating
+      modelBusy={false}
+      models={models}
+      skills={skills}
+      selectedCwd="/workspace/ernie"
+      selectedModelKey="openai:gpt-5.6"
+      selectedSessionId="active-agent"
+      changeModel={() => undefined}
+      createAgentWithTask={async () => ({ ok: true })}
+    />,
+  );
+
+  const composer = within(document.body).getByRole('textbox');
+  assert.equal(composer.getAttribute('placeholder'), 'Add a follow-up…');
+  assert.ok(within(document.body).getByRole('button', { name: 'Queue task' }));
+  assert.ok(within(document.body).getByText('Working · follow-ups queue'));
+
+  await user.type(composer, 'Review the tests next');
+  assert.equal(
+    (composer as HTMLTextAreaElement).value,
+    'Review the tests next',
+  );
+});
+
 test('user can detect and insert a Prime Agent skill', async () => {
   const user = userEvent.setup();
   renderTaskComposer();

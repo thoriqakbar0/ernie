@@ -98,6 +98,7 @@ export function TaskSurface({
               workspace.selectedSessionId ?? 'new'
             }`}
             modelBusy={workspace.modelBusy}
+            isGenerating={selectedSessionView?.isStreaming ?? false}
             models={workspace.models}
             skills={workspace.skills}
             selectedCwd={workspace.selectedCwd}

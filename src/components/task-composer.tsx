@@ -36,12 +36,14 @@ type TaskComposerProps = Pick<
   | 'createAgentWithTask'
 > & {
   readonly disabled?: boolean;
+  readonly isGenerating?: boolean;
   readonly selectedSessionRlmMaxDepth?: number | null;
 };
 
 /** Compose and submit one task without rerendering workspace controls. */
 export const TaskComposer = memo(function TaskComposer({
   disabled = false,
+  isGenerating = false,
   modelBusy,
   models,
   skills,
@@ -314,7 +316,7 @@ export const TaskComposer = memo(function TaskComposer({
             rows={1}
             value={task.draft}
             className="max-h-28 min-h-9 select-text px-2 py-2 text-base [field-sizing:content]"
-            placeholder="Ask Prime Agent…"
+            placeholder={isGenerating ? 'Add a follow-up…' : 'Ask Prime Agent…'}
             aria-autocomplete="list"
             aria-controls={skillsOpen ? skillsListId : undefined}
             aria-expanded={skillsOpen}
@@ -332,8 +334,8 @@ export const TaskComposer = memo(function TaskComposer({
               type="submit"
               size="icon-sm"
               className="size-8 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
-              aria-label="Send task"
-              title="Send task (Enter)"
+              aria-label={isGenerating ? 'Queue task' : 'Send task'}
+              title={isGenerating ? 'Queue task (Enter)' : 'Send task (Enter)'}
               disabled={
                 disabled ||
                 !task.canSubmit ||
@@ -348,6 +350,11 @@ export const TaskComposer = memo(function TaskComposer({
 
         {selectedSessionId === null ? null : (
           <div className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+            {isGenerating ? (
+              <span className="px-2 font-medium text-foreground/70">
+                Working · follow-ups queue
+              </span>
+            ) : null}
             {models.length === 0 ? null : (
               <Select
                 items={models.map((model) => ({

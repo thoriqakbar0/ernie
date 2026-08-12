@@ -297,7 +297,7 @@ test('sidebar hides empty pin furniture and counts only working Agents', () => {
   assert.equal(within(document.body).queryByLabelText('Working'), null);
 });
 
-test('space status turns green when every Agent is settled', () => {
+test('settled spaces stay quiet', () => {
   renderSidebar(
     {
       addRepository: () => undefined,
@@ -335,9 +335,8 @@ test('space status turns green when every Agent is settled', () => {
   const repository = within(document.body).getByRole('listitem', {
     name: 'leslie repository',
   });
-  const done = within(repository).getByLabelText('All Agents done');
-  assert.match(done.className, /bg-emerald-500/u);
-  assert.equal(within(repository).queryByLabelText('Needs attention'), null);
+  assert.equal(within(repository).queryByText('attention'), null);
+  assert.doesNotMatch(repository.textContent ?? '', /working/u);
 });
 
 test('Agents are grouped by truthful status without an active filter', () => {
@@ -349,7 +348,7 @@ test('Agents are grouped by truthful status without an active filter', () => {
     selectSession: () => undefined,
   });
 
-  assert.ok(within(document.body).getAllByLabelText('Needs attention').length > 0);
+  assert.ok(within(document.body).getAllByText('attention').length > 0);
   assert.equal(
     within(document.body).queryByRole('button', { name: 'Show active Agents' }),
     null,
@@ -447,7 +446,7 @@ test('ready footer stays quiet while unavailable state reveals recovery details'
     within(document.body).getByRole('button', { name: 'ernie' }).textContent ?? '',
     /working/u,
   );
-  assert.equal(within(document.body).queryByLabelText('Needs attention'), null);
+  assert.equal(within(document.body).queryByText('attention'), null);
   await user.click(
     within(document.body).getByRole('button', {
       name: /Ernie Agent unavailable/u,

@@ -192,19 +192,6 @@ function conversationActivity(
   return 'idle';
 }
 
-function conversationsAreSettled(
-  conversations: readonly ThreadConversation[],
-  connected: boolean,
-): boolean {
-  return (
-    conversations.length > 0 &&
-    conversations.every(
-      (conversation) =>
-        conversationActivity(conversation, connected) === 'settled',
-    )
-  );
-}
-
 function activityOrder(activity: PrimeAgentSessionActivity): number {
   return {
     working: 0,
@@ -945,10 +932,6 @@ export function AgentSidebar({
                         conversationActivity(conversation, connected) ===
                         'needs_input',
                     );
-                    const allSettled = conversationsAreSettled(
-                      unarchived,
-                      connected,
-                    );
                     const settled = unarchived
                       .filter(
                         (conversation) =>
@@ -1076,14 +1059,10 @@ export function AgentSidebar({
                               <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[10px] font-normal text-muted-foreground">
                                 {needsAttention ? (
                                   <span
-                                    aria-label="Needs attention"
-                                    className="size-1.5 rounded-full bg-amber-400"
-                                  />
-                                ) : allSettled ? (
-                                  <span
-                                    aria-label="All Agents done"
-                                    className="size-1.5 rounded-full bg-emerald-500"
-                                  />
+                                    className="font-medium text-amber-700 dark:text-amber-400"
+                                  >
+                                    attention
+                                  </span>
                                 ) : null}
                                 {workingCount > 0 ? `${workingCount} working` : null}
                               </span>
@@ -1195,10 +1174,6 @@ export function AgentSidebar({
                                     conversationActivity(conversation, connected) ===
                                     'needs_input',
                                 );
-                                const workspaceSettled = conversationsAreSettled(
-                                  workspaceUnarchived,
-                                  connected,
-                                );
                                 return (
                                   <li
                                     key={workspace.folder.value}
@@ -1249,14 +1224,10 @@ export function AgentSidebar({
                                         <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted-foreground">
                                           {workspaceNeedsAttention ? (
                                             <span
-                                              aria-label="Needs attention"
-                                              className="size-1.5 rounded-full bg-amber-400"
-                                            />
-                                          ) : workspaceSettled ? (
-                                            <span
-                                              aria-label="All Agents done"
-                                              className="size-1.5 rounded-full bg-emerald-500"
-                                            />
+                                              className="font-medium text-amber-700 dark:text-amber-400"
+                                            >
+                                              attention
+                                            </span>
                                           ) : null}
                                           {workspaceWorkingCount > 0
                                             ? `${workspaceWorkingCount} working`

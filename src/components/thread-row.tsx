@@ -77,9 +77,10 @@ export function ThreadRow({
     ),
     needs_input: (
       <span
-        aria-label="Needs attention"
-        className="size-1.5 shrink-0 rounded-full bg-amber-400"
-      />
+        className="shrink-0 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+      >
+        attention
+      </span>
     ),
     idle: null,
     settled: null,
@@ -121,7 +122,7 @@ export function ThreadRow({
               : thread.session.name
           }
           title={thread.session.name}
-          className={`h-8 min-w-0 flex-1 justify-start rounded-lg pl-5 pr-16 text-left text-sidebar-foreground hover:bg-sidebar-accent ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
+          className={`h-8 min-w-0 flex-1 justify-start rounded-lg border-l-2 pl-[18px] pr-16 text-left text-sidebar-foreground hover:bg-sidebar-accent ${selected ? 'border-sidebar-foreground/35 bg-sidebar-accent' : 'border-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
         >
           <span className="min-w-0 flex-1 truncate">

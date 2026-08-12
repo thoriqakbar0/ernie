@@ -7,6 +7,7 @@ import { cleanup, render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TaskComposer } from '@/components/task-composer';
+import type { PrimeAgentRefinementRequest } from '@/packages/prime-agent-daemon/types';
 
 Object.defineProperty(Element.prototype, 'getAnimations', {
   configurable: true,
@@ -17,9 +18,9 @@ Object.defineProperty(Element.prototype, 'animate', {
   value: () => {
     const animation = { cancel: () => undefined };
     Object.defineProperty(animation, 'onfinish', {
-      set: (finish: unknown) => {
-        if (typeof finish === 'function') {
-          queueMicrotask(() => finish());
+      set: (finish: (() => void) | null) => {
+        if (finish !== null) {
+          queueMicrotask(finish);
         }
       },
     });
@@ -30,11 +31,13 @@ Object.defineProperty(Element.prototype, 'animate', {
 const skills = [
   {
     command: '/skill:interface-review',
+    content: 'Check roving tabindex and keyboard focus order.',
     description: 'Review a user interface.',
     name: 'interface-review',
   },
   {
     command: '/skill:tdd',
+    content: 'Write a failing test before changing production code.',
     description: 'Write tests first.',
     name: 'tdd',
   },
@@ -138,12 +141,12 @@ test('working Agent keeps an editable follow-up queue', async () => {
 });
 
 test('Shift+Enter refines a connected Agent with the current draft', async () => {
-  const refinementRequests: unknown[] = [];
+  const refinementRequests: PrimeAgentRefinementRequest[] = [];
   let completeRefinement = (): void => undefined;
   Object.defineProperty(window, 'ernie', {
     configurable: true,
     value: {
-      refinePrimeAgentSession: (request: unknown) => {
+      refinePrimeAgentSession: (request: PrimeAgentRefinementRequest) => {
         refinementRequests.push(request);
         return new Promise((resolve) => {
           completeRefinement = () =>
@@ -269,7 +272,7 @@ test('user can trigger the same skill more than once', async () => {
   );
 });
 
-test('double slash opens natural-language skill search', async () => {
+test('double slash searches the complete skill files', async () => {
   const user = userEvent.setup();
   renderTaskComposer();
 
@@ -277,7 +280,7 @@ test('double slash opens natural-language skill search', async () => {
   await user.type(composer, '//');
 
   assert.ok(
-    within(document.body).getByText('Natural language · //'),
+    within(document.body).getByText('Full skill search · //'),
   );
   assert.equal(
     within(document.body).getAllByRole('option').length,
@@ -288,6 +291,20 @@ test('double slash opens natural-language skill search', async () => {
       .getByRole('button', { name: 'Send task' })
       .hasAttribute('disabled'),
     true,
+  );
+});
+
+test('double slash finds text that only exists inside a skill file', async () => {
+  const user = userEvent.setup();
+  renderTaskComposer();
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, '// roving');
+
+  assert.ok(
+    within(document.body).getByRole('option', {
+      name: /\/skill:interface-review/u,
+    }),
   );
 });
 

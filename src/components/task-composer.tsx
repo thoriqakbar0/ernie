@@ -1,5 +1,5 @@
 import { ArrowUpIcon, PlusIcon } from 'lucide-react';
-import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useId, useMemo, useRef, useState } from 'react';
 
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import {
@@ -19,12 +19,10 @@ import {
 import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
 import { usePrimeAgentTask } from '@/hooks/use-prime-agent-task';
 import {
-  createSingleVectorSkillSearch,
   createSkillSearch,
   parseSkillQuery,
   replaceSkillQuery,
 } from '@/packages/skill-search';
-import type { SkillSearchItem } from '@/packages/skill-search';
 
 type TaskComposerProps = Pick<
   PrimeAgentWorkspaceController,
@@ -69,82 +67,16 @@ export const TaskComposer = memo(function TaskComposer({
   const skillsListId = useId();
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
   const [skillsDismissed, setSkillsDismissed] = useState(false);
-  const [singleVectorMatches, setSingleVectorMatches] = useState<
-    readonly SkillSearchItem[]
-  >(() => skills.slice(0, 6));
-  const [singleVectorState, setSingleVectorState] = useState<
-    'idle' | 'loading' | 'ready' | 'failed'
-  >('idle');
   const skillQuery = parseSkillQuery(task.draft);
   const searchSkills = useMemo(() => createSkillSearch(skills), [skills]);
-  const searchSkillsBySingleVector = useMemo(() => {
-    let searchPromise: ReturnType<
-      typeof createSingleVectorSkillSearch
-    > | null = null;
-
-    return async (query: string) => {
-      searchPromise ??= createSingleVectorSkillSearch(skills);
-      const searchSingleVector = await searchPromise;
-      return searchSingleVector(query, 6);
-    };
-  }, [skills]);
   const skillQueryKind = skillQuery?.kind ?? null;
   const skillQueryTerm = skillQuery?.term ?? '';
-  const fullTextMatches = useMemo(
-    () =>
-      skillQueryKind === 'full-text'
-        ? searchSkills(skillQueryTerm, 6)
-        : [],
+  const matchingSkills = useMemo(
+    () => (skillQuery === null ? [] : searchSkills(skillQueryTerm, 6)),
     [searchSkills, skillQueryKind, skillQueryTerm],
   );
-  const matchingSkills =
-    skillQueryKind === 'single-vector'
-      ? singleVectorMatches
-      : fullTextMatches;
-  const singleVectorVisible =
-    skillQueryKind === 'single-vector' &&
-    (singleVectorState === 'loading' ||
-      singleVectorState === 'failed' ||
-      matchingSkills.length > 0);
   const skillsOpen =
-    !skillsDismissed &&
-    (singleVectorVisible ||
-      (skillQueryKind === 'full-text' && matchingSkills.length > 0));
-
-  useEffect(() => {
-    if (skillQueryKind !== 'single-vector') {
-      setSingleVectorState('idle');
-      return;
-    }
-    if (skillQueryTerm.length === 0) {
-      setSingleVectorMatches(skills.slice(0, 6));
-      setSingleVectorState('ready');
-      return;
-    }
-
-    let current = true;
-    setSingleVectorMatches([]);
-    setSingleVectorState('loading');
-    const searchDelay = window.setTimeout(() => {
-      void searchSkillsBySingleVector(skillQueryTerm)
-        .then((matches) => {
-          if (!current) return;
-          setActiveSkillIndex(0);
-          setSingleVectorMatches(matches);
-          setSingleVectorState('ready');
-        })
-        .catch(() => {
-          if (!current) return;
-          setSingleVectorMatches([]);
-          setSingleVectorState('failed');
-        });
-    }, 150);
-
-    return () => {
-      current = false;
-      window.clearTimeout(searchDelay);
-    };
-  }, [searchSkillsBySingleVector, skillQueryKind, skillQueryTerm, skills]);
+    !skillsDismissed && skillQuery !== null && matchingSkills.length > 0;
 
   function insertSkill(command: string): void {
     if (skillQuery === null) return;
@@ -206,7 +138,7 @@ export const TaskComposer = memo(function TaskComposer({
     }
 
     if (
-      skillQueryKind === 'single-vector' &&
+      skillQueryKind === 'deep-full-text' &&
       event.key === 'Enter' &&
       !event.shiftKey
     ) {
@@ -228,7 +160,7 @@ export const TaskComposer = memo(function TaskComposer({
 
   function submitTask(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    if (skillQueryKind === 'single-vector') return;
+    if (skillQueryKind === 'deep-full-text') return;
     task.submit();
   }
 
@@ -243,16 +175,15 @@ export const TaskComposer = memo(function TaskComposer({
               id={skillsListId}
               role="listbox"
               aria-label="Available skills"
-              aria-busy={singleVectorState === 'loading'}
               className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
             >
               <div className="flex items-center justify-between gap-3 px-3 py-1.5">
                 <p className="text-xs font-medium text-muted-foreground">
                   Skills
                 </p>
-                {skillQueryKind === 'single-vector' ? (
+                {skillQueryKind === 'deep-full-text' ? (
                   <span className="text-[10px] text-muted-foreground/70">
-                    Natural language · //
+                    Full skill search · //
                   </span>
                 ) : null}
               </div>
@@ -260,49 +191,28 @@ export const TaskComposer = memo(function TaskComposer({
                 data-slot="skill-results"
                 className="max-h-56 overflow-y-auto overscroll-contain"
               >
-                {singleVectorState === 'loading' &&
-                skillQueryKind === 'single-vector' ? (
-                  <p
-                    role="status"
-                    className="px-3 py-5 text-center text-sm text-muted-foreground"
+                {matchingSkills.map((skill, index) => (
+                  <button
+                    id={`${skillsListId}-${index}`}
+                    key={skill.command}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeSkillIndex}
+                    className="flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent aria-selected:bg-accent"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertSkill(skill.command)}
+                    onMouseEnter={() => setActiveSkillIndex(index)}
                   >
-                    Preparing natural-language search…
-                  </p>
-                ) : null}
-                {singleVectorState === 'failed' &&
-                skillQueryKind === 'single-vector' ? (
-                  <p
-                    role="status"
-                    className="px-3 py-5 text-center text-sm text-muted-foreground"
-                  >
-                    Natural-language search is unavailable.
-                  </p>
-                ) : null}
-                {singleVectorState === 'loading' ||
-                singleVectorState === 'failed'
-                  ? null
-                  : matchingSkills.map((skill, index) => (
-                      <button
-                        id={`${skillsListId}-${index}`}
-                        key={skill.command}
-                        type="button"
-                        role="option"
-                        aria-selected={index === activeSkillIndex}
-                        className="flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent aria-selected:bg-accent"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => insertSkill(skill.command)}
-                        onMouseEnter={() => setActiveSkillIndex(index)}
-                      >
-                        <code className="shrink-0 text-sm text-foreground">
-                          {skill.command}
-                        </code>
-                        {skill.description === null ? null : (
-                          <span className="truncate text-sm text-muted-foreground">
-                            {skill.description}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                    <code className="shrink-0 text-sm text-foreground">
+                      {skill.command}
+                    </code>
+                    {skill.description === null ? null : (
+                      <span className="truncate text-sm text-muted-foreground">
+                        {skill.description}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
           ) : null}
@@ -364,7 +274,7 @@ export const TaskComposer = memo(function TaskComposer({
                 disabled ||
                 !task.canSubmit ||
                 task.submitting ||
-                skillQueryKind === 'single-vector'
+                skillQueryKind === 'deep-full-text'
               }
             >
               <ArrowUpIcon />

@@ -2,6 +2,7 @@ import '@happy-dom/global-registrator/register.js';
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { Predicate } from 'effect';
 
 import ApprovalCard from '@/components/beautiful-ui/approval-card';
 import ChatComposer from '@/components/beautiful-ui/chat-composer';
@@ -47,5 +48,5 @@ test('all Beautiful UI components load without the reference website', () => {
   ];
 
   assert.equal(components.length, 19);
-  assert.equal(components.every((component) => typeof component === 'function'), true);
+  assert.equal(components.every(Predicate.isFunction), true);
 });

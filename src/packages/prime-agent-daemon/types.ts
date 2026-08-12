@@ -1,3 +1,5 @@
+import type { JsonValue } from '../json-value';
+
 /** A model that the connected Prime Agent session can use. */
 export interface PrimeAgentModel {
   readonly key: string;
@@ -97,6 +99,7 @@ export interface PrimeAgentSavedSession {
 /** One Prime Agent skill available to the active Agent conversation. */
 export interface PrimeAgentSkill {
   readonly command: string;
+  readonly content: string;
   readonly description: string | null;
   readonly name: string;
 }
@@ -254,40 +257,40 @@ export interface PrimeAgentDaemon {
     PrimeAgentResult<PrimeAgentWorkspace>
   >;
   readonly listModels: (
-    activeSessionId: unknown,
+    activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentModel[]>>;
   readonly listSkills: (
-    activeSessionId: unknown,
+    activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
   readonly getSessionView: (
-    activeSessionId: unknown,
+    activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSessionView>>;
   readonly createSession: (
-    creation: unknown,
+    creation: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
   readonly listSavedSessions: () => Effect.Effect<
     PrimeAgentResult<readonly PrimeAgentSavedSession[]>
   >;
   readonly importSession: (
-    sessionPath: unknown,
+    sessionPath: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
   readonly renameSession: (
-    rename: unknown,
+    rename: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSessionRenameReceipt>>;
   readonly setModel: (
-    selection: unknown,
+    selection: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentModel>>;
   readonly getRlmDepth: (
-    activeSessionId: unknown,
+    activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentRlmDepth>>;
   readonly setRlmDepth: (
-    selection: unknown,
+    selection: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentRlmDepth>>;
   readonly submitTask: (
-    submission: unknown,
+    submission: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentTaskReceipt>>;
   readonly refineSession: (
-    request: unknown,
+    request: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentRefinementReceipt>>;
   readonly close: () => void;
 }

@@ -12,14 +12,16 @@ import { useMemo, useState } from "react";
 type Strength = "strong" | "weak" | "veryweak" | "none";
 type SortKey = "name" | "last" | "strength";
 
-const STRENGTH: Record<Strength, { label: string; color: string; rank: number }> = {
+const STRENGTH = {
   strong: { label: "Very strong", color: "var(--green)", rank: 3 },
   weak: { label: "Weak", color: "var(--orange)", rank: 2 },
   veryweak: { label: "Very weak", color: "var(--red)", rank: 1 },
   none: { label: "No communication", color: "var(--ink-3)", rank: 0 },
-};
+} satisfies Record<Strength, { label: string; color: string; rank: number }>;
 
-const TAG_COLORS: Record<string, string> = {
+interface TagColorCatalog extends Readonly<Record<string, string>> {}
+
+const TAG_COLORS: TagColorCatalog = {
   B2B: "#f09a2f",
   B2C: "#92b72d",
   Cafe: "#ee6572",
@@ -134,7 +136,8 @@ export default function RecordsTable() {
   const toggleSort = (key: SortKey) => setSort((current) => current.key === key ? { key, dir: (current.dir * -1) as 1 | -1 } : { key, dir: 1 });
   const toggleRow = (id: string) => setSelected((current) => {
     const next = new Set(current);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     return next;
   });
   const toggleAll = () => setSelected((current) => {

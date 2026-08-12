@@ -16,7 +16,8 @@ const ITEMS = [
 ];
 
 function Icon({ kind }: { kind: string }) {
-  const p: Record<string, React.ReactNode> = {
+  interface SidebarIconCatalog extends Readonly<Record<string, React.ReactNode>> {}
+  const p: SidebarIconCatalog = {
     activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
     tasks: <g><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></g>,
     spaces: <g><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></g>,

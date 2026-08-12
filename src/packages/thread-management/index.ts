@@ -1,3 +1,9 @@
+import {
+  isJsonRecord,
+  isJsonString,
+  type JsonValue,
+} from '../json-value';
+
 /** Durable, reversible organization for Ernie's thread sidebar. */
 export interface ThreadManagementState {
   readonly archivedThreadIds: readonly string[];
@@ -20,25 +26,21 @@ export const emptyThreadManagementState: ThreadManagementState = {
   repositoryOrder: [],
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function parseUniqueStrings(value: unknown): readonly string[] | null {
+function parseUniqueStrings(value: JsonValue): readonly string[] | null {
   if (!Array.isArray(value)) return null;
   const strings = value.filter(
-    (item): item is string => typeof item === 'string' && item.length > 0,
+    (item): item is string => isJsonString(item) && item.length > 0,
   );
   return strings.length === value.length && new Set(strings).size === strings.length
     ? strings
     : null;
 }
 
-function parseStringRecord(value: unknown): Readonly<Record<string, string>> | null {
-  if (!isRecord(value)) return null;
+function parseStringRecord(value: JsonValue): Readonly<Record<string, string>> | null {
+  if (!isJsonRecord(value)) return null;
   const result: Record<string, string> = {};
   for (const [key, item] of Object.entries(value)) {
-    if (key.length === 0 || typeof item !== 'string' || item.trim().length === 0) {
+    if (key.length === 0 || !isJsonString(item) || item.trim().length === 0) {
       return null;
     }
     result[key] = item.trim();
@@ -48,9 +50,9 @@ function parseStringRecord(value: unknown): Readonly<Record<string, string>> | n
 
 /** Parse unknown persisted preferences into valid thread-management state. */
 export function parseThreadManagementState(
-  value: unknown,
+  value: JsonValue,
 ): ThreadManagementState {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return emptyThreadManagementState;
   }
 
@@ -75,7 +77,7 @@ export function parseThreadManagementState(
     value.expandedRepositoryPath === undefined ||
     value.expandedRepositoryPath === null
       ? null
-      : typeof value.expandedRepositoryPath === 'string' &&
+      : isJsonString(value.expandedRepositoryPath) &&
           value.expandedRepositoryPath.length > 0
         ? value.expandedRepositoryPath
         : undefined;
@@ -86,7 +88,7 @@ export function parseThreadManagementState(
     repositoryLabels === null ||
     repositoryOrder === null ||
     expandedRepositoryPath === undefined ||
-    !isRecord(value.orderByRepository)
+    !isJsonRecord(value.orderByRepository)
   ) {
     return emptyThreadManagementState;
   }

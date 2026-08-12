@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
 import { fontWeights } from "@/components/trovecn/lib/font-weight";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 
 /** Fast, deliberate — a tooltip that opened as slowly as a dialog would feel
  * laggy for something this small; 200ms strikes the balance between
@@ -64,15 +65,15 @@ function TooltipContent({
         sideOffset={sideOffset}
         className="z-50"
       >
-        <TooltipPrimitive.Popup
-          data-slot="tooltip-content"
-          render={(popupProps, state) => {
+          <TooltipPrimitive.Popup
+            data-slot="tooltip-content"
+            {...props}
+            render={(popupProps, state) => {
             const exiting = state.transitionStatus === "ending";
             const offset = reduceMotion ? {} : slideOffset(state.side);
             return (
               <motion.div
-                {...(popupProps as Record<string, unknown>)}
-                {...(props as Record<string, unknown>)}
+                {...motionSafeProps<HTMLDivElement>(popupProps)}
                 className={cn(
                   "w-fit max-w-xs rounded-md bg-foreground px-2 py-1 text-caption text-background",
                   className,

@@ -7,6 +7,7 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 import { Button } from "@/components/trovecn/ui/button";
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -44,7 +45,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
         const exiting = state.transitionStatus === "ending";
         return (
           <motion.div
-            {...(backdropProps as Record<string, unknown>)}
+            {...motionSafeProps<HTMLDivElement>(backdropProps)}
             className={cn("fixed inset-0 z-50 bg-black/40 backdrop-blur-sm", className)}
             initial={{ opacity: 0 }}
             animate={{ opacity: exiting ? 0 : 1 }}
@@ -83,12 +84,12 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        {...props}
         render={(popupProps, state) => {
           const exiting = state.transitionStatus === "ending";
           return (
             <motion.div
-              {...(popupProps as Record<string, unknown>)}
-              {...(props as Record<string, unknown>)}
+              {...motionSafeProps<HTMLDivElement>(popupProps)}
               className={cn(
                 "fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] flex-col rounded-xl bg-popover p-6 text-popover-foreground shadow-panel outline-none",
                 size === "sm" && "max-w-sm",

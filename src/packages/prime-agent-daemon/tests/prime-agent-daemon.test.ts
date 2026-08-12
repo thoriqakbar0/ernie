@@ -41,7 +41,7 @@ import {
   parsePrimeAgentDaemonSavedSessions,
   parsePrimeAgentDaemonSessions,
   parsePrimeAgentDaemonSessionView,
-  parsePrimeAgentDaemonSkills,
+  parsePrimeAgentDaemonSkillResources,
 } from '../server';
 
 test('projects focused chat messages and named spawned sessions', () => {
@@ -339,6 +339,13 @@ testInTempDirectory(
       assert.equal(skills.ok, true);
       if (!skills.ok) return;
       assert.ok(skills.value.some((skill) => skill.name === 'interface-audit'));
+      assert.ok(
+        skills.value.some(
+          (skill) =>
+            skill.name === 'interface-audit' &&
+            skill.content.includes('Inspect the interface hierarchy.'),
+        ),
+      );
 
       const searchSkills = createSkillSearch(skills.value);
       assert.ok(
@@ -596,19 +603,18 @@ test('uses a neutral title for an unnamed saved Agent', () => {
   });
 });
 
-test('keeps and orders only skill commands from the daemon', () => {
-  const result = parsePrimeAgentDaemonSkills({
-    commands: [
-      { name: 'help', source: 'builtin' },
+test('keeps and orders skill file references from the daemon', () => {
+  const result = parsePrimeAgentDaemonSkillResources({
+    skills: [
       {
         description: 'Write tests first.',
-        name: 'skill:tdd',
-        source: 'skill',
+        filePath: '/skills/tdd/SKILL.md',
+        name: 'tdd',
       },
       {
         description: 'Review a user interface.',
-        name: 'skill:interface-review',
-        source: 'skill',
+        filePath: '/skills/interface-review/SKILL.md',
+        name: 'interface-review',
       },
     ],
   });
@@ -617,13 +623,13 @@ test('keeps and orders only skill commands from the daemon', () => {
     ok: true,
     value: [
       {
-        command: '/skill:interface-review',
         description: 'Review a user interface.',
+        filePath: '/skills/interface-review/SKILL.md',
         name: 'interface-review',
       },
       {
-        command: '/skill:tdd',
         description: 'Write tests first.',
+        filePath: '/skills/tdd/SKILL.md',
         name: 'tdd',
       },
     ],
@@ -668,6 +674,7 @@ test('validates created sessions and skills after IPC', () => {
       value: [
         {
           command: '/skill:tdd',
+          content: '# TDD\nWrite tests first.',
           description: null,
           name: 'tdd',
         },
@@ -678,7 +685,14 @@ test('validates created sessions and skills after IPC', () => {
   assert.equal(
     parsePrimeAgentSkillsResult({
       ok: true,
-      value: [{ command: '/skill:tdd', description: null, name: 'wrong' }],
+      value: [
+        {
+          command: '/skill:tdd',
+          content: '# TDD',
+          description: null,
+          name: 'wrong',
+        },
+      ],
     }).ok,
     false,
   );

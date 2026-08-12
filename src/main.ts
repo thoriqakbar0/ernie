@@ -7,6 +7,7 @@ import type {
   OpenDialogOptions,
 } from 'electron';
 import { Effect } from 'effect';
+import { isJsonString, type JsonValue } from './packages/json-value';
 
 import {
   createLocalGitWorktree,
@@ -165,7 +166,7 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
     Effect.runPromise(daemon.listWorkspace()),
   );
-  ipcMain.handle(primeAgentCreateSessionChannel, (_event, creation: unknown) =>
+  ipcMain.handle(primeAgentCreateSessionChannel, (_event, creation: JsonValue) =>
     Effect.runPromise(daemon.createSession(creation)),
   );
   ipcMain.handle(primeAgentSavedSessionsChannel, () =>
@@ -173,71 +174,71 @@ function registerPrimeAgentHandlers(): void {
   );
   ipcMain.handle(
     primeAgentImportSessionChannel,
-    (_event, sessionPath: unknown) =>
+    (_event, sessionPath: JsonValue) =>
       Effect.runPromise(daemon.importSession(sessionPath)),
   );
-  ipcMain.handle(primeAgentRenameSessionChannel, (_event, rename: unknown) =>
+  ipcMain.handle(primeAgentRenameSessionChannel, (_event, rename: JsonValue) =>
     Effect.runPromise(daemon.renameSession(rename)),
   );
   ipcMain.handle(
     primeAgentModelsChannel,
-    (_event, activeSessionId: unknown) =>
+    (_event, activeSessionId: JsonValue) =>
       Effect.runPromise(daemon.listModels(activeSessionId)),
   );
   ipcMain.handle(
     primeAgentSkillsChannel,
-    (_event, activeSessionId: unknown) =>
+    (_event, activeSessionId: JsonValue) =>
       Effect.runPromise(daemon.listSkills(activeSessionId)),
   );
   ipcMain.handle(
     primeAgentSessionViewChannel,
-    (_event, activeSessionId: unknown) =>
+    (_event, activeSessionId: JsonValue) =>
       Effect.runPromise(daemon.getSessionView(activeSessionId)),
   );
-  ipcMain.handle(primeAgentSetModelChannel, (_event, selection: unknown) =>
+  ipcMain.handle(primeAgentSetModelChannel, (_event, selection: JsonValue) =>
     Effect.runPromise(daemon.setModel(selection)),
   );
   ipcMain.handle(
     primeAgentRlmDepthChannel,
-    (_event, activeSessionId: unknown) =>
+    (_event, activeSessionId: JsonValue) =>
       Effect.runPromise(daemon.getRlmDepth(activeSessionId)),
   );
-  ipcMain.handle(primeAgentSetRlmDepthChannel, (_event, selection: unknown) =>
+  ipcMain.handle(primeAgentSetRlmDepthChannel, (_event, selection: JsonValue) =>
     Effect.runPromise(daemon.setRlmDepth(selection)),
   );
-  ipcMain.handle(primeAgentSubmitTaskChannel, (_event, submission: unknown) =>
+  ipcMain.handle(primeAgentSubmitTaskChannel, (_event, submission: JsonValue) =>
     Effect.runPromise(daemon.submitTask(submission)),
   );
-  ipcMain.handle(primeAgentRefineSessionChannel, (_event, request: unknown) =>
+  ipcMain.handle(primeAgentRefineSessionChannel, (_event, request: JsonValue) =>
     Effect.runPromise(daemon.refineSession(request)),
   );
-  ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: unknown) =>
+  ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: JsonValue) =>
     Effect.runPromise(readLocalGitBranches(cwd)),
   );
-  ipcMain.handle(primeAgentGitWorkspaceChannel, (_event, cwd: unknown) =>
+  ipcMain.handle(primeAgentGitWorkspaceChannel, (_event, cwd: JsonValue) =>
     Effect.runPromise(readLocalGitWorkspace(cwd)),
   );
   ipcMain.handle(
     primeAgentSwitchGitBranchChannel,
-    (_event, selection: unknown) =>
+    (_event, selection: JsonValue) =>
       Effect.runPromise(switchLocalGitBranch(selection)),
   );
   ipcMain.handle(
     primeAgentDeleteGitBranchChannel,
-    (_event, selection: unknown) =>
+    (_event, selection: JsonValue) =>
       Effect.runPromise(deleteLocalGitBranch(selection)),
   );
   ipcMain.handle(
     primeAgentRenameGitBranchChannel,
-    (_event, rename: unknown) =>
+    (_event, rename: JsonValue) =>
       Effect.runPromise(renameLocalGitBranch(rename)),
   );
-  ipcMain.handle(primeAgentInitializeGitChannel, (_event, cwd: unknown) =>
+  ipcMain.handle(primeAgentInitializeGitChannel, (_event, cwd: JsonValue) =>
     Effect.runPromise(initializeLocalGitRepository(cwd)),
   );
   ipcMain.handle(
     primeAgentCreateGitWorktreeChannel,
-    (_event, creation: unknown) =>
+    (_event, creation: JsonValue) =>
       Effect.runPromise(createLocalGitWorktree(creation)),
   );
   ipcMain.handle(chooseWorkspaceDirectoryChannel, () => {
@@ -258,8 +259,8 @@ function registerPrimeAgentHandlers(): void {
       ),
     );
   });
-  ipcMain.handle(revealWorkspacePathChannel, (_event, workspacePath: unknown) => {
-    if (typeof workspacePath !== 'string' || workspacePath.trim().length === 0) {
+  ipcMain.handle(revealWorkspacePathChannel, (_event, workspacePath: JsonValue) => {
+    if (!isJsonString(workspacePath) || workspacePath.trim().length === 0) {
       return false;
     }
     shell.showItemInFolder(workspacePath);
@@ -395,8 +396,8 @@ const createWindow = Effect.fn('Ernie.createWindow')(function* () {
   return window;
 });
 
-function reportStartupFailure(error: unknown): void {
-  console.error('Ernie could not open its main window.', error);
+function reportStartupFailure(cause: unknown): void {
+  console.error('Ernie could not open its main window.', cause);
   app.quit();
 }
 

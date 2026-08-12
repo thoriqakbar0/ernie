@@ -3,7 +3,7 @@ const colorThemeStorageKey = 'ernie.color-theme';
 /** The two color appearances supported by Ernie. */
 export type ColorTheme = 'dark' | 'light';
 
-function parseColorTheme(value: unknown): ColorTheme | null {
+function parseColorTheme(value: string | null): ColorTheme | null {
   if (value === 'dark' || value === 'light') return value;
   return null;
 }

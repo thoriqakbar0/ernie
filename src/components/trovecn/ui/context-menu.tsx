@@ -14,12 +14,14 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { Predicate } from "effect";
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 import { useProximityHover, proximityHoverWashClassName } from "@/components/trovecn/hooks/use-proximity-hover";
 
 interface ContextMenuProximityContextValue {
@@ -103,7 +105,6 @@ function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
 
 function ContextMenuMotionSurface({
   popupProps,
-  contentProps,
   transitionStatus,
   pointerTravel,
   reduceMotion,
@@ -111,8 +112,7 @@ function ContextMenuMotionSurface({
   className,
   children,
 }: {
-  popupProps: Record<string, unknown>;
-  contentProps: Record<string, unknown>;
+  popupProps: React.HTMLAttributes<HTMLDivElement>;
   transitionStatus: string | undefined;
   pointerTravel: { x: number; y: number };
   reduceMotion: boolean | null;
@@ -120,7 +120,7 @@ function ContextMenuMotionSurface({
     React.DOMAttributes<HTMLDivElement>,
     "onMouseMove" | "onMouseEnter" | "onMouseLeave"
   >;
-  className?: string;
+  className: string | undefined;
   children: ReactNode;
 }) {
   // Base UI clears its initial "starting" state in the same frame that this
@@ -136,8 +136,7 @@ function ContextMenuMotionSurface({
 
   return (
     <motion.div
-      {...popupProps}
-      {...contentProps}
+      {...motionSafeProps<HTMLDivElement>(popupProps)}
       {...handlers}
       className={cn(
         "relative z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-popover outline-none",
@@ -185,7 +184,6 @@ function ContextMenuContent({
 
   const activeRect = activeIndex !== null ? itemRects[activeIndex] : null;
   const indexedChildren = indexContextMenuChildren(children, { current: 0 });
-  const resolvedClassName = typeof className === "function" ? className : className;
   // Without this, `{ registerItem }` is a fresh object every render, so
   // every item's registration effect (keyed on this context value) re-fires
   // every render, bumps useProximityHover's registerTick, and re-renders
@@ -206,18 +204,18 @@ function ContextMenuContent({
         <ContextMenuPrimitive.Popup
           ref={containerRef}
           data-slot="context-menu-content"
+          {...props}
           render={(popupProps, state) => {
             const contentClassName =
-              typeof resolvedClassName === "function" ? resolvedClassName(state) : resolvedClassName;
+              Predicate.isFunction(className) ? className(state) : className;
             return (
               <ContextMenuMotionSurface
-                popupProps={popupProps as Record<string, unknown>}
-                contentProps={props as Record<string, unknown>}
+                popupProps={popupProps}
                 transitionStatus={state.transitionStatus}
                 pointerTravel={pointerTravel}
                 reduceMotion={reduceMotion}
                 handlers={handlers}
-                {...(contentClassName === undefined ? {} : { className: contentClassName })}
+                className={contentClassName}
               >
                 <AnimatePresence>
                   {activeRect && (
@@ -405,7 +403,7 @@ function ContextMenuCheckboxItem({
             const visible = state.checked && state.transitionStatus !== "ending";
             return (
               <motion.span
-                {...(indicatorProps as Record<string, unknown>)}
+                {...motionSafeProps<HTMLSpanElement>(indicatorProps)}
                 initial={false}
                 animate={{ opacity: visible ? 1 : 0, scale: visible ? 1 : 0.5 }}
                 transition={visible ? spring.fast.enter : spring.fast.exit}
@@ -459,7 +457,7 @@ function ContextMenuRadioItem({
             const visible = state.checked && state.transitionStatus !== "ending";
             return (
               <motion.span
-                {...(indicatorProps as Record<string, unknown>)}
+                {...motionSafeProps<HTMLSpanElement>(indicatorProps)}
                 initial={false}
                 animate={{ opacity: visible ? 1 : 0, scale: visible ? 1 : 0.5 }}
                 transition={visible ? spring.fast.enter : spring.fast.exit}

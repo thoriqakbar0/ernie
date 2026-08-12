@@ -24,11 +24,11 @@ const ROWS: { task: string; date: string; status: Status; owner: string }[] = [
   { task: "Order waffle cones", date: "Apr 14", status: "done", owner: "Aurora Scoops" },
 ];
 
-const PILLS: Record<Status, { label: string; cls: string }> = {
+const PILLS = {
   todo: { label: "To do", cls: "filter-status-todo" },
   progress: { label: "In Progress", cls: "filter-status-progress" },
   done: { label: "Completed", cls: "filter-status-done" },
-};
+} satisfies Record<Status, { label: string; cls: string }>;
 
 export default function FilterTable() {
   const [filter, setFilter] = useState<"all" | Status>("all");

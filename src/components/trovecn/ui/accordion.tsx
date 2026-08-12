@@ -13,10 +13,12 @@ import {
   createContext,
   useContext,
   forwardRef,
+  type ComponentProps,
   type ReactElement,
   type ReactNode,
   type HTMLAttributes,
 } from "react";
+import { Predicate } from "effect";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { Accordion as AccordionPrimitive } from "@base-ui/react/accordion";
 import { ChevronRight } from "lucide-react";
@@ -24,11 +26,12 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
 import { fontWeights } from "@/components/trovecn/lib/font-weight";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 import { ProximityHoverPill } from "@/components/trovecn/ui/proximity-hover-pill";
 import { useProximityHover, type ItemRect } from "@/components/trovecn/hooks/use-proximity-hover";
 
 // SSR-safe layout effect (client components still server-render in Next).
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const useIsoLayoutEffect = globalThis.window === undefined ? useEffect : useLayoutEffect;
 
 // ─── Contexts ────────────────────────────────────────────────────────────────
 
@@ -224,7 +227,7 @@ const Accordion = forwardRef<HTMLDivElement, AccordionProps>((props, ref) => {
     defaultValue: _defaultValue,
     onValueChange: _onValueChange,
     ...htmlProps
-  } = rest as Record<string, unknown>;
+  } = rest as ComponentProps<"div"> & AccordionPrimitive.Root.Props;
 
   // Auto-index items by position so callers never have to hand-thread an
   // `index` prop just to get proximity hover — pass one explicitly only to
@@ -243,7 +246,7 @@ const Accordion = forwardRef<HTMLDivElement, AccordionProps>((props, ref) => {
         multiple={type === "multiple"}
         ref={(node: HTMLDivElement | null) => {
           (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-          if (typeof ref === "function") ref(node);
+          if (Predicate.isFunction(ref)) ref(node);
           else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }}
         data-slot="accordion"
@@ -362,7 +365,7 @@ const AccordionItem = forwardRef<HTMLDivElement, AccordionItemProps>(
           {...(disabled === undefined ? {} : { disabled })}
           ref={(node: HTMLDivElement | null) => {
             (internalRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-            if (typeof ref === "function") ref(node);
+            if (Predicate.isFunction(ref)) ref(node);
             else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
           }}
           data-slot="accordion-item"
@@ -535,10 +538,9 @@ const AccordionContent = forwardRef<HTMLDivElement, AccordionContentProps>(
             if (!isOpen) setExitComplete(true);
           }}
           // AccordionContentProps is HTMLAttributes<HTMLDivElement>, but framer
-          // motion's HTMLMotionProps types a few overlapping event handlers
-          // (onDrag, onAnimationStart, ...) differently — cast to sidestep the
-          // structural mismatch rather than hand-filter every conflicting key.
-          {...(props as Record<string, unknown>)}
+          // Motion owns a few native callback names with different contracts;
+          // the shared adapter removes only those conflicting callbacks.
+          {...motionSafeProps<HTMLDivElement>(props)}
         >
           {/* Let the container establish space before its copy arrives. On
               close, the quicker shared exit gets the old copy out of the

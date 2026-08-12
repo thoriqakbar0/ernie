@@ -19,8 +19,8 @@ Object.defineProperty(Element.prototype, 'animate', {
     const animation = { cancel: () => undefined };
 
     Object.defineProperty(animation, 'onfinish', {
-      set: (finish: unknown) => {
-        if (typeof finish === 'function') queueMicrotask(() => finish());
+      set: (finish: (() => void) | null) => {
+        if (finish !== null) queueMicrotask(finish);
       },
     });
 

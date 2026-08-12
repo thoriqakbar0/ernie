@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { CheckIcon, CopyIcon, PencilIcon, RotateCcwIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Predicate } from "effect";
 
 import { Button } from "@/components/trovecn/ui/button";
 import { spring } from "@/components/trovecn/lib/springs";
@@ -47,7 +48,7 @@ function Conversation({
 
   async function handleCopy(message: ConversationMessage) {
     let copied = false;
-    const copyText = message.copyText ?? (typeof message.content === "string" ? message.content : undefined);
+    const copyText = message.copyText ?? (Predicate.isString(message.content) ? message.content : undefined);
 
     if (copyText !== undefined && navigator.clipboard) {
       try {
@@ -116,7 +117,7 @@ function Conversation({
                     {message.timestamp}
                   </span>
                 ) : null}
-                {message.copyText !== undefined || typeof message.content === "string" || onCopy ? (
+                {message.copyText !== undefined || Predicate.isString(message.content) || onCopy ? (
                   <Button
                     type="button"
                     variant="ghost"

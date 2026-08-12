@@ -16,6 +16,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { Predicate } from "effect";
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 import { CheckboxGroup as CheckboxGroupPrimitive } from "@base-ui/react/checkbox-group";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -263,7 +264,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
           disabled={disabled}
           ref={(node: HTMLDivElement | null) => {
             (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-            if (typeof ref === "function") ref(node);
+            if (Predicate.isFunction(ref)) ref(node);
             else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
           }}
           data-slot="checkbox-group"
@@ -367,7 +368,7 @@ const CheckboxGroupItem = forwardRef<HTMLLabelElement, CheckboxGroupItemProps>(
       <label
         ref={(node: HTMLLabelElement | null) => {
           (internalRef as React.MutableRefObject<HTMLLabelElement | null>).current = node;
-          if (typeof ref === "function") ref(node);
+          if (Predicate.isFunction(ref)) ref(node);
           else if (ref) (ref as React.MutableRefObject<HTMLLabelElement | null>).current = node;
         }}
         data-slot="checkbox-group-item"

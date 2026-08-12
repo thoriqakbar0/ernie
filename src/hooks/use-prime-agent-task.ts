@@ -6,18 +6,23 @@ import {
   parsePrimeAgentRefinementReceiptResult,
   parsePrimeAgentTaskReceiptResult,
 } from '@/packages/prime-agent-daemon/client';
+import {
+  isJsonRecord,
+  isJsonString,
+  parseJsonValue,
+} from '@/packages/json-value';
 
 const taskDraftStorageKey = 'ernie:task-drafts:v1';
 
 function readDrafts(): Record<string, string> {
   try {
-    const value: unknown = JSON.parse(
-      window.localStorage.getItem(taskDraftStorageKey) ?? '{}',
+    const value = parseJsonValue(
+      JSON.parse(window.localStorage.getItem(taskDraftStorageKey) ?? '{}'),
     );
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+    if (!isJsonRecord(value)) return {};
     return Object.fromEntries(
       Object.entries(value).filter(
-        (entry): entry is [string, string] => typeof entry[1] === 'string',
+        (entry): entry is [string, string] => isJsonString(entry[1]),
       ),
     );
   } catch {

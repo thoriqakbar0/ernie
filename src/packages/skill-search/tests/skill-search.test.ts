@@ -10,16 +10,19 @@ import {
 const skills = [
   {
     command: '/skill:interface-review',
+    content: 'Check roving tabindex and keyboard focus order.',
     description: 'Review a user interface.',
     name: 'interface-review',
   },
   {
     command: '/skill:tdd',
+    content: 'Write a failing test before changing production code.',
     description: 'Write tests first.',
     name: 'tdd',
   },
   {
     command: '/skill:research',
+    content: 'Collect primary sources and record citations.',
     description: null,
     name: 'research',
   },
@@ -47,12 +50,12 @@ test('recognizes isolated and repeated skill-search hotkeys', () => {
     term: 'tdd',
   });
   assert.deepEqual(parseSkillQuery('//'), {
-    kind: 'single-vector',
+    kind: 'deep-full-text',
     start: 0,
     term: '',
   });
   assert.deepEqual(parseSkillQuery('// help me review accessibility'), {
-    kind: 'single-vector',
+    kind: 'deep-full-text',
     start: 0,
     term: 'help me review accessibility',
   });
@@ -76,11 +79,12 @@ test('replaces only the newest skill query', () => {
   );
 });
 
-test('ranks skill names, commands, and descriptions with typo tolerance', () => {
+test('ranks complete skill files with metadata boosts and typo tolerance', () => {
   const search = createSkillSearch(skills);
 
   assert.equal(search('interfce', 6)[0]?.name, 'interface-review');
   assert.equal(search('write', 6)[0]?.name, 'tdd');
+  assert.equal(search('roving', 6)[0]?.name, 'interface-review');
   assert.deepEqual(
     search('', 2).map((skill) => skill.name),
     ['interface-review', 'tdd'],

@@ -34,10 +34,11 @@ type Row = {
   href?: string;
 };
 
-const VARIANTS: Record<
-  string,
-  { active: string; done: string; rows: Row[]; query?: string }
-> = {
+interface ThinkingVariantCatalog extends Readonly<
+  Record<string, { active: string; done: string; rows: Row[]; query?: string }>
+> {}
+
+const VARIANTS: ThinkingVariantCatalog = {
   Steps: {
     active: "Thinking",
     done: "Thought for 4 seconds",

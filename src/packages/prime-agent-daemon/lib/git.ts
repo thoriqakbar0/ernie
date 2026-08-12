@@ -2,13 +2,10 @@ import { execFile } from 'node:child_process';
 import { mkdir, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
+import { parseJsonValue, type JsonValue } from '../../json-value';
 
-import type {
-  PrimeAgentGitBranches,
-  PrimeAgentGitWorkspace,
-  PrimeAgentResult,
-} from '../types';
+import type { PrimeAgentGitWorkspace, PrimeAgentResult } from '../types';
 import {
   parseGitBranchRename,
   parseGitBranchSelection,
@@ -42,38 +39,41 @@ function tryExternal<A>(
   return Effect.tryPromise({ try: operation, catch: (error) => error });
 }
 
-function errorCode(error: unknown): string | number | null {
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
+function errorCode(cause: unknown): string | number | null {
+  if (!Predicate.isRecord(cause) || !('code' in cause)) {
     return null;
   }
-  return typeof error.code === 'string' || typeof error.code === 'number'
-    ? error.code
+  return Predicate.isString(cause.code) || Predicate.isNumber(cause.code)
+    ? cause.code
     : null;
 }
 
-function diagnosticText(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().replaceAll(/[\u0000-\u001f\u007f]+/gu, ' ');
+function diagnosticText(value: JsonValue): string | null {
+  if (!Predicate.isString(value)) return null;
+  const normalized = Array.from(value.trim(), (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint < 32 || codePoint === 127 ? ' ' : character;
+  }).join('');
   return normalized.length === 0
     ? null
     : normalized.slice(0, gitDiagnosticLengthLimit);
 }
 
-function errorField(error: unknown, field: 'stderr'): unknown {
-  return typeof error === 'object' && error !== null && field in error
-    ? error[field]
+function errorField(cause: unknown, field: 'stderr'): JsonValue {
+  return Predicate.isRecord(cause) && field in cause
+    ? parseJsonValue(cause[field])
     : null;
 }
 
-function reportGitFailure(operation: GitOperation, error: unknown): void {
-  const stderr = diagnosticText(errorField(error, 'stderr'));
+function reportGitFailure(operation: GitOperation, cause: unknown): void {
+  const stderr = diagnosticText(errorField(cause, 'stderr'));
   console.error('Local Git request failed.', {
     operation,
-    name: error instanceof Error ? error.name : 'NonError',
-    code: errorCode(error),
+    name: Predicate.isError(cause) ? cause.name : 'NonError',
+    code: errorCode(cause),
     message:
       stderr === null
-        ? diagnosticText(error instanceof Error ? error.message : null)
+        ? diagnosticText(Predicate.isError(cause) ? cause.message : null)
         : null,
     stderr,
   });
@@ -113,7 +113,7 @@ function worktreeDestination(
 }
 
 function parseWorkspaceDirectory(
-  cwd: unknown,
+  cwd: JsonValue,
 ): Effect.Effect<PrimeAgentResult<string>> {
   const parsedCwd = parseWorkspaceCwd(cwd);
   if (!parsedCwd.ok) return Effect.succeed(parsedCwd);
@@ -143,7 +143,7 @@ function parseWorkspaceDirectory(
 
 /** Resolve a workspace to its stable Git repository and branch identity. */
 export const readLocalGitWorkspace = Effect.fn('Git.readLocalGitWorkspace')(
-  function* (cwd: unknown) {
+  function* (cwd: JsonValue) {
     const parsedCwd = yield* parseWorkspaceDirectory(cwd);
     if (!parsedCwd.ok) return parsedCwd;
 
@@ -220,7 +220,7 @@ export const readLocalGitWorkspace = Effect.fn('Git.readLocalGitWorkspace')(
 
 /** Read local branches without changing the repository. */
 export const readLocalGitBranches = Effect.fn('Git.readLocalGitBranches')(
-  function* (cwd: unknown) {
+  function* (cwd: JsonValue) {
     const parsedCwd = yield* parseWorkspaceDirectory(cwd);
     if (!parsedCwd.ok) return parsedCwd;
 
@@ -284,7 +284,7 @@ export const readLocalGitBranches = Effect.fn('Git.readLocalGitBranches')(
 /** Initialize one workspace as a local Git repository with main as its first branch. */
 export const initializeLocalGitRepository = Effect.fn(
   'Git.initializeLocalGitRepository',
-)(function* (cwd: unknown) {
+)(function* (cwd: JsonValue) {
   const parsedCwd = yield* parseWorkspaceDirectory(cwd);
   if (!parsedCwd.ok) return parsedCwd;
 
@@ -319,7 +319,7 @@ export const initializeLocalGitRepository = Effect.fn(
 
 /** Switch one workspace to an existing local Git branch. */
 export const switchLocalGitBranch = Effect.fn('Git.switchLocalGitBranch')(
-  function* (selection: unknown) {
+  function* (selection: JsonValue) {
     const parsedSelection = parseGitBranchSelection(selection);
     if (!parsedSelection.ok) return parsedSelection;
 
@@ -368,7 +368,7 @@ export const switchLocalGitBranch = Effect.fn('Git.switchLocalGitBranch')(
 
 /** Delete one merged local branch while protecting primary and current branches. */
 export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
-  function* (selection: unknown) {
+  function* (selection: JsonValue) {
     const parsedSelection = parseGitBranchSelection(selection);
     if (!parsedSelection.ok) return parsedSelection;
 
@@ -429,7 +429,7 @@ export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
 
 /** Rename one local branch without overwriting another branch. */
 export const renameLocalGitBranch = Effect.fn('Git.renameLocalGitBranch')(
-  function* (rename: unknown) {
+  function* (rename: JsonValue) {
     const parsedRename = parseGitBranchRename(rename);
     if (!parsedRename.ok) return parsedRename;
 
@@ -508,7 +508,7 @@ export const renameLocalGitBranch = Effect.fn('Git.renameLocalGitBranch')(
 
 /** Create or reuse a sibling Git worktree for one local branch. */
 export const createLocalGitWorktree = Effect.fn('Git.createLocalGitWorktree')(
-  function* (creation: unknown) {
+  function* (creation: JsonValue) {
     const parsedCreation = parseGitWorktreeCreation(creation);
     if (!parsedCreation.ok) return parsedCreation;
 

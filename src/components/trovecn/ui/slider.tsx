@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 
 export type SliderValue = number | readonly number[];
 
@@ -89,8 +90,8 @@ function Slider({
   const leftPercent1 = useTransform(motion1, (position) => `${position}%`);
   const leftPercents = [leftPercent0, leftPercent1] as const;
   const rangeWidthPercent = useTransform([motion0, motion1], (positions) => {
-    const first = typeof positions[0] === "number" ? positions[0] : 0;
-    const second = typeof positions[1] === "number" ? positions[1] : 0;
+    const first = Number(positions[0] ?? 0);
+    const second = Number(positions[1] ?? 0);
     return `${Math.max(0, second - first)}%`;
   });
   const isRange = values.length > 1;
@@ -223,12 +224,10 @@ function SliderThumb({
       }}
       onPointerLeave={() => setHovered(false)}
       render={(thumbProps) => {
-        const { children: hiddenInput, ...restThumbProps } = thumbProps as {
-          children?: ReactNode;
-        } & Record<string, unknown>;
+        const { children: hiddenInput, ...restThumbProps } = thumbProps;
         return (
           <motion.div
-            {...restThumbProps}
+            {...motionSafeProps<HTMLDivElement>(restThumbProps)}
             className={cn(
               "absolute top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border border-border bg-background shadow-bevel outline-none data-disabled:pointer-events-none data-dragging:cursor-grabbing has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50",
               className,

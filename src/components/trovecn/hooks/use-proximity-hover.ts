@@ -376,7 +376,7 @@ export function useProximityHover<T extends HTMLElement>(
   // rects stay usable, and hiding overlays on every reflow would flicker them.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
+    if (!container || globalThis.ResizeObserver === undefined) return;
     const ro = new ResizeObserver(() => scheduleMeasurement(measurementAttempts));
     ro.observe(container);
     return () => ro.disconnect();

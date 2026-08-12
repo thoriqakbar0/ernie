@@ -21,13 +21,13 @@ const LINES: Tok[][] = [
   [{ t: "}", c: "dim" }],
 ];
 
-const COLORS: Record<string, string> = {
+const COLORS = {
   kw: "var(--accent-ink)",
   str: "var(--green)",
   num: "var(--orange)",
   fn: "var(--ink)",
   dim: "var(--ink-3)",
-};
+} satisfies Record<NonNullable<Tok["c"]>, string>;
 
 const RAW = `export async function churnBatch() {
   const flavor = await getFlavor("pistachio");

@@ -3,7 +3,9 @@ import type {
   DaemonCommand,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
-import { Effect, Schedule } from 'effect';
+import { readFile } from 'node:fs/promises';
+import { Effect, Predicate, Schedule } from 'effect';
+import { parseJsonValue, type JsonValue } from '../../json-value';
 
 import type {
   PrimeAgentDaemon,
@@ -29,7 +31,7 @@ import {
   parseSessionRename,
   parseSessionListData,
   parseSessionViewData,
-  parseSkillCatalogData,
+  parseSkillResourceCatalogData,
   parseTaskSubmission,
 } from './protocol';
 
@@ -46,25 +48,31 @@ function failure(
   return { ok: false, error: { code, message } };
 }
 
-function responseData(response: DaemonResponse): PrimeAgentResult<unknown> {
-  return response.success
-    ? { ok: true, value: response.data }
-    : failure('request_failed', 'Prime Agent could not complete the request.');
+function responseData(response: DaemonResponse): PrimeAgentResult<JsonValue> {
+  if (!response.success) {
+    return failure('request_failed', 'Prime Agent could not complete the request.');
+  }
+  const value = parseJsonValue(response.data);
+  return value === null && response.data !== null
+    ? failure('protocol_error', 'Prime Agent returned non-serializable data.')
+    : { ok: true, value };
 }
 
-function errorMetadata(error: unknown): Readonly<{
-  name: string;
-  code: string | null;
-}> {
-  if (!(error instanceof Error)) return { name: 'NonError', code: null };
-  const code = 'code' in error && typeof error.code === 'string'
-    ? error.code
+interface ErrorMetadata {
+  readonly name: string;
+  readonly code: string | null;
+}
+
+function errorMetadata(cause: unknown): ErrorMetadata {
+  if (!Predicate.isError(cause)) return { name: 'NonError', code: null };
+  const code = 'code' in cause && Predicate.isString(cause.code)
+    ? cause.code
     : null;
-  return { name: error.name, code };
+  return { name: cause.name, code };
 }
 
-function reportOperationalFailure(scope: string, error: unknown): void {
-  console.error(scope, errorMetadata(error));
+function reportOperationalFailure(scope: string, cause: unknown): void {
+  console.error(scope, errorMetadata(cause));
 }
 
 interface PrimeAgentDaemonRuntime {
@@ -220,7 +228,7 @@ export function createPrimeAgentDaemon(
   );
 
   const listModels = Effect.fn('PrimeAgentDaemon.listModels')(
-    (activeSessionId: unknown) => {
+    (activeSessionId: JsonValue) => {
       const parsedSessionId = parseActiveSessionId(activeSessionId);
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
@@ -244,31 +252,58 @@ export function createPrimeAgentDaemon(
   );
 
   const listSkills = Effect.fn('PrimeAgentDaemon.listSkills')(
-    (activeSessionId: unknown) => {
+    (activeSessionId: JsonValue) => {
       const parsedSessionId = parseActiveSessionId(activeSessionId);
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
       return withClient((client) =>
-        Effect.tryPromise(() =>
-          client.request(
-            {
-              type: 'get_commands',
-              activeSessionId: parsedSessionId.value,
-            },
-            requestTimeoutMs,
-          ),
-        ).pipe(
-          Effect.map(responseData),
-          Effect.map((response) =>
-            response.ok ? parseSkillCatalogData(response.value) : response,
-          ),
-        ),
+        Effect.gen(function* () {
+          const response = responseData(
+            yield* Effect.tryPromise(() =>
+              client.request(
+                {
+                  type: 'get_resource_snapshot',
+                  activeSessionId: parsedSessionId.value,
+                },
+                requestTimeoutMs,
+              ),
+            ),
+          );
+          if (!response.ok) return response;
+
+          const catalog = parseSkillResourceCatalogData(response.value);
+          if (!catalog.ok) return catalog;
+
+          const skills = yield* Effect.forEach(
+            catalog.value,
+            (skill) =>
+              Effect.tryPromise(() => readFile(skill.filePath, 'utf8')).pipe(
+                Effect.catchAll((cause) =>
+                  Effect.sync(() => {
+                    reportOperationalFailure(
+                      'Prime Agent skill file could not be read.',
+                      cause,
+                    );
+                    return '';
+                  }),
+                ),
+                Effect.map((content) => ({
+                  command: `/skill:${skill.name}`,
+                  content,
+                  description: skill.description,
+                  name: skill.name,
+                })),
+              ),
+            { concurrency: 8 },
+          );
+          return { ok: true, value: skills } as const;
+        }),
       );
     },
   );
 
   const getSessionView = Effect.fn('PrimeAgentDaemon.getSessionView')(
-    (activeSessionId: unknown) => {
+    (activeSessionId: JsonValue) => {
       const parsedSessionId = parseActiveSessionId(activeSessionId);
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
@@ -329,27 +364,32 @@ export function createPrimeAgentDaemon(
     request: SessionOpenRequest,
   ): Effect.Effect<PrimeAgentResult<PrimeAgentSession>> {
     let connected = false;
-    const command: Extract<DaemonCommand, { type: 'create' }> =
-      request.type === 'new'
-        ? {
-            type: 'create',
-            config: {
-              cwd: request.cwd,
-              extensions: [configuration.sessionNameExtensionPath],
-              ...(configuration.sessionDirectoryPath === undefined
-                ? {}
-                : { sessionDir: configuration.sessionDirectoryPath }),
-            },
-            lifecycle: 'resident',
-          }
-        : {
-            type: 'create',
-            sessionPath: request.sessionPath,
-            config: {
-              extensions: [configuration.sessionNameExtensionPath],
-            },
-            lifecycle: 'resident',
-          };
+    let command: Extract<DaemonCommand, { type: 'create' }>;
+    if (request.type === 'new') {
+      const newSessionConfig: NonNullable<
+        Extract<DaemonCommand, { type: 'create' }>['config']
+      > = {
+        cwd: request.cwd,
+        extensions: [configuration.sessionNameExtensionPath],
+      };
+      if (configuration.sessionDirectoryPath !== undefined) {
+        newSessionConfig.sessionDir = configuration.sessionDirectoryPath;
+      }
+      command = {
+        type: 'create',
+        config: newSessionConfig,
+        lifecycle: 'resident',
+      };
+    } else {
+      command = {
+        type: 'create',
+        sessionPath: request.sessionPath,
+        config: {
+          extensions: [configuration.sessionNameExtensionPath],
+        },
+        lifecycle: 'resident',
+      };
+    }
 
     return ensureDaemonReady.pipe(
       Effect.andThen(loadRuntime),
@@ -459,7 +499,7 @@ export function createPrimeAgentDaemon(
   }
 
   const createSession = Effect.fn('PrimeAgentDaemon.createSession')(
-    (creation: unknown) => {
+    (creation: JsonValue) => {
       const parsedCreation = parseSessionCreation(creation);
       if (!parsedCreation.ok) return Effect.succeed(parsedCreation);
       return openSession({ type: 'new', ...parsedCreation.value });
@@ -467,7 +507,7 @@ export function createPrimeAgentDaemon(
   );
 
   const importSession = Effect.fn('PrimeAgentDaemon.importSession')(
-    (sessionPath: unknown) => {
+    (sessionPath: JsonValue) => {
       const parsedSessionPath = parseSavedSessionPath(sessionPath);
       if (!parsedSessionPath.ok) return Effect.succeed(parsedSessionPath);
       return openSession({
@@ -479,7 +519,7 @@ export function createPrimeAgentDaemon(
 
   const renameSession = Effect.fn('PrimeAgentDaemon.renameSession')(
     (
-      rename: unknown,
+      rename: JsonValue,
     ): Effect.Effect<PrimeAgentResult<PrimeAgentSessionRenameReceipt>> => {
       const parsedRename = parseSessionRename(rename);
       if (!parsedRename.ok) return Effect.succeed(parsedRename);
@@ -519,7 +559,7 @@ export function createPrimeAgentDaemon(
   );
 
   const setModel = Effect.fn('PrimeAgentDaemon.setModel')(
-    (selection: unknown) => {
+    (selection: JsonValue) => {
       const parsedSelection = parseModelSelection(selection);
       if (!parsedSelection.ok) return Effect.succeed(parsedSelection);
 
@@ -545,7 +585,7 @@ export function createPrimeAgentDaemon(
   );
 
   const getRlmDepth = Effect.fn('PrimeAgentDaemon.getRlmDepth')(
-    (activeSessionId: unknown) => {
+    (activeSessionId: JsonValue) => {
       const parsedSessionId = parseActiveSessionId(activeSessionId);
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
@@ -569,7 +609,7 @@ export function createPrimeAgentDaemon(
   );
 
   const setRlmDepth = Effect.fn('PrimeAgentDaemon.setRlmDepth')(
-    (selection: unknown) => {
+    (selection: JsonValue) => {
       const parsedSelection = parseRlmDepthSelection(selection);
       if (!parsedSelection.ok) return Effect.succeed(parsedSelection);
 
@@ -594,7 +634,7 @@ export function createPrimeAgentDaemon(
   );
 
   const submitTask = Effect.fn('PrimeAgentDaemon.submitTask')(
-    (submission: unknown) => {
+    (submission: JsonValue) => {
       const parsedSubmission = parseTaskSubmission(submission);
       if (!parsedSubmission.ok) return Effect.succeed(parsedSubmission);
 
@@ -623,7 +663,7 @@ export function createPrimeAgentDaemon(
   );
 
   const refineSession = Effect.fn('PrimeAgentDaemon.refineSession')(
-    (request: unknown) => {
+    (request: JsonValue) => {
       const parsedRequest = parseRefinementRequest(request);
       if (!parsedRequest.ok) return Effect.succeed(parsedRequest);
 

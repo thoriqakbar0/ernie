@@ -4,7 +4,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
 import { createServer } from 'vite';
 
 const host = '127.0.0.1';
@@ -53,8 +53,7 @@ async function prepareDevelopmentApplication() {
     );
   } catch (error) {
     if (
-      typeof error !== 'object' ||
-      error === null ||
+      !Predicate.isRecord(error) ||
       !('code' in error) ||
       error.code !== 'ENOENT'
     ) {
@@ -130,12 +129,11 @@ async function prepareDevelopmentApplication() {
 
 function errorMetadata(error) {
   return {
-    name: error instanceof Error ? error.name : 'NonError',
+    name: Predicate.isError(error) ? error.name : 'NonError',
     code:
-      typeof error === 'object' &&
-      error !== null &&
+      Predicate.isRecord(error) &&
       'code' in error &&
-      (typeof error.code === 'string' || typeof error.code === 'number')
+      (Predicate.isString(error.code) || Predicate.isNumber(error.code))
         ? error.code
         : null,
   };

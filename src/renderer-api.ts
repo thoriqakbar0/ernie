@@ -9,6 +9,7 @@ import type {
   PrimeAgentSessionRename,
   PrimeAgentTaskSubmission,
 } from './packages/prime-agent-daemon/types';
+import type { JsonValue } from './packages/json-value';
 
 /** IPC channel emitted after the renderer has painted its required surface. */
 export const rendererReadyChannel = 'ernie:renderer-ready';
@@ -92,44 +93,44 @@ export const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
-  listPrimeAgentWorkspace: () => Promise<unknown>;
+  listPrimeAgentWorkspace: () => Promise<JsonValue>;
   createPrimeAgentSession: (
     creation: PrimeAgentSessionCreation,
-  ) => Promise<unknown>;
-  listPrimeAgentSavedSessions: () => Promise<unknown>;
-  importPrimeAgentSession: (sessionPath: string) => Promise<unknown>;
-  renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<unknown>;
-  listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
-  listPrimeAgentSkills: (activeSessionId: string) => Promise<unknown>;
-  getPrimeAgentSessionView: (activeSessionId: string) => Promise<unknown>;
-  setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;
-  getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<unknown>;
+  ) => Promise<JsonValue>;
+  listPrimeAgentSavedSessions: () => Promise<JsonValue>;
+  importPrimeAgentSession: (sessionPath: string) => Promise<JsonValue>;
+  renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<JsonValue>;
+  listPrimeAgentModels: (activeSessionId: string) => Promise<JsonValue>;
+  listPrimeAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
+  getPrimeAgentSessionView: (activeSessionId: string) => Promise<JsonValue>;
+  setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<JsonValue>;
+  getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<JsonValue>;
   setPrimeAgentRlmDepth: (
     selection: PrimeAgentRlmDepthSelection,
-  ) => Promise<unknown>;
+  ) => Promise<JsonValue>;
   submitPrimeAgentTask: (
     submission: PrimeAgentTaskSubmission,
-  ) => Promise<unknown>;
+  ) => Promise<JsonValue>;
   refinePrimeAgentSession: (
     request: PrimeAgentRefinementRequest,
-  ) => Promise<unknown>;
-  listPrimeAgentGitBranches: (cwd: string) => Promise<unknown>;
-  readPrimeAgentGitWorkspace: (cwd: string) => Promise<unknown>;
+  ) => Promise<JsonValue>;
+  listPrimeAgentGitBranches: (cwd: string) => Promise<JsonValue>;
+  readPrimeAgentGitWorkspace: (cwd: string) => Promise<JsonValue>;
   switchPrimeAgentGitBranch: (
     selection: PrimeAgentGitBranchSelection,
-  ) => Promise<unknown>;
+  ) => Promise<JsonValue>;
   deletePrimeAgentGitBranch: (
     selection: PrimeAgentGitBranchSelection,
-  ) => Promise<unknown>;
+  ) => Promise<JsonValue>;
   renamePrimeAgentGitBranch: (
     rename: PrimeAgentGitBranchRename,
-  ) => Promise<unknown>;
-  initializePrimeAgentGit: (cwd: string) => Promise<unknown>;
+  ) => Promise<JsonValue>;
+  initializePrimeAgentGit: (cwd: string) => Promise<JsonValue>;
   createPrimeAgentGitWorktree: (
     creation: PrimeAgentGitWorktreeCreation,
-  ) => Promise<unknown>;
-  chooseWorkspaceDirectory: () => Promise<unknown>;
-  revealWorkspacePath: (workspacePath: string) => Promise<unknown>;
+  ) => Promise<JsonValue>;
+  chooseWorkspaceDirectory: () => Promise<JsonValue>;
+  revealWorkspacePath: (workspacePath: string) => Promise<JsonValue>;
 }>;
 
 declare global {

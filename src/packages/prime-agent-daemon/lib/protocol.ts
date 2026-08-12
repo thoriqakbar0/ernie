@@ -30,23 +30,27 @@ import type {
   PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 } from '../types';
+import {
+  isJsonBoolean,
+  isJsonNumber,
+  isJsonRecord,
+  isJsonString,
+  type JsonRecord,
+  type JsonValue,
+} from '../../json-value';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function nonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
+function nonEmptyString(value: JsonValue): string | null {
+  if (!isJsonString(value)) return null;
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
 }
 
-function textContent(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
+function textContent(value: JsonValue): string {
+  if (isJsonString(value)) return value.trim();
   if (!Array.isArray(value)) return '';
   return value
     .flatMap((part) =>
-      isRecord(part) && part.type === 'text' && typeof part.text === 'string'
+      isJsonRecord(part) && part.type === 'text' && isJsonString(part.text)
         ? [part.text]
         : [],
     )
@@ -54,29 +58,29 @@ function textContent(value: unknown): string {
     .trim();
 }
 
-function optionalText(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
+function optionalText(value: JsonValue): string | null {
+  return isJsonString(value) && value.length > 0 ? value : null;
 }
 
-function optionalDuration(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+function optionalDuration(value: JsonValue): number | null {
+  return isJsonNumber(value) && Number.isFinite(value) && value >= 0
     ? value
     : null;
 }
 
-function tracebackLines(value: unknown): readonly string[] {
+function tracebackLines(value: JsonValue): readonly string[] {
   return Array.isArray(value)
-    ? value.filter((line): line is string => typeof line === 'string')
+    ? value.filter(isJsonString)
     : [];
 }
 
 function ipythonAttachments(
-  value: unknown,
+  value: JsonValue,
 ): readonly PrimeAgentIpythonAttachment[] {
   if (!Array.isArray(value)) return [];
   const attachments: PrimeAgentIpythonAttachment[] = [];
   for (const attachment of value) {
-    if (!isRecord(attachment)) continue;
+    if (!isJsonRecord(attachment)) continue;
     const mimeType = attachment.mimeType;
     const data = nonEmptyString(attachment.data);
     if (
@@ -99,10 +103,10 @@ function ipythonAttachments(
 
 /** Parse one focused attach snapshot into Ernie's narrow chat projection. */
 export function parseSessionViewData(
-  value: unknown,
-  rlmDepthValue: unknown,
+  value: JsonValue,
+  rlmDepthValue: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionView> {
-  if (!isRecord(value) || !isRecord(value.snapshot)) {
+  if (!isJsonRecord(value) || !isJsonRecord(value.snapshot)) {
     return failure(
       'protocol_error',
       'Prime Agent returned an invalid chat snapshot.',
@@ -124,7 +128,7 @@ export function parseSessionViewData(
   const transcript: PrimeAgentTranscriptItem[] = [];
   const ipythonIndexById = new Map<string, number>();
   value.snapshot.messages.forEach((message, index) => {
-    if (!isRecord(message)) return;
+    if (!isJsonRecord(message)) return;
 
     if (message.role === 'toolResult') {
       const toolCallId = nonEmptyString(message.toolCallId);
@@ -134,7 +138,7 @@ export function parseSessionViewData(
 
       const pending = transcript[transcriptIndex];
       if (pending?.kind !== 'ipython') return;
-      const details = isRecord(message.details) ? message.details : null;
+      const details = isJsonRecord(message.details) ? message.details : null;
       const rawStatus = details?.status;
       const status =
         rawStatus === 'ok' ||
@@ -145,7 +149,7 @@ export function parseSessionViewData(
           : message.isError === true
             ? 'error'
             : 'ok';
-      const error = details !== null && isRecord(details.error)
+      const error = details !== null && isJsonRecord(details.error)
         ? details.error
         : null;
       transcript[transcriptIndex] = {
@@ -203,7 +207,7 @@ export function parseSessionViewData(
     }
 
     message.content.forEach((part, partIndex) => {
-      if (!isRecord(part)) return;
+      if (!isJsonRecord(part)) return;
       if (part.type === 'text') {
         const partText = nonEmptyString(part.text);
         if (partText !== null) {
@@ -219,7 +223,7 @@ export function parseSessionViewData(
       if (
         part.type !== 'toolCall' ||
         part.name !== 'ipython' ||
-        !isRecord(part.arguments)
+        !isJsonRecord(part.arguments)
       ) {
         return;
       }
@@ -242,13 +246,13 @@ export function parseSessionViewData(
     });
   });
 
-  const snapshotState = isRecord(value.snapshot.state)
+  const snapshotState = isJsonRecord(value.snapshot.state)
     ? value.snapshot.state
     : null;
   if (
     snapshotState !== null &&
     snapshotState.isStreaming !== undefined &&
-    typeof snapshotState.isStreaming !== 'boolean'
+    !isJsonBoolean(snapshotState.isStreaming)
   ) {
     return failure('protocol_error', 'Prime Agent returned invalid session state.');
   }
@@ -261,7 +265,7 @@ export function parseSessionViewData(
   }
   const spawnedSessions: PrimeAgentSpawnedSession[] = [];
   for (const child of children ?? []) {
-    if (!isRecord(child)) {
+    if (!isJsonRecord(child)) {
       return failure('protocol_error', 'Prime Agent returned invalid spawned sessions.');
     }
     const id = nonEmptyString(child.id);
@@ -286,7 +290,7 @@ export function parseSessionViewData(
       return failure('protocol_error', 'Prime Agent returned invalid spawned sessions.');
     }
     if (name !== null) {
-      const activity = isRecord(child.activity)
+      const activity = isJsonRecord(child.activity)
         ? nonEmptyString(child.activity.toolName) ?? nonEmptyString(child.activity.kind)
         : null;
       spawnedSessions.push({
@@ -317,9 +321,9 @@ export function parseSessionViewData(
   };
 }
 
-function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
+function parseSessionViewDto(value: JsonValue): PrimeAgentSessionView | null {
   if (
-    !isRecord(value) ||
+    !isJsonRecord(value) ||
     !Array.isArray(value.messages) ||
     !Array.isArray(value.spawnedSessions) ||
     !Array.isArray(value.transcript)
@@ -330,8 +334,8 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
   const rlmMaxDepth = value.rlmMaxDepth;
   if (
     activeSessionId === null ||
-    typeof value.isStreaming !== 'boolean' ||
-    typeof rlmMaxDepth !== 'number' ||
+    !isJsonBoolean(value.isStreaming) ||
+    !isJsonNumber(rlmMaxDepth) ||
     !Number.isSafeInteger(rlmMaxDepth) ||
     rlmMaxDepth < 0
   ) {
@@ -340,7 +344,7 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
 
   const messages: PrimeAgentChatMessage[] = [];
   for (const message of value.messages) {
-    if (!isRecord(message)) return null;
+    if (!isJsonRecord(message)) return null;
     const id = nonEmptyString(message.id);
     const text = nonEmptyString(message.text);
     if (
@@ -355,7 +359,7 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
 
   const spawnedSessions: PrimeAgentSpawnedSession[] = [];
   for (const session of value.spawnedSessions) {
-    if (!isRecord(session)) return null;
+    if (!isJsonRecord(session)) return null;
     const activeSessionId =
       session.activeSessionId === null
         ? null
@@ -402,7 +406,7 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
 
   const transcript: PrimeAgentTranscriptItem[] = [];
   for (const item of value.transcript) {
-    if (!isRecord(item)) return null;
+    if (!isJsonRecord(item)) return null;
     const id = nonEmptyString(item.id);
     if (id === null) return null;
     if (item.kind === 'message') {
@@ -433,7 +437,7 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
       (item.stderr !== null && stderr === null) ||
       (item.stdout !== null && stdout === null) ||
       !Array.isArray(item.traceback) ||
-      !item.traceback.every((line) => typeof line === 'string') ||
+      !item.traceback.every(isJsonString) ||
       (item.status !== 'running' &&
         item.status !== 'starting' &&
         item.status !== 'ok' &&
@@ -478,8 +482,8 @@ function failure(
   return { ok: false, error: { code, message } };
 }
 
-function parseFailure(value: unknown): PrimeAgentFailure | null {
-  if (!isRecord(value)) return null;
+function parseFailure(value: JsonValue): PrimeAgentFailure | null {
+  if (!isJsonRecord(value)) return null;
 
   const code = value.code;
   const message = nonEmptyString(value.message);
@@ -500,8 +504,8 @@ function modelKey(provider: string, id: string): string {
   return JSON.stringify([provider, id]);
 }
 
-function parseModel(value: unknown): PrimeAgentModel | null {
-  if (!isRecord(value)) return null;
+function parseModel(value: JsonValue): PrimeAgentModel | null {
+  if (!isJsonRecord(value)) return null;
 
   const id = nonEmptyString(value.id);
   const name = nonEmptyString(value.name);
@@ -511,7 +515,7 @@ function parseModel(value: unknown): PrimeAgentModel | null {
   return { key: modelKey(provider, id), id, name, provider };
 }
 
-function sessionName(value: Record<string, unknown>): string {
+function sessionName(value: JsonRecord): string {
   const explicitName = nonEmptyString(value.sessionName);
   if (explicitName !== null) return explicitName;
 
@@ -525,7 +529,7 @@ function sessionName(value: Record<string, unknown>): string {
   return 'New Agent';
 }
 
-function savedSessionName(value: Record<string, unknown>): string {
+function savedSessionName(value: JsonRecord): string {
   const explicitName = nonEmptyString(value.name);
   if (explicitName !== null) return explicitName;
 
@@ -540,14 +544,14 @@ function savedSessionName(value: Record<string, unknown>): string {
 }
 
 function parseSessionActivity(
-  value: Record<string, unknown>,
+  value: JsonRecord,
 ): PrimeAgentSessionActivity | null {
   const activity = value.activity;
   const sessionActions = value.sessionActions;
   if (
     (activity !== 'working' && activity !== 'idle') ||
-    !isRecord(sessionActions) ||
-    typeof sessionActions.queuedCount !== 'number' ||
+    !isJsonRecord(sessionActions) ||
+    !isJsonNumber(sessionActions.queuedCount) ||
     !Number.isSafeInteger(sessionActions.queuedCount) ||
     sessionActions.queuedCount < 0 ||
     (value.taskState !== undefined &&
@@ -563,8 +567,8 @@ function parseSessionActivity(
   return value.taskState === 'completed' ? 'settled' : 'idle';
 }
 
-function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
-  if (!isRecord(value)) return null;
+function parseSavedSession(value: JsonValue): PrimeAgentSavedSession | null {
+  if (!isJsonRecord(value)) return null;
 
   const path = nonEmptyString(value.path);
   const cwd = nonEmptyString(value.cwd);
@@ -576,7 +580,7 @@ function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
     cwd === null ||
     modifiedAt === null ||
     !Number.isFinite(Date.parse(modifiedAt)) ||
-    typeof messageCount !== 'number' ||
+    !isJsonNumber(messageCount) ||
     !Number.isSafeInteger(messageCount) ||
     messageCount < 0 ||
     (taskState !== undefined &&
@@ -602,10 +606,10 @@ function parseSavedSession(value: unknown): PrimeAgentSavedSession | null {
 }
 
 function parseSession(
-  value: unknown,
+  value: JsonValue,
   requireAttachedClient: boolean,
 ): PrimeAgentSession | null {
-  if (!isRecord(value)) return null;
+  if (!isJsonRecord(value)) return null;
 
   const activeSessionId = nonEmptyString(value.activeSessionId);
   const cwd = nonEmptyString(value.cwd);
@@ -616,7 +620,7 @@ function parseSession(
     cwd === null ||
     activity === null ||
     value.runtimeKind === 'subagent' ||
-    typeof attachedClients !== 'number' ||
+    !isJsonNumber(attachedClients) ||
     (requireAttachedClient && attachedClients < 1)
   ) {
     return null;
@@ -636,8 +640,8 @@ function parseSession(
   };
 }
 
-function parseSessionDto(value: unknown): PrimeAgentSession | null {
-  if (!isRecord(value)) return null;
+function parseSessionDto(value: JsonValue): PrimeAgentSession | null {
+  if (!isJsonRecord(value)) return null;
 
   const activeSessionId = nonEmptyString(value.activeSessionId);
   const activity = value.activity;
@@ -677,8 +681,8 @@ function parseSessionDto(value: unknown): PrimeAgentSession | null {
   };
 }
 
-function parseSavedSessionDto(value: unknown): PrimeAgentSavedSession | null {
-  if (!isRecord(value)) return null;
+function parseSavedSessionDto(value: JsonValue): PrimeAgentSavedSession | null {
+  if (!isJsonRecord(value)) return null;
 
   const path = nonEmptyString(value.path);
   const cwd = nonEmptyString(value.cwd);
@@ -692,7 +696,7 @@ function parseSavedSessionDto(value: unknown): PrimeAgentSavedSession | null {
     name === null ||
     modifiedAt === null ||
     !Number.isFinite(Date.parse(modifiedAt)) ||
-    typeof messageCount !== 'number' ||
+    !isJsonNumber(messageCount) ||
     !Number.isSafeInteger(messageCount) ||
     messageCount < 0 ||
     (activity !== 'needs_input' &&
@@ -706,7 +710,7 @@ function parseSavedSessionDto(value: unknown): PrimeAgentSavedSession | null {
 }
 
 function parseSavedSessions(
-  value: unknown,
+  value: JsonValue,
 ): readonly PrimeAgentSavedSession[] | null {
   if (!Array.isArray(value)) return null;
 
@@ -718,7 +722,7 @@ function parseSavedSessions(
       );
 }
 
-function parseModels(value: unknown): readonly PrimeAgentModel[] | null {
+function parseModels(value: JsonValue): readonly PrimeAgentModel[] | null {
   if (!Array.isArray(value)) return null;
 
   const models: PrimeAgentModel[] = [];
@@ -732,9 +736,9 @@ function parseModels(value: unknown): readonly PrimeAgentModel[] | null {
 
 /** Parse the session list returned by the Prime Agent daemon. */
 export function parseSessionListData(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentSession[]> {
-  if (!isRecord(value) || !Array.isArray(value.sessions)) {
+  if (!isJsonRecord(value) || !Array.isArray(value.sessions)) {
     return failure('protocol_error', 'Prime Agent returned an invalid session list.');
   }
 
@@ -750,9 +754,9 @@ export function parseSessionListData(
 
 /** Parse durable top-level sessions returned by the Prime Agent daemon. */
 export function parseSavedSessionListData(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentSavedSession[]> {
-  if (!isRecord(value) || !Array.isArray(value.sessions)) {
+  if (!isJsonRecord(value) || !Array.isArray(value.sessions)) {
     return failure(
       'protocol_error',
       'Prime Agent returned an invalid saved session list.',
@@ -762,9 +766,9 @@ export function parseSavedSessionListData(
   const sessions: PrimeAgentSavedSession[] = [];
   for (const candidate of value.sessions) {
     if (
-      isRecord(candidate) &&
+      isJsonRecord(candidate) &&
       (candidate.parentSessionPath !== undefined ||
-        (typeof candidate.rlmDepth === 'number' && candidate.rlmDepth > 0))
+        (isJsonNumber(candidate.rlmDepth) && candidate.rlmDepth > 0))
     ) {
       continue;
     }
@@ -789,7 +793,7 @@ export function parseSavedSessionListData(
 
 /** Parse one newly created Prime Agent session. */
 export function parseCreatedSessionData(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSession> {
   const session = parseSession(value, false);
   return session === null
@@ -797,30 +801,43 @@ export function parseCreatedSessionData(
     : { ok: true, value: session };
 }
 
-/** Parse the skill commands available to one active Prime Agent session. */
-export function parseSkillCatalogData(
-  value: unknown,
-): PrimeAgentResult<readonly PrimeAgentSkill[]> {
-  if (!isRecord(value) || !Array.isArray(value.commands)) {
+/** One trusted skill-file reference parsed from a Prime Agent resource snapshot. */
+export interface PrimeAgentSkillResource {
+  readonly description: string | null;
+  readonly filePath: string;
+  readonly name: string;
+}
+
+/** Parse the skill files available to one active Prime Agent session. */
+export function parseSkillResourceCatalogData(
+  value: JsonValue,
+): PrimeAgentResult<readonly PrimeAgentSkillResource[]> {
+  if (!isJsonRecord(value) || !Array.isArray(value.skills)) {
     return failure(
       'protocol_error',
       'Prime Agent returned an invalid skill catalog.',
     );
   }
 
-  const skills: PrimeAgentSkill[] = [];
-  for (const candidate of value.commands) {
-    if (!isRecord(candidate) || candidate.source !== 'skill') continue;
+  const skills: PrimeAgentSkillResource[] = [];
+  for (const candidate of value.skills) {
+    if (!isJsonRecord(candidate)) {
+      return failure(
+        'protocol_error',
+        'Prime Agent returned invalid skill data.',
+      );
+    }
 
-    const commandName = nonEmptyString(candidate.name);
+    const name = nonEmptyString(candidate.name);
+    const filePath = nonEmptyString(candidate.filePath);
     const description =
       candidate.description === undefined
         ? null
         : nonEmptyString(candidate.description);
     if (
-      commandName === null ||
-      !commandName.startsWith('skill:') ||
-      commandName.length === 'skill:'.length ||
+      name === null ||
+      filePath === null ||
+      /\s/u.test(name) ||
       (candidate.description !== undefined && description === null)
     ) {
       return failure(
@@ -829,8 +846,7 @@ export function parseSkillCatalogData(
       );
     }
 
-    const name = commandName.slice('skill:'.length);
-    skills.push({ command: `/${commandName}`, description, name });
+    skills.push({ description, filePath, name });
   }
 
   return {
@@ -841,9 +857,9 @@ export function parseSkillCatalogData(
 
 /** Parse the configured model catalog returned by the Prime Agent daemon. */
 export function parseModelCatalogData(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
-  if (!isRecord(value) || !Array.isArray(value.configuredProviders)) {
+  if (!isJsonRecord(value) || !Array.isArray(value.configuredProviders)) {
     return failure('protocol_error', 'Prime Agent returned an invalid model catalog.');
   }
 
@@ -868,7 +884,7 @@ export function parseModelCatalogData(
 
 /** Parse one model returned after a Prime Agent model change. */
 export function parseModelData(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentModel> {
   const model = parseModel(value);
   return model === null
@@ -878,9 +894,9 @@ export function parseModelData(
 
 /** Parse a model selection received from the isolated renderer. */
 export function parseModelSelection(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentModelSelection> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The model selection is invalid.');
   }
 
@@ -896,7 +912,7 @@ export function parseModelSelection(
 
 /** Parse a session identifier received from the isolated renderer. */
 export function parseActiveSessionId(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<string> {
   const activeSessionId = nonEmptyString(value);
   return activeSessionId === null
@@ -905,7 +921,7 @@ export function parseActiveSessionId(
 }
 
 /** Parse a saved session path received from the isolated renderer. */
-export function parseSavedSessionPath(value: unknown): PrimeAgentResult<string> {
+export function parseSavedSessionPath(value: JsonValue): PrimeAgentResult<string> {
   const sessionPath = nonEmptyString(value);
   return sessionPath === null
     ? failure('invalid_request', 'The saved session path is invalid.')
@@ -914,9 +930,9 @@ export function parseSavedSessionPath(value: unknown): PrimeAgentResult<string> 
 
 /** Parse a session rename received from the isolated renderer. */
 export function parseSessionRename(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionRename> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The Agent rename is invalid.');
   }
 
@@ -947,16 +963,16 @@ export function parseSessionRename(
 
 /** Parse RLM maximum-depth state returned by the Prime Agent daemon. */
 export function parseRlmDepthData(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentRlmDepth> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('protocol_error', 'Prime Agent returned invalid RLM depth data.');
   }
 
   const maxDepth = value.maxDepth;
   const source = value.source;
   if (
-    typeof maxDepth !== 'number' ||
+    !isJsonNumber(maxDepth) ||
     !Number.isSafeInteger(maxDepth) ||
     maxDepth < 0 ||
     (source !== 'default' &&
@@ -973,9 +989,9 @@ export function parseRlmDepthData(
 
 /** Parse an RLM maximum-depth selection from the isolated renderer. */
 export function parseRlmDepthSelection(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentRlmDepthSelection> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The RLM depth selection is invalid.');
   }
 
@@ -983,7 +999,7 @@ export function parseRlmDepthSelection(
   const maxDepth = value.maxDepth;
   if (
     activeSessionId === null ||
-    typeof maxDepth !== 'number' ||
+    !isJsonNumber(maxDepth) ||
     !Number.isSafeInteger(maxDepth) ||
     maxDepth < 0
   ) {
@@ -994,10 +1010,10 @@ export function parseRlmDepthSelection(
 }
 
 function parseResult<T>(
-  value: unknown,
-  parseValue: (input: unknown) => T | null,
+  value: JsonValue,
+  parseValue: (input: JsonValue) => T | null,
 ): PrimeAgentResult<T> {
-  if (!isRecord(value) || typeof value.ok !== 'boolean') {
+  if (!isJsonRecord(value) || !isJsonBoolean(value.ok)) {
     return failure('protocol_error', 'Ernie received an invalid daemon response.');
   }
 
@@ -1014,8 +1030,8 @@ function parseResult<T>(
     : { ok: true, value: parsedValue };
 }
 
-function parseWorkspace(value: unknown): PrimeAgentWorkspace | null {
-  if (!isRecord(value)) return null;
+function parseWorkspace(value: JsonValue): PrimeAgentWorkspace | null {
+  if (!isJsonRecord(value)) return null;
   const currentCwd = nonEmptyString(value.currentCwd);
   if (currentCwd === null || !Array.isArray(value.sessions)) return null;
 
@@ -1030,8 +1046,8 @@ function parseWorkspace(value: unknown): PrimeAgentWorkspace | null {
   };
 }
 
-function parseGitBranches(value: unknown): PrimeAgentGitBranches | null {
-  if (!isRecord(value)) return null;
+function parseGitBranches(value: JsonValue): PrimeAgentGitBranches | null {
+  if (!isJsonRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
   const current = value.current === null ? null : nonEmptyString(value.current);
@@ -1061,16 +1077,16 @@ function parseGitBranches(value: unknown): PrimeAgentGitBranches | null {
   };
 }
 
-function parseGitWorktree(value: unknown): PrimeAgentGitWorktree | null {
-  if (!isRecord(value)) return null;
+function parseGitWorktree(value: JsonValue): PrimeAgentGitWorktree | null {
+  if (!isJsonRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
   const branchName = nonEmptyString(value.branchName);
   return cwd === null || branchName === null ? null : { cwd, branchName };
 }
 
-function parseGitWorkspace(value: unknown): PrimeAgentGitWorkspace | null {
-  if (!isRecord(value)) return null;
+function parseGitWorkspace(value: JsonValue): PrimeAgentGitWorkspace | null {
+  if (!isJsonRecord(value)) return null;
 
   const cwd = nonEmptyString(value.cwd);
   const repositoryCwd = nonEmptyString(value.repositoryCwd);
@@ -1086,37 +1102,39 @@ function parseGitWorkspace(value: unknown): PrimeAgentGitWorkspace | null {
   return { cwd, repositoryCwd, branchName };
 }
 
-function parseTaskReceipt(value: unknown): PrimeAgentTaskReceipt | null {
-  return isRecord(value) && value.accepted === true ? { accepted: true } : null;
+function parseTaskReceipt(value: JsonValue): PrimeAgentTaskReceipt | null {
+  return isJsonRecord(value) && value.accepted === true ? { accepted: true } : null;
 }
 
 function parseRefinementReceipt(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentRefinementReceipt | null {
-  return isRecord(value) && value.refined === true ? { refined: true } : null;
+  return isJsonRecord(value) && value.refined === true ? { refined: true } : null;
 }
 
 function parseSessionRenameReceipt(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentSessionRenameReceipt | null {
-  if (!isRecord(value)) return null;
+  if (!isJsonRecord(value)) return null;
   const name = nonEmptyString(value.name);
   return name === null ? null : { name };
 }
 
-function parseSessionResultValue(value: unknown): PrimeAgentSession | null {
+function parseSessionResultValue(value: JsonValue): PrimeAgentSession | null {
   return parseSessionDto(value);
 }
 
-function parseSkill(value: unknown): PrimeAgentSkill | null {
-  if (!isRecord(value)) return null;
+function parseSkill(value: JsonValue): PrimeAgentSkill | null {
+  if (!isJsonRecord(value)) return null;
 
   const command = nonEmptyString(value.command);
+  const content = isJsonString(value.content) ? value.content : null;
   const name = nonEmptyString(value.name);
   const description =
     value.description === null ? null : nonEmptyString(value.description);
   if (
     command === null ||
+    content === null ||
     name === null ||
     !command.startsWith('/skill:') ||
     command.slice('/skill:'.length) !== name ||
@@ -1125,10 +1143,10 @@ function parseSkill(value: unknown): PrimeAgentSkill | null {
     return null;
   }
 
-  return { command, description, name };
+  return { command, content, description, name };
 }
 
-function parseSkills(value: unknown): readonly PrimeAgentSkill[] | null {
+function parseSkills(value: JsonValue): readonly PrimeAgentSkill[] | null {
   if (!Array.isArray(value)) return null;
 
   const skills: PrimeAgentSkill[] = [];
@@ -1141,7 +1159,7 @@ function parseSkills(value: unknown): readonly PrimeAgentSkill[] | null {
 }
 
 /** Parse a workspace path received from the isolated renderer. */
-export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
+export function parseWorkspaceCwd(value: JsonValue): PrimeAgentResult<string> {
   const cwd = nonEmptyString(value);
   return cwd === null
     ? failure('invalid_request', 'The workspace path is invalid.')
@@ -1150,9 +1168,9 @@ export function parseWorkspaceCwd(value: unknown): PrimeAgentResult<string> {
 
 /** Parse new-session configuration from the isolated renderer. */
 export function parseSessionCreation(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionCreation> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure(
       'invalid_request',
       'The Agent session configuration is invalid.',
@@ -1163,7 +1181,7 @@ export function parseSessionCreation(
   const rlmMaxDepth = value.rlmMaxDepth;
   if (
     cwd === null ||
-    typeof rlmMaxDepth !== 'number' ||
+    !isJsonNumber(rlmMaxDepth) ||
     !Number.isSafeInteger(rlmMaxDepth) ||
     rlmMaxDepth < 0
   ) {
@@ -1178,65 +1196,65 @@ export function parseSessionCreation(
 
 /** Parse a workspace result after it crosses the Electron IPC boundary. */
 export function parseWorkspaceResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentWorkspace> {
   return parseResult(value, parseWorkspace);
 }
 
 /** Parse a newly created Agent session after it crosses the Electron IPC boundary. */
 export function parseSessionResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSession> {
   return parseResult(value, parseSessionResultValue);
 }
 
 /** Parse a focused chat snapshot after it crosses the Electron IPC boundary. */
 export function parseSessionViewResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionView> {
   return parseResult(value, parseSessionViewDto);
 }
 
 /** Parse saved sessions after they cross the Electron IPC boundary. */
 export function parseSavedSessionsResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentSavedSession[]> {
   return parseResult(value, parseSavedSessions);
 }
 
 /** Parse an Agent skill catalog after it crosses the Electron IPC boundary. */
 export function parseSkillsResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentSkill[]> {
   return parseResult(value, parseSkills);
 }
 
 /** Parse local Git branches after they cross the Electron IPC boundary. */
 export function parseGitBranchesResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitBranches> {
   return parseResult(value, parseGitBranches);
 }
 
 /** Parse a created Git worktree after it crosses the Electron IPC boundary. */
 export function parseGitWorktreeResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitWorktree> {
   return parseResult(value, parseGitWorktree);
 }
 
 /** Parse Git repository identity after it crosses the Electron IPC boundary. */
 export function parseGitWorkspaceResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitWorkspace> {
   return parseResult(value, parseGitWorkspace);
 }
 
 /** Parse a local Git branch change from the isolated renderer. */
 export function parseGitBranchSelection(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitBranchSelection> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The Git branch selection is invalid.');
   }
 
@@ -1249,9 +1267,9 @@ export function parseGitBranchSelection(
 
 /** Parse a local Git branch rename from the isolated renderer. */
 export function parseGitBranchRename(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitBranchRename> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The Git branch rename is invalid.');
   }
 
@@ -1265,9 +1283,9 @@ export function parseGitBranchRename(
 
 /** Parse a Git worktree creation request from the isolated renderer. */
 export function parseGitWorktreeCreation(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitWorktreeCreation> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The Git worktree request is invalid.');
   }
 
@@ -1280,9 +1298,9 @@ export function parseGitWorktreeCreation(
 
 /** Parse a task submission received from the isolated renderer. */
 export function parseTaskSubmission(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentTaskSubmission> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The task submission is invalid.');
   }
 
@@ -1295,9 +1313,9 @@ export function parseTaskSubmission(
 
 /** Parse a continual-harness refinement from the isolated renderer. */
 export function parseRefinementRequest(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentRefinementRequest> {
-  if (!isRecord(value)) {
+  if (!isJsonRecord(value)) {
     return failure('invalid_request', 'The refinement request is invalid.');
   }
 
@@ -1316,47 +1334,47 @@ export function parseRefinementRequest(
 
 /** Parse a task receipt after it crosses the Electron IPC boundary. */
 export function parseTaskReceiptResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentTaskReceipt> {
   return parseResult(value, parseTaskReceipt);
 }
 
 /** Parse a refinement receipt after it crosses the Electron IPC boundary. */
 export function parseRefinementReceiptResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentRefinementReceipt> {
   return parseResult(value, parseRefinementReceipt);
 }
 
 /** Parse a session-rename receipt after it crosses Electron IPC. */
 export function parseSessionRenameResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionRenameReceipt> {
   return parseResult(value, parseSessionRenameReceipt);
 }
 
 /** Parse a model-list result after it crosses the Electron IPC boundary. */
 export function parseModelsResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
   return parseResult(value, parseModels);
 }
 
 /** Parse a model-change result after it crosses the Electron IPC boundary. */
 export function parseModelResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentModel> {
   return parseResult(value, parseModel);
 }
 
-function parseRlmDepth(value: unknown): PrimeAgentRlmDepth | null {
+function parseRlmDepth(value: JsonValue): PrimeAgentRlmDepth | null {
   const result = parseRlmDepthData(value);
   return result.ok ? result.value : null;
 }
 
 /** Parse an RLM-depth result after it crosses the Electron IPC boundary. */
 export function parseRlmDepthResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentRlmDepth> {
   return parseResult(value, parseRlmDepth);
 }

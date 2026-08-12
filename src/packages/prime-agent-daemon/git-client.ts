@@ -3,6 +3,7 @@ import {
   parseGitWorkspaceResult,
   parseGitWorktreeResult,
 } from './lib/protocol';
+import type { JsonValue } from '../json-value';
 
 import type {
   PrimeAgentGitBranches,
@@ -30,7 +31,7 @@ function compareGitBranches(left: string, right: string): number {
 
 /** Parse local Git branches received from Electron's main process. */
 export function parsePrimeAgentGitBranchesResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitBranches> {
   const result = parseGitBranchesResult(value);
   return result.ok
@@ -46,14 +47,14 @@ export function parsePrimeAgentGitBranchesResult(
 
 /** Parse a local Git worktree received from Electron's main process. */
 export function parsePrimeAgentGitWorktreeResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitWorktree> {
   return parseGitWorktreeResult(value);
 }
 
 /** Parse Git repository identity received from Electron's main process. */
 export function parsePrimeAgentGitWorkspaceResult(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentGitWorkspace> {
   return parseGitWorkspaceResult(value);
 }

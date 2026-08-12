@@ -1,4 +1,5 @@
 export { createPrimeAgentDaemon } from './lib/daemon';
+import type { JsonValue } from '../json-value';
 import {
   parseCreatedSessionData,
   parseModelCatalogData,
@@ -6,7 +7,8 @@ import {
   parseSavedSessionListData,
   parseSessionListData,
   parseSessionViewData,
-  parseSkillCatalogData,
+  parseSkillResourceCatalogData,
+  type PrimeAgentSkillResource,
 } from './lib/protocol';
 
 import type {
@@ -17,57 +19,56 @@ import type {
   PrimeAgentSavedSession,
   PrimeAgentSession,
   PrimeAgentSessionView,
-  PrimeAgentSkill,
 } from './types';
 
 export type { PrimeAgentDaemon };
 
 /** Parse a raw session-list payload from the Prime Agent daemon. */
 export function parsePrimeAgentDaemonSessions(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentSession[]> {
   return parseSessionListData(value);
 }
 
 /** Parse a raw Agent session returned by the Prime Agent daemon. */
 export function parsePrimeAgentDaemonCreatedSession(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSession> {
   return parseCreatedSessionData(value);
 }
 
 /** Parse a raw focused-session snapshot from the Prime Agent daemon. */
 export function parsePrimeAgentDaemonSessionView(
-  value: unknown,
-  rlmDepthValue: unknown,
+  value: JsonValue,
+  rlmDepthValue: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionView> {
   return parseSessionViewData(value, rlmDepthValue);
 }
 
 /** Parse durable sessions returned by the Prime Agent daemon. */
 export function parsePrimeAgentDaemonSavedSessions(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentSavedSession[]> {
   return parseSavedSessionListData(value);
 }
 
-/** Parse raw skill commands returned by the Prime Agent daemon. */
-export function parsePrimeAgentDaemonSkills(
-  value: unknown,
-): PrimeAgentResult<readonly PrimeAgentSkill[]> {
-  return parseSkillCatalogData(value);
+/** Parse raw skill resources returned by the Prime Agent daemon. */
+export function parsePrimeAgentDaemonSkillResources(
+  value: JsonValue,
+): PrimeAgentResult<readonly PrimeAgentSkillResource[]> {
+  return parseSkillResourceCatalogData(value);
 }
 
 /** Parse a raw model-catalog payload from the Prime Agent daemon. */
 export function parsePrimeAgentDaemonModels(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
   return parseModelCatalogData(value);
 }
 
 /** Parse a refinement request received at Ernie's daemon boundary. */
 export function parsePrimeAgentDaemonRefinementRequest(
-  value: unknown,
+  value: JsonValue,
 ): PrimeAgentResult<PrimeAgentRefinementRequest> {
   return parseRefinementRequest(value);
 }

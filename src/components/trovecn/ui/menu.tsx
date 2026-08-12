@@ -19,6 +19,7 @@ import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 import { useProximityHover, proximityHoverWashClassName } from "@/components/trovecn/hooks/use-proximity-hover";
 
 // ─── Proximity hover ─────────────────────────────────────────────────────────
@@ -160,12 +161,12 @@ function MenuContent({
         <MenuPrimitive.Popup
           ref={containerRef}
           data-slot="menu-content"
+          {...props}
           render={(popupProps, state) => {
             const exiting = state.transitionStatus === "ending";
             return (
               <motion.div
-                {...(popupProps as Record<string, unknown>)}
-                {...(props as Record<string, unknown>)}
+                {...motionSafeProps<HTMLDivElement>(popupProps)}
                 onMouseMove={handlers.onMouseMove}
                 onMouseEnter={handlers.onMouseEnter}
                 onMouseLeave={handlers.onMouseLeave}
@@ -375,7 +376,7 @@ function MenuCheckboxItem({
             const visible = state.checked && state.transitionStatus !== "ending";
             return (
               <motion.span
-                {...(indicatorProps as Record<string, unknown>)}
+                {...motionSafeProps<HTMLSpanElement>(indicatorProps)}
                 initial={false}
                 animate={{ opacity: visible ? 1 : 0, scale: visible ? 1 : 0.5 }}
                 transition={visible ? spring.fast.enter : spring.fast.exit}
@@ -432,7 +433,7 @@ function MenuRadioItem({
             const visible = state.checked && state.transitionStatus !== "ending";
             return (
               <motion.span
-                {...(indicatorProps as Record<string, unknown>)}
+                {...motionSafeProps<HTMLSpanElement>(indicatorProps)}
                 initial={false}
                 animate={{ opacity: visible ? 1 : 0, scale: visible ? 1 : 0.5 }}
                 transition={visible ? spring.fast.enter : spring.fast.exit}

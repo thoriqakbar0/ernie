@@ -3,6 +3,7 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { useState } from 'react';
+import { Predicate } from 'effect';
 
 import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -20,14 +21,14 @@ Object.defineProperty(Element.prototype, 'animate', {
     _keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
     options?: number | KeyframeAnimationOptions,
   ) => {
-    if (typeof options === 'object' && typeof options.easing === 'string') {
+    if (Predicate.isRecord(options) && Predicate.isString(options.easing)) {
       assert.equal(options.easing.includes('NaN'), false);
     }
     const animation = { cancel: () => undefined };
 
     Object.defineProperty(animation, 'onfinish', {
-      set: (finish: unknown) => {
-        if (typeof finish === 'function') queueMicrotask(() => finish());
+      set: (finish: (() => void) | null) => {
+        if (finish !== null) queueMicrotask(finish);
       },
     });
 

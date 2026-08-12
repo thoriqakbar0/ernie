@@ -22,7 +22,9 @@ const ROWS = [
   { id: "Mint Chip", dept: "Classic", email: "maple-orbit", removed: false },
 ];
 
-const DOT: Record<string, string> = {
+interface DepartmentToneCatalog extends Readonly<Record<string, string>> {}
+
+const DOT: DepartmentToneCatalog = {
   Classic: "bg-accent",
   Retro: "bg-ink-3",
   Seasonal: "bg-orange",

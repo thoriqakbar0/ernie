@@ -16,6 +16,7 @@ import { CheckIcon, ChevronDownIcon, SearchIcon, XIcon } from "lucide-react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 import {
   useProximityHover,
   proximityHoverWashClassName,
@@ -135,12 +136,12 @@ function ComboboxPopup({ className, children, ...props }: ComboboxPrimitive.Popu
   return (
     <ComboboxPrimitive.Popup
       data-slot="combobox-content"
+      {...props}
       render={(popupProps, state) => {
         const exiting = state.transitionStatus === "ending";
         return (
           <motion.div
-            {...(popupProps as Record<string, unknown>)}
-            {...(props as Record<string, unknown>)}
+            {...motionSafeProps<HTMLDivElement>(popupProps)}
             className={cn(
               "z-50 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-popover outline-none",
               className,
@@ -212,10 +213,10 @@ function ComboboxList({ className, children, ...props }: ComboboxPrimitive.List.
     <ComboboxPrimitive.List
       ref={containerRef}
       data-slot="combobox-list"
+      {...props}
       render={(listProps) => (
         <div
-          {...(listProps as Record<string, unknown>)}
-          {...(props as Record<string, unknown>)}
+          {...listProps}
           onMouseMove={handlers.onMouseMove}
           onMouseEnter={handlers.onMouseEnter}
           onMouseLeave={handlers.onMouseLeave}
@@ -320,10 +321,7 @@ function ComboboxItem({
       render={
         render ??
         ((itemProps) => {
-          // SAFETY: Base UI supplies standard div props here. Motion accepts
-          // them at runtime, but its animation callbacks share DOM prop names
-          // with incompatible TypeScript signatures.
-          const motionItemProps = itemProps as unknown as React.ComponentProps<typeof motion.div>;
+          const motionItemProps = motionSafeProps<HTMLDivElement>(itemProps);
           return (
             <motion.div
               {...motionItemProps}
@@ -350,7 +348,7 @@ function ComboboxItem({
             const visible = state.selected && state.transitionStatus !== "ending";
             return (
               <motion.span
-                {...(indicatorProps as Record<string, unknown>)}
+                {...motionSafeProps<HTMLSpanElement>(indicatorProps)}
                 initial={false}
                 animate={{ opacity: visible ? 1 : 0, scale: visible ? 1 : 0.5 }}
                 transition={visible ? spring.fast.enter : spring.fast.exit}

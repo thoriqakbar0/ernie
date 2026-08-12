@@ -7,6 +7,11 @@ import {
   storeColorTheme,
   type ColorTheme,
 } from '@/color-theme';
+import {
+  isJsonNumber,
+  isJsonRecord,
+  parseJsonValue,
+} from '@/packages/json-value';
 
 interface RendererAppProps {
   readonly initialColorTheme: ColorTheme;
@@ -41,16 +46,15 @@ export function repairUnsafeAgentationPosition(): void {
   if (window.innerWidth < desktopSidebarBreakpoint) return;
 
   try {
-    const rawPosition: unknown = JSON.parse(
-      window.localStorage.getItem(agentationPositionStorageKey) ?? 'null',
+    const rawPosition = parseJsonValue(
+      JSON.parse(window.localStorage.getItem(agentationPositionStorageKey) ?? 'null'),
     );
     if (
-      typeof rawPosition !== 'object' ||
-      rawPosition === null ||
+      !isJsonRecord(rawPosition) ||
       !('x' in rawPosition) ||
       !('y' in rawPosition) ||
-      typeof rawPosition.x !== 'number' ||
-      typeof rawPosition.y !== 'number'
+      !isJsonNumber(rawPosition.x) ||
+      !isJsonNumber(rawPosition.y)
     ) {
       storeSafeAgentationPosition();
       return;

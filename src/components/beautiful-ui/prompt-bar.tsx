@@ -20,7 +20,9 @@ function Icon({ children, size = 15, strokeWidth = 1.8 }: { children: React.Reac
   );
 }
 
-const GLYPHS: Record<string, React.ReactNode> = {
+interface PromptArtworkCatalog extends Readonly<Record<string, React.ReactNode>> {}
+
+const GLYPHS: PromptArtworkCatalog = {
   clip: <path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
   chart: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   layers: <g><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></g>,
@@ -28,7 +30,7 @@ const GLYPHS: Record<string, React.ReactNode> = {
 };
 
 /* real product marks, inline so the file stays self-contained */
-const BRANDS: Record<string, React.ReactNode> = {
+const BRANDS: PromptArtworkCatalog = {
   figma: (
     <svg width="11" height="16" viewBox="0 0 38 57" aria-hidden="true">
       <path d="M9.5 57A9.5 9.5 0 0 0 19 47.5V38H9.5a9.5 9.5 0 0 0 0 19z" fill="#0ACF83" />

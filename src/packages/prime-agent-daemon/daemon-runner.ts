@@ -1,16 +1,18 @@
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
 
-function errorMetadata(error: unknown): Readonly<{
-  name: string;
-  code: string | number | null;
-}> {
-  if (!(error instanceof Error)) return { name: 'NonError', code: null };
+interface ErrorMetadata {
+  readonly name: string;
+  readonly code: string | number | null;
+}
+
+function errorMetadata(cause: unknown): ErrorMetadata {
+  if (!Predicate.isError(cause)) return { name: 'NonError', code: null };
   const code =
-    'code' in error &&
-    (typeof error.code === 'string' || typeof error.code === 'number')
-      ? error.code
+    'code' in cause &&
+    (Predicate.isString(cause.code) || Predicate.isNumber(cause.code))
+      ? cause.code
       : null;
-  return { name: error.name, code };
+  return { name: cause.name, code };
 }
 
 Effect.runFork(

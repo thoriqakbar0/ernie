@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
@@ -43,6 +44,7 @@ function PopoverContent({
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
+          {...props}
           render={(popupProps, state) => {
             const exiting = state.transitionStatus === "ending";
             const triggerOffset = reduceMotion
@@ -53,8 +55,7 @@ function PopoverContent({
                 };
             return (
               <motion.div
-                {...(popupProps as Record<string, unknown>)}
-                {...(props as Record<string, unknown>)}
+                {...motionSafeProps<HTMLDivElement>(popupProps)}
                 className={cn(
                   "w-72 rounded-lg bg-popover p-3 text-body text-popover-foreground shadow-popover outline-none",
                   className,

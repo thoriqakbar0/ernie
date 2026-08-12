@@ -14,6 +14,7 @@ import { motion, useDragControls, type PanInfo } from "motion/react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 
 type Side = "top" | "right" | "bottom" | "left";
 
@@ -58,7 +59,7 @@ function DrawerOverlay({ className, ...props }: DrawerPrimitive.Backdrop.Props) 
         const exiting = state.transitionStatus === "ending";
         return (
           <motion.div
-            {...(backdropProps as Record<string, unknown>)}
+            {...motionSafeProps<HTMLDivElement>(backdropProps)}
             className={cn("fixed inset-0 z-50 bg-black/30 backdrop-blur-none", className)}
             initial={{ opacity: 0 }}
             animate={{ opacity: exiting ? 0 : 1 }}
@@ -125,12 +126,12 @@ function DrawerContent({
         ref={panelRef}
         data-slot="drawer-content"
         data-side={side}
+        {...props}
         render={(popupProps, state) => {
           const exiting = state.transitionStatus === "ending";
           return (
             <motion.div
-              {...(popupProps as Record<string, unknown>)}
-              {...(props as Record<string, unknown>)}
+              {...motionSafeProps<HTMLDivElement>(popupProps)}
               className={cn(
                 "fixed z-50 flex flex-col overflow-hidden bg-background shadow-panel outline-none",
                 side === "left" && "inset-y-0 left-0 w-64 max-w-[85vw] rounded-r-xl",

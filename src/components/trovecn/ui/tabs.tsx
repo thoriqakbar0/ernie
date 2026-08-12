@@ -19,6 +19,7 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
 import { fontWeights } from "@/components/trovecn/lib/font-weight";
+import { motionSafeProps } from "@/components/trovecn/lib/motion-safe-props";
 import {
   useProximityHover,
   proximityHoverWashClassName,
@@ -36,6 +37,19 @@ interface TabsValueOrderContextValue {
   valueOrder: string[];
   setValueOrder: (order: string[]) => void;
   selectedValue: string | undefined;
+}
+
+type TabsChangeDetails = Parameters<
+  NonNullable<TabsPrimitive.Root.Props["onValueChange"]>
+>[1];
+
+interface TabsProps extends Omit<
+  TabsPrimitive.Root.Props,
+  "defaultValue" | "onValueChange" | "value"
+> {
+  readonly defaultValue?: string | null;
+  readonly onValueChange?: (value: string, details: TabsChangeDetails) => void;
+  readonly value?: string | null;
 }
 
 const TabsValueOrderContext = createContext<TabsValueOrderContextValue | null>(null);
@@ -65,9 +79,9 @@ function Tabs({
   children,
   className,
   ...props
-}: TabsPrimitive.Root.Props) {
+}: TabsProps) {
   const [valueOrder, setValueOrder] = useState<string[]>([]);
-  const [uncontrolledValue, setUncontrolledValue] = useState<unknown>(defaultValue);
+  const [uncontrolledValue, setUncontrolledValue] = useState<string | null | undefined>(defaultValue);
 
   const updateValueOrder = useCallback((order: string[]) => {
     setValueOrder((current) =>
@@ -79,9 +93,9 @@ function Tabs({
 
   // Base UI passes (value, eventDetails) — only the value matters here.
   const handleValueChange = useCallback(
-    (newValue: unknown, eventDetails: unknown) => {
+    (newValue: string, eventDetails: TabsChangeDetails) => {
       if (value === undefined) setUncontrolledValue(newValue);
-      (onValueChange as ((v: unknown, e: unknown) => void) | undefined)?.(newValue, eventDetails);
+      onValueChange?.(newValue, eventDetails);
     },
     [onValueChange, value],
   );
@@ -91,7 +105,7 @@ function Tabs({
       value={{
         valueOrder,
         setValueOrder: updateValueOrder,
-        selectedValue: resolvedValue as string | undefined,
+        selectedValue: resolvedValue ?? undefined,
       }}
     >
       {/*
@@ -140,7 +154,7 @@ function TabsList({ children, className, ...props }: TabsPrimitive.List.Props) {
   const values = Children.toArray(children)
     .filter(isValidElement)
     .map((child) => (child.props as { value?: string }).value)
-    .filter((v): v is string => typeof v === "string");
+    .filter((value): value is string => value !== undefined);
   const valueOrderKey = values.join(",");
   const setValueOrder = valueOrderCtx?.setValueOrder;
 
@@ -365,7 +379,7 @@ function TabsContent({ className, render: _render, ...props }: TabsPrimitive.Pan
 
         return (
           <motion.div
-            {...(panelProps as Record<string, unknown>)}
+            {...motionSafeProps<HTMLDivElement>(panelProps)}
             data-slot="tabs-content"
             // min-w-0: grid items default to min-width:auto, so an unbreakable
             // child (the code block's <pre>, which never wraps) pushes the

@@ -77,6 +77,16 @@ test('Trove launch controls change workspace and Git branch', async () => {
     within(document.body).getByRole('combobox', { name: 'Folder location' }),
   );
   assert.ok(document.querySelector('[data-slot="combobox-content"]'));
+  await user.type(
+    within(document.body).getByRole('combobox', {
+      name: 'Search workspace directories',
+    }),
+    '/workspace/kastuli',
+  );
+  assert.equal(
+    within(document.body).queryByRole('option', { name: /ernie/u }),
+    null,
+  );
   await user.click(
     within(document.body).getByRole('option', { name: /kastuli/u }),
   );

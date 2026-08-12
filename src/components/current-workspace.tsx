@@ -99,6 +99,7 @@ export function CurrentWorkspace({
           open={folderPickerOpen}
           onOpenChange={setFolderPickerOpen}
           onValueChange={(folder) => changeFolder(folder?.value ?? null)}
+          itemToStringLabel={(folder) => `${folder.label} ${folder.value}`}
           isItemEqualToValue={(folder, value) => folder.value === value.value}
         >
           <ComboboxTrigger
@@ -119,15 +120,16 @@ export function CurrentWorkspace({
           </ComboboxTrigger>
           <ComboboxContent
             aria-label="Choose workspace directory"
-            className="w-72 max-w-(--available-width)"
-            sideOffset={4}
+            className="w-64 max-w-(--available-width) rounded-xl p-1.5"
+            sideOffset={6}
           >
-            <div className="p-1">
-              <ComboboxInputGroup className="bg-muted/60">
-                <ComboboxSearchIcon />
+            <div className="pb-1">
+              <ComboboxInputGroup className="h-8 border-transparent bg-muted/40 focus-within:border-transparent focus-within:ring-0 dark:bg-muted/30">
+                <ComboboxSearchIcon className="[&_svg]:size-3.5" />
                 <ComboboxInput
                   aria-label="Search workspace directories"
-                  placeholder="Search directories"
+                  className="text-sm"
+                  placeholder="Find a directory…"
                   spellCheck={false}
                 />
               </ComboboxInputGroup>
@@ -139,28 +141,22 @@ export function CurrentWorkspace({
                   key={folder.value}
                   value={folder}
                   index={index}
-                  className="min-h-11"
+                  className="h-9 min-h-0 py-0 pr-7 text-sm data-[selected]:bg-muted/60"
+                  title={folder.value}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-foreground">
-                      {folder.label}
-                    </div>
-                    <div
-                      className="truncate text-xs text-muted-foreground"
-                      title={folder.value}
-                    >
-                      {folder.value}
-                    </div>
-                  </div>
+                  <span className="min-w-0 flex-1 truncate text-foreground">
+                    {folder.label}
+                  </span>
+                  <span className="sr-only">{folder.value}</span>
                 </ComboboxItem>
               )}
             </ComboboxList>
-            <div aria-hidden="true" className="-mx-1 my-1 h-px bg-border" />
             <Button
               type="button"
               variant="ghost"
+              size="sm"
               aria-label="New directory"
-              className="w-full justify-start px-2 font-normal text-muted-foreground"
+              className="mt-1 w-full justify-start px-2 text-sm font-normal text-muted-foreground"
               onClick={() => {
                 setFolderPickerOpen(false);
                 chooseWorkspaceDirectory();

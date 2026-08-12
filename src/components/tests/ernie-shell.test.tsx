@@ -46,6 +46,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     activeSessionId: string;
     maxDepth: number;
   }> = [];
+  const sessionFeedListeners = new Map<
+    string,
+    Parameters<ErnieRendererApi['watchPrimeAgentSession']>[1]
+  >();
   const submittedTasks: Array<{
     activeSessionId: string;
     message: string;
@@ -116,34 +120,53 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       return { ok: true, value: [] };
     },
     listPrimeAgentSkills: async () => ({ ok: true, value: [] }),
-    getPrimeAgentSessionView: async (activeSessionId) => ({
-      ok: true,
-      value: {
-        activeSessionId,
-        isStreaming: false,
-        messages: [
-          { id: 'task', role: 'user', text: 'Polish the sidebar' },
-          { id: 'reply', role: 'assistant', text: 'I am working on it.' },
-        ],
-        rlmMaxDepth: liveDepth,
-        sessionName: 'Polish the sidebar',
-        spawnedSessions: [],
-        transcript: [
-          {
-            id: 'task',
-            kind: 'message',
-            role: 'user',
-            text: 'Polish the sidebar',
+    watchPrimeAgentSession: (activeSessionId, listener) => {
+      const subscriptionId = `test-feed:${activeSessionId}`;
+      sessionFeedListeners.set(subscriptionId, listener);
+      queueMicrotask(() =>
+        listener({
+          activeSessionId,
+          item: {
+            kind: 'snapshot',
+            view: {
+              activeSessionId,
+              isStreaming: false,
+              messages: [
+                { id: 'task', role: 'user', text: 'Polish the sidebar' },
+                {
+                  id: 'reply',
+                  role: 'assistant',
+                  text: 'I am working on it.',
+                },
+              ],
+              rlmMaxDepth: liveDepth,
+              sessionName: 'Polish the sidebar',
+              spawnedSessions: [],
+              transcript: [
+                {
+                  id: 'task',
+                  kind: 'message',
+                  role: 'user',
+                  text: 'Polish the sidebar',
+                },
+                {
+                  id: 'reply',
+                  kind: 'message',
+                  role: 'assistant',
+                  text: 'I am working on it.',
+                },
+              ],
+            },
           },
-          {
-            id: 'reply',
-            kind: 'message',
-            role: 'assistant',
-            text: 'I am working on it.',
-          },
-        ],
-      },
-    }),
+          revision: 0,
+          subscriptionId,
+        }),
+      );
+      return subscriptionId;
+    },
+    unwatchPrimeAgentSession: (subscriptionId) => {
+      sessionFeedListeners.delete(subscriptionId);
+    },
     setPrimeAgentModel: async () => ({ ok: false }),
     getPrimeAgentRlmDepth: async () => ({
       ok: true,
@@ -349,6 +372,36 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).getByRole('heading', { name: 'Polish the sidebar' }),
   );
   assert.ok(within(document.body).getByText('I am working on it.'));
+  const sessionFeed = sessionFeedListeners.get('test-feed:blank-agent');
+  assert.notEqual(sessionFeed, undefined);
+  sessionFeed?.({
+    activeSessionId: 'blank-agent',
+    item: {
+      kind: 'conversation-replaced',
+      isStreaming: true,
+      messages: [
+        { id: 'task', role: 'user', text: 'Polish the sidebar' },
+        { id: 'reply', role: 'assistant', text: 'Live event received.' },
+      ],
+      transcript: [
+        {
+          id: 'task',
+          kind: 'message',
+          role: 'user',
+          text: 'Polish the sidebar',
+        },
+        {
+          id: 'reply',
+          kind: 'message',
+          role: 'assistant',
+          text: 'Live event received.',
+        },
+      ],
+    },
+    revision: 1,
+    subscriptionId: 'test-feed:blank-agent',
+  });
+  assert.ok(await within(document.body).findByText('Live event received.'));
   await user.click(
     within(document.body).getByRole('button', { name: 'Depth 5' }),
   );

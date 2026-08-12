@@ -1,4 +1,9 @@
 export { createPrimeAgentDaemon } from './lib/daemon.js';
+export {
+  createPrimeAgentSessionFeed,
+  type PrimeAgentSessionFeedConnection,
+  type PrimeAgentSessionFeedDependencies,
+} from './lib/session-feed.js';
 import type { JsonValue } from '../json-value/index.js';
 import {
   parseCreatedSessionData,

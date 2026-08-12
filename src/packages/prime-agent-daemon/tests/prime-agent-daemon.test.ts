@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
-import { Effect } from 'effect';
+import { Deferred, Effect, Fiber, Stream } from 'effect';
 
 import { createSkillSearch } from '@/packages/skill-search';
 
@@ -321,6 +321,40 @@ testInTempDirectory(
       const created = yield* daemon.createSession({ cwd, rlmMaxDepth: 3 });
       assert.equal(created.ok, true);
       if (!created.ok) return;
+
+      const initialFeedItem = yield* Deferred.make<void>();
+      const renamedFeedItem = yield* Deferred.make<void>();
+      const feedFiber = yield* daemon
+        .sessionFeed(created.value.activeSessionId)
+        .pipe(
+          Stream.runForEach((item) => {
+            if (item.kind === 'snapshot') {
+              return Deferred.succeed(initialFeedItem, undefined);
+            }
+            if (
+              item.kind === 'session-name-changed' &&
+              item.sessionName === 'Streamed Agent'
+            ) {
+              return Deferred.succeed(renamedFeedItem, undefined);
+            }
+            return Effect.void;
+          }),
+          Effect.forkChild,
+        );
+      yield* Effect.gen(function* () {
+        yield* Deferred.await(initialFeedItem).pipe(Effect.timeout('5 seconds'));
+        const renamed = yield* daemon.renameSession({
+          kind: 'live',
+          activeSessionId: created.value.activeSessionId,
+          sessionPath: null,
+          name: 'Streamed Agent',
+        });
+        assert.deepEqual(renamed, {
+          ok: true,
+          value: { name: 'Streamed Agent' },
+        });
+        yield* Deferred.await(renamedFeedItem).pipe(Effect.timeout('5 seconds'));
+      }).pipe(Effect.ensuring(Fiber.interrupt(feedFiber)));
 
       const depth = yield* daemon.getRlmDepth(created.value.activeSessionId);
       assert.deepEqual(depth, {

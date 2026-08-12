@@ -1,7 +1,7 @@
 import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { runAgentRefreshStream } from '@/packages/agent-refresh-stream';
+import { makeAgentRefreshStream } from '@/packages/agent-refresh-stream';
 import {
   parsePrimeAgentGitBranchesResult,
   parsePrimeAgentGitWorkspaceResult,
@@ -15,7 +15,6 @@ import {
   parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
-  parsePrimeAgentSessionViewResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
   parsePrimeAgentWorkspaceResult,
@@ -27,6 +26,14 @@ import {
   type PrimeAgentSkill,
   type PrimeAgentWorkspace,
 } from '@/packages/prime-agent-daemon/client';
+import {
+  createPrimeAgentSessionFeedState,
+  parsePrimeAgentSessionFeedEnvelope,
+  primeAgentSessionFeedView,
+  reducePrimeAgentSessionFeed,
+  replacePrimeAgentSessionFeedRlmDepth,
+  type PrimeAgentSessionFeedState,
+} from '@/packages/prime-agent-daemon/events';
 import { sessionNameFromFirstMessage } from '@/packages/session-name-hook';
 
 /** One folder choice derived from live Prime Agent sessions. */
@@ -99,7 +106,6 @@ export interface PrimeAgentWorkspaceController {
 const defaultRlmMaxDepth = 1;
 const maximumRlmMaxDepth = 20;
 const rlmMaxDepthStorageKey = 'ernie:rlm-max-depth:v1';
-const workspaceRefreshIntervalMs = 1_500;
 
 function parseStoredRlmMaxDepth(value: string | null): number {
   if (value === null || value.trim().length === 0) return defaultRlmMaxDepth;
@@ -169,8 +175,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
   );
-  const [selectedSessionView, setSelectedSessionView] =
-    useState<PrimeAgentSessionView | null>(null);
+  const [selectedSessionFeed, setSelectedSessionFeed] =
+    useState<PrimeAgentSessionFeedState | null>(null);
   const [sessionPreviews, setSessionPreviews] = useState<
     Readonly<Record<string, string>>
   >({});
@@ -201,6 +207,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
+  const workspaceRefreshRequest = useRef<() => void>(() => undefined);
+  const selectedSessionView = selectedSessionFeed === null
+    ? null
+    : primeAgentSessionFeedView(selectedSessionFeed);
+  const requestWorkspaceRefresh = useCallback(() => {
+    workspaceRefreshRequest.current();
+  }, []);
 
   useEffect(() => {
     try {
@@ -296,9 +309,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setSelectedCwd((current) => current ?? result.value.currentCwd);
       });
     });
-    const fiber = Effect.runFork(
-      runAgentRefreshStream({
-        interval: workspaceRefreshIntervalMs,
+    const runRefreshes = Effect.gen(function* () {
+      const controller = yield* makeAgentRefreshStream({
         isVisible: () => document.visibilityState !== 'hidden',
         onFailure: () =>
           Effect.sync(() => {
@@ -306,8 +318,19 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           }),
         refresh: refreshWorkspace,
         visibilityTarget: document,
-      }),
-    );
+      });
+      workspaceRefreshRequest.current = controller.request;
+      yield* controller.run.pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (workspaceRefreshRequest.current === controller.request) {
+              workspaceRefreshRequest.current = () => undefined;
+            }
+          }),
+        ),
+      );
+    });
+    const fiber = Effect.runFork(runRefreshes);
 
     return () => {
       Effect.runFork(Fiber.interrupt(fiber));
@@ -395,7 +418,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (selectedSessionId === null) {
       setModels([]);
       setSkills([]);
-      setSelectedSessionView(null);
+      setSelectedSessionFeed(null);
       return;
     }
 
@@ -453,60 +476,82 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }, [selectedSessionId]);
 
   useEffect(() => {
-    setSelectedSessionView(null);
+    setSelectedSessionFeed(null);
     if (selectedSessionId === null) {
       return;
     }
 
     const activeSessionId = selectedSessionId;
-    const refreshSession = Effect.fn('Workspace.refreshFocusedSession')(
-      function* () {
-        const rawView = yield* Effect.tryPromise(() =>
-          window.ernie.getPrimeAgentSessionView(activeSessionId),
+    const subscriptionId = window.ernie.watchPrimeAgentSession(
+      activeSessionId,
+      (rawEnvelope) => {
+        const envelope = parsePrimeAgentSessionFeedEnvelope(rawEnvelope);
+        if (!envelope.ok) {
+          setStatus(envelope.error.message);
+          return;
+        }
+        const item = envelope.value.item;
+        setSelectedSessionFeed((current) =>
+          current === null
+            ? current
+            : reducePrimeAgentSessionFeed(current, envelope.value),
         );
-        const view = parsePrimeAgentSessionViewResult(rawView);
-        if (!view.ok || view.value.activeSessionId !== activeSessionId) return;
-        yield* Effect.sync(() => {
-          setSelectedSessionView(view.value);
-          const preview = latestUserMessage(view.value.messages);
-          if (preview !== null) {
-            setSessionPreviews((current) =>
-              current[activeSessionId] === preview
-                ? current
-                : { ...current, [activeSessionId]: preview },
-            );
-          }
-          if (view.value.sessionName !== null) {
-            setWorkspace((current) =>
-              current === null
-                ? null
-                : {
-                    ...current,
-                    sessions: current.sessions.map((session) =>
-                      session.activeSessionId === activeSessionId
-                        ? { ...session, name: view.value.sessionName ?? session.name }
-                        : session,
-                    ),
-                  },
-            );
-          }
-        });
+
+        const messages = item.kind === 'snapshot'
+          ? item.view.messages
+          : item.kind === 'conversation-replaced'
+            ? item.messages
+            : null;
+        const preview = messages === null ? null : latestUserMessage(messages);
+        if (preview !== null) {
+          setSessionPreviews((current) =>
+            current[activeSessionId] === preview
+              ? current
+              : { ...current, [activeSessionId]: preview },
+          );
+        }
+
+        const sessionName = item.kind === 'snapshot'
+          ? item.view.sessionName
+          : item.kind === 'session-name-changed'
+            ? item.sessionName
+            : null;
+        if (sessionName !== null) {
+          setWorkspace((current) =>
+            current === null
+              ? null
+              : {
+                  ...current,
+                  sessions: current.sessions.map((session) =>
+                    session.activeSessionId === activeSessionId
+                      ? { ...session, name: sessionName }
+                      : session,
+                  ),
+                },
+          );
+        }
+
+        if (item.kind === 'connection-changed') {
+          setStatus(
+            item.status === 'live'
+              ? 'Connected to Prime Agent.'
+              : 'Prime Agent is reconnecting…',
+          );
+          if (item.status === 'live') requestWorkspaceRefresh();
+        } else if (item.kind === 'closed') {
+          setStatus(item.failure.message);
+          requestWorkspaceRefresh();
+        }
       },
     );
-    const fiber = Effect.runFork(
-      runAgentRefreshStream({
-        interval: workspaceRefreshIntervalMs,
-        isVisible: () => document.visibilityState !== 'hidden',
-        onFailure: () => Effect.void,
-        refresh: refreshSession,
-        visibilityTarget: document,
-      }),
+    setSelectedSessionFeed(
+      createPrimeAgentSessionFeedState(subscriptionId, activeSessionId),
     );
 
     return () => {
-      Effect.runFork(Fiber.interrupt(fiber));
+      window.ernie.unwatchPrimeAgentSession(subscriptionId);
     };
-  }, [selectedSessionId]);
+  }, [requestWorkspaceRefresh, selectedSessionId]);
 
   const workspacePaths = useMemo(() => {
     const paths = new Set([
@@ -614,6 +659,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     }));
     setSelectedCwd(session.cwd);
     setSelectedSessionId(session.activeSessionId);
+    requestWorkspaceRefresh();
   }
 
   function changeFolder(cwd: string | null): void {
@@ -820,6 +866,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             ),
           );
         }
+        requestWorkspaceRefresh();
         setStatus(`Renamed Agent conversation to ${result.value.name}.`);
       });
     });
@@ -1192,10 +1239,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           }
 
           yield* Effect.sync(() => {
-            setSelectedSessionView((current) =>
-              current?.activeSessionId === activeSessionId
-                ? { ...current, rlmMaxDepth: result.value.maxDepth }
-                : current,
+            setSelectedSessionFeed((current) =>
+              current === null
+                ? null
+                : replacePrimeAgentSessionFeedRlmDepth(
+                    current,
+                    activeSessionId,
+                    result.value.maxDepth,
+                  ),
             );
             setStatus(
               `RLM max depth changed to ${result.value.maxDepth} for this Agent.`,

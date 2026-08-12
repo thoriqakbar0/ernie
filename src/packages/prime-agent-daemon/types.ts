@@ -86,6 +86,49 @@ export interface PrimeAgentSessionView {
   readonly transcript: readonly PrimeAgentTranscriptItem[];
 }
 
+/** One normalized live-session change safe to send across Electron IPC. */
+export type PrimeAgentSessionFeedItem =
+  | Readonly<{
+      kind: 'snapshot';
+      view: PrimeAgentSessionView;
+    }>
+  | Readonly<{
+      kind: 'conversation-replaced';
+      isStreaming: boolean;
+      messages: readonly PrimeAgentChatMessage[];
+      transcript: readonly PrimeAgentTranscriptItem[];
+    }>
+  | Readonly<{
+      kind: 'spawned-sessions-replaced';
+      sessions: readonly PrimeAgentSpawnedSession[];
+    }>
+  | Readonly<{
+      kind: 'session-name-changed';
+      sessionName: string | null;
+    }>
+  | Readonly<{
+      kind: 'connection-changed';
+      status: 'live' | 'reconnecting';
+    }>
+  | Readonly<{
+      kind: 'closed';
+      failure: PrimeAgentFailure;
+    }>;
+
+/** One locally sequenced session-feed event owned by one renderer subscription. */
+export interface PrimeAgentSessionFeedEnvelope {
+  readonly activeSessionId: string;
+  readonly item: PrimeAgentSessionFeedItem;
+  readonly revision: number;
+  readonly subscriptionId: string;
+}
+
+/** One renderer request to start a selected Prime Agent session feed. */
+export interface PrimeAgentSessionFeedRequest {
+  readonly activeSessionId: string;
+  readonly subscriptionId: string;
+}
+
 /** A durable Prime Agent session that can be reopened in Ernie. */
 export interface PrimeAgentSavedSession {
   readonly activity: Extract<PrimeAgentSessionActivity, 'needs_input' | 'idle' | 'settled'>;
@@ -262,9 +305,9 @@ export interface PrimeAgentDaemon {
   readonly listSkills: (
     activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
-  readonly getSessionView: (
+  readonly sessionFeed: (
     activeSessionId: JsonValue,
-  ) => Effect.Effect<PrimeAgentResult<PrimeAgentSessionView>>;
+  ) => Stream.Stream<PrimeAgentSessionFeedItem>;
   readonly createSession: (
     creation: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;
@@ -294,4 +337,4 @@ export interface PrimeAgentDaemon {
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentRefinementReceipt>>;
   readonly close: () => void;
 }
-import type { Effect } from 'effect';
+import type { Effect, Stream } from 'effect';

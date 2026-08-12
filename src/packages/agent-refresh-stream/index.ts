@@ -1,12 +1,11 @@
-import { Duration, Effect, Schedule, Stream } from 'effect';
+import { Effect, Queue, Stream } from 'effect';
 
-/** Inputs that define one visible, serialized Agent refresh lifecycle. */
+/** Inputs that define one visible, explicitly triggered Agent refresh lifecycle. */
 export interface AgentRefreshStreamOptions<
   RefreshError,
   Requirements,
   FailureRequirements,
 > {
-  readonly interval: Duration.Input;
   readonly isVisible: () => boolean;
   readonly onFailure: (
     error: RefreshError,
@@ -15,12 +14,14 @@ export interface AgentRefreshStreamOptions<
   readonly visibilityTarget: Stream.EventListener<Event>;
 }
 
-/**
- * Refresh immediately, on a fixed interval, and when the app becomes visible.
- * The owning fiber serializes work, keeps at most one pending refresh, and owns
- * the event listener until interruption.
- */
-export function runAgentRefreshStream<
+/** One coalesced refresh request function and its owned Effect lifecycle. */
+export interface AgentRefreshStreamController<Requirements> {
+  readonly request: () => void;
+  readonly run: Effect.Effect<void, never, Requirements>;
+}
+
+/** Create a serialized refresh lifecycle without recurring timer work. */
+export function makeAgentRefreshStream<
   RefreshError,
   Requirements,
   FailureRequirements,
@@ -30,30 +31,32 @@ export function runAgentRefreshStream<
     Requirements,
     FailureRequirements
   >,
-): Effect.Effect<void, never, Requirements | FailureRequirements> {
-  const scheduledRefreshes = Stream.succeed(undefined).pipe(
-    Stream.concat(
-      Stream.fromSchedule(Schedule.spaced(options.interval)).pipe(
-        Stream.map(() => undefined),
+): Effect.Effect<
+  AgentRefreshStreamController<Requirements | FailureRequirements>
+> {
+  return Effect.gen(function* () {
+    const requests = yield* Queue.sliding<void>(1);
+    const requestedRefreshes = Stream.fromQueue(requests);
+    const visibleRefreshes = Stream.fromEventListener(
+      options.visibilityTarget,
+      'visibilitychange',
+      { bufferSize: 1 },
+    ).pipe(Stream.map(() => undefined));
+    const run = requestedRefreshes.pipe(
+      Stream.merge(visibleRefreshes),
+      Stream.filter(options.isVisible),
+      Stream.buffer({ capacity: 1, strategy: 'sliding' }),
+      Stream.mapEffect(() =>
+        options.refresh().pipe(Effect.catch(options.onFailure)),
       ),
-    ),
-  );
-  const visibleRefreshes = Stream.fromEventListener(
-    options.visibilityTarget,
-    'visibilitychange',
-    { bufferSize: 1 },
-  ).pipe(
-    Stream.filter(options.isVisible),
-    Stream.map(() => undefined),
-  );
-
-  return scheduledRefreshes.pipe(
-    Stream.merge(visibleRefreshes),
-    Stream.filter(options.isVisible),
-    Stream.buffer({ capacity: 1, strategy: 'sliding' }),
-    Stream.mapEffect(() =>
-      options.refresh().pipe(Effect.catch(options.onFailure)),
-    ),
-    Stream.runDrain,
-  );
+      Stream.runDrain,
+      Effect.ensuring(Queue.shutdown(requests)),
+    );
+    return {
+      request: () => {
+        Queue.offerUnsafe(requests, undefined);
+      },
+      run,
+    };
+  });
 }

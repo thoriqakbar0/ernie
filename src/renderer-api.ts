@@ -39,8 +39,17 @@ export const primeAgentModelsChannel = 'ernie:prime-agent:models';
 /** IPC channel that lists skills available to one Prime Agent session. */
 export const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
 
-/** IPC channel that reads one focused Agent chat snapshot. */
-export const primeAgentSessionViewChannel = 'ernie:prime-agent:session-view';
+/** IPC channel that starts one focused Agent event feed. */
+export const primeAgentSessionFeedStartChannel =
+  'ernie:prime-agent:session-feed:start';
+
+/** IPC channel that stops one focused Agent event feed. */
+export const primeAgentSessionFeedStopChannel =
+  'ernie:prime-agent:session-feed:stop';
+
+/** IPC channel carrying normalized focused Agent events. */
+export const primeAgentSessionFeedEventChannel =
+  'ernie:prime-agent:session-feed:event';
 
 /** IPC channel that changes the model for one Prime Agent session. */
 export const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
@@ -103,7 +112,11 @@ export type ErnieRendererApi = Readonly<{
   renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<JsonValue>;
   listPrimeAgentModels: (activeSessionId: string) => Promise<JsonValue>;
   listPrimeAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
-  getPrimeAgentSessionView: (activeSessionId: string) => Promise<JsonValue>;
+  watchPrimeAgentSession: (
+    activeSessionId: string,
+    listener: (value: JsonValue) => void,
+  ) => string;
+  unwatchPrimeAgentSession: (subscriptionId: string) => void;
   setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<JsonValue>;
   getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<JsonValue>;
   setPrimeAgentRlmDepth: (

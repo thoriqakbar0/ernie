@@ -6,7 +6,7 @@ import type {
   MenuItemConstructorOptions,
   OpenDialogOptions,
 } from 'electron';
-import { Effect } from 'effect';
+import { Effect, Fiber, Stream } from 'effect';
 import {
   registerBrowserPluginMain,
   type BrowserPluginMainController,
@@ -24,6 +24,12 @@ import {
 } from './packages/prime-agent-daemon/git-server.js';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js';
 import {
+  coalescePrimeAgentSessionFeedItems,
+  parsePrimeAgentSessionFeedRequest,
+  parsePrimeAgentSessionFeedStop,
+} from './packages/prime-agent-daemon/events.js';
+import type { PrimeAgentSessionFeedEnvelope } from './packages/prime-agent-daemon/types.js';
+import {
   chooseWorkspaceDirectoryChannel,
   primeAgentCreateSessionChannel,
   primeAgentCreateGitWorktreeChannel,
@@ -34,7 +40,9 @@ import {
   primeAgentImportSessionChannel,
   primeAgentModelsChannel,
   primeAgentSavedSessionsChannel,
-  primeAgentSessionViewChannel,
+  primeAgentSessionFeedEventChannel,
+  primeAgentSessionFeedStartChannel,
+  primeAgentSessionFeedStopChannel,
   primeAgentSkillsChannel,
   primeAgentRlmDepthChannel,
   primeAgentRenameGitBranchChannel,
@@ -166,6 +174,91 @@ function registerPrimeAgentHandlers(): void {
       'packages/session-name-hook/index.js',
     ),
   });
+  interface OwnedSessionFeed {
+    fiber: Fiber.Fiber<void> | null;
+    readonly senderId: number;
+  }
+  const sessionFeeds = new Map<string, OwnedSessionFeed>();
+  const observedSenders = new Set<number>();
+  const feedKey = (senderId: number, subscriptionId: string): string =>
+    `${senderId}:${subscriptionId}`;
+  const stopFeed = (key: string): void => {
+    const owned = sessionFeeds.get(key);
+    if (owned === undefined) return;
+    sessionFeeds.delete(key);
+    if (owned.fiber !== null) {
+      Effect.runFork(Fiber.interrupt(owned.fiber));
+    }
+  };
+  const stopSenderFeeds = (senderId: number): void => {
+    for (const [key, owned] of sessionFeeds) {
+      if (owned.senderId === senderId) stopFeed(key);
+    }
+    observedSenders.delete(senderId);
+  };
+
+  ipcMain.on(
+    primeAgentSessionFeedStartChannel,
+    (event, request: JsonValue) => {
+      const parsed = parsePrimeAgentSessionFeedRequest(request);
+      if (!parsed.ok) return;
+
+      const senderId = event.sender.id;
+      const { activeSessionId, subscriptionId } = parsed.value;
+      const key = feedKey(senderId, subscriptionId);
+      stopFeed(key);
+      if (!observedSenders.has(senderId)) {
+        observedSenders.add(senderId);
+        event.sender.once('destroyed', () => stopSenderFeeds(senderId));
+      }
+
+      let revision = 0;
+      const owned: OwnedSessionFeed = { fiber: null, senderId };
+      sessionFeeds.set(key, owned);
+      const run = daemon.sessionFeed(activeSessionId).pipe(
+        Stream.groupedWithin(64, '50 millis'),
+        Stream.flatMap((items) =>
+          Stream.fromArray(coalescePrimeAgentSessionFeedItems(items)),
+        ),
+        Stream.runForEach((item) =>
+          Effect.sync(() => {
+            if (
+              sessionFeeds.get(key) !== owned ||
+              event.sender.isDestroyed()
+            ) {
+              return;
+            }
+            const envelope: PrimeAgentSessionFeedEnvelope = {
+              activeSessionId,
+              item,
+              revision,
+              subscriptionId,
+            };
+            revision += 1;
+            event.sender.send(
+              primeAgentSessionFeedEventChannel,
+              subscriptionId,
+              envelope,
+            );
+          }),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (sessionFeeds.get(key) === owned) sessionFeeds.delete(key);
+          }),
+        ),
+      );
+      owned.fiber = Effect.runFork(run);
+    },
+  );
+  ipcMain.on(
+    primeAgentSessionFeedStopChannel,
+    (event, subscriptionId: JsonValue) => {
+      const parsed = parsePrimeAgentSessionFeedStop(subscriptionId);
+      if (!parsed.ok) return;
+      stopFeed(feedKey(event.sender.id, parsed.value));
+    },
+  );
 
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
     Effect.runPromise(daemon.listWorkspace()),
@@ -193,11 +286,6 @@ function registerPrimeAgentHandlers(): void {
     primeAgentSkillsChannel,
     (_event, activeSessionId: JsonValue) =>
       Effect.runPromise(daemon.listSkills(activeSessionId)),
-  );
-  ipcMain.handle(
-    primeAgentSessionViewChannel,
-    (_event, activeSessionId: JsonValue) =>
-      Effect.runPromise(daemon.getSessionView(activeSessionId)),
   );
   ipcMain.handle(primeAgentSetModelChannel, (_event, selection: JsonValue) =>
     Effect.runPromise(daemon.setModel(selection)),
@@ -270,7 +358,10 @@ function registerPrimeAgentHandlers(): void {
     shell.showItemInFolder(workspacePath);
     return true;
   });
-  app.once('will-quit', () => daemon.close());
+  app.once('will-quit', () => {
+    for (const key of sessionFeeds.keys()) stopFeed(key);
+    daemon.close();
+  });
 }
 
 function waitForRendererReady(

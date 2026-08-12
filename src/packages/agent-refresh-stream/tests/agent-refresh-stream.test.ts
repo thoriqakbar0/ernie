@@ -2,15 +2,25 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { Deferred, Effect, Fiber, Ref, Stream } from 'effect';
-import { TestClock } from 'effect/testing';
 
-import { runAgentRefreshStream } from '../index';
+import { makeAgentRefreshStream } from '../index';
 
 class VisibilityTarget implements Stream.EventListener<Event> {
   readonly #listeners = new Set<(event: Event) => void>();
+  readonly #listenerAdded: Promise<void>;
+  readonly #resolveListenerAdded: () => void;
+
+  constructor() {
+    let resolveListenerAdded = (): void => undefined;
+    this.#listenerAdded = new Promise((resolve) => {
+      resolveListenerAdded = resolve;
+    });
+    this.#resolveListenerAdded = resolveListenerAdded;
+  }
 
   addEventListener(_event: string, listener: (event: Event) => void): void {
     this.#listeners.add(listener);
+    this.#resolveListenerAdded();
   }
 
   removeEventListener(_event: string, listener: (event: Event) => void): void {
@@ -26,14 +36,14 @@ class VisibilityTarget implements Stream.EventListener<Event> {
   get listenerCount(): number {
     return this.#listeners.size;
   }
-}
 
-function runTest(effect: Effect.Effect<void, never, TestClock.TestClock>) {
-  return Effect.runPromise(effect.pipe(Effect.provide(TestClock.layer())));
+  waitForListener(): Promise<void> {
+    return this.#listenerAdded;
+  }
 }
 
 test('serializes refreshes and keeps only one pending trigger', () =>
-  runTest(
+  Effect.runPromise(
     Effect.gen(function* () {
       const visibilityTarget = new VisibilityTarget();
       const firstStarted = yield* Deferred.make<void>();
@@ -56,18 +66,18 @@ test('serializes refreshes and keeps only one pending trigger', () =>
         }
         yield* Ref.update(activeCount, (value) => value - 1);
       });
-      const fiber = yield* runAgentRefreshStream({
-        interval: 1_500,
+      const controller = yield* makeAgentRefreshStream({
         isVisible: () => true,
         onFailure: () => Effect.void,
         refresh: () => refresh,
         visibilityTarget,
-      }).pipe(Effect.forkChild);
+      });
+      const fiber = yield* controller.run.pipe(Effect.forkChild);
 
+      controller.request();
       yield* Deferred.await(firstStarted);
-      visibilityTarget.dispatch();
-      visibilityTarget.dispatch();
-      yield* TestClock.adjust(1_500);
+      controller.request();
+      controller.request();
 
       assert.equal(yield* Ref.get(refreshCount), 1);
       assert.equal(yield* Ref.get(maximumActiveCount), 1);
@@ -81,14 +91,13 @@ test('serializes refreshes and keeps only one pending trigger', () =>
   ));
 
 test('pauses while hidden and removes its listener when interrupted', () =>
-  runTest(
+  Effect.runPromise(
     Effect.gen(function* () {
       const visibilityTarget = new VisibilityTarget();
       const refreshed = yield* Deferred.make<void>();
       const refreshCount = yield* Ref.make(0);
       let visible = false;
-      const fiber = yield* runAgentRefreshStream({
-        interval: 1_500,
+      const controller = yield* makeAgentRefreshStream({
         isVisible: () => visible,
         onFailure: () => Effect.void,
         refresh: () =>
@@ -97,49 +106,55 @@ test('pauses while hidden and removes its listener when interrupted', () =>
             yield* Deferred.succeed(refreshed, undefined);
           }),
         visibilityTarget,
-      }).pipe(Effect.forkChild);
+      });
+      const fiber = yield* controller.run.pipe(Effect.forkChild);
 
+      yield* Effect.promise(() => visibilityTarget.waitForListener());
+      controller.request();
       yield* Effect.yieldNow;
-      yield* TestClock.adjust(4_500);
       assert.equal(yield* Ref.get(refreshCount), 0);
-      assert.equal(visibilityTarget.listenerCount, 1);
 
       visible = true;
       visibilityTarget.dispatch();
       yield* Deferred.await(refreshed);
       assert.equal(yield* Ref.get(refreshCount), 1);
+      assert.equal(visibilityTarget.listenerCount, 1);
 
       yield* Fiber.interrupt(fiber);
       assert.equal(visibilityTarget.listenerCount, 0);
 
       visibilityTarget.dispatch();
-      yield* TestClock.adjust(1_500);
+      yield* Effect.yieldNow;
       assert.equal(yield* Ref.get(refreshCount), 1);
     }),
   ));
 
 test('handles a refresh failure and continues on the next trigger', () =>
-  runTest(
+  Effect.runPromise(
     Effect.gen(function* () {
       const visibilityTarget = new VisibilityTarget();
       const failures = yield* Ref.make(0);
+      const firstFailureHandled = yield* Deferred.make<void>();
       const secondFailureHandled = yield* Deferred.make<void>();
-      const fiber = yield* runAgentRefreshStream({
-        interval: 1_500,
+      const controller = yield* makeAgentRefreshStream({
         isVisible: () => true,
         onFailure: () =>
           Effect.gen(function* () {
             const count = yield* Ref.updateAndGet(failures, (value) => value + 1);
-            if (count === 2) {
+            if (count === 1) {
+              yield* Deferred.succeed(firstFailureHandled, undefined);
+            } else if (count === 2) {
               yield* Deferred.succeed(secondFailureHandled, undefined);
             }
           }),
         refresh: () => Effect.fail('offline'),
         visibilityTarget,
-      }).pipe(Effect.forkChild);
+      });
+      const fiber = yield* controller.run.pipe(Effect.forkChild);
 
-      yield* Effect.yieldNow;
-      yield* TestClock.adjust(1_500);
+      controller.request();
+      yield* Deferred.await(firstFailureHandled);
+      controller.request();
       yield* Deferred.await(secondFailureHandled);
 
       assert.equal(yield* Ref.get(failures), 2);

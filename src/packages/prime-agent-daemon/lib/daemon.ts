@@ -1,10 +1,11 @@
 import type {
+  DaemonAgentConnection,
   DaemonClient,
   DaemonCommand,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
 import { readFile } from 'node:fs/promises';
-import { Effect, Predicate, Schedule } from 'effect';
+import { Effect, Predicate, Schedule, Stream } from 'effect';
 import { parseJsonValue, type JsonValue } from '../../json-value/index.js';
 
 import type {
@@ -30,10 +31,10 @@ import {
   parseSessionCreation,
   parseSessionRename,
   parseSessionListData,
-  parseSessionViewData,
   parseSkillResourceCatalogData,
   parseTaskSubmission,
 } from './protocol.js';
+import { createPrimeAgentSessionFeed } from './session-feed.js';
 
 const connectTimeoutMs = 3_000;
 const daemonProbeTimeoutMs = 250;
@@ -76,6 +77,11 @@ function reportOperationalFailure(scope: string, cause: unknown): void {
 }
 
 interface PrimeAgentDaemonRuntime {
+  readonly attachSession: (
+    client: DaemonClient,
+    activeSessionId: string,
+    recoverDaemon: () => Promise<void>,
+  ) => Promise<DaemonAgentConnection>;
   readonly createClient: () => DaemonClient;
   readonly socketPath: string;
 }
@@ -107,10 +113,20 @@ export function createPrimeAgentDaemon(
 
   const loadRuntime = Effect.tryPromise(() => import('prime-agent')).pipe(
     Effect.map(
-      ({ DaemonClient: DaemonClientConstructor, defaultDaemonSocketPath }) => {
+      ({
+        DaemonAgentConnection: DaemonAgentConnectionConstructor,
+        DaemonClient: DaemonClientConstructor,
+        defaultDaemonSocketPath,
+      }) => {
         const socketPath =
           configuration.socketPath ?? defaultDaemonSocketPath();
         return {
+          attachSession: (client, activeSessionId, recoverDaemon) =>
+            DaemonAgentConnectionConstructor.attach(client, activeSessionId, {
+              closeClientOnDispose: true,
+              recoverDaemon,
+              supportsExtensionUi: false,
+            }),
           socketPath,
           createClient: () => new DaemonClientConstructor(socketPath),
         } satisfies PrimeAgentDaemonRuntime;
@@ -147,6 +163,32 @@ export function createPrimeAgentDaemon(
   const [ensureDaemonReady, invalidateDaemonReadiness] = Effect.runSync(
     Effect.cachedInvalidateWithTTL(establishDaemonReadiness, '1 second'),
   );
+
+  const openSessionConnection = (activeSessionId: string) =>
+    ensureDaemonReady.pipe(
+      Effect.andThen(loadRuntime),
+      Effect.flatMap((runtime) =>
+        Effect.tryPromise(async () => {
+          const client = runtime.createClient();
+          try {
+            await client.connect(connectTimeoutMs);
+            return await runtime.attachSession(
+              client,
+              activeSessionId,
+              () =>
+                Effect.runPromise(
+                  invalidateDaemonReadiness.pipe(
+                    Effect.andThen(ensureDaemonReady),
+                  ),
+                ),
+            );
+          } catch (cause) {
+            client.close();
+            throw cause;
+          }
+        }),
+      ),
+    );
 
   function withClient<T>(
     operation: (
@@ -302,41 +344,19 @@ export function createPrimeAgentDaemon(
     },
   );
 
-  const getSessionView = Effect.fn('PrimeAgentDaemon.getSessionView')(
-    (activeSessionId: JsonValue) => {
-      const parsedSessionId = parseActiveSessionId(activeSessionId);
-      if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
-
-      return withClient((client) =>
-        Effect.gen(function* () {
-          const viewResponse = responseData(
-            yield* Effect.tryPromise(() =>
-              client.request(
-                { type: 'attach', activeSessionId: parsedSessionId.value },
-                requestTimeoutMs,
-              ),
-            ),
-          );
-          if (!viewResponse.ok) return viewResponse;
-
-          const depthResponse = responseData(
-            yield* Effect.tryPromise(() =>
-              client.request(
-                {
-                  type: 'get_rlm_max_depth_status',
-                  activeSessionId: parsedSessionId.value,
-                },
-                requestTimeoutMs,
-              ),
-            ),
-          );
-          if (!depthResponse.ok) return depthResponse;
-
-          return parseSessionViewData(viewResponse.value, depthResponse.value);
-        }),
-      );
-    },
-  );
+  const sessionFeed = (activeSessionId: JsonValue) => {
+    const parsedSessionId = parseActiveSessionId(activeSessionId);
+    if (!parsedSessionId.ok) {
+      return Stream.succeed({
+        kind: 'closed' as const,
+        failure: parsedSessionId.error,
+      });
+    }
+    return createPrimeAgentSessionFeed(parsedSessionId.value, {
+      openConnection: openSessionConnection,
+      reportFailure: reportOperationalFailure,
+    });
+  };
 
   const listSavedSessions = Effect.fn(
     'PrimeAgentDaemon.listSavedSessions',
@@ -697,7 +717,7 @@ export function createPrimeAgentDaemon(
     listWorkspace,
     listModels,
     listSkills,
-    getSessionView,
+    sessionFeed,
     listSavedSessions,
     createSession,
     importSession,

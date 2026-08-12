@@ -18,7 +18,12 @@ const primeAgentImportSessionChannel = 'ernie:prime-agent:import-session';
 const primeAgentRenameSessionChannel = 'ernie:prime-agent:rename-session';
 const primeAgentModelsChannel = 'ernie:prime-agent:models';
 const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
-const primeAgentSessionViewChannel = 'ernie:prime-agent:session-view';
+const primeAgentSessionFeedStartChannel =
+  'ernie:prime-agent:session-feed:start';
+const primeAgentSessionFeedStopChannel =
+  'ernie:prime-agent:session-feed:stop';
+const primeAgentSessionFeedEventChannel =
+  'ernie:prime-agent:session-feed:event';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
@@ -45,6 +50,28 @@ const browserPluginForwardChannel = 'ernie:plugin:browser:forward';
 const browserPluginReloadChannel = 'ernie:plugin:browser:reload';
 const browserPluginStateChannel = 'ernie:plugin:browser:state';
 
+let nextSessionFeedSubscription = 0;
+const sessionFeedListeners = new Map<
+  string,
+  Parameters<ErnieRendererApi['watchPrimeAgentSession']>[1]
+>();
+
+ipcRenderer.on(
+  primeAgentSessionFeedEventChannel,
+  (_event, subscriptionId, value) => {
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Sandboxed preload cannot import the domain parser; the renderer parses the forwarded envelope.
+    if (typeof subscriptionId !== 'string') return;
+    sessionFeedListeners.get(subscriptionId)?.(value);
+  },
+);
+
+window.addEventListener('unload', () => {
+  for (const subscriptionId of sessionFeedListeners.keys()) {
+    ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
+  }
+  sessionFeedListeners.clear();
+});
+
 const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
     ipcRenderer.send(rendererReadyChannel);
@@ -70,8 +97,19 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   listPrimeAgentSkills(activeSessionId) {
     return ipcRenderer.invoke(primeAgentSkillsChannel, activeSessionId);
   },
-  getPrimeAgentSessionView(activeSessionId) {
-    return ipcRenderer.invoke(primeAgentSessionViewChannel, activeSessionId);
+  watchPrimeAgentSession(activeSessionId, listener) {
+    nextSessionFeedSubscription += 1;
+    const subscriptionId = `${Date.now()}-${nextSessionFeedSubscription}`;
+    sessionFeedListeners.set(subscriptionId, listener);
+    ipcRenderer.send(primeAgentSessionFeedStartChannel, {
+      activeSessionId,
+      subscriptionId,
+    });
+    return subscriptionId;
+  },
+  unwatchPrimeAgentSession(subscriptionId) {
+    sessionFeedListeners.delete(subscriptionId);
+    ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
   },
   setPrimeAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);

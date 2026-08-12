@@ -2,18 +2,39 @@ import type { ExtensionAPI } from 'prime-agent' with {
   'resolution-mode': 'import',
 };
 
-const maximumSessionNameLength = 72;
+const maximumSessionNameLength = 48;
+const maximumSessionNameWords = 7;
 const ellipsis = '…';
+
+function sentenceCase(value: string): string {
+  return value.length === 0
+    ? value
+    : `${value[0]?.toLocaleUpperCase() ?? ''}${value.slice(1)}`;
+}
 
 /** Derive a compact session name from the first non-empty user message. */
 export function sessionNameFromFirstMessage(message: string): string | null {
-  const normalized = message.replace(/\s+/gu, ' ').trim();
+  const normalized = message
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .replace(/[?.!]+$/gu, '')
+    .replace(/\s+(?:from|on a scale of)\s+\d+\s*(?:-|–|to)\s*\d+$/iu, '')
+    .replace(/^(?:please\s+|can you\s+|could you\s+|would you\s+|help me\s+)/iu, '')
+    .trim();
   if (normalized.length === 0) return null;
-  if (normalized.length <= maximumSessionNameLength) return normalized;
+
+  const words = normalized.split(' ');
+  const wordLimited =
+    words.length > maximumSessionNameWords
+      ? `${words.slice(0, maximumSessionNameWords).join(' ')}${ellipsis}`
+      : normalized;
+  if (wordLimited.length <= maximumSessionNameLength) {
+    return sentenceCase(wordLimited);
+  }
 
   const availableLength = maximumSessionNameLength - ellipsis.length;
-  const clipped = normalized.slice(0, availableLength).trimEnd();
-  return `${clipped}${ellipsis}`;
+  const clipped = wordLimited.slice(0, availableLength).trimEnd();
+  return sentenceCase(`${clipped}${ellipsis}`);
 }
 
 /** Install Ernie's first-message session naming hook into Prime Agent. */

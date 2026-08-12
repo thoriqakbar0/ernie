@@ -138,6 +138,26 @@ test('user can select a detected skill with the keyboard', async () => {
   assert.equal((composer as HTMLTextAreaElement).value, '/skill:tdd ');
 });
 
+test('user can trigger the same skill more than once', async () => {
+  const user = userEvent.setup();
+  renderTaskComposer();
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, '/tdd');
+  await user.click(
+    within(document.body).getByRole('option', { name: /\/skill:tdd/u }),
+  );
+  await user.type(composer, '/tdd');
+  await user.click(
+    within(document.body).getByRole('option', { name: /\/skill:tdd/u }),
+  );
+
+  assert.equal(
+    (composer as HTMLTextAreaElement).value,
+    '/skill:tdd /skill:tdd ',
+  );
+});
+
 test('double slash opens natural-language skill search', async () => {
   const user = userEvent.setup();
   renderTaskComposer();

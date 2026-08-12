@@ -16,8 +16,8 @@ export type SkillSearch = (
 
 /** A skill lookup explicitly activated from the task composer. */
 export type SkillSearchQuery =
-  | Readonly<{ kind: 'full-text'; term: string }>
-  | Readonly<{ kind: 'single-vector'; term: string }>;
+  | Readonly<{ kind: 'full-text'; start: number; term: string }>
+  | Readonly<{ kind: 'single-vector'; start: number; term: string }>;
 
 /** A ranked asynchronous search over one immutable skill catalog. */
 export type AsyncSkillSearch = (
@@ -25,23 +25,38 @@ export type AsyncSkillSearch = (
   limit: number,
 ) => Promise<readonly SkillSearchItem[]>;
 
-/** Parse an isolated slash query or double-slash natural-language query. */
+/** Parse the active slash query after zero or more completed skill commands. */
 export function parseSkillQuery(draft: string): SkillSearchQuery | null {
-  const singleVectorMatch = /^\/\/\s*(.*)$/u.exec(draft);
+  const singleVectorMatch = /^((?:\/skill:[^\s]+\s+)*)(\/\/\s*(.*))$/u.exec(
+    draft,
+  );
   if (singleVectorMatch !== null) {
     return {
       kind: 'single-vector',
-      term: singleVectorMatch[1]?.trim() ?? '',
+      start: singleVectorMatch[1]?.length ?? 0,
+      term: singleVectorMatch[3]?.trim() ?? '',
     };
   }
 
-  const fullTextMatch = /^\/(?:skill:)?([^\s]*)$/u.exec(draft);
+  const fullTextMatch = /^((?:\/skill:[^\s]+\s+)*)(\/(?:skill:)?([^\s]*))$/u.exec(
+    draft,
+  );
   return fullTextMatch === null
     ? null
     : {
         kind: 'full-text',
-        term: fullTextMatch[1]?.toLocaleLowerCase() ?? '',
+        start: fullTextMatch[1]?.length ?? 0,
+        term: fullTextMatch[3]?.toLocaleLowerCase() ?? '',
       };
+}
+
+/** Replace only the active skill query while preserving prior skill commands. */
+export function replaceSkillQuery(
+  draft: string,
+  query: SkillSearchQuery,
+  command: string,
+): string {
+  return `${draft.slice(0, query.start)}${command} `;
 }
 
 /** Build an in-memory ZBSearch index and return its ranked query operation. */

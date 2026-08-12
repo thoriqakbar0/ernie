@@ -21,6 +21,7 @@ import {
   createSingleVectorSkillSearch,
   createSkillSearch,
   parseSkillQuery,
+  replaceSkillQuery,
 } from '@/packages/skill-search';
 import type { SkillSearchItem } from '@/packages/skill-search';
 
@@ -141,7 +142,8 @@ export const TaskComposer = memo(function TaskComposer({
   }, [searchSkillsBySingleVector, skillQueryKind, skillQueryTerm, skills]);
 
   function insertSkill(command: string): void {
-    task.changeDraft(`${command} `);
+    if (skillQuery === null) return;
+    task.changeDraft(replaceSkillQuery(task.draft, skillQuery, command));
     setSkillsDismissed(true);
     textareaRef.current?.focus();
   }

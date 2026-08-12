@@ -2,6 +2,7 @@ export { createPrimeAgentDaemon } from './lib/daemon';
 import {
   parseCreatedSessionData,
   parseModelCatalogData,
+  parseRefinementRequest,
   parseSavedSessionListData,
   parseSessionListData,
   parseSessionViewData,
@@ -12,6 +13,7 @@ import type {
   PrimeAgentDaemon,
   PrimeAgentModel,
   PrimeAgentResult,
+  PrimeAgentRefinementRequest,
   PrimeAgentSavedSession,
   PrimeAgentSession,
   PrimeAgentSessionView,
@@ -61,4 +63,11 @@ export function parsePrimeAgentDaemonModels(
   value: unknown,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
   return parseModelCatalogData(value);
+}
+
+/** Parse a refinement request received at Ernie's daemon boundary. */
+export function parsePrimeAgentDaemonRefinementRequest(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentRefinementRequest> {
+  return parseRefinementRequest(value);
 }

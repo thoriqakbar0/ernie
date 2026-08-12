@@ -24,6 +24,7 @@ import {
 } from '../git-client';
 import {
   parsePrimeAgentModelsResult,
+  parsePrimeAgentRefinementReceiptResult,
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionResult,
@@ -36,6 +37,7 @@ import {
   createPrimeAgentDaemon,
   parsePrimeAgentDaemonCreatedSession,
   parsePrimeAgentDaemonModels,
+  parsePrimeAgentDaemonRefinementRequest,
   parsePrimeAgentDaemonSavedSessions,
   parsePrimeAgentDaemonSessions,
   parsePrimeAgentDaemonSessionView,
@@ -750,6 +752,29 @@ test('parses a task receipt after IPC', () => {
     ok: true,
     value: { accepted: true },
   });
+});
+
+test('parses a continual-harness refinement across both IPC boundaries', () => {
+  assert.deepEqual(
+    parsePrimeAgentDaemonRefinementRequest({
+      activeSessionId: 'active-agent',
+      instructions: 'Keep the verified workflow.',
+    }),
+    {
+      ok: true,
+      value: {
+        activeSessionId: 'active-agent',
+        instructions: 'Keep the verified workflow.',
+      },
+    },
+  );
+  assert.deepEqual(
+    parsePrimeAgentRefinementReceiptResult({
+      ok: true,
+      value: { refined: true },
+    }),
+    { ok: true, value: { refined: true } },
+  );
 });
 
 test('parses local Git branches after IPC', () => {

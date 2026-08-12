@@ -149,6 +149,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       submittedTasks.push(submission);
       return { ok: true, value: { accepted: true } };
     },
+    refinePrimeAgentSession: async () => ({
+      ok: true,
+      value: { refined: true },
+    }),
     listPrimeAgentGitBranches: async (cwd) => ({
       ok: true,
       value: { cwd, current: 'main', names: ['main'] },

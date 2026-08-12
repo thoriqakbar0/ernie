@@ -2,7 +2,10 @@ import { Effect } from 'effect';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { CreateAgentWithTaskResult } from '@/hooks/use-prime-agent-workspace';
-import { parsePrimeAgentTaskReceiptResult } from '@/packages/prime-agent-daemon/client';
+import {
+  parsePrimeAgentRefinementReceiptResult,
+  parsePrimeAgentTaskReceiptResult,
+} from '@/packages/prime-agent-daemon/client';
 
 const taskDraftStorageKey = 'ernie:task-drafts:v1';
 
@@ -40,6 +43,7 @@ export interface PrimeAgentTaskController {
   readonly status: string;
   readonly submitting: boolean;
   readonly changeDraft: (message: string) => void;
+  readonly refine: () => void;
   readonly submit: () => void;
 }
 
@@ -141,6 +145,54 @@ export function usePrimeAgentTask(
     );
   }
 
+  function refine(): void {
+    if (activeSessionId === null || submissionInFlight.current) return;
+    const submittedDraft = draft;
+    const trimmedDraft = submittedDraft.trim();
+    const instructions = trimmedDraft.length === 0 ? null : trimmedDraft;
+
+    submissionInFlight.current = true;
+    setSubmitting(true);
+    setStatus('Refining this Prime Agent session…');
+    const refineSession = Effect.fn('Task.refine')(function* () {
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.refinePrimeAgentSession({
+          activeSessionId,
+          instructions,
+        }),
+      );
+      const result = parsePrimeAgentRefinementReceiptResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        writeDraft(draftKey, '');
+        setDraft((currentDraft) =>
+          currentDraft === submittedDraft ? '' : currentDraft,
+        );
+        setStatus('Prime Agent refined this session.');
+      });
+    });
+
+    Effect.runFork(
+      refineSession().pipe(
+        Effect.catchAll(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not refine this Prime Agent session.'),
+          ),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            submissionInFlight.current = false;
+            setSubmitting(false);
+          }),
+        ),
+      ),
+    );
+  }
+
   return {
     canSubmit:
       (activeSessionId !== null || selectedCwd !== null) &&
@@ -149,6 +201,7 @@ export function usePrimeAgentTask(
     status,
     submitting,
     changeDraft: setDraft,
+    refine,
     submit,
   };
 }

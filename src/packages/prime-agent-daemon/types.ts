@@ -218,6 +218,17 @@ export interface PrimeAgentTaskReceipt {
   readonly accepted: true;
 }
 
+/** A continual-harness refinement requested for one connected session. */
+export interface PrimeAgentRefinementRequest {
+  readonly activeSessionId: string;
+  readonly instructions: string | null;
+}
+
+/** Confirmation that Prime Agent completed one harness refinement. */
+export interface PrimeAgentRefinementReceipt {
+  readonly refined: true;
+}
+
 /** A real Prime Agent session-name change requested by Ernie. */
 export type PrimeAgentSessionRename =
   | Readonly<{
@@ -275,6 +286,9 @@ export interface PrimeAgentDaemon {
   readonly submitTask: (
     submission: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentTaskReceipt>>;
+  readonly refineSession: (
+    request: unknown,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentRefinementReceipt>>;
   readonly close: () => void;
 }
 import type { Effect } from 'effect';

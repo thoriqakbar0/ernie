@@ -11,6 +11,8 @@ import type {
   PrimeAgentModel,
   PrimeAgentModelSelection,
   PrimeAgentResult,
+  PrimeAgentRefinementReceipt,
+  PrimeAgentRefinementRequest,
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
@@ -1088,6 +1090,12 @@ function parseTaskReceipt(value: unknown): PrimeAgentTaskReceipt | null {
   return isRecord(value) && value.accepted === true ? { accepted: true } : null;
 }
 
+function parseRefinementReceipt(
+  value: unknown,
+): PrimeAgentRefinementReceipt | null {
+  return isRecord(value) && value.refined === true ? { refined: true } : null;
+}
+
 function parseSessionRenameReceipt(
   value: unknown,
 ): PrimeAgentSessionRenameReceipt | null {
@@ -1285,11 +1293,39 @@ export function parseTaskSubmission(
     : { ok: true, value: { activeSessionId, message } };
 }
 
+/** Parse a continual-harness refinement from the isolated renderer. */
+export function parseRefinementRequest(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentRefinementRequest> {
+  if (!isRecord(value)) {
+    return failure('invalid_request', 'The refinement request is invalid.');
+  }
+
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  const instructions =
+    value.instructions === null ? null : nonEmptyString(value.instructions);
+  if (
+    activeSessionId === null ||
+    (value.instructions !== null && instructions === null)
+  ) {
+    return failure('invalid_request', 'The refinement request is invalid.');
+  }
+
+  return { ok: true, value: { activeSessionId, instructions } };
+}
+
 /** Parse a task receipt after it crosses the Electron IPC boundary. */
 export function parseTaskReceiptResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentTaskReceipt> {
   return parseResult(value, parseTaskReceipt);
+}
+
+/** Parse a refinement receipt after it crosses the Electron IPC boundary. */
+export function parseRefinementReceiptResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentRefinementReceipt> {
+  return parseResult(value, parseRefinementReceipt);
 }
 
 /** Parse a session-rename receipt after it crosses Electron IPC. */

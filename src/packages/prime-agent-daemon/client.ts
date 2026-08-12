@@ -1,6 +1,7 @@
 import {
   parseModelResult,
   parseModelsResult,
+  parseRefinementReceiptResult,
   parseRlmDepthResult,
   parseSavedSessionsResult,
   parseSessionRenameResult,
@@ -17,6 +18,8 @@ import type {
   PrimeAgentIpythonAttachment,
   PrimeAgentModelSelection,
   PrimeAgentResult,
+  PrimeAgentRefinementReceipt,
+  PrimeAgentRefinementRequest,
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
@@ -61,6 +64,8 @@ export type {
   PrimeAgentIpythonAttachment,
   PrimeAgentModelSelection,
   PrimeAgentResult,
+  PrimeAgentRefinementReceipt,
+  PrimeAgentRefinementRequest,
   PrimeAgentRlmDepth,
   PrimeAgentRlmDepthSelection,
   PrimeAgentSavedSession,
@@ -149,4 +154,11 @@ export function parsePrimeAgentTaskReceiptResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentTaskReceipt> {
   return parseTaskReceiptResult(value);
+}
+
+/** Parse a refinement receipt received from Electron's main process. */
+export function parsePrimeAgentRefinementReceiptResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentRefinementReceipt> {
+  return parseRefinementReceiptResult(value);
 }

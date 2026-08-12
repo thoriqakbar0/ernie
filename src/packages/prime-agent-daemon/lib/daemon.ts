@@ -20,6 +20,7 @@ import {
   parseModelCatalogData,
   parseModelData,
   parseModelSelection,
+  parseRefinementRequest,
   parseRlmDepthData,
   parseRlmDepthSelection,
   parseSavedSessionListData,
@@ -36,6 +37,7 @@ const connectTimeoutMs = 3_000;
 const daemonProbeTimeoutMs = 250;
 const daemonStartupAttempts = 400;
 const requestTimeoutMs = 10_000;
+const refinementRequestTimeoutMs = 10 * 60 * 1_000;
 
 function failure(
   code: PrimeAgentFailureCode,
@@ -620,6 +622,37 @@ export function createPrimeAgentDaemon(
     },
   );
 
+  const refineSession = Effect.fn('PrimeAgentDaemon.refineSession')(
+    (request: unknown) => {
+      const parsedRequest = parseRefinementRequest(request);
+      if (!parsedRequest.ok) return Effect.succeed(parsedRequest);
+
+      return withClient((client) => {
+        const command: DaemonCommand =
+          parsedRequest.value.instructions === null
+            ? {
+                type: 'refine',
+                activeSessionId: parsedRequest.value.activeSessionId,
+              }
+            : {
+                type: 'refine',
+                activeSessionId: parsedRequest.value.activeSessionId,
+                instructions: parsedRequest.value.instructions,
+              };
+        return Effect.tryPromise(() =>
+          client.request(command, refinementRequestTimeoutMs),
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok
+              ? { ok: true as const, value: { refined: true as const } }
+              : response,
+          ),
+        );
+      });
+    },
+  );
+
   return {
     listWorkspace,
     listModels,
@@ -633,6 +666,7 @@ export function createPrimeAgentDaemon(
     getRlmDepth,
     setRlmDepth,
     submitTask,
+    refineSession,
     close(): void {
       for (const client of retainedSessionClients.values()) client.close();
       retainedSessionClients.clear();

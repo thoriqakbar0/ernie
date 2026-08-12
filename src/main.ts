@@ -34,6 +34,7 @@ import {
   primeAgentRlmDepthChannel,
   primeAgentRenameGitBranchChannel,
   primeAgentRenameSessionChannel,
+  primeAgentRefineSessionChannel,
   primeAgentSetModelChannel,
   primeAgentSetRlmDepthChannel,
   primeAgentSubmitTaskChannel,
@@ -206,6 +207,9 @@ function registerPrimeAgentHandlers(): void {
   );
   ipcMain.handle(primeAgentSubmitTaskChannel, (_event, submission: unknown) =>
     Effect.runPromise(daemon.submitTask(submission)),
+  );
+  ipcMain.handle(primeAgentRefineSessionChannel, (_event, request: unknown) =>
+    Effect.runPromise(daemon.refineSession(request)),
   );
   ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd: unknown) =>
     Effect.runPromise(readLocalGitBranches(cwd)),

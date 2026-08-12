@@ -98,6 +98,77 @@ test('working Agent keeps an editable follow-up queue', async () => {
   );
 });
 
+test('Shift+Enter refines a connected Agent with the current draft', async () => {
+  const refinementRequests: unknown[] = [];
+  let completeRefinement = (): void => undefined;
+  Object.defineProperty(window, 'ernie', {
+    configurable: true,
+    value: {
+      refinePrimeAgentSession: (request: unknown) => {
+        refinementRequests.push(request);
+        return new Promise((resolve) => {
+          completeRefinement = () =>
+            resolve({ ok: true, value: { refined: true } });
+        });
+      },
+    },
+  });
+  const user = userEvent.setup();
+  renderTaskComposer();
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, 'Keep the useful layout lesson');
+  await user.keyboard('{Shift>}{Enter}{/Shift}');
+
+  await waitFor(() =>
+    assert.deepEqual(refinementRequests, [
+      {
+        activeSessionId: 'active-agent',
+        instructions: 'Keep the useful layout lesson',
+      },
+    ]),
+  );
+  assert.equal(
+    within(document.body).getAllByText('Refining this Prime Agent session…')
+      .length,
+    2,
+  );
+  completeRefinement();
+  await waitFor(() =>
+    assert.equal((composer as HTMLTextAreaElement).value, ''),
+  );
+  assert.equal(
+    within(document.body).getByRole('status').textContent,
+    'Prime Agent refined this session.',
+  );
+});
+
+test('Shift+Enter remains a newline before an Agent exists', async () => {
+  const user = userEvent.setup();
+  render(
+    <TaskComposer
+      modelBusy={false}
+      models={[]}
+      skills={skills}
+      selectedCwd="/workspace/ernie"
+      selectedModelKey={null}
+      selectedSessionId={null}
+      changeModel={() => undefined}
+      createAgentWithTask={async () => ({ ok: true })}
+    />,
+  );
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, 'First line');
+  await user.keyboard('{Shift>}{Enter}{/Shift}');
+  await user.type(composer, 'Second line');
+
+  assert.equal(
+    (composer as HTMLTextAreaElement).value,
+    'First line\nSecond line',
+  );
+});
+
 test('user can detect and insert a Prime Agent skill', async () => {
   const user = userEvent.setup();
   renderTaskComposer();

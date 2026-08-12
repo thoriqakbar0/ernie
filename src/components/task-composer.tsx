@@ -209,7 +209,14 @@ export const TaskComposer = memo(function TaskComposer({
       return;
     }
 
-    if (event.key !== 'Enter' || event.shiftKey) return;
+    if (event.key === 'Enter' && event.shiftKey) {
+      if (selectedSessionId === null || isGenerating) return;
+      event.preventDefault();
+      task.refine();
+      return;
+    }
+
+    if (event.key !== 'Enter') return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
   }
@@ -322,6 +329,16 @@ export const TaskComposer = memo(function TaskComposer({
             aria-autocomplete="list"
             aria-controls={skillsOpen ? skillsListId : undefined}
             aria-expanded={skillsOpen}
+            aria-keyshortcuts={
+              selectedSessionId === null || isGenerating
+                ? undefined
+                : 'Shift+Enter'
+            }
+            title={
+              selectedSessionId === null || isGenerating
+                ? undefined
+                : 'Enter to send · Shift+Enter to refine'
+            }
             disabled={disabled}
             aria-activedescendant={
               skillsOpen && matchingSkills.length > 0
@@ -352,7 +369,11 @@ export const TaskComposer = memo(function TaskComposer({
 
         {selectedSessionId === null ? null : (
           <div className="mt-1 flex flex-wrap items-center justify-center gap-1 text-xs text-muted-foreground">
-            {isGenerating ? (
+            {task.submitting ? (
+              <span className="basis-full px-2 text-center font-medium text-foreground/70 min-[30rem]:basis-auto">
+                {task.status}
+              </span>
+            ) : isGenerating ? (
               <span className="basis-full px-2 text-center font-medium text-foreground/70 min-[30rem]:basis-auto">
                 Working · follow-ups queue
               </span>

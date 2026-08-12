@@ -4,6 +4,7 @@ import type {
   PrimeAgentGitWorktreeCreation,
   PrimeAgentModelSelection,
   PrimeAgentRlmDepthSelection,
+  PrimeAgentRefinementRequest,
   PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentTaskSubmission,
@@ -50,6 +51,10 @@ export const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
 
 /** IPC channel that submits one task to a connected Prime Agent session. */
 export const primeAgentSubmitTaskChannel = 'ernie:prime-agent:submit-task';
+
+/** IPC channel that refines one connected Prime Agent session. */
+export const primeAgentRefineSessionChannel =
+  'ernie:prime-agent:refine-session';
 
 /** IPC channel that reads local branches for one workspace. */
 export const primeAgentGitBranchesChannel = 'ernie:prime-agent:git-branches';
@@ -104,6 +109,9 @@ export type ErnieRendererApi = Readonly<{
   ) => Promise<unknown>;
   submitPrimeAgentTask: (
     submission: PrimeAgentTaskSubmission,
+  ) => Promise<unknown>;
+  refinePrimeAgentSession: (
+    request: PrimeAgentRefinementRequest,
   ) => Promise<unknown>;
   listPrimeAgentGitBranches: (cwd: string) => Promise<unknown>;
   readPrimeAgentGitWorkspace: (cwd: string) => Promise<unknown>;

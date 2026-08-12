@@ -271,17 +271,32 @@ export function createPrimeAgentDaemon(
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
       return withClient((client) =>
-        Effect.tryPromise(() =>
-          client.request(
-            { type: 'attach', activeSessionId: parsedSessionId.value },
-            requestTimeoutMs,
-          ),
-        ).pipe(
-          Effect.map(responseData),
-          Effect.map((response) =>
-            response.ok ? parseSessionViewData(response.value) : response,
-          ),
-        ),
+        Effect.gen(function* () {
+          const viewResponse = responseData(
+            yield* Effect.tryPromise(() =>
+              client.request(
+                { type: 'attach', activeSessionId: parsedSessionId.value },
+                requestTimeoutMs,
+              ),
+            ),
+          );
+          if (!viewResponse.ok) return viewResponse;
+
+          const depthResponse = responseData(
+            yield* Effect.tryPromise(() =>
+              client.request(
+                {
+                  type: 'get_rlm_max_depth_status',
+                  activeSessionId: parsedSessionId.value,
+                },
+                requestTimeoutMs,
+              ),
+            ),
+          );
+          if (!depthResponse.ok) return depthResponse;
+
+          return parseSessionViewData(viewResponse.value, depthResponse.value);
+        }),
       );
     },
   );

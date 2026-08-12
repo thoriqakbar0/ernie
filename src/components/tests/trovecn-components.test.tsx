@@ -6,6 +6,7 @@ import { afterEach, test } from 'node:test';
 import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { AgentChat } from '@/components/agent-chat';
 import * as Accordion from '@/components/trovecn/ui/accordion';
 import * as Button from '@/components/trovecn/ui/button';
 import * as Checkbox from '@/components/trovecn/ui/checkbox';
@@ -61,6 +62,66 @@ test('conversation renders authored messages', () => {
   assert.ok(within(document.body).getByRole('article', { name: 'Your message' }));
   assert.ok(within(document.body).getByRole('article', { name: 'Agent response' }));
   assert.ok(within(document.body).getByRole('button', { name: 'Copy message' }));
+});
+
+test('focused chat renders depth as metadata without an empty disclosure', () => {
+  render(
+    <AgentChat
+      depth={2}
+      sessionView={{
+        activeSessionId: 'root',
+        messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
+        rlmMaxDepth: 2,
+        spawnedSessions: [],
+      }}
+    />,
+  );
+
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'depth 2' }),
+    null,
+  );
+  assert.ok(within(document.body).getByText('depth 2'));
+});
+
+test('focused chat reveals a recursively indexed spawned Agent tree', async () => {
+  const user = userEvent.setup();
+  render(
+    <AgentChat
+      depth={2}
+      sessionView={{
+        activeSessionId: 'root',
+        messages: [{ id: 'one', role: 'assistant', text: 'working' }],
+        rlmMaxDepth: 2,
+        spawnedSessions: [
+          {
+            id: 'research',
+            name: 'Research',
+            parentId: null,
+            status: 'working',
+          },
+          {
+            id: 'verify',
+            name: 'Verify',
+            parentId: 'research',
+            status: 'done',
+          },
+        ],
+      }}
+    />,
+  );
+
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'depth 2 · 1 working · 2 spawned',
+    }),
+  );
+
+  assert.ok(
+    within(document.body).getByRole('region', { name: 'Spawned agents' }),
+  );
+  assert.ok(within(document.body).getByText('Research'));
+  assert.ok(within(document.body).getByText('Verify'));
 });
 
 test('prompt composer submits trimmed text with Enter', async () => {

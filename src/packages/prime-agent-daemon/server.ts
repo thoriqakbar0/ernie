@@ -37,8 +37,9 @@ export function parsePrimeAgentDaemonCreatedSession(
 /** Parse a raw focused-session snapshot from the Prime Agent daemon. */
 export function parsePrimeAgentDaemonSessionView(
   value: unknown,
+  rlmDepthValue: unknown,
 ): PrimeAgentResult<PrimeAgentSessionView> {
-  return parseSessionViewData(value);
+  return parseSessionViewData(value, rlmDepthValue);
 }
 
 /** Parse durable sessions returned by the Prime Agent daemon. */

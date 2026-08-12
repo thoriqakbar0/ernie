@@ -13,8 +13,13 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
   const selectedSession = workspace.sessions.find(
     (session) => session.activeSessionId === workspace.selectedSessionId,
   );
+  const selectedSessionView =
+    workspace.selectedSessionView?.activeSessionId ===
+    workspace.selectedSessionId
+      ? workspace.selectedSessionView
+      : null;
   const chatReady =
-    workspace.selectedSessionView?.messages.some(
+    selectedSessionView?.messages.some(
       (message) => message.role === 'assistant',
     ) ?? false;
 
@@ -25,7 +30,7 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
       }
     >
       <Field
-        className={`mx-auto w-full max-w-[50rem] gap-2 ${chatReady ? 'min-h-0 flex-1' : ''}`}
+        className={`mx-auto w-full gap-2 ${chatReady ? 'min-h-0 max-w-[44rem] flex-1' : 'max-w-[50rem]'}`}
       >
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
@@ -51,9 +56,9 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
             initializeGitRepository={workspace.initializeGitRepository}
             createGitWorktree={workspace.createGitWorktree}
           />
-        ) : chatReady && workspace.selectedSessionView !== null ? (
+        ) : chatReady && selectedSessionView !== null ? (
           <>
-            <header className="flex items-center gap-2 text-xs text-muted-foreground">
+            <header className="flex items-center gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">
                 {selectedSession?.name ?? 'Agent'}
               </span>
@@ -63,7 +68,7 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
             <div className="min-h-0 flex-1 overflow-y-auto">
               <AgentChat
                 depth={workspace.selectedSessionRlmMaxDepth}
-                sessionView={workspace.selectedSessionView}
+                sessionView={selectedSessionView}
               />
             </div>
           </>

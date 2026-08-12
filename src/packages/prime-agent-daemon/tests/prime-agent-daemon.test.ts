@@ -84,6 +84,7 @@ test('projects focused chat messages and named spawned sessions', () => {
         { id: 'root-agent:0', role: 'user', text: 'Build the chat' },
         { id: 'root-agent:1', role: 'assistant', text: 'I am working on it.' },
       ],
+      rlmMaxDepth: 2,
       spawnedSessions: [
         {
           id: 'research',
@@ -101,7 +102,10 @@ test('projects focused chat messages and named spawned sessions', () => {
     },
   };
 
-  assert.deepEqual(parsePrimeAgentDaemonSessionView(raw), expected);
+  assert.deepEqual(
+    parsePrimeAgentDaemonSessionView(raw, { maxDepth: 2, source: 'chat' }),
+    expected,
+  );
   assert.deepEqual(parsePrimeAgentSessionViewResult(expected), expected);
 });
 import {

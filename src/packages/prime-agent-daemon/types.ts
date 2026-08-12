@@ -44,6 +44,7 @@ export interface PrimeAgentSpawnedSession {
 export interface PrimeAgentSessionView {
   readonly activeSessionId: string;
   readonly messages: readonly PrimeAgentChatMessage[];
+  readonly rlmMaxDepth: number;
   readonly spawnedSessions: readonly PrimeAgentSpawnedSession[];
 }
 

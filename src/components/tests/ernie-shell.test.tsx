@@ -108,6 +108,18 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       return { ok: true, value: [] };
     },
     listPrimeAgentSkills: async () => ({ ok: true, value: [] }),
+    getPrimeAgentSessionView: async (activeSessionId) => ({
+      ok: true,
+      value: {
+        activeSessionId,
+        messages: [
+          { id: 'task', role: 'user', text: 'Polish the sidebar' },
+          { id: 'reply', role: 'assistant', text: 'I am working on it.' },
+        ],
+        rlmMaxDepth: 5,
+        spawnedSessions: [],
+      },
+    }),
     setPrimeAgentModel: async () => ({ ok: false }),
     getPrimeAgentRlmDepth: async () => ({
       ok: true,
@@ -261,6 +273,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     null,
   );
   assert.ok(within(document.body).getByRole('button', { name: 'Add context' }));
+  assert.ok(
+    await within(document.body).findByRole('region', { name: 'Conversation' }),
+  );
+  assert.ok(within(document.body).getByText('I am working on it.'));
 
   await user.click(
     within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),

@@ -10,7 +10,6 @@ import {
 import {
   parsePrimeAgentModelResult,
   parsePrimeAgentModelsResult,
-  parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
@@ -149,9 +148,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   );
   const [selectedSessionView, setSelectedSessionView] =
     useState<PrimeAgentSessionView | null>(null);
-  const [selectedSessionRlmMaxDepth, setSelectedSessionRlmMaxDepth] = useState<
-    number | null
-  >(null);
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
   const [skills, setSkills] = useState<readonly PrimeAgentSkill[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
@@ -398,7 +394,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       setModels([]);
       setSkills([]);
       setSelectedSessionView(null);
-      setSelectedSessionRlmMaxDepth(null);
       return;
     }
 
@@ -456,11 +451,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }, [selectedSessionId]);
 
   useEffect(() => {
-    if (
-      selectedSessionId === null ||
-      window.ernie.getPrimeAgentSessionView === undefined
-    ) {
-      setSelectedSessionView(null);
+    setSelectedSessionView(null);
+    if (selectedSessionId === null) {
       return;
     }
 
@@ -470,23 +462,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     let interruptRefresh: (() => void) | null = null;
     const refreshSession = Effect.fn('Workspace.refreshFocusedSession')(
       function* () {
-        const getSessionView = window.ernie.getPrimeAgentSessionView;
-        if (getSessionView === undefined) return;
-        const [rawView, rawDepth] = yield* Effect.all(
-          [
-            Effect.tryPromise(() => getSessionView(activeSessionId)),
-            Effect.tryPromise(() =>
-              window.ernie.getPrimeAgentRlmDepth(activeSessionId),
-            ),
-          ],
-          { concurrency: 'unbounded' },
+        const rawView = yield* Effect.tryPromise(() =>
+          window.ernie.getPrimeAgentSessionView(activeSessionId),
         );
         if (!active) return;
         const view = parsePrimeAgentSessionViewResult(rawView);
-        const depth = parsePrimeAgentRlmDepthResult(rawDepth);
+        if (!view.ok || view.value.activeSessionId !== activeSessionId) return;
         yield* Effect.sync(() => {
-          setSelectedSessionView(view.ok ? view.value : null);
-          setSelectedSessionRlmMaxDepth(depth.ok ? depth.value.maxDepth : null);
+          setSelectedSessionView(view.value);
         });
       },
     );
@@ -507,7 +490,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       interruptRefresh = () => Effect.runFork(Fiber.interrupt(fiber));
     };
     refresh();
-    const interval = window.setInterval(refresh, 750);
+    const interval = window.setInterval(refresh, workspaceRefreshIntervalMs);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       active = false;
@@ -1200,7 +1183,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedModelKey,
     selectedSessionId,
     selectedSessionView,
-    selectedSessionRlmMaxDepth,
+    selectedSessionRlmMaxDepth: selectedSessionView?.rlmMaxDepth ?? null,
     sessions: workspace?.sessions ?? [],
     savedSessions,
     status,

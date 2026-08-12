@@ -14,14 +14,15 @@ interface AgentChatProps {
 
 function SpawnedSessionBranch({
   session,
-  sessions,
+  childrenByParent,
 }: {
   readonly session: PrimeAgentSpawnedSession;
-  readonly sessions: readonly PrimeAgentSpawnedSession[];
+  readonly childrenByParent: ReadonlyMap<
+    string | null,
+    readonly PrimeAgentSpawnedSession[]
+  >;
 }): React.JSX.Element {
-  const children = sessions.filter(
-    (candidate) => candidate.parentId === session.id,
-  );
+  const children = childrenByParent.get(session.id) ?? [];
   const statusTone =
     session.status === 'error' ? 'text-amber-500' : 'text-muted-foreground';
   return (
@@ -47,7 +48,7 @@ function SpawnedSessionBranch({
               <SpawnedSessionBranch
                 key={child.id}
                 session={child}
-                sessions={sessions}
+                childrenByParent={childrenByParent}
               />
             ))}
           </ul>
@@ -63,15 +64,23 @@ export function AgentChat({
   sessionView,
 }: AgentChatProps): React.JSX.Element {
   const [treeOpen, setTreeOpen] = useState(false);
-  const roots = useMemo(
-    () =>
-      sessionView.spawnedSessions.filter(
-        (session) =>
-          session.parentId === null ||
-          !sessionView.spawnedSessions.some((candidate) => candidate.id === session.parentId),
-      ),
-    [sessionView.spawnedSessions],
-  );
+  const childrenByParent = useMemo(() => {
+    const sessionIds = new Set(
+      sessionView.spawnedSessions.map((session) => session.id),
+    );
+    const index = new Map<string | null, PrimeAgentSpawnedSession[]>();
+    for (const session of sessionView.spawnedSessions) {
+      const parentId =
+        session.parentId !== null && sessionIds.has(session.parentId)
+          ? session.parentId
+          : null;
+      const children = index.get(parentId) ?? [];
+      children.push(session);
+      index.set(parentId, children);
+    }
+    return index;
+  }, [sessionView.spawnedSessions]);
+  const roots = childrenByParent.get(null) ?? [];
   const working = sessionView.spawnedSessions.filter(
     (session) => session.status === 'working' || session.status === 'queued',
   ).length;
@@ -89,7 +98,13 @@ export function AgentChat({
 
   return (
     <>
-      {summary.length === 0 ? null : (
+      {sessionView.spawnedSessions.length === 0 ? (
+        depth === null ? null : (
+          <p className="h-7 text-xs leading-7 text-muted-foreground">
+            depth {depth}
+          </p>
+        )
+      ) : summary.length === 0 ? null : (
         <button
           type="button"
           className="flex h-7 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -109,7 +124,7 @@ export function AgentChat({
               <SpawnedSessionBranch
                 key={session.id}
                 session={session}
-                sessions={sessionView.spawnedSessions}
+                childrenByParent={childrenByParent}
               />
             ))}
           </ul>

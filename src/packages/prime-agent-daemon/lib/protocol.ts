@@ -53,6 +53,7 @@ function textContent(value: unknown): string {
 /** Parse one focused attach snapshot into Ernie's narrow chat projection. */
 export function parseSessionViewData(
   value: unknown,
+  rlmDepthValue: unknown,
 ): PrimeAgentResult<PrimeAgentSessionView> {
   if (!isRecord(value) || !isRecord(value.snapshot)) {
     return failure(
@@ -68,6 +69,9 @@ export function parseSessionViewData(
       'Prime Agent returned an invalid chat snapshot.',
     );
   }
+
+  const rlmDepth = parseRlmDepthData(rlmDepthValue);
+  if (!rlmDepth.ok) return rlmDepth;
 
   const messages: PrimeAgentChatMessage[] = [];
   value.snapshot.messages.forEach((message, index) => {
@@ -120,7 +124,15 @@ export function parseSessionViewData(
     if (name !== null) spawnedSessions.push({ id, name, parentId, status });
   }
 
-  return { ok: true, value: { activeSessionId, messages, spawnedSessions } };
+  return {
+    ok: true,
+    value: {
+      activeSessionId,
+      messages,
+      rlmMaxDepth: rlmDepth.value.maxDepth,
+      spawnedSessions,
+    },
+  };
 }
 
 function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
@@ -132,7 +144,15 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
     return null;
   }
   const activeSessionId = nonEmptyString(value.activeSessionId);
-  if (activeSessionId === null) return null;
+  const rlmMaxDepth = value.rlmMaxDepth;
+  if (
+    activeSessionId === null ||
+    typeof rlmMaxDepth !== 'number' ||
+    !Number.isSafeInteger(rlmMaxDepth) ||
+    rlmMaxDepth < 0
+  ) {
+    return null;
+  }
 
   const messages: PrimeAgentChatMessage[] = [];
   for (const message of value.messages) {
@@ -171,7 +191,7 @@ function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
     spawnedSessions.push({ id, name, parentId, status: session.status });
   }
 
-  return { activeSessionId, messages, spawnedSessions };
+  return { activeSessionId, messages, rlmMaxDepth, spawnedSessions };
 }
 
 function failure(

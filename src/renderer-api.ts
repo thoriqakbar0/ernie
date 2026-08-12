@@ -96,7 +96,7 @@ export type ErnieRendererApi = Readonly<{
   renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<unknown>;
   listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
   listPrimeAgentSkills: (activeSessionId: string) => Promise<unknown>;
-  getPrimeAgentSessionView?: (activeSessionId: string) => Promise<unknown>;
+  getPrimeAgentSessionView: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;
   getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentRlmDepth: (

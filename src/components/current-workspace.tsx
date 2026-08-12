@@ -94,8 +94,13 @@ export function CurrentWorkspace({
   createGitWorktree,
 }: CurrentWorkspaceProps): React.JSX.Element {
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
-  const selectedFolder =
+  const selectedExecutionFolder =
     folders.find((folder) => folder.value === selectedCwd) ?? null;
+  const selectedFolder =
+    folders.find(
+      (folder) =>
+        folder.value === selectedExecutionFolder?.repositoryCwd,
+    ) ?? selectedExecutionFolder;
 
   return (
     <section

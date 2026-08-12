@@ -45,6 +45,44 @@ const folders = [
   },
 ] as const;
 
+test('repository selector stays stable inside a Git worktree', () => {
+  render(
+    <CurrentWorkspace
+      busy={false}
+      folders={[
+        ...folders,
+        {
+          branchName: 'feature/ui',
+          label: 'feature/ui',
+          repositoryCwd: '/workspace/ernie',
+          value: '/workspace/ernie-feature-ui',
+        },
+      ]}
+      gitBranch="feature/ui"
+      gitBranchBusy={false}
+      gitBranches={['main', 'feature/ui']}
+      gitWorktreeError={null}
+      loadingWorkspace={false}
+      rlmMaxDepth={1}
+      rlmMaxDepthBusy={false}
+      selectedCwd="/workspace/ernie-feature-ui"
+      changeFolder={() => undefined}
+      chooseWorkspaceDirectory={() => undefined}
+      changeGitBranch={() => undefined}
+      changeRlmMaxDepth={() => undefined}
+      deleteGitBranch={() => undefined}
+      initializeGitRepository={() => undefined}
+      createGitWorktree={() => undefined}
+    />,
+  );
+
+  const repositorySelector = within(document.body).getByRole('combobox', {
+    name: 'Folder location',
+  });
+  assert.match(repositorySelector.textContent ?? '', /ernie/u);
+  assert.doesNotMatch(repositorySelector.textContent ?? '', /feature\/ui/u);
+});
+
 test('Trove launch controls change workspace and Git branch', async () => {
   const changedFolders: Array<string | null> = [];
   const changedBranches: Array<string | null> = [];

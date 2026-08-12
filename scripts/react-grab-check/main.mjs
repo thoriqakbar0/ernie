@@ -15,6 +15,7 @@ import {
 const rendererReadyTimeoutMs = 5_000;
 const settingsButtonSelector = 'button[aria-label="Application settings"]';
 const sidebarRailSelector = '[data-sidebar="rail"]';
+const sidebarWidthStorageKey = 'ernie:sidebar-width:v1';
 const workspaceFolderTriggerSelector = '#workspace-folder';
 const workspaceSearchSelector =
   'input[aria-label="Search workspace directories"]';
@@ -66,7 +67,7 @@ function executeJavaScript(window, source) {
   return Effect.tryPromise(() => window.webContents.executeJavaScript(source));
 }
 
-const checkAgentation = Effect.fn('Agentation.check')(function* () {
+const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
   ipcMain.handle(primeAgentWorkspaceChannel, () => ({
     ok: true,
     value: { currentCwd: process.cwd(), sessions: [] },
@@ -120,6 +121,11 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
       return 1;
     }
 
+    yield* executeJavaScript(
+      window,
+      `window.localStorage.setItem(${JSON.stringify(sidebarWidthStorageKey)}, '280')`,
+    );
+
     const reloadStartedAt = performance.now();
     const reloaded = waitForEvent(window.webContents, 'did-finish-load');
     const reloadReady = waitForRendererReady(window, reloadStartedAt);
@@ -144,6 +150,39 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
       Fiber.join(reloadReadyFiber),
     ]);
     const reloadMs = Math.round(performance.now() - reloadStartedAt);
+
+    const reactGrabToggleWorks = yield* executeJavaScript(window, `new Promise((resolve) => {
+      const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
+      if (!(settingsButton instanceof HTMLButtonElement)) {
+        resolve(false);
+        return;
+      }
+
+      settingsButton.click();
+      window.setTimeout(() => {
+        const annotateItem = [...document.querySelectorAll('[role="menuitemcheckbox"]')]
+          .find((item) => item.textContent?.trim() === 'Annotate');
+        if (!(annotateItem instanceof HTMLElement)) {
+          resolve(false);
+          return;
+        }
+
+        annotateItem.click();
+        const disabled = window.__REACT_GRAB__?.isEnabled() === false;
+        settingsButton.click();
+        window.setTimeout(() => {
+          const reopenedItem = [...document.querySelectorAll('[role="menuitemcheckbox"]')]
+            .find((item) => item.textContent?.trim() === 'Annotate');
+          if (!(reopenedItem instanceof HTMLElement)) {
+            resolve(false);
+            return;
+          }
+
+          reopenedItem.click();
+          resolve(disabled && window.__REACT_GRAB__?.isEnabled() === true);
+        }, 50);
+      }, 50);
+    })`);
 
     const workspacePickerOpened = yield* executeJavaScript(window, `(() => {
       const trigger = document.querySelector(${JSON.stringify(workspaceFolderTriggerSelector)});
@@ -257,14 +296,23 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
       sidebarAfterResize.width >= sidebarBeforeResize.width + 40;
 
     const state = yield* executeJavaScript(window, `(() => {
-      const toolbar = document.querySelector('[data-agentation-toolbar]');
+      const api = window.__REACT_GRAB__;
+      const overlay = document.querySelector('[data-testid="react-grab-overlay"]');
+      const toolbar = overlay?.shadowRoot?.querySelector('[data-react-grab-toolbar]');
       if (!(toolbar instanceof HTMLElement)) {
-        return { toolbarExists: false, toolbarVisible: false };
+        return {
+          apiExists: api !== undefined,
+          reactGrabEnabled: api?.isEnabled() ?? false,
+          toolbarExists: false,
+          toolbarVisible: false,
+        };
       }
 
       const bounds = toolbar.getBoundingClientRect();
       const style = getComputedStyle(toolbar);
       return {
+        apiExists: api !== undefined,
+        reactGrabEnabled: api?.isEnabled() ?? false,
         toolbarExists: true,
         toolbarVisible:
           bounds.width > 0 &&
@@ -282,6 +330,7 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
     process.stdout.write(
       `${JSON.stringify({
         ...state,
+        reactGrabToggleWorks,
         settingsButtonExists,
         sidebarResizable,
         sidebarWidthBefore: sidebarBeforeResize.width,
@@ -294,7 +343,12 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
         workspacePickerReady,
       })}\n`,
     );
-    return state.toolbarVisible && sidebarResizable && workspacePickerReady
+    return state.apiExists &&
+      state.reactGrabEnabled &&
+      state.toolbarVisible &&
+      reactGrabToggleWorks &&
+      sidebarResizable &&
+      workspacePickerReady
       ? 0
       : 1;
   }).pipe(Effect.ensuring(Effect.sync(() => window.destroy())));
@@ -302,7 +356,7 @@ const checkAgentation = Effect.fn('Agentation.check')(function* () {
 
 void app.whenReady().then(() => {
   void Effect.runPromise(
-    checkAgentation().pipe(
+    checkReactGrab().pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
           process.stderr.write(`${String(error)}\n`);

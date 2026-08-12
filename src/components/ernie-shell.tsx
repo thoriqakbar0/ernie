@@ -24,19 +24,19 @@ import {
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 
 type ErnieShellProps = {
-  agentationEnabled: boolean;
   darkModeEnabled: boolean;
-  onAgentationEnabledChange: (enabled: boolean) => void;
   onDarkModeEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
+  onReactGrabEnabledChange: (enabled: boolean) => void;
+  reactGrabEnabled: boolean;
 };
 
 export function ErnieShell({
-  agentationEnabled,
   darkModeEnabled,
-  onAgentationEnabledChange,
   onDarkModeEnabledChange,
   onReload,
+  onReactGrabEnabledChange,
+  reactGrabEnabled,
 }: ErnieShellProps): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
   const themeAction = darkModeEnabled ? 'Use light mode' : 'Use dark mode';
@@ -119,8 +119,8 @@ export function ErnieShell({
                 </MenuTrigger>
                 <MenuContent align="end" sideOffset={6}>
                   <MenuCheckboxItem
-                    checked={agentationEnabled}
-                    onCheckedChange={onAgentationEnabledChange}
+                    checked={reactGrabEnabled}
+                    onCheckedChange={onReactGrabEnabledChange}
                   >
                     Annotate
                   </MenuCheckboxItem>

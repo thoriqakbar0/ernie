@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
-  const agentationChanges: boolean[] = [];
+  const reactGrabChanges: boolean[] = [];
   const createdSessions: Array<
     Parameters<ErnieRendererApi['createPrimeAgentSession']>[0]
   > = [];
@@ -192,11 +192,11 @@ test('repository plus opens a draft and the first message creates the Prime Agen
 
   render(
     <ErnieShell
-      agentationEnabled={false}
       darkModeEnabled
-      onAgentationEnabledChange={(enabled) => agentationChanges.push(enabled)}
       onDarkModeEnabledChange={() => undefined}
       onReload={() => undefined}
+      onReactGrabEnabledChange={(enabled) => reactGrabChanges.push(enabled)}
+      reactGrabEnabled={false}
     />,
   );
 
@@ -212,7 +212,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).getByRole('menuitem', { name: 'Reload renderer' }),
   );
   await user.click(annotateItem);
-  assert.deepEqual(agentationChanges, [true]);
+  assert.deepEqual(reactGrabChanges, [true]);
 
   assert.ok(
     await within(document.body).findByRole('button', {

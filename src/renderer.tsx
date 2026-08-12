@@ -1,3 +1,5 @@
+import 'react-grab';
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -6,10 +8,12 @@ import { applyColorTheme, readInitialColorTheme } from '@/color-theme';
 
 import './index.css';
 
-const agentationToolbarSelector = '[data-agentation-toolbar]';
+const reactGrabOverlaySelector = '[data-testid="react-grab-overlay"]';
+const reactGrabToolbarSelector = '[data-react-grab-toolbar]';
 
-function isAgentationToolbarVisible(): boolean {
-  const toolbar = document.querySelector(agentationToolbarSelector);
+function isReactGrabToolbarVisible(): boolean {
+  const overlay = document.querySelector(reactGrabOverlaySelector);
+  const toolbar = overlay?.shadowRoot?.querySelector(reactGrabToolbarSelector);
 
   if (!(toolbar instanceof HTMLElement)) {
     return false;
@@ -28,40 +32,27 @@ function isAgentationToolbarVisible(): boolean {
 }
 
 function signalReadyAfterPaint(): () => void {
-  let firstFrameId: number | undefined;
-  let secondFrameId: number | undefined;
+  let frameId: number | undefined;
+  let visibleFrameCount = 0;
 
-  const signal = (): void => {
-    firstFrameId = requestAnimationFrame(() => {
-      secondFrameId = requestAnimationFrame(() => {
+  const signalWhenReady = (): void => {
+    if (isReactGrabToolbarVisible()) {
+      visibleFrameCount += 1;
+      if (visibleFrameCount === 2) {
         window.ernie.signalReady();
-      });
-    });
-  };
-
-  const cancelScheduledSignal = (): void => {
-    if (firstFrameId !== undefined) cancelAnimationFrame(firstFrameId);
-    if (secondFrameId !== undefined) cancelAnimationFrame(secondFrameId);
-  };
-
-  const observer = new MutationObserver(() => {
-    if (!isAgentationToolbarVisible()) {
-      return;
+        return;
+      }
+    } else {
+      visibleFrameCount = 0;
     }
 
-    observer.disconnect();
-    signal();
-  });
+    frameId = requestAnimationFrame(signalWhenReady);
+  };
 
-  if (isAgentationToolbarVisible()) {
-    signal();
-  } else {
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
+  frameId = requestAnimationFrame(signalWhenReady);
 
   return () => {
-    observer.disconnect();
-    cancelScheduledSignal();
+    if (frameId !== undefined) cancelAnimationFrame(frameId);
   };
 }
 

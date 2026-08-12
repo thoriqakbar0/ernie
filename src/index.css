@@ -56,10 +56,6 @@ body {
   overflow: hidden;
 }
 
-.ernie-agentation-toolbar {
-  max-width: calc(100vw - 1.5rem);
-}
-
 html,
 body,
 #app {

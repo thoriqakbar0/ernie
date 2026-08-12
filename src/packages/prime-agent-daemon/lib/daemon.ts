@@ -18,6 +18,10 @@ import type {
 } from '../types.js';
 import { startPrimeAgentDaemonProcess } from './daemon-process.js';
 import {
+  createPrimeAgentControlClient,
+  type PrimeAgentControlTransport,
+} from './control-client.js';
+import {
   parseActiveSessionId,
   parseCreatedSessionData,
   parseModelCatalogData,
@@ -41,6 +45,7 @@ const daemonProbeTimeoutMs = 250;
 const daemonStartupAttempts = 400;
 const requestTimeoutMs = 10_000;
 const refinementRequestTimeoutMs = 10 * 60 * 1_000;
+const daemonReconnectTimeoutMs = 120_000;
 
 function failure(
   code: PrimeAgentFailureCode,
@@ -51,6 +56,12 @@ function failure(
 
 function responseData(response: DaemonResponse): PrimeAgentResult<JsonValue> {
   if (!response.success) {
+    if (response.errorInfo?.code === 'command_result_uncertain') {
+      return failure(
+        'outcome_uncertain',
+        'Prime Agent received the command, but its final result is uncertain.',
+      );
+    }
     return failure('request_failed', 'Prime Agent could not complete the request.');
   }
   const value = parseJsonValue(response.data);
@@ -109,8 +120,6 @@ export function createPrimeAgentDaemon(
   ) {
     throw new Error('Prime Agent process and extension paths must not be empty.');
   }
-  const retainedSessionClients = new Map<string, DaemonClient>();
-
   const loadRuntime = Effect.tryPromise(() => import('prime-agent')).pipe(
     Effect.map(
       ({
@@ -163,6 +172,20 @@ export function createPrimeAgentDaemon(
   const [ensureDaemonReady, invalidateDaemonReadiness] = Effect.runSync(
     Effect.cachedInvalidateWithTTL(establishDaemonReadiness, '1 second'),
   );
+  const recoverDaemon = () =>
+    Effect.runPromise(
+      invalidateDaemonReadiness.pipe(Effect.andThen(ensureDaemonReady)),
+    );
+  const controlClient = createPrimeAgentControlClient({
+    connectTimeoutMs,
+    createTransport: async () => {
+      const runtime = await Effect.runPromise(loadRuntime);
+      return runtime.createClient();
+    },
+    recoverDaemon,
+    reconnectTimeoutMs: daemonReconnectTimeoutMs,
+    reportFailure: reportOperationalFailure,
+  });
 
   const openSessionConnection = (activeSessionId: string) =>
     ensureDaemonReady.pipe(
@@ -175,12 +198,7 @@ export function createPrimeAgentDaemon(
             return await runtime.attachSession(
               client,
               activeSessionId,
-              () =>
-                Effect.runPromise(
-                  invalidateDaemonReadiness.pipe(
-                    Effect.andThen(ensureDaemonReady),
-                  ),
-                ),
+              recoverDaemon,
             );
           } catch (cause) {
             client.close();
@@ -192,38 +210,21 @@ export function createPrimeAgentDaemon(
 
   function withClient<T>(
     operation: (
-      client: DaemonClient,
+      client: PrimeAgentControlTransport,
     ) => Effect.Effect<PrimeAgentResult<T>, unknown>,
   ): Effect.Effect<PrimeAgentResult<T>> {
-    let connected = false;
-    return ensureDaemonReady.pipe(
-      Effect.andThen(loadRuntime),
-      Effect.map((runtime) => runtime.createClient()),
-      Effect.flatMap((client) =>
-        Effect.acquireUseRelease(
-          Effect.succeed(client),
-          (activeClient) =>
-            Effect.gen(function* () {
-              yield* Effect.tryPromise(() =>
-                activeClient.connect(connectTimeoutMs),
-              );
-              connected = true;
-              return yield* operation(activeClient);
-            }),
-          (activeClient) => Effect.sync(() => activeClient.close()),
-        ),
-      ),
+    return controlClient.use(operation).pipe(
       Effect.catch((error) =>
         invalidateDaemonReadiness.pipe(
           Effect.andThen(
             Effect.sync(() => {
               reportOperationalFailure(
-                connected
+                controlClient.state() === 'ready'
                   ? 'Prime Agent request failed.'
                   : 'Prime Agent connection failed.',
                 error,
               );
-              return connected
+              return controlClient.state() === 'ready'
                 ? failure(
                     'request_failed',
                     'Prime Agent could not complete the request.',
@@ -383,7 +384,6 @@ export function createPrimeAgentDaemon(
   function openSession(
     request: SessionOpenRequest,
   ): Effect.Effect<PrimeAgentResult<PrimeAgentSession>> {
-    let connected = false;
     let command: Extract<DaemonCommand, { type: 'create' }>;
     if (request.type === 'new') {
       const newSessionConfig: NonNullable<
@@ -411,111 +411,74 @@ export function createPrimeAgentDaemon(
       };
     }
 
-    return ensureDaemonReady.pipe(
-      Effect.andThen(loadRuntime),
-      Effect.map((runtime) => runtime.createClient()),
-      Effect.flatMap((client) => {
-        let retained = false;
-        return Effect.acquireUseRelease(
-          Effect.succeed(client),
-          (activeClient) =>
-            Effect.gen(function* () {
-              yield* Effect.tryPromise(() =>
-                activeClient.connect(connectTimeoutMs),
+    return controlClient
+      .use((activeClient) =>
+        Effect.gen(function* () {
+          const rawCreateResponse = yield* Effect.tryPromise(() =>
+            activeClient.request(command, requestTimeoutMs),
+          );
+          const createResponse = responseData(rawCreateResponse);
+          if (!createResponse.ok) return createResponse;
+
+          const session = parseCreatedSessionData(createResponse.value);
+          if (!session.ok) return session;
+
+          if (request.type === 'new') {
+            const rawDepthResponse = yield* Effect.tryPromise(() =>
+              activeClient.request(
+                {
+                  type: 'set_rlm_max_depth',
+                  activeSessionId: session.value.activeSessionId,
+                  maxDepth: request.rlmMaxDepth,
+                },
+                requestTimeoutMs,
+              ),
+            );
+            const depthResponse = responseData(rawDepthResponse);
+            if (!depthResponse.ok) return depthResponse;
+
+            const depth = parseRlmDepthData(depthResponse.value);
+            if (!depth.ok) return depth;
+            if (depth.value.maxDepth !== request.rlmMaxDepth) {
+              return failure(
+                'protocol_error',
+                'Prime Agent did not apply the requested RLM max depth.',
               );
-              connected = true;
-
-              const rawCreateResponse = yield* Effect.tryPromise(() =>
-                activeClient.request(command, requestTimeoutMs),
-              );
-              const createResponse = responseData(rawCreateResponse);
-              if (!createResponse.ok) return createResponse;
-
-              const session = parseCreatedSessionData(createResponse.value);
-              if (!session.ok) return session;
-
-              if (request.type === 'new') {
-                const rawDepthResponse = yield* Effect.tryPromise(() =>
-                  activeClient.request(
-                    {
-                      type: 'set_rlm_max_depth',
-                      activeSessionId: session.value.activeSessionId,
-                      maxDepth: request.rlmMaxDepth,
-                    },
-                    requestTimeoutMs,
-                  ),
+            }
+          }
+          return session;
+        }),
+      )
+      .pipe(
+        Effect.catch((error) =>
+          invalidateDaemonReadiness.pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                const importing = request.type === 'saved';
+                reportOperationalFailure(
+                  controlClient.state() === 'ready'
+                    ? importing
+                      ? 'Prime Agent session import failed.'
+                      : 'Prime Agent session creation failed.'
+                    : 'Prime Agent connection failed.',
+                  error,
                 );
-                const depthResponse = responseData(rawDepthResponse);
-                if (!depthResponse.ok) return depthResponse;
-
-                const depth = parseRlmDepthData(depthResponse.value);
-                if (!depth.ok) return depth;
-                if (depth.value.maxDepth !== request.rlmMaxDepth) {
-                  return failure(
-                    'protocol_error',
-                    'Prime Agent did not apply the requested RLM max depth.',
-                  );
-                }
-              }
-
-              const rawAttachResponse = yield* Effect.tryPromise(() =>
-                activeClient.request(
-                  {
-                    type: 'attach',
-                    activeSessionId: session.value.activeSessionId,
-                  },
-                  requestTimeoutMs,
-                ),
-              );
-              const attachResponse = responseData(rawAttachResponse);
-              if (!attachResponse.ok) return attachResponse;
-
-              const previousClient = retainedSessionClients.get(
-                session.value.activeSessionId,
-              );
-              previousClient?.close();
-              retainedSessionClients.set(
-                session.value.activeSessionId,
-                activeClient,
-              );
-              retained = true;
-              return session;
-            }),
-          (activeClient) =>
-            Effect.sync(() => {
-              if (!retained) activeClient.close();
-            }),
-        );
-      }),
-      Effect.catch((error) =>
-        invalidateDaemonReadiness.pipe(
-          Effect.andThen(
-            Effect.sync(() => {
-              const importing = request.type === 'saved';
-              reportOperationalFailure(
-                connected
-                  ? importing
-                    ? 'Prime Agent session import failed.'
-                    : 'Prime Agent session creation failed.'
-                  : 'Prime Agent connection failed.',
-                error,
-              );
-              return connected
-                ? failure(
-                    'request_failed',
-                    importing
-                      ? 'Prime Agent could not import the saved Agent.'
-                      : 'Prime Agent could not create the Agent.',
-                  )
-                : failure(
-                    'daemon_unavailable',
-                    'Ernie could not start the Prime Agent daemon.',
-                  );
-            }),
+                return controlClient.state() === 'ready'
+                  ? failure(
+                      'request_failed',
+                      importing
+                        ? 'Prime Agent could not import the saved Agent.'
+                        : 'Prime Agent could not create the Agent.',
+                    )
+                  : failure(
+                      'daemon_unavailable',
+                      'Ernie could not start the Prime Agent daemon.',
+                    );
+              }),
+            ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   const createSession = Effect.fn('PrimeAgentDaemon.createSession')(
@@ -728,8 +691,7 @@ export function createPrimeAgentDaemon(
     submitTask,
     refineSession,
     close(): void {
-      for (const client of retainedSessionClients.values()) client.close();
-      retainedSessionClients.clear();
+      controlClient.close();
     },
   };
 }

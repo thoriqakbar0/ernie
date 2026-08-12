@@ -11,6 +11,7 @@ import type { JsonValue } from './packages/json-value/index.js' with {
 // Sandboxed preloads cannot load local runtime modules. Keep this literal in
 // sync with rendererReadyChannel in renderer-api.ts.
 const rendererReadyChannel = 'ernie:renderer-ready';
+const agentHarnessChannel = 'ernie:daemon:harness';
 const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
 const primeAgentSavedSessionsChannel = 'ernie:prime-agent:saved-sessions';
@@ -53,7 +54,7 @@ const browserPluginStateChannel = 'ernie:plugin:browser:state';
 let nextSessionFeedSubscription = 0;
 const sessionFeedListeners = new Map<
   string,
-  Parameters<ErnieRendererApi['watchPrimeAgentSession']>[1]
+  Parameters<ErnieRendererApi['watchAgentSession']>[1]
 >();
 
 ipcRenderer.on(
@@ -76,28 +77,31 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
     ipcRenderer.send(rendererReadyChannel);
   },
-  listPrimeAgentWorkspace() {
+  describeAgentHarness() {
+    return ipcRenderer.invoke(agentHarnessChannel);
+  },
+  listAgentWorkspace() {
     return ipcRenderer.invoke(primeAgentWorkspaceChannel);
   },
-  createPrimeAgentSession(creation) {
+  createAgentSession(creation) {
     return ipcRenderer.invoke(primeAgentCreateSessionChannel, creation);
   },
-  listPrimeAgentSavedSessions() {
+  listAgentSavedSessions() {
     return ipcRenderer.invoke(primeAgentSavedSessionsChannel);
   },
-  importPrimeAgentSession(sessionPath) {
+  importAgentSession(sessionPath) {
     return ipcRenderer.invoke(primeAgentImportSessionChannel, sessionPath);
   },
-  renamePrimeAgentSession(rename) {
+  renameAgentSession(rename) {
     return ipcRenderer.invoke(primeAgentRenameSessionChannel, rename);
   },
-  listPrimeAgentModels(activeSessionId) {
+  listAgentModels(activeSessionId) {
     return ipcRenderer.invoke(primeAgentModelsChannel, activeSessionId);
   },
-  listPrimeAgentSkills(activeSessionId) {
+  listAgentSkills(activeSessionId) {
     return ipcRenderer.invoke(primeAgentSkillsChannel, activeSessionId);
   },
-  watchPrimeAgentSession(activeSessionId, listener) {
+  watchAgentSession(activeSessionId, listener) {
     nextSessionFeedSubscription += 1;
     const subscriptionId = `${Date.now()}-${nextSessionFeedSubscription}`;
     sessionFeedListeners.set(subscriptionId, listener);
@@ -107,44 +111,44 @@ const rendererApi: ErnieRendererApi = Object.freeze({
     });
     return subscriptionId;
   },
-  unwatchPrimeAgentSession(subscriptionId) {
+  unwatchAgentSession(subscriptionId) {
     sessionFeedListeners.delete(subscriptionId);
     ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
   },
-  setPrimeAgentModel(selection) {
+  setAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);
   },
-  getPrimeAgentRlmDepth(activeSessionId) {
+  getAgentRlmDepth(activeSessionId) {
     return ipcRenderer.invoke(primeAgentRlmDepthChannel, activeSessionId);
   },
-  setPrimeAgentRlmDepth(selection) {
+  setAgentRlmDepth(selection) {
     return ipcRenderer.invoke(primeAgentSetRlmDepthChannel, selection);
   },
-  submitPrimeAgentTask(submission) {
+  submitAgentTask(submission) {
     return ipcRenderer.invoke(primeAgentSubmitTaskChannel, submission);
   },
-  refinePrimeAgentSession(request) {
+  refineAgentSession(request) {
     return ipcRenderer.invoke(primeAgentRefineSessionChannel, request);
   },
-  listPrimeAgentGitBranches(cwd) {
+  listGitBranches(cwd) {
     return ipcRenderer.invoke(primeAgentGitBranchesChannel, cwd);
   },
-  readPrimeAgentGitWorkspace(cwd) {
+  readGitWorkspace(cwd) {
     return ipcRenderer.invoke(primeAgentGitWorkspaceChannel, cwd);
   },
-  switchPrimeAgentGitBranch(selection) {
+  switchGitBranch(selection) {
     return ipcRenderer.invoke(primeAgentSwitchGitBranchChannel, selection);
   },
-  deletePrimeAgentGitBranch(selection) {
+  deleteGitBranch(selection) {
     return ipcRenderer.invoke(primeAgentDeleteGitBranchChannel, selection);
   },
-  renamePrimeAgentGitBranch(rename) {
+  renameGitBranch(rename) {
     return ipcRenderer.invoke(primeAgentRenameGitBranchChannel, rename);
   },
-  initializePrimeAgentGit(cwd) {
+  initializeGit(cwd) {
     return ipcRenderer.invoke(primeAgentInitializeGitChannel, cwd);
   },
-  createPrimeAgentGitWorktree(creation) {
+  createGitWorktree(creation) {
     return ipcRenderer.invoke(primeAgentCreateGitWorktreeChannel, creation);
   },
   chooseWorkspaceDirectory() {

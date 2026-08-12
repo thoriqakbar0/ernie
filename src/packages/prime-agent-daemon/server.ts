@@ -1,5 +1,13 @@
 export { createPrimeAgentDaemon } from './lib/daemon.js';
 export {
+  createPrimeAgentControlClient,
+  type PrimeAgentControlClient,
+  type PrimeAgentControlClientDependencies,
+  type PrimeAgentControlState,
+  type PrimeAgentControlTransport,
+  type PrimeAgentReconnectStatus,
+} from './lib/control-client.js';
+export {
   createPrimeAgentSessionFeed,
   type PrimeAgentSessionFeedConnection,
   type PrimeAgentSessionFeedDependencies,

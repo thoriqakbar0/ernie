@@ -230,14 +230,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     let active = true;
     const loadWorkspace = Effect.fn('Workspace.load')(function* () {
       yield* Effect.sync(() => setStatus('Connecting to Prime Agent…'));
-      const [rawWorkspace, rawSavedSessions] = yield* Effect.all(
-        [
-          Effect.tryPromise(() => window.ernie.listPrimeAgentWorkspace()),
-          Effect.tryPromise(() =>
-            window.ernie.listPrimeAgentSavedSessions(),
-          ).pipe(Effect.catch(() => Effect.succeed(null))),
-        ],
-        { concurrency: 'unbounded' },
+      const rawWorkspace = yield* Effect.tryPromise(() =>
+        window.ernie.listAgentWorkspace(),
       );
       if (!active) return;
 
@@ -246,10 +240,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
       }
-      const savedSessionsResult = parsePrimeAgentSavedSessionsResult(
-        rawSavedSessions,
-      );
-
       const initialCwd = result.value.sessions.some(
         (session) => session.cwd === result.value.currentCwd,
       )
@@ -258,9 +248,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const initialSession = newestSession(result.value.sessions, initialCwd);
       yield* Effect.sync(() => {
         setWorkspace(result.value);
-        if (savedSessionsResult.ok) {
-          setSavedSessions(savedSessionsResult.value);
-        }
         setSelectedCwd(initialCwd);
         setSelectedSessionId(initialSession?.activeSessionId ?? null);
         setStatus(
@@ -270,7 +257,18 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         );
       });
     });
-    const fiber = Effect.runFork(
+    const loadInitialSavedSessions = Effect.fn(
+      'Workspace.loadInitialSavedSessions',
+    )(function* () {
+      yield* Effect.sync(() => setLoadingSavedSessions(true));
+      const rawSavedSessions = yield* Effect.tryPromise(() =>
+        window.ernie.listAgentSavedSessions(),
+      );
+      if (!active) return;
+      const result = parsePrimeAgentSavedSessionsResult(rawSavedSessions);
+      if (result.ok) yield* Effect.sync(() => setSavedSessions(result.value));
+    });
+    const workspaceFiber = Effect.runFork(
       loadWorkspace().pipe(
         Effect.catch(() =>
           Effect.sync(() => {
@@ -284,10 +282,21 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         ),
       ),
     );
+    const savedSessionsFiber = Effect.runFork(
+      loadInitialSavedSessions().pipe(
+        Effect.catch(() => Effect.void),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (active) setLoadingSavedSessions(false);
+          }),
+        ),
+      ),
+    );
 
     return () => {
       active = false;
-      Effect.runFork(Fiber.interrupt(fiber));
+      Effect.runFork(Fiber.interrupt(workspaceFiber));
+      Effect.runFork(Fiber.interrupt(savedSessionsFiber));
     };
   }, []);
 
@@ -296,11 +305,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     const refreshWorkspace = Effect.fn('Workspace.refresh')(function* () {
       const rawWorkspace = yield* Effect.tryPromise(() =>
-        window.ernie.listPrimeAgentWorkspace(),
+        window.ernie.listAgentWorkspace(),
       );
       const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
       if (!result.ok) {
-        yield* Effect.sync(() => setWorkspace(null));
+        yield* Effect.sync(() => setStatus('Prime Agent is reconnecting…'));
         return;
       }
 
@@ -314,15 +323,17 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         isVisible: () => document.visibilityState !== 'hidden',
         onFailure: () =>
           Effect.sync(() => {
-            setWorkspace(null);
+            setStatus('Prime Agent is reconnecting…');
           }),
         refresh: refreshWorkspace,
         visibilityTarget: document,
       });
       workspaceRefreshRequest.current = controller.request;
+      const poll = window.setInterval(controller.request, 1_000);
       yield* controller.run.pipe(
         Effect.ensuring(
           Effect.sync(() => {
+            window.clearInterval(poll);
             if (workspaceRefreshRequest.current === controller.request) {
               workspaceRefreshRequest.current = () => undefined;
             }
@@ -359,7 +370,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           setStatus('Loading local Git branches…');
         });
         const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.listPrimeAgentGitBranches(cwd),
+          window.ernie.listGitBranches(cwd),
         );
         if (!active) return;
 
@@ -430,10 +441,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         const [rawModels, rawSkills] = yield* Effect.all(
           [
             Effect.tryPromise(() =>
-              window.ernie.listPrimeAgentModels(activeSessionId),
+              window.ernie.listAgentModels(activeSessionId),
             ),
             Effect.tryPromise(() =>
-              window.ernie.listPrimeAgentSkills(activeSessionId),
+              window.ernie.listAgentSkills(activeSessionId),
             ),
           ],
           { concurrency: 'unbounded' },
@@ -482,7 +493,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     }
 
     const activeSessionId = selectedSessionId;
-    const subscriptionId = window.ernie.watchPrimeAgentSession(
+    const subscriptionId = window.ernie.watchAgentSession(
       activeSessionId,
       (rawEnvelope) => {
         const envelope = parsePrimeAgentSessionFeedEnvelope(rawEnvelope);
@@ -549,7 +560,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
 
     return () => {
-      window.ernie.unwatchPrimeAgentSession(subscriptionId);
+      window.ernie.unwatchAgentSession(subscriptionId);
     };
   }, [requestWorkspaceRefresh, selectedSessionId]);
 
@@ -574,7 +585,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         const identified = yield* Effect.all(
           workspacePaths.map((cwd) =>
             Effect.tryPromise(() =>
-              window.ernie.readPrimeAgentGitWorkspace(cwd),
+              window.ernie.readGitWorkspace(cwd),
             ).pipe(
               Effect.map(parsePrimeAgentGitWorkspaceResult),
               Effect.map((result) =>
@@ -642,7 +653,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   function requestAgentSession(cwd: string) {
     return Effect.tryPromise(() =>
-      window.ernie.createPrimeAgentSession({ cwd, rlmMaxDepth }),
+      window.ernie.createAgentSession({ cwd, rlmMaxDepth }),
     ).pipe(Effect.map(parsePrimeAgentSessionResult));
   }
 
@@ -706,7 +717,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       }
 
       const rawTaskResult = yield* Effect.tryPromise(() =>
-        window.ernie.submitPrimeAgentTask({
+        window.ernie.submitAgentTask({
           activeSessionId: result.value.activeSessionId,
           message,
         }),
@@ -756,7 +767,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setStatus('Loading saved Prime Agent sessions…');
       });
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.listPrimeAgentSavedSessions(),
+        window.ernie.listAgentSavedSessions(),
       );
       const result = parsePrimeAgentSavedSessionsResult(rawResult);
       if (!result.ok) {
@@ -796,7 +807,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           setStatus('Importing saved Prime Agent session…');
         });
         const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.importPrimeAgentSession(sessionPath),
+          window.ernie.importAgentSession(sessionPath),
         );
         const result = parsePrimeAgentSessionResult(rawResult);
         if (!result.ok) {
@@ -832,7 +843,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setStatus('Renaming Agent conversation…');
       });
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.renamePrimeAgentSession(rename),
+        window.ernie.renameAgentSession(rename),
       );
       const result = parsePrimeAgentSessionRenameResult(rawResult);
       if (!result.ok) {
@@ -970,7 +981,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     const updateModel = Effect.fn('Workspace.updateModel')(function* () {
       yield* Effect.sync(() => setSavingModel(true));
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.setPrimeAgentModel({
+        window.ernie.setAgentModel({
           activeSessionId,
           provider,
           modelId,
@@ -1024,7 +1035,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           setStatus(`Switching to local Git branch ${branchName}…`);
         });
         const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.switchPrimeAgentGitBranch({
+          window.ernie.switchGitBranch({
             cwd,
             name: branchName,
           }),
@@ -1066,7 +1077,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setStatus(`Deleting local Git branch ${name}…`);
       });
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.deletePrimeAgentGitBranch({
+        window.ernie.deleteGitBranch({
           cwd,
           name,
         }),
@@ -1107,7 +1118,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         setStatus('Initializing local Git repository with main…');
       });
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.initializePrimeAgentGit(cwd),
+        window.ernie.initializeGit(cwd),
       );
       const result = parsePrimeAgentGitBranchesResult(rawResult);
       if (!result.ok) {
@@ -1146,7 +1157,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           setStatus(`Creating worktree for ${branchName}…`);
         });
         const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.createPrimeAgentGitWorktree({ cwd, branchName }),
+          window.ernie.createGitWorktree({ cwd, branchName }),
         );
         const result = parsePrimeAgentGitWorktreeResult(rawResult);
         if (!result.ok) {
@@ -1227,7 +1238,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         function* () {
           yield* Effect.sync(() => setSavingSessionRlmMaxDepth(true));
           const rawResult = yield* Effect.tryPromise(() =>
-            window.ernie.setPrimeAgentRlmDepth({
+            window.ernie.setAgentRlmDepth({
               activeSessionId,
               maxDepth,
             }),

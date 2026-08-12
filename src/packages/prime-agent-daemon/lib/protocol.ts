@@ -492,6 +492,8 @@ function parseFailure(value: JsonValue): PrimeAgentFailure | null {
     (code !== 'invalid_request' &&
       code !== 'daemon_unavailable' &&
       code !== 'request_failed' &&
+      code !== 'outcome_uncertain' &&
+      code !== 'unsupported_operation' &&
       code !== 'protocol_error')
   ) {
     return null;

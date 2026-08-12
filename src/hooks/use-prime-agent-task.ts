@@ -113,7 +113,7 @@ export function usePrimeAgentTask(
       }
 
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.submitPrimeAgentTask({
+        window.ernie.submitAgentTask({
           activeSessionId: target.activeSessionId,
           message,
         }),
@@ -161,7 +161,7 @@ export function usePrimeAgentTask(
     setStatus('Refining this Prime Agent session…');
     const refineSession = Effect.fn('Task.refine')(function* () {
       const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.refinePrimeAgentSession({
+        window.ernie.refineAgentSession({
           activeSessionId,
           instructions,
         }),

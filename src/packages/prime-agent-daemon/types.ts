@@ -203,6 +203,8 @@ export type PrimeAgentFailureCode =
   | 'invalid_request'
   | 'daemon_unavailable'
   | 'request_failed'
+  | 'outcome_uncertain'
+  | 'unsupported_operation'
   | 'protocol_error';
 
 /** A safe Prime Agent failure projection for the renderer. */

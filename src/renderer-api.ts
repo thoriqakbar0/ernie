@@ -1,19 +1,22 @@
 import type {
-  PrimeAgentGitBranchRename,
-  PrimeAgentGitBranchSelection,
-  PrimeAgentGitWorktreeCreation,
-  PrimeAgentModelSelection,
-  PrimeAgentRlmDepthSelection,
-  PrimeAgentRefinementRequest,
-  PrimeAgentSessionCreation,
-  PrimeAgentSessionRename,
-  PrimeAgentTaskSubmission,
-} from './packages/prime-agent-daemon/types.js';
+  AgentGitBranchRename,
+  AgentGitBranchSelection,
+  AgentGitWorktreeCreation,
+  AgentModelSelection,
+  AgentRlmDepthSelection,
+  AgentRefinementRequest,
+  AgentSessionCreation,
+  AgentSessionRename,
+  AgentTaskSubmission,
+} from './packages/ernie-daemon/client.js';
 import type { BrowserPluginRendererApi } from './packages/browser-plugin/index.js';
 import type { JsonValue } from './packages/json-value/index.js';
 
 /** IPC channel emitted after the renderer has painted its required surface. */
 export const rendererReadyChannel = 'ernie:renderer-ready';
+
+/** IPC channel that describes the harness behind Ernie's daemon API. */
+export const agentHarnessChannel = 'ernie:daemon:harness';
 
 /** IPC channel that lists live sessions from the Prime Agent daemon. */
 export const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
@@ -103,45 +106,46 @@ export const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
-  listPrimeAgentWorkspace: () => Promise<JsonValue>;
-  createPrimeAgentSession: (
-    creation: PrimeAgentSessionCreation,
+  describeAgentHarness: () => Promise<JsonValue>;
+  listAgentWorkspace: () => Promise<JsonValue>;
+  createAgentSession: (
+    creation: AgentSessionCreation,
   ) => Promise<JsonValue>;
-  listPrimeAgentSavedSessions: () => Promise<JsonValue>;
-  importPrimeAgentSession: (sessionPath: string) => Promise<JsonValue>;
-  renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<JsonValue>;
-  listPrimeAgentModels: (activeSessionId: string) => Promise<JsonValue>;
-  listPrimeAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
-  watchPrimeAgentSession: (
+  listAgentSavedSessions: () => Promise<JsonValue>;
+  importAgentSession: (sessionPath: string) => Promise<JsonValue>;
+  renameAgentSession: (rename: AgentSessionRename) => Promise<JsonValue>;
+  listAgentModels: (activeSessionId: string) => Promise<JsonValue>;
+  listAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
+  watchAgentSession: (
     activeSessionId: string,
     listener: (value: JsonValue) => void,
   ) => string;
-  unwatchPrimeAgentSession: (subscriptionId: string) => void;
-  setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<JsonValue>;
-  getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<JsonValue>;
-  setPrimeAgentRlmDepth: (
-    selection: PrimeAgentRlmDepthSelection,
+  unwatchAgentSession: (subscriptionId: string) => void;
+  setAgentModel: (selection: AgentModelSelection) => Promise<JsonValue>;
+  getAgentRlmDepth: (activeSessionId: string) => Promise<JsonValue>;
+  setAgentRlmDepth: (
+    selection: AgentRlmDepthSelection,
   ) => Promise<JsonValue>;
-  submitPrimeAgentTask: (
-    submission: PrimeAgentTaskSubmission,
+  submitAgentTask: (
+    submission: AgentTaskSubmission,
   ) => Promise<JsonValue>;
-  refinePrimeAgentSession: (
-    request: PrimeAgentRefinementRequest,
+  refineAgentSession: (
+    request: AgentRefinementRequest,
   ) => Promise<JsonValue>;
-  listPrimeAgentGitBranches: (cwd: string) => Promise<JsonValue>;
-  readPrimeAgentGitWorkspace: (cwd: string) => Promise<JsonValue>;
-  switchPrimeAgentGitBranch: (
-    selection: PrimeAgentGitBranchSelection,
+  listGitBranches: (cwd: string) => Promise<JsonValue>;
+  readGitWorkspace: (cwd: string) => Promise<JsonValue>;
+  switchGitBranch: (
+    selection: AgentGitBranchSelection,
   ) => Promise<JsonValue>;
-  deletePrimeAgentGitBranch: (
-    selection: PrimeAgentGitBranchSelection,
+  deleteGitBranch: (
+    selection: AgentGitBranchSelection,
   ) => Promise<JsonValue>;
-  renamePrimeAgentGitBranch: (
-    rename: PrimeAgentGitBranchRename,
+  renameGitBranch: (
+    rename: AgentGitBranchRename,
   ) => Promise<JsonValue>;
-  initializePrimeAgentGit: (cwd: string) => Promise<JsonValue>;
-  createPrimeAgentGitWorktree: (
-    creation: PrimeAgentGitWorktreeCreation,
+  initializeGit: (cwd: string) => Promise<JsonValue>;
+  createGitWorktree: (
+    creation: AgentGitWorktreeCreation,
   ) => Promise<JsonValue>;
   chooseWorkspaceDirectory: () => Promise<JsonValue>;
   revealWorkspacePath: (workspacePath: string) => Promise<JsonValue>;

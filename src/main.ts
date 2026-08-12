@@ -23,6 +23,7 @@ import {
   switchLocalGitBranch,
 } from './packages/prime-agent-daemon/git-server.js';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js';
+import { createErnieDaemon } from './packages/ernie-daemon/index.js';
 import {
   coalescePrimeAgentSessionFeedItems,
   parsePrimeAgentSessionFeedRequest,
@@ -30,6 +31,7 @@ import {
 } from './packages/prime-agent-daemon/events.js';
 import type { PrimeAgentSessionFeedEnvelope } from './packages/prime-agent-daemon/types.js';
 import {
+  agentHarnessChannel,
   chooseWorkspaceDirectoryChannel,
   primeAgentCreateSessionChannel,
   primeAgentCreateGitWorktreeChannel,
@@ -161,18 +163,32 @@ function readDevelopmentRendererUrl(): URL | null {
   }
 }
 
-function registerPrimeAgentHandlers(): void {
-  const daemon = createPrimeAgentDaemon({
-    currentCwd: process.cwd(),
-    daemonEntrypointPath: path.join(
-      import.meta.dirname,
-      'packages/prime-agent-daemon/daemon-runner.js',
-    ),
-    executablePath: process.execPath,
-    sessionNameExtensionPath: path.join(
-      import.meta.dirname,
-      'packages/session-name-hook/index.js',
-    ),
+function registerErnieDaemonHandlers(): void {
+  const daemon = createErnieDaemon({
+    descriptor: {
+      capabilities: [
+        'live-sessions',
+        'saved-sessions',
+        'models',
+        'skills',
+        'rlm-depth',
+        'refinement',
+      ],
+      id: 'prime-agent',
+      name: 'Prime Agent',
+    },
+    harness: createPrimeAgentDaemon({
+      currentCwd: process.cwd(),
+      daemonEntrypointPath: path.join(
+        import.meta.dirname,
+        'packages/prime-agent-daemon/daemon-runner.js',
+      ),
+      executablePath: process.execPath,
+      sessionNameExtensionPath: path.join(
+        import.meta.dirname,
+        'packages/session-name-hook/index.js',
+      ),
+    }),
   });
   interface OwnedSessionFeed {
     fiber: Fiber.Fiber<void> | null;
@@ -216,7 +232,7 @@ function registerPrimeAgentHandlers(): void {
       const owned: OwnedSessionFeed = { fiber: null, senderId };
       sessionFeeds.set(key, owned);
       const run = daemon.sessionFeed(activeSessionId).pipe(
-        Stream.groupedWithin(64, '50 millis'),
+        Stream.groupedWithin(64, '16 millis'),
         Stream.flatMap((items) =>
           Stream.fromArray(coalescePrimeAgentSessionFeedItems(items)),
         ),
@@ -263,6 +279,7 @@ function registerPrimeAgentHandlers(): void {
   ipcMain.handle(primeAgentWorkspaceChannel, () =>
     Effect.runPromise(daemon.listWorkspace()),
   );
+  ipcMain.handle(agentHarnessChannel, () => daemon.harness);
   ipcMain.handle(primeAgentCreateSessionChannel, (_event, creation: JsonValue) =>
     Effect.runPromise(daemon.createSession(creation)),
   );
@@ -501,7 +518,7 @@ function reportStartupFailure(cause: unknown): void {
 
 const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   yield* Effect.tryPromise(() => app.whenReady());
-  registerPrimeAgentHandlers();
+  registerErnieDaemonHandlers();
   const browserPlugin = registerBrowserPluginMain();
   app.once('will-quit', () => browserPlugin.dispose());
 

@@ -37,7 +37,7 @@ afterEach(() => {
 test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
   const reactGrabChanges: boolean[] = [];
   const createdSessions: Array<
-    Parameters<ErnieRendererApi['createPrimeAgentSession']>[0]
+    Parameters<ErnieRendererApi['createAgentSession']>[0]
   > = [];
   let sessionCreated = false;
   let liveDepth = 5;
@@ -48,7 +48,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   }> = [];
   const sessionFeedListeners = new Map<
     string,
-    Parameters<ErnieRendererApi['watchPrimeAgentSession']>[1]
+    Parameters<ErnieRendererApi['watchAgentSession']>[1]
   >();
   const submittedTasks: Array<{
     activeSessionId: string;
@@ -57,7 +57,12 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   const user = userEvent.setup();
   const rendererApi: ErnieRendererApi = {
     signalReady: () => undefined,
-    listPrimeAgentWorkspace: async () => ({
+    describeAgentHarness: async () => ({
+      capabilities: ['live-sessions'],
+      id: 'prime-agent',
+      name: 'Prime Agent',
+    }),
+    listAgentWorkspace: async () => ({
       ok: true,
       value: {
         currentCwd: '/workspace/ernie',
@@ -76,7 +81,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
           : [],
       },
     }),
-    createPrimeAgentSession: async (creation) => {
+    createAgentSession: async (creation) => {
       createdSessions.push(creation);
       sessionCreated = true;
       return {
@@ -92,7 +97,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
         },
       };
     },
-    listPrimeAgentSavedSessions: async () => ({
+    listAgentSavedSessions: async () => ({
       ok: true,
       value: [
         {
@@ -113,14 +118,14 @@ test('repository plus opens a draft and the first message creates the Prime Agen
         },
       ],
     }),
-    importPrimeAgentSession: async () => ({ ok: false }),
-    renamePrimeAgentSession: async () => ({ ok: false }),
-    listPrimeAgentModels: async () => {
+    importAgentSession: async () => ({ ok: false }),
+    renameAgentSession: async () => ({ ok: false }),
+    listAgentModels: async () => {
       modelCatalogRequests += 1;
       return { ok: true, value: [] };
     },
-    listPrimeAgentSkills: async () => ({ ok: true, value: [] }),
-    watchPrimeAgentSession: (activeSessionId, listener) => {
+    listAgentSkills: async () => ({ ok: true, value: [] }),
+    watchAgentSession: (activeSessionId, listener) => {
       const subscriptionId = `test-feed:${activeSessionId}`;
       sessionFeedListeners.set(subscriptionId, listener);
       queueMicrotask(() =>
@@ -164,15 +169,15 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       );
       return subscriptionId;
     },
-    unwatchPrimeAgentSession: (subscriptionId) => {
+    unwatchAgentSession: (subscriptionId) => {
       sessionFeedListeners.delete(subscriptionId);
     },
-    setPrimeAgentModel: async () => ({ ok: false }),
-    getPrimeAgentRlmDepth: async () => ({
+    setAgentModel: async () => ({ ok: false }),
+    getAgentRlmDepth: async () => ({
       ok: true,
       value: { maxDepth: 17, source: 'chat' },
     }),
-    setPrimeAgentRlmDepth: async (selection) => {
+    setAgentRlmDepth: async (selection) => {
       changedSessionDepths.push(selection);
       liveDepth = selection.maxDepth;
       return {
@@ -180,30 +185,30 @@ test('repository plus opens a draft and the first message creates the Prime Agen
         value: { maxDepth: liveDepth, source: 'chat' },
       };
     },
-    submitPrimeAgentTask: async (submission) => {
+    submitAgentTask: async (submission) => {
       submittedTasks.push(submission);
       return { ok: true, value: { accepted: true } };
     },
-    refinePrimeAgentSession: async () => ({
+    refineAgentSession: async () => ({
       ok: true,
       value: { refined: true },
     }),
-    listPrimeAgentGitBranches: async (cwd) => ({
+    listGitBranches: async (cwd) => ({
       ok: true,
       value: { cwd, current: 'main', names: ['main'] },
     }),
-    readPrimeAgentGitWorkspace: async (cwd) =>
+    readGitWorkspace: async (cwd) =>
       cwd.endsWith('deleted')
         ? { ok: false }
         : {
             ok: true,
             value: { branchName: 'main', cwd, repositoryCwd: cwd },
           },
-    switchPrimeAgentGitBranch: async () => ({ ok: false }),
-    deletePrimeAgentGitBranch: async () => ({ ok: false }),
-    renamePrimeAgentGitBranch: async () => ({ ok: false }),
-    initializePrimeAgentGit: async () => ({ ok: false }),
-    createPrimeAgentGitWorktree: async () => ({ ok: false }),
+    switchGitBranch: async () => ({ ok: false }),
+    deleteGitBranch: async () => ({ ok: false }),
+    renameGitBranch: async () => ({ ok: false }),
+    initializeGit: async () => ({ ok: false }),
+    createGitWorktree: async () => ({ ok: false }),
     chooseWorkspaceDirectory: async () => null,
     revealWorkspacePath: async () => true,
     showBrowserPlugin: async () => ({ ok: false }),

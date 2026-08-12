@@ -147,7 +147,7 @@ test('Shift+Enter refines a connected Agent with the current draft', async () =>
   Object.defineProperty(window, 'ernie', {
     configurable: true,
     value: {
-      refinePrimeAgentSession: (request: PrimeAgentRefinementRequest) => {
+      refineAgentSession: (request: PrimeAgentRefinementRequest) => {
         refinementRequests.push(request);
         return new Promise((resolve) => {
           completeRefinement = () =>

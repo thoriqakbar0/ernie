@@ -777,7 +777,7 @@ export function AgentSidebar({
   };
 
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="offcanvas" desktopOffset={48}>
       <SidebarHeader className="gap-0 px-2 pb-1 pt-3">
         {searchOpen ? (
           <div className="flex h-8 items-center px-1">

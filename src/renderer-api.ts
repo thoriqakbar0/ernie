@@ -9,6 +9,7 @@ import type {
   PrimeAgentSessionRename,
   PrimeAgentTaskSubmission,
 } from './packages/prime-agent-daemon/types.js';
+import type { BrowserPluginRendererApi } from './packages/browser-plugin/index.js';
 import type { JsonValue } from './packages/json-value/index.js';
 
 /** IPC channel emitted after the renderer has painted its required surface. */
@@ -131,6 +132,13 @@ export type ErnieRendererApi = Readonly<{
   ) => Promise<JsonValue>;
   chooseWorkspaceDirectory: () => Promise<JsonValue>;
   revealWorkspacePath: (workspacePath: string) => Promise<JsonValue>;
+  showBrowserPlugin: BrowserPluginRendererApi['showBrowserPlugin'];
+  hideBrowserPlugin: BrowserPluginRendererApi['hideBrowserPlugin'];
+  navigateBrowserPlugin: BrowserPluginRendererApi['navigateBrowserPlugin'];
+  goBackBrowserPlugin: BrowserPluginRendererApi['goBackBrowserPlugin'];
+  goForwardBrowserPlugin: BrowserPluginRendererApi['goForwardBrowserPlugin'];
+  reloadBrowserPlugin: BrowserPluginRendererApi['reloadBrowserPlugin'];
+  onBrowserPluginState: BrowserPluginRendererApi['onBrowserPluginState'];
 }>;
 
 declare global {

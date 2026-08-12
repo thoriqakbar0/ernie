@@ -194,11 +194,14 @@ function Sidebar({
   className,
   children,
   dir,
+  desktopOffset = 0,
+  style,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  desktopOffset?: number
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
@@ -210,6 +213,7 @@ function Sidebar({
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className
         )}
+        style={style}
         {...props}
       >
         {children}
@@ -243,6 +247,15 @@ function Sidebar({
     )
   }
 
+  const desktopPosition =
+    state === "collapsed" && collapsible === "offcanvas"
+      ? `calc(${desktopOffset}px - var(--sidebar-width))`
+      : `${desktopOffset}px`
+  const desktopStyle: React.CSSProperties =
+    side === "left"
+      ? { left: desktopPosition, ...style }
+      : { right: desktopPosition, ...style }
+
   return (
     <div
       className="group peer hidden text-sidebar-foreground md:block"
@@ -275,6 +288,7 @@ function Sidebar({
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
           className
         )}
+        style={desktopStyle}
         {...props}
       >
         <div

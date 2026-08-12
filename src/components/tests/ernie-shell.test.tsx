@@ -183,6 +183,13 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     createPrimeAgentGitWorktree: async () => ({ ok: false }),
     chooseWorkspaceDirectory: async () => null,
     revealWorkspacePath: async () => true,
+    showBrowserPlugin: async () => ({ ok: false }),
+    hideBrowserPlugin: async () => ({ ok: false }),
+    navigateBrowserPlugin: async () => ({ ok: false }),
+    goBackBrowserPlugin: async () => ({ ok: false }),
+    goForwardBrowserPlugin: async () => ({ ok: false }),
+    reloadBrowserPlugin: async () => ({ ok: false }),
+    onBrowserPluginState: () => () => undefined,
   };
   Object.defineProperty(window, 'ernie', {
     configurable: true,
@@ -199,6 +206,15 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       reactGrabEnabled={false}
     />,
   );
+
+  await user.click(within(document.body).getByRole('button', { name: 'Browser' }));
+  assert.ok(
+    within(document.body).getByRole('textbox', { name: 'Browser address' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('region', { name: 'Browser page' }),
+  );
+  await user.click(within(document.body).getByRole('button', { name: 'Agents' }));
 
   assert.equal(within(document.body).queryByText('annotate'), null);
   await user.click(

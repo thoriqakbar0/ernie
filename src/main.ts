@@ -7,6 +7,10 @@ import type {
   OpenDialogOptions,
 } from 'electron';
 import { Effect } from 'effect';
+import {
+  registerBrowserPluginMain,
+  type BrowserPluginMainController,
+} from './packages/browser-plugin/main.js';
 import { isJsonString, type JsonValue } from './packages/json-value/index.js';
 
 import {
@@ -345,7 +349,9 @@ function waitForReadyToShow(
   });
 }
 
-const createWindow = Effect.fn('Ernie.createWindow')(function* () {
+const createWindow = Effect.fn('Ernie.createWindow')(function* (
+  browserPlugin: BrowserPluginMainController,
+) {
   const developmentRendererUrl = readDevelopmentRendererUrl();
   const iconPath = path.join(import.meta.dirname, '../renderer/ernie-logo.png');
   const window = new BrowserWindow({
@@ -366,6 +372,7 @@ const createWindow = Effect.fn('Ernie.createWindow')(function* () {
   });
 
   mainWindow = window;
+  browserPlugin.attachWindow(window);
   window.once('closed', () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -404,6 +411,8 @@ function reportStartupFailure(cause: unknown): void {
 const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   yield* Effect.tryPromise(() => app.whenReady());
   registerPrimeAgentHandlers();
+  const browserPlugin = registerBrowserPluginMain();
+  app.once('will-quit', () => browserPlugin.dispose());
 
   if (process.platform === 'darwin' && app.dock !== undefined) {
     installMacApplicationMenu();
@@ -412,12 +421,12 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
     );
   }
 
-  yield* createWindow();
+  yield* createWindow(browserPlugin);
 
   app.on('activate', () => {
     if (mainWindow === null || mainWindow.isDestroyed()) {
       Effect.runFork(
-        createWindow().pipe(
+        createWindow(browserPlugin).pipe(
           Effect.catch((error) =>
             Effect.sync(() => reportStartupFailure(error)),
           ),

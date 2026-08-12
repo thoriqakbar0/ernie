@@ -1,0 +1,31 @@
+export {
+  DuplicatePluginContributionError,
+  DuplicatePluginIdError,
+  InvalidPluginManifestError,
+  PluginActivationError,
+  PluginCommandExecutionError,
+  PluginCommandNotFoundError,
+  PluginDeactivationError,
+  PluginHostDisposedError,
+  PluginNotFoundError,
+  createPluginHost,
+  currentPluginApiVersion,
+  parsePluginManifest,
+} from './lib/plugin-host.js';
+
+export type {
+  PluginActivation,
+  PluginActivationContext,
+  PluginActivationEvent,
+  PluginCommandContribution,
+  PluginCommandHandler,
+  PluginContributions,
+  PluginDisposable,
+  PluginHost,
+  PluginHostError,
+  PluginManifest,
+  PluginModule,
+  PluginResult,
+  PluginViewContribution,
+  PluginViewIcon,
+} from './lib/plugin-host.js';

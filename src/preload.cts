@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { IpcRendererEvent } from 'electron';
 
 import type { ErnieRendererApi } from './renderer-api.js' with {
+  'resolution-mode': 'import',
+};
+import type { JsonValue } from './packages/json-value/index.js' with {
   'resolution-mode': 'import',
 };
 
@@ -33,6 +37,13 @@ const primeAgentCreateGitWorktreeChannel =
   'ernie:prime-agent:create-git-worktree';
 const chooseWorkspaceDirectoryChannel = 'ernie:workspace:choose-directory';
 const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
+const browserPluginShowChannel = 'ernie:plugin:browser:show';
+const browserPluginHideChannel = 'ernie:plugin:browser:hide';
+const browserPluginNavigateChannel = 'ernie:plugin:browser:navigate';
+const browserPluginBackChannel = 'ernie:plugin:browser:back';
+const browserPluginForwardChannel = 'ernie:plugin:browser:forward';
+const browserPluginReloadChannel = 'ernie:plugin:browser:reload';
+const browserPluginStateChannel = 'ernie:plugin:browser:state';
 
 const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
@@ -103,6 +114,31 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   revealWorkspacePath(workspacePath) {
     return ipcRenderer.invoke(revealWorkspacePathChannel, workspacePath);
+  },
+  showBrowserPlugin(bounds) {
+    return ipcRenderer.invoke(browserPluginShowChannel, bounds);
+  },
+  hideBrowserPlugin() {
+    return ipcRenderer.invoke(browserPluginHideChannel);
+  },
+  navigateBrowserPlugin(address) {
+    return ipcRenderer.invoke(browserPluginNavigateChannel, address);
+  },
+  goBackBrowserPlugin() {
+    return ipcRenderer.invoke(browserPluginBackChannel);
+  },
+  goForwardBrowserPlugin() {
+    return ipcRenderer.invoke(browserPluginForwardChannel);
+  },
+  reloadBrowserPlugin() {
+    return ipcRenderer.invoke(browserPluginReloadChannel);
+  },
+  onBrowserPluginState(listener) {
+    const handleState = (_event: IpcRendererEvent, value: JsonValue): void => {
+      listener(value);
+    };
+    ipcRenderer.on(browserPluginStateChannel, handleState);
+    return () => ipcRenderer.off(browserPluginStateChannel, handleState);
   },
 });
 

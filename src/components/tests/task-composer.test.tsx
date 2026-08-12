@@ -99,8 +99,19 @@ test('connected Agent uses the compact quick composer', () => {
   renderTaskComposer();
 
   const composer = within(document.body).getByRole('textbox');
+  const inputGroup = composer.closest('[data-slot="input-group"]');
   assert.equal(composer.getAttribute('rows'), '1');
   assert.equal(composer.getAttribute('placeholder'), 'Ask Prime Agent…');
+  assert.ok(
+    inputGroup?.className.includes(
+      'has-[[data-slot=input-group-control]:focus-visible]:border-input',
+    ),
+  );
+  assert.ok(
+    inputGroup?.className.includes(
+      'has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+    ),
+  );
 });
 
 test('working Agent keeps an editable follow-up queue', async () => {

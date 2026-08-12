@@ -168,7 +168,7 @@ export const TaskComposer = memo(function TaskComposer({
     <>
       <form onSubmit={submitTask} aria-disabled={disabled}>
         <InputGroup
-          className={`min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm transition-opacity ${disabled ? 'opacity-45' : ''}`}
+          className={`min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm transition-opacity has-[[data-slot=input-group-control]:focus-visible]:border-input has-[[data-slot=input-group-control]:focus-visible]:ring-0 ${disabled ? 'opacity-45' : ''}`}
         >
           {skillsOpen ? (
             <div

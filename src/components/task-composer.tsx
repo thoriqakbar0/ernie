@@ -34,7 +34,7 @@ type TaskComposerProps = Pick<
   | 'selectedSessionId'
   | 'changeModel'
   | 'createAgentWithTask'
->;
+> & { readonly selectedSessionRlmMaxDepth?: number | null };
 
 /** Compose and submit one task without rerendering workspace controls. */
 export const TaskComposer = memo(function TaskComposer({
@@ -44,6 +44,7 @@ export const TaskComposer = memo(function TaskComposer({
   selectedCwd,
   selectedModelKey,
   selectedSessionId,
+  selectedSessionRlmMaxDepth = null,
   changeModel,
   createAgentWithTask,
 }: TaskComposerProps): React.JSX.Element {
@@ -336,38 +337,43 @@ export const TaskComposer = memo(function TaskComposer({
           </InputGroupAddon>
         </InputGroup>
 
-        {selectedSessionId === null || models.length === 0 ? null : (
-          <div className="mt-1 flex justify-center">
-            <Select
-              items={models.map((model) => ({
-                label: model.name,
-                value: model.key,
-              }))}
-              value={selectedModelKey}
-              onValueChange={changeModel}
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
-                aria-label="Model"
-                disabled={modelBusy}
+        {selectedSessionId === null ? null : (
+          <div className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+            {models.length === 0 ? null : (
+              <Select
+                items={models.map((model) => ({
+                  label: model.name,
+                  value: model.key,
+                }))}
+                value={selectedModelKey}
+                onValueChange={changeModel}
               >
-                <SelectValue placeholder="Model" />
-              </SelectTrigger>
-              <SelectContent
-                className="max-h-72"
-                align="center"
-                alignItemWithTrigger={false}
-              >
-                <SelectGroup>
-                  {models.map((model) => (
-                    <SelectItem key={model.key} value={model.key}>
-                      {model.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
+                  aria-label="Model"
+                  disabled={modelBusy}
+                >
+                  <SelectValue placeholder="Model" />
+                </SelectTrigger>
+                <SelectContent
+                  className="max-h-72"
+                  align="center"
+                  alignItemWithTrigger={false}
+                >
+                  <SelectGroup>
+                    {models.map((model) => (
+                      <SelectItem key={model.key} value={model.key}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
+            {selectedSessionRlmMaxDepth === null ? null : (
+              <span className="px-2">depth {selectedSessionRlmMaxDepth}</span>
+            )}
           </div>
         )}
       </form>

@@ -25,6 +25,7 @@ import {
   primeAgentImportSessionChannel,
   primeAgentModelsChannel,
   primeAgentSavedSessionsChannel,
+  primeAgentSessionViewChannel,
   primeAgentSkillsChannel,
   primeAgentRlmDepthChannel,
   primeAgentRenameGitBranchChannel,
@@ -123,6 +124,11 @@ function registerPrimeAgentHandlers(): void {
     primeAgentSkillsChannel,
     (_event, activeSessionId: unknown) =>
       Effect.runPromise(daemon.listSkills(activeSessionId)),
+  );
+  ipcMain.handle(
+    primeAgentSessionViewChannel,
+    (_event, activeSessionId: unknown) =>
+      Effect.runPromise(daemon.getSessionView(activeSessionId)),
   );
   ipcMain.handle(primeAgentSetModelChannel, (_event, selection: unknown) =>
     Effect.runPromise(daemon.setModel(selection)),

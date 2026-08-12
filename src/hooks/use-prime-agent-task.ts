@@ -1,8 +1,37 @@
 import { Effect } from 'effect';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { CreateAgentWithTaskResult } from '@/hooks/use-prime-agent-workspace';
 import { parsePrimeAgentTaskReceiptResult } from '@/packages/prime-agent-daemon/client';
+
+const taskDraftStorageKey = 'ernie:task-drafts:v1';
+
+function readDrafts(): Record<string, string> {
+  try {
+    const value: unknown = JSON.parse(
+      window.localStorage.getItem(taskDraftStorageKey) ?? '{}',
+    );
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeDraft(key: string, draft: string): void {
+  try {
+    const drafts = readDrafts();
+    if (draft.length === 0) delete drafts[key];
+    else drafts[key] = draft;
+    window.localStorage.setItem(taskDraftStorageKey, JSON.stringify(drafts));
+  } catch {
+    // The mounted composer still owns the draft when storage is unavailable.
+  }
+}
 
 /** State and actions owned by Ernie's focused task composer. */
 export interface PrimeAgentTaskController {
@@ -23,10 +52,19 @@ export function usePrimeAgentTask(
     message: string,
   ) => Promise<CreateAgentWithTaskResult>,
 ): PrimeAgentTaskController {
-  const [draft, setDraft] = useState('');
+  const draftKey = useMemo(
+    () =>
+      activeSessionId === null
+        ? `space:${selectedCwd ?? 'none'}`
+        : `agent:${activeSessionId}`,
+    [activeSessionId, selectedCwd],
+  );
+  const [draft, setDraft] = useState(() => readDrafts()[draftKey] ?? '');
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const submissionInFlight = useRef(false);
+
+  useEffect(() => writeDraft(draftKey, draft), [draft, draftKey]);
 
   function submit(): void {
     const submittedDraft = draft;
@@ -56,6 +94,7 @@ export function usePrimeAgentTask(
         }
 
         yield* Effect.sync(() => {
+          writeDraft(draftKey, '');
           setDraft((currentDraft) =>
             currentDraft === submittedDraft ? '' : currentDraft,
           );
@@ -77,6 +116,7 @@ export function usePrimeAgentTask(
       }
 
       yield* Effect.sync(() => {
+        writeDraft(draftKey, '');
         setDraft((currentDraft) =>
           currentDraft === submittedDraft ? '' : currentDraft,
         );

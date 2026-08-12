@@ -4,6 +4,7 @@ import {
   parseModelCatalogData,
   parseSavedSessionListData,
   parseSessionListData,
+  parseSessionViewData,
   parseSkillCatalogData,
 } from './lib/protocol';
 
@@ -13,6 +14,7 @@ import type {
   PrimeAgentResult,
   PrimeAgentSavedSession,
   PrimeAgentSession,
+  PrimeAgentSessionView,
   PrimeAgentSkill,
 } from './types';
 
@@ -30,6 +32,13 @@ export function parsePrimeAgentDaemonCreatedSession(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentSession> {
   return parseCreatedSessionData(value);
+}
+
+/** Parse a raw focused-session snapshot from the Prime Agent daemon. */
+export function parsePrimeAgentDaemonSessionView(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionView> {
+  return parseSessionViewData(value);
 }
 
 /** Parse durable sessions returned by the Prime Agent daemon. */

@@ -27,6 +27,7 @@ import {
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
   parsePrimeAgentSessionResult,
+  parsePrimeAgentSessionViewResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
   parsePrimeAgentWorkspaceResult,
@@ -37,8 +38,72 @@ import {
   parsePrimeAgentDaemonModels,
   parsePrimeAgentDaemonSavedSessions,
   parsePrimeAgentDaemonSessions,
+  parsePrimeAgentDaemonSessionView,
   parsePrimeAgentDaemonSkills,
 } from '../server';
+
+test('projects focused chat messages and named spawned sessions', () => {
+  const raw = {
+    snapshot: {
+      activeSessionId: 'root-agent',
+      messages: [
+        { role: 'user', content: 'Build the chat' },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'I am working on it.' }],
+        },
+        { role: 'toolResult', content: 'internal result' },
+      ],
+      children: [
+        {
+          id: 'research',
+          sessionName: 'Research protocol',
+          label: 'fallback label',
+          status: 'running',
+        },
+        {
+          id: 'tests',
+          parentId: 'research',
+          sessionName: 'Verify behavior',
+          label: 'fallback label',
+          status: 'done',
+        },
+        {
+          id: 'unnamed',
+          label: 'Do not render this',
+          status: 'queued',
+        },
+      ],
+    },
+  };
+  const expected = {
+    ok: true,
+    value: {
+      activeSessionId: 'root-agent',
+      messages: [
+        { id: 'root-agent:0', role: 'user', text: 'Build the chat' },
+        { id: 'root-agent:1', role: 'assistant', text: 'I am working on it.' },
+      ],
+      spawnedSessions: [
+        {
+          id: 'research',
+          name: 'Research protocol',
+          parentId: null,
+          status: 'working',
+        },
+        {
+          id: 'tests',
+          name: 'Verify behavior',
+          parentId: 'research',
+          status: 'done',
+        },
+      ],
+    },
+  };
+
+  assert.deepEqual(parsePrimeAgentDaemonSessionView(raw), expected);
+  assert.deepEqual(parsePrimeAgentSessionViewResult(expected), expected);
+});
 import {
   createLocalGitWorktree,
   deleteLocalGitBranch,

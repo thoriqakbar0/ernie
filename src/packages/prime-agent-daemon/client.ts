@@ -5,6 +5,7 @@ import {
   parseSavedSessionsResult,
   parseSessionRenameResult,
   parseSessionResult,
+  parseSessionViewResult,
   parseSkillsResult,
   parseTaskReceiptResult,
   parseWorkspaceResult,
@@ -12,6 +13,7 @@ import {
 
 import type {
   PrimeAgentModel,
+  PrimeAgentChatMessage,
   PrimeAgentModelSelection,
   PrimeAgentResult,
   PrimeAgentRlmDepth,
@@ -22,6 +24,8 @@ import type {
   PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
+  PrimeAgentSessionView,
+  PrimeAgentSpawnedSession,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
@@ -51,6 +55,7 @@ function orderModels(
 
 export type {
   PrimeAgentModel,
+  PrimeAgentChatMessage,
   PrimeAgentModelSelection,
   PrimeAgentResult,
   PrimeAgentRlmDepth,
@@ -61,11 +66,20 @@ export type {
   PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
+  PrimeAgentSessionView,
+  PrimeAgentSpawnedSession,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
   PrimeAgentWorkspace,
 };
+
+/** Parse a focused Agent snapshot received from Electron's main process. */
+export function parsePrimeAgentSessionViewResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionView> {
+  return parseSessionViewResult(value);
+}
 
 /** Parse a workspace response received from Electron's main process. */
 export function parsePrimeAgentWorkspaceResult(

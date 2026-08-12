@@ -30,7 +30,10 @@ const models = [
   },
 ] as const;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 function renderTaskComposer(): void {
   render(
@@ -227,4 +230,37 @@ test('a failed Agent start keeps the first task draft', async () => {
     ),
   );
   assert.equal((composer as HTMLTextAreaElement).value, 'Keep this draft');
+});
+
+test('restores a separate persisted draft for each space', async () => {
+  const user = userEvent.setup();
+  const renderSpace = (selectedCwd: string) =>
+    render(
+      <TaskComposer
+        modelBusy={false}
+        models={[]}
+        skills={skills}
+        selectedCwd={selectedCwd}
+        selectedModelKey={null}
+        selectedSessionId={null}
+        changeModel={() => undefined}
+        createAgentWithTask={async () => ({ ok: true })}
+      />,
+    );
+
+  renderSpace('/workspace/ernie');
+  await user.type(within(document.body).getByRole('textbox'), 'Ernie draft');
+  cleanup();
+
+  renderSpace('/workspace/leslie');
+  const leslieComposer = within(document.body).getByRole('textbox');
+  assert.equal((leslieComposer as HTMLTextAreaElement).value, '');
+  await user.type(leslieComposer, 'Leslie draft');
+  cleanup();
+
+  renderSpace('/workspace/ernie');
+  assert.equal(
+    (within(document.body).getByRole('textbox') as HTMLTextAreaElement).value,
+    'Ernie draft',
+  );
 });

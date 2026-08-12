@@ -36,6 +36,9 @@ export const primeAgentModelsChannel = 'ernie:prime-agent:models';
 /** IPC channel that lists skills available to one Prime Agent session. */
 export const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
 
+/** IPC channel that reads one focused Agent chat snapshot. */
+export const primeAgentSessionViewChannel = 'ernie:prime-agent:session-view';
+
 /** IPC channel that changes the model for one Prime Agent session. */
 export const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 
@@ -93,6 +96,7 @@ export type ErnieRendererApi = Readonly<{
   renamePrimeAgentSession: (rename: PrimeAgentSessionRename) => Promise<unknown>;
   listPrimeAgentModels: (activeSessionId: string) => Promise<unknown>;
   listPrimeAgentSkills: (activeSessionId: string) => Promise<unknown>;
+  getPrimeAgentSessionView?: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentModel: (selection: PrimeAgentModelSelection) => Promise<unknown>;
   getPrimeAgentRlmDepth: (activeSessionId: string) => Promise<unknown>;
   setPrimeAgentRlmDepth: (

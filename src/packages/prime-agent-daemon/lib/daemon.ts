@@ -27,6 +27,7 @@ import {
   parseSessionCreation,
   parseSessionRename,
   parseSessionListData,
+  parseSessionViewData,
   parseSkillCatalogData,
   parseTaskSubmission,
 } from './protocol';
@@ -258,6 +259,27 @@ export function createPrimeAgentDaemon(
           Effect.map(responseData),
           Effect.map((response) =>
             response.ok ? parseSkillCatalogData(response.value) : response,
+          ),
+        ),
+      );
+    },
+  );
+
+  const getSessionView = Effect.fn('PrimeAgentDaemon.getSessionView')(
+    (activeSessionId: unknown) => {
+      const parsedSessionId = parseActiveSessionId(activeSessionId);
+      if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
+
+      return withClient((client) =>
+        Effect.tryPromise(() =>
+          client.request(
+            { type: 'attach', activeSessionId: parsedSessionId.value },
+            requestTimeoutMs,
+          ),
+        ).pipe(
+          Effect.map(responseData),
+          Effect.map((response) =>
+            response.ok ? parseSessionViewData(response.value) : response,
           ),
         ),
       );
@@ -587,6 +609,7 @@ export function createPrimeAgentDaemon(
     listWorkspace,
     listModels,
     listSkills,
+    getSessionView,
     listSavedSessions,
     createSession,
     importSession,

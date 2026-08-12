@@ -18,6 +18,9 @@ import type {
   PrimeAgentSessionCreation,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
+  PrimeAgentChatMessage,
+  PrimeAgentSessionView,
+  PrimeAgentSpawnedSession,
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
@@ -32,6 +35,143 @@ function nonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function textContent(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (!Array.isArray(value)) return '';
+  return value
+    .flatMap((part) =>
+      isRecord(part) && part.type === 'text' && typeof part.text === 'string'
+        ? [part.text]
+        : [],
+    )
+    .join('\n')
+    .trim();
+}
+
+/** Parse one focused attach snapshot into Ernie's narrow chat projection. */
+export function parseSessionViewData(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionView> {
+  if (!isRecord(value) || !isRecord(value.snapshot)) {
+    return failure(
+      'protocol_error',
+      'Prime Agent returned an invalid chat snapshot.',
+    );
+  }
+
+  const activeSessionId = nonEmptyString(value.snapshot.activeSessionId);
+  if (activeSessionId === null || !Array.isArray(value.snapshot.messages)) {
+    return failure(
+      'protocol_error',
+      'Prime Agent returned an invalid chat snapshot.',
+    );
+  }
+
+  const messages: PrimeAgentChatMessage[] = [];
+  value.snapshot.messages.forEach((message, index) => {
+    if (
+      !isRecord(message) ||
+      (message.role !== 'user' && message.role !== 'assistant')
+    ) {
+      return;
+    }
+    const text = textContent(message.content);
+    if (text.length > 0) {
+      messages.push({
+        id: `${activeSessionId}:${index}`,
+        role: message.role,
+        text,
+      });
+    }
+  });
+
+  const children = value.snapshot.children;
+  if (children !== undefined && !Array.isArray(children)) {
+    return failure('protocol_error', 'Prime Agent returned invalid spawned sessions.');
+  }
+  const spawnedSessions: PrimeAgentSpawnedSession[] = [];
+  for (const child of children ?? []) {
+    if (!isRecord(child)) {
+      return failure('protocol_error', 'Prime Agent returned invalid spawned sessions.');
+    }
+    const id = nonEmptyString(child.id);
+    const name = nonEmptyString(child.sessionName);
+    const parentId =
+      child.parentId === undefined ? null : nonEmptyString(child.parentId);
+    const rawStatus = child.status;
+    const status =
+      rawStatus === 'running'
+        ? 'working'
+        : rawStatus === 'queued' ||
+            rawStatus === 'done' ||
+            rawStatus === 'error' ||
+            rawStatus === 'cancelled'
+          ? rawStatus
+          : null;
+    if (
+      id === null ||
+      status === null ||
+      (child.parentId !== undefined && parentId === null)
+    ) {
+      return failure('protocol_error', 'Prime Agent returned invalid spawned sessions.');
+    }
+    if (name !== null) spawnedSessions.push({ id, name, parentId, status });
+  }
+
+  return { ok: true, value: { activeSessionId, messages, spawnedSessions } };
+}
+
+function parseSessionViewDto(value: unknown): PrimeAgentSessionView | null {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.messages) ||
+    !Array.isArray(value.spawnedSessions)
+  ) {
+    return null;
+  }
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  if (activeSessionId === null) return null;
+
+  const messages: PrimeAgentChatMessage[] = [];
+  for (const message of value.messages) {
+    if (!isRecord(message)) return null;
+    const id = nonEmptyString(message.id);
+    const text = nonEmptyString(message.text);
+    if (
+      id === null ||
+      text === null ||
+      (message.role !== 'user' && message.role !== 'assistant')
+    ) {
+      return null;
+    }
+    messages.push({ id, role: message.role, text });
+  }
+
+  const spawnedSessions: PrimeAgentSpawnedSession[] = [];
+  for (const session of value.spawnedSessions) {
+    if (!isRecord(session)) return null;
+    const id = nonEmptyString(session.id);
+    const name = nonEmptyString(session.name);
+    const parentId =
+      session.parentId === null ? null : nonEmptyString(session.parentId);
+    if (
+      id === null ||
+      name === null ||
+      (session.parentId !== null && parentId === null) ||
+      (session.status !== 'queued' &&
+        session.status !== 'working' &&
+        session.status !== 'done' &&
+        session.status !== 'error' &&
+        session.status !== 'cancelled')
+    ) {
+      return null;
+    }
+    spawnedSessions.push({ id, name, parentId, status: session.status });
+  }
+
+  return { activeSessionId, messages, spawnedSessions };
 }
 
 function failure(
@@ -745,6 +885,13 @@ export function parseSessionResult(
   value: unknown,
 ): PrimeAgentResult<PrimeAgentSession> {
   return parseResult(value, parseSessionResultValue);
+}
+
+/** Parse a focused chat snapshot after it crosses the Electron IPC boundary. */
+export function parseSessionViewResult(
+  value: unknown,
+): PrimeAgentResult<PrimeAgentSessionView> {
+  return parseResult(value, parseSessionViewDto);
 }
 
 /** Parse saved sessions after they cross the Electron IPC boundary. */

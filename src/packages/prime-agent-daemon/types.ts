@@ -25,6 +25,28 @@ export interface PrimeAgentSession {
   readonly sessionPath: string | null;
 }
 
+/** One authored text message projected from a focused Prime Agent session. */
+export interface PrimeAgentChatMessage {
+  readonly id: string;
+  readonly role: 'user' | 'assistant';
+  readonly text: string;
+}
+
+/** One real spawned session reported by Prime Agent's RLM runtime. */
+export interface PrimeAgentSpawnedSession {
+  readonly id: string;
+  readonly name: string;
+  readonly parentId: string | null;
+  readonly status: 'queued' | 'working' | 'done' | 'error' | 'cancelled';
+}
+
+/** Focused chat data loaded from one Prime Agent attach snapshot. */
+export interface PrimeAgentSessionView {
+  readonly activeSessionId: string;
+  readonly messages: readonly PrimeAgentChatMessage[];
+  readonly spawnedSessions: readonly PrimeAgentSpawnedSession[];
+}
+
 /** A durable Prime Agent session that can be reopened in Ernie. */
 export interface PrimeAgentSavedSession {
   readonly activity: Extract<PrimeAgentSessionActivity, 'needs_input' | 'idle' | 'settled'>;
@@ -189,6 +211,9 @@ export interface PrimeAgentDaemon {
   readonly listSkills: (
     activeSessionId: unknown,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
+  readonly getSessionView: (
+    activeSessionId: unknown,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentSessionView>>;
   readonly createSession: (
     creation: unknown,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;

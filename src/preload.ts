@@ -12,6 +12,7 @@ const primeAgentImportSessionChannel = 'ernie:prime-agent:import-session';
 const primeAgentRenameSessionChannel = 'ernie:prime-agent:rename-session';
 const primeAgentModelsChannel = 'ernie:prime-agent:models';
 const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
+const primeAgentSessionViewChannel = 'ernie:prime-agent:session-view';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
@@ -54,6 +55,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   listPrimeAgentSkills(activeSessionId) {
     return ipcRenderer.invoke(primeAgentSkillsChannel, activeSessionId);
+  },
+  getPrimeAgentSessionView(activeSessionId) {
+    return ipcRenderer.invoke(primeAgentSessionViewChannel, activeSessionId);
   },
   setPrimeAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);

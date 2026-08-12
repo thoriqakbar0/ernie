@@ -38,11 +38,11 @@ export function TaskSurface({
   return (
     <div
       className={
-        chatReady ? 'flex h-full min-h-0 w-full flex-col' : 'my-auto w-full'
+        chatReady ? 'flex min-h-full w-full flex-col' : 'my-auto w-full'
       }
     >
       <Field
-        className={`mx-auto w-full gap-2 ${chatReady ? 'min-h-0 max-w-[44rem] flex-1' : 'max-w-[50rem]'}`}
+        className={`mx-auto w-full gap-2 ${chatReady ? 'min-h-full max-w-[44rem] flex-1' : 'max-w-[50rem]'}`}
       >
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
@@ -91,7 +91,7 @@ export function TaskSurface({
                     : 'done'}
               </span>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1">
               <AgentChat
                 depth={workspace.selectedSessionRlmMaxDepth}
                 onOpenSpawnedSession={workspace.openSpawnedSession}
@@ -108,21 +108,29 @@ export function TaskSurface({
           </p>
         )}
 
-        <TaskComposer
-          key={`${workspace.selectedCwd ?? 'no-workspace'}:${
-            workspace.selectedSessionId ?? 'new'
-          }`}
-          modelBusy={workspace.modelBusy}
-          models={workspace.models}
-          skills={workspace.skills}
-          selectedCwd={workspace.selectedCwd}
-          selectedModelKey={workspace.selectedModelKey}
-          selectedSessionId={workspace.selectedSessionId}
-          selectedSessionRlmMaxDepth={workspace.selectedSessionRlmMaxDepth}
-          disabled={agentUnavailable}
-          changeModel={workspace.changeModel}
-          createAgentWithTask={workspace.createAgentWithTask}
-        />
+        <div
+          className={
+            chatReady
+              ? 'sticky bottom-0 z-10 -mx-2 bg-background/95 px-2 pt-3 pb-1 backdrop-blur-sm'
+              : undefined
+          }
+        >
+          <TaskComposer
+            key={`${workspace.selectedCwd ?? 'no-workspace'}:${
+              workspace.selectedSessionId ?? 'new'
+            }`}
+            modelBusy={workspace.modelBusy}
+            models={workspace.models}
+            skills={workspace.skills}
+            selectedCwd={workspace.selectedCwd}
+            selectedModelKey={workspace.selectedModelKey}
+            selectedSessionId={workspace.selectedSessionId}
+            selectedSessionRlmMaxDepth={workspace.selectedSessionRlmMaxDepth}
+            disabled={agentUnavailable}
+            changeModel={workspace.changeModel}
+            createAgentWithTask={workspace.createAgentWithTask}
+          />
+        </div>
 
         {agentUnavailable ? (
           <div

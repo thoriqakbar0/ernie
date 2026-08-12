@@ -41,9 +41,12 @@ export function ErnieShell({
         <AgentSidebar {...workspace} />
 
         <SidebarInset className="h-svh min-w-0 overflow-hidden">
-          <header className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
-            <SidebarTrigger aria-label="Toggle repository sidebar" />
-            <div className="ms-auto flex items-center gap-2">
+          <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-3 px-4 sm:px-6">
+            <SidebarTrigger
+              className="pointer-events-auto"
+              aria-label="Toggle repository sidebar"
+            />
+            <div className="pointer-events-auto ms-auto flex items-center gap-2">
               <Field orientation="horizontal" className="w-auto">
                 <FieldLabel htmlFor="agentation">annotate</FieldLabel>
                 <Switch
@@ -79,7 +82,7 @@ export function ErnieShell({
             </div>
           </header>
 
-          <section className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-[clamp(1.5rem,6vh,4rem)] sm:px-10">
+          <section className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-5 pb-6 sm:px-10">
             <TaskSurface workspace={workspace} onRetryConnection={onReload} />
           </section>
         </SidebarInset>

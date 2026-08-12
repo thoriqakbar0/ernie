@@ -23,6 +23,7 @@ afterEach(() => {
 
 interface SidebarFixtureOverrides {
   readonly folders?: readonly PrimeAgentFolderChoice[];
+  readonly importingSessionPath?: string | null;
   readonly primeAgentConnection?: 'connecting' | 'ready' | 'unavailable';
   readonly savedSessions?: readonly PrimeAgentSavedSession[];
   readonly sessionPreviews?: Readonly<Record<string, string>>;
@@ -105,7 +106,7 @@ function renderSidebar(actions: {
         <AgentSidebar
           creatingAgent={false}
           primeAgentConnection={overrides.primeAgentConnection ?? 'ready'}
-          importingSessionPath={null}
+          importingSessionPath={overrides.importingSessionPath ?? null}
           renamingSession={false}
           folders={folders}
           selectedCwd={overrides.selectedCwd ?? '/workspace/ernie'}
@@ -624,6 +625,31 @@ test('saved conversations appear inside their repository and open in place', asy
   );
 
   assert.deepEqual(importedPaths, ['/sessions/saved-architecture.jsonl']);
+});
+
+test('pending saved conversation owns the active row state', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { importingSessionPath: '/sessions/saved-architecture.jsonl' },
+  );
+
+  const previous = within(document.body).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+  const pending = within(document.body).getByRole('button', {
+    name: 'Saved architecture review, saved session',
+  });
+
+  assert.equal(previous.getAttribute('data-active'), 'false');
+  assert.equal(previous.getAttribute('aria-current'), null);
+  assert.equal(pending.getAttribute('data-active'), 'true');
+  assert.equal(pending.getAttribute('aria-current'), 'page');
 });
 
 test('user can rename a thread from its Trove menu', async () => {

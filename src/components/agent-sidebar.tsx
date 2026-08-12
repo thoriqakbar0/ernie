@@ -351,6 +351,14 @@ export function AgentSidebar({
     () => new Set(management.pinnedThreadIds),
     [management.pinnedThreadIds],
   );
+  const selectedLiveSession = sessions.find(
+    (session) => session.activeSessionId === selectedSessionId,
+  );
+  const selectedThreadId = importingSessionPath !== null
+    ? `session:${importingSessionPath}`
+    : selectedLiveSession === undefined
+      ? null
+      : threadConversationId({ kind: 'live', session: selectedLiveSession });
 
   useEffect(() => {
     if (archiveUndo === null) return;
@@ -713,10 +721,7 @@ export function AgentSidebar({
         importing={importing}
         label={label}
         pinned={pinned}
-        selected={
-          conversation.kind === 'live' &&
-          conversation.session.activeSessionId === selectedSessionId
-        }
+        selected={id === selectedThreadId}
         thread={conversation}
         onArchiveChange={(archived) => {
           if (!archived) return;
@@ -989,8 +994,7 @@ export function AgentSidebar({
                     );
                     const selectedSettled = settled.find(
                       (conversation) =>
-                        conversation.kind === 'live' &&
-                        conversation.session.activeSessionId === selectedSessionId,
+                        threadConversationId(conversation) === selectedThreadId,
                     );
                     if (selectedSettled !== undefined) {
                       visibleSettledIds.add(threadConversationId(selectedSettled));

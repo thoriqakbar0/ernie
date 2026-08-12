@@ -1,6 +1,7 @@
 import { ChevronRightIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { ChatMarkdown } from '@/components/chat-markdown';
 import { Conversation } from '@/components/trovecn/ai-workbench/conversation';
 import type {
   PrimeAgentSessionView,
@@ -24,7 +25,13 @@ function SpawnedSessionBranch({
 }): React.JSX.Element {
   const children = childrenByParent.get(session.id) ?? [];
   const statusTone =
-    session.status === 'error' ? 'text-amber-500' : 'text-muted-foreground';
+    session.status === 'error' ? 'text-destructive' : 'text-muted-foreground';
+  const statusLabel =
+    session.status === 'queued'
+      ? 'waiting'
+      : session.status === 'error'
+        ? 'failed'
+        : session.status;
   return (
     <li>
       <details className="group/spawn">
@@ -40,7 +47,7 @@ function SpawnedSessionBranch({
           {children.length > 0 ? (
             <span className="text-muted-foreground">{children.length} spawned</span>
           ) : null}
-          <span className={statusTone}>{session.status}</span>
+          <span className={statusTone}>{statusLabel}</span>
         </summary>
         {children.length === 0 ? null : (
           <ul className="ml-3 border-l border-border/60 pl-2">
@@ -98,24 +105,24 @@ export function AgentChat({
 
   return (
     <>
-      {sessionView.spawnedSessions.length === 0 ? (
-        depth === null ? null : (
-          <p className="h-7 text-xs leading-7 text-muted-foreground">
-            depth {depth}
-          </p>
-        )
-      ) : summary.length === 0 ? null : (
+      {sessionView.spawnedSessions.length === 0 || summary.length === 0 ? null : (
         <button
           type="button"
           className="flex h-7 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           aria-expanded={treeOpen}
+          aria-controls="spawned-agent-tree"
           onClick={() => setTreeOpen((current) => !current)}
         >
+          <ChevronRightIcon
+            aria-hidden="true"
+            className={`size-3 transition-transform ${treeOpen ? 'rotate-90' : ''}`}
+          />
           {summary.join(' · ')}
         </button>
       )}
       {treeOpen && sessionView.spawnedSessions.length > 0 ? (
         <section
+          id="spawned-agent-tree"
           aria-label="Spawned agents"
           className="max-h-[33vh] overflow-y-auto rounded-lg border bg-muted/20 p-1"
         >
@@ -131,11 +138,20 @@ export function AgentChat({
         </section>
       ) : null}
       <Conversation
-        messages={sessionView.messages.map((message) => ({
-          id: message.id,
-          role: message.role,
-          content: message.text,
-        }))}
+        messages={sessionView.messages.map((message) =>
+          message.role === 'assistant'
+            ? {
+                id: message.id,
+                role: message.role,
+                content: <ChatMarkdown text={message.text} />,
+                copyText: message.text,
+              }
+            : {
+                id: message.id,
+                role: message.role,
+                content: message.text,
+              },
+        )}
         className="pb-6"
       />
     </>

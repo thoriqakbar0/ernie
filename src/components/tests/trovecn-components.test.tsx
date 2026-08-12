@@ -64,7 +64,7 @@ test('conversation renders authored messages', () => {
   assert.ok(within(document.body).getByRole('button', { name: 'Copy message' }));
 });
 
-test('focused chat renders depth as metadata without an empty disclosure', () => {
+test('focused chat keeps depth beside the composer when no Agents spawned', () => {
   render(
     <AgentChat
       depth={2}
@@ -81,7 +81,31 @@ test('focused chat renders depth as metadata without an empty disclosure', () =>
     within(document.body).queryByRole('button', { name: 'depth 2' }),
     null,
   );
-  assert.ok(within(document.body).getByText('depth 2'));
+  assert.equal(within(document.body).queryByText('depth 2'), null);
+});
+
+test('focused chat renders Prime Agent markdown as document structure', () => {
+  render(
+    <AgentChat
+      depth={2}
+      sessionView={{
+        activeSessionId: 'root',
+        messages: [
+          {
+            id: 'one',
+            role: 'assistant',
+            text: '**Verdict:** strong\n\n- clear\n- calm',
+          },
+        ],
+        rlmMaxDepth: 2,
+        spawnedSessions: [],
+      }}
+    />,
+  );
+
+  assert.equal(within(document.body).getByText('Verdict:').tagName, 'STRONG');
+  assert.equal(within(document.body).getAllByRole('listitem').length, 2);
+  assert.ok(within(document.body).getByRole('button', { name: 'Copy response' }));
 });
 
 test('focused chat reveals a recursively indexed spawned Agent tree', async () => {
@@ -117,11 +141,14 @@ test('focused chat reveals a recursively indexed spawned Agent tree', async () =
     }),
   );
 
-  assert.ok(
-    within(document.body).getByRole('region', { name: 'Spawned agents' }),
-  );
-  assert.ok(within(document.body).getByText('Research'));
-  assert.ok(within(document.body).getByText('Verify'));
+  const spawnedAgents = within(document.body).getByRole('region', {
+    name: 'Spawned agents',
+  });
+  assert.ok(spawnedAgents);
+  assert.ok(within(spawnedAgents).getByText('Research'));
+  assert.ok(within(spawnedAgents).getByText('Verify'));
+  assert.ok(within(spawnedAgents).getByText('working'));
+  assert.ok(within(spawnedAgents).getByText('done'));
 });
 
 test('prompt composer submits trimmed text with Enter', async () => {

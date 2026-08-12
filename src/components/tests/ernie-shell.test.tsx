@@ -273,9 +273,11 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     null,
   );
   assert.ok(within(document.body).getByRole('button', { name: 'Add context' }));
-  assert.ok(
-    await within(document.body).findByRole('region', { name: 'Conversation' }),
-  );
+  const conversation = await within(document.body).findByRole('region', {
+    name: 'Conversation',
+  });
+  assert.match(conversation.className, /select-text/u);
+  assert.ok(within(document.body).getByRole('heading', { name: 'Blank Agent' }));
   assert.ok(within(document.body).getByText('I am working on it.'));
 
   await user.click(

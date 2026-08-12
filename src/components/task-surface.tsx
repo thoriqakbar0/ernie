@@ -59,9 +59,9 @@ export function TaskSurface({ workspace }: TaskSurfaceProps): React.JSX.Element 
         ) : chatReady && selectedSessionView !== null ? (
           <>
             <header className="flex items-center gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
+              <h1 className="font-medium text-foreground">
                 {selectedSession?.name ?? 'Agent'}
-              </span>
+              </h1>
               <span>{workspace.repoName}</span>
               {workspace.gitBranch === null ? null : <span>· {workspace.gitBranch}</span>}
             </header>

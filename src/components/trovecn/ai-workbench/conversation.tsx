@@ -15,6 +15,8 @@ export interface ConversationMessage {
   role: ConversationMessageRole;
   /** Consumer-rendered text, markdown, or other inline response content. */
   content: ReactNode;
+  /** Plain text copied when content is a rendered node. */
+  copyText?: string;
   /** Rendered below a user message; assistant messages intentionally omit it. */
   timestamp?: ReactNode;
 }
@@ -45,10 +47,11 @@ function Conversation({
 
   async function handleCopy(message: ConversationMessage) {
     let copied = false;
+    const copyText = message.copyText ?? (typeof message.content === "string" ? message.content : undefined);
 
-    if (typeof message.content === "string" && navigator.clipboard) {
+    if (copyText !== undefined && navigator.clipboard) {
       try {
-        await navigator.clipboard.writeText(message.content);
+        await navigator.clipboard.writeText(copyText);
         copied = true;
       } catch {
         // A consumer callback can provide a fallback for restricted clipboard contexts.
@@ -71,7 +74,7 @@ function Conversation({
   }
 
   return (
-    <section data-slot="conversation" aria-label="Conversation" className={cn("w-full", className)}>
+    <section data-slot="conversation" aria-label="Conversation" className={cn("w-full select-text", className)}>
       <div className="space-y-2">
         <AnimatePresence initial={false}>
           {messages.map((message) => (
@@ -113,7 +116,7 @@ function Conversation({
                     {message.timestamp}
                   </span>
                 ) : null}
-                {typeof message.content === "string" || onCopy ? (
+                {message.copyText !== undefined || typeof message.content === "string" || onCopy ? (
                   <Button
                     type="button"
                     variant="ghost"

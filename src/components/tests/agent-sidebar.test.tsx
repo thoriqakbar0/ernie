@@ -616,10 +616,13 @@ test('user can rename a thread from its Trove menu', async () => {
     selectSession: () => undefined,
   });
 
+  assert.equal(document.querySelector('.lucide-grip-vertical'), null);
+  const actions = within(document.body).getByRole('button', {
+    name: 'More actions for Codebase rating feedback',
+  });
+  assert.match(actions.className, /opacity-100/u);
   await user.click(
-    within(document.body).getByRole('button', {
-      name: 'Manage Codebase rating feedback',
-    }),
+    actions,
   );
   await user.click(within(document.body).getByRole('menuitem', { name: 'Rename' }));
   const input = within(document.body).getByRole('textbox', {
@@ -651,7 +654,7 @@ test('archived threads leave the sidebar without an archived section', async () 
 
   await user.click(
     within(document.body).getByRole('button', {
-      name: 'Manage Codebase rating feedback',
+      name: 'More actions for Codebase rating feedback',
     }),
   );
   await user.click(within(document.body).getByRole('menuitem', { name: 'Archive' }));
@@ -889,7 +892,7 @@ test('pinned threads lift above repositories and return when unpinned', async ()
   });
   await user.click(
     within(ernieRepository).getByRole('button', {
-      name: 'Manage Codebase rating feedback',
+      name: 'More actions for Codebase rating feedback',
     }),
   );
   await user.click(
@@ -919,7 +922,7 @@ test('pinned threads lift above repositories and return when unpinned', async ()
 
   await user.click(
     within(pinnedTasks).getByRole('button', {
-      name: 'Manage Codebase rating feedback',
+      name: 'More actions for Codebase rating feedback',
     }),
   );
   await user.click(

@@ -321,7 +321,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     }),
     null,
   );
-  assert.ok(within(document.body).getByRole('button', { name: 'Add context' }));
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Add context' }),
+    null,
+  );
   const conversation = await within(document.body).findByRole('region', {
     name: 'Conversation',
   });

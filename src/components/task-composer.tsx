@@ -1,4 +1,4 @@
-import { ArrowUpIcon, PlusIcon } from 'lucide-react';
+import { ArrowUpIcon } from 'lucide-react';
 import { memo, useId, useMemo, useRef, useState } from 'react';
 
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
@@ -217,29 +217,13 @@ export const TaskComposer = memo(function TaskComposer({
             </div>
           ) : null}
 
-          {selectedSessionId === null ? null : (
-            <InputGroupAddon
-              align="inline-start"
-              className="h-9 self-end p-0"
-            >
-              <InputGroupButton
-                size="icon-sm"
-                className="size-8 rounded-full bg-muted text-foreground"
-                aria-label="Add context"
-                disabled={disabled}
-              >
-                <PlusIcon />
-              </InputGroupButton>
-            </InputGroupAddon>
-          )}
-
           <InputGroupTextarea
             ref={textareaRef}
             id="task"
             autoFocus={selectedSessionId === null && selectedCwd !== null}
             rows={1}
             value={task.draft}
-            className="max-h-28 min-h-9 select-text px-2 py-2 text-base [field-sizing:content]"
+            className="max-h-28 min-h-9 select-text px-3 py-2 text-base [field-sizing:content]"
             placeholder={isGenerating ? 'Add a follow-up…' : 'Ask Prime Agent…'}
             aria-autocomplete="list"
             aria-controls={skillsOpen ? skillsListId : undefined}

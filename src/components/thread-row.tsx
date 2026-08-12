@@ -2,7 +2,6 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   EllipsisIcon,
-  GripVerticalIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
@@ -47,7 +46,7 @@ interface ThreadRowProps {
   readonly onRename: () => void;
 }
 
-/** Interactive Trove thread row with menu, context menu, and drag affordance. */
+/** Interactive Trove thread row with direct opening, whole-row drag, and actions. */
 export function ThreadRow({
   archived,
   activity,
@@ -105,10 +104,6 @@ export function ThreadRow({
           />
         }
       >
-        <GripVerticalIcon
-          aria-hidden="true"
-          className="absolute left-1 size-3.5 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-60 group-focus-within/thread:opacity-60"
-        />
         <Button
           type="button"
           variant="ghost"
@@ -122,7 +117,7 @@ export function ThreadRow({
               : label
           }
           title={label}
-          className={`h-8 min-w-0 flex-1 justify-start rounded-lg border-l-2 pl-[18px] pr-16 text-left text-sidebar-foreground hover:bg-sidebar-accent ${selected ? 'border-sidebar-foreground/35 bg-sidebar-accent' : 'border-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
+          className={`h-8 min-w-0 flex-1 justify-start rounded-lg border-s-2 ps-2 pe-16 text-start text-sidebar-foreground hover:bg-sidebar-accent ${selected ? 'border-sidebar-foreground/35 bg-sidebar-accent' : 'border-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
         >
           <span className="min-w-0 flex-1 truncate">
@@ -135,15 +130,15 @@ export function ThreadRow({
         {importing ? (
           <span
             aria-label="Opening saved session"
-            className="absolute right-8 size-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none"
+            className="absolute end-8 size-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none"
           />
         ) : (
           <>
-            <span className="absolute right-8 group-hover/thread:hidden group-focus-within/thread:hidden">
+            <span className="absolute end-8 group-hover/thread:hidden group-focus-within/thread:hidden">
               {activityMark}
             </span>
             {pinned || detail === null ? null : (
-              <span className="pointer-events-none absolute right-8 text-xs tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-100 group-focus-within/thread:opacity-100">
+              <span className="pointer-events-none absolute end-8 text-xs tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-100 group-focus-within/thread:opacity-100">
                 {detail}
               </span>
             )}
@@ -156,9 +151,9 @@ export function ThreadRow({
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                aria-label={`Manage ${label}`}
-                title={`Manage ${label}`}
-                className="mr-1 text-muted-foreground opacity-0 group-hover/thread:opacity-100 group-focus-within/thread:opacity-100 aria-expanded:opacity-100"
+                aria-label={`More actions for ${label}`}
+                title="More actions"
+                className={`absolute end-1 text-muted-foreground group-hover/thread:opacity-100 group-focus-within/thread:opacity-100 aria-expanded:opacity-100 ${selected ? 'opacity-100' : 'opacity-0'}`}
               />
             }
           >

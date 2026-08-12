@@ -6,7 +6,6 @@ import { afterEach, test } from 'node:test';
 import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { AgentChat } from '@/components/agent-chat';
 import * as Accordion from '@/components/trovecn/ui/accordion';
 import * as Button from '@/components/trovecn/ui/button';
 import * as Checkbox from '@/components/trovecn/ui/checkbox';
@@ -23,8 +22,28 @@ import * as Tabs from '@/components/trovecn/ui/tabs';
 import * as Tooltip from '@/components/trovecn/ui/tooltip';
 import { Conversation } from '@/components/trovecn/ai-workbench/conversation';
 import { PromptComposer } from '@/components/trovecn/ai-workbench/prompt-composer';
+import type { AgentPluginViewContext } from '@/packages/agent-plugin-context';
+import { AiChatPluginView } from '@/packages/ai-chat-plugin/view';
+import { SubagentsPluginView } from '@/packages/subagents-plugin/view';
 
 afterEach(cleanup);
+
+const ignoreSpawnedSession = (): void => undefined;
+
+function AgentPluginTestView({
+  onOpenSpawnedSession,
+  sessionView,
+}: AgentPluginViewContext): React.JSX.Element {
+  return (
+    <>
+      <AiChatPluginView sessionView={sessionView} />
+      <SubagentsPluginView
+        onOpenSpawnedSession={onOpenSpawnedSession}
+        sessionView={sessionView}
+      />
+    </>
+  );
+}
 
 test('every trove/cn registry component module loads', () => {
   const modules = [
@@ -66,7 +85,8 @@ test('conversation renders authored messages', () => {
 
 test('focused chat does not duplicate composer depth', () => {
   render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -90,7 +110,8 @@ test('focused chat does not duplicate composer depth', () => {
 
 test('focused chat keeps user messages free of a divider', () => {
   render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -113,7 +134,8 @@ test('focused chat keeps user messages free of a divider', () => {
 
 test('focused chat renders Prime Agent markdown as document structure', () => {
   render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -146,7 +168,8 @@ test('focused chat renders Prime Agent markdown as document structure', () => {
 test('focused chat groups completed work and keeps output streams distinct', async () => {
   const user = userEvent.setup();
   render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -220,7 +243,8 @@ test('focused chat groups completed work and keeps output streams distinct', asy
 
 test('focused chat expands only the newest work while streaming', () => {
   render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: true,
@@ -293,7 +317,8 @@ test('sending a follow-up keeps completed work collapsed', () => {
     traceback: [],
   };
   const { rerender } = render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: false,
@@ -315,7 +340,8 @@ test('sending a follow-up keeps completed work collapsed', () => {
   );
 
   rerender(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={ignoreSpawnedSession}
       sessionView={{
         activeSessionId: 'root',
         isStreaming: true,
@@ -342,9 +368,14 @@ test('sending a follow-up keeps completed work collapsed', () => {
   );
 });
 
-test('focused chat reveals a recursively indexed spawned Agent tree', () => {
+test('focused Agent view composes chat and recursive subagent plugins', async () => {
+  const openedSessions: string[] = [];
+  const user = userEvent.setup();
   render(
-    <AgentChat
+    <AgentPluginTestView
+      onOpenSpawnedSession={(activeSessionId) =>
+        openedSessions.push(activeSessionId)
+      }
       sessionView={{
         activeSessionId: 'root',
         isStreaming: true,
@@ -382,13 +413,14 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
     />,
   );
 
+  assert.ok(within(document.body).getByRole('region', { name: 'Conversation' }));
   const spawnedAgents = within(document.body).getByRole('region', {
-    name: 'Spawned agents',
+    name: 'Subagents',
   });
   assert.ok(spawnedAgents);
   assert.doesNotMatch(spawnedAgents.className, /border/u);
   assert.match(spawnedAgents.className, /max-w-\[42rem\]/u);
-  assert.ok(within(spawnedAgents).getByLabelText('2 spawned agents'));
+  assert.ok(within(spawnedAgents).getByLabelText('2 subagents'));
   assert.ok(within(spawnedAgents).getByText('Research'));
   assert.ok(within(spawnedAgents).getByText('Verify'));
   const nestedAgents = spawnedAgents.querySelector(
@@ -398,6 +430,8 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
   assert.doesNotMatch(nestedAgents.className, /border/u);
   assert.ok(within(spawnedAgents).getByText('working'));
   assert.ok(within(spawnedAgents).getByText('done'));
+  await user.click(within(spawnedAgents).getByRole('button', { name: 'Verify' }));
+  assert.deepEqual(openedSessions, ['verify-active']);
 });
 
 test('prompt composer submits trimmed text with Enter', async () => {

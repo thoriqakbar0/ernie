@@ -1,6 +1,6 @@
 import { RefreshCwIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 
-import { AgentChat } from '@/components/agent-chat';
 import { CurrentWorkspace } from '@/components/current-workspace';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -8,12 +8,14 @@ import { Button } from '@/components/trovecn/ui/button';
 import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
 
 interface TaskSurfaceProps {
+  readonly agentContent?: ReactNode;
   readonly onRetryConnection: () => void;
   readonly workspace: PrimeAgentWorkspaceController;
 }
 
 /** Ernie's primary task input and its connected execution environment. */
 export function TaskSurface({
+  agentContent,
   onRetryConnection,
   workspace,
 }: TaskSurfaceProps): React.JSX.Element {
@@ -63,16 +65,11 @@ export function TaskSurface({
             createGitWorktree={workspace.createGitWorktree}
           />
         ) : chatReady && selectedSessionView !== null ? (
-          <>
-            <div className="min-h-0 w-full flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-[44rem]">
-                <AgentChat
-                  onOpenSpawnedSession={workspace.openSpawnedSession}
-                  sessionView={selectedSessionView}
-                />
-              </div>
+          <div className="min-h-0 w-full flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-[44rem]">
+              {agentContent}
             </div>
-          </>
+          </div>
         ) : null}
 
         <div

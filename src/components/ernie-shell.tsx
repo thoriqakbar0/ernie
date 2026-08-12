@@ -2,6 +2,7 @@ import { SettingsIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
+import { AgentPluginViews } from '@/components/agent-plugin-views';
 import {
   agentsViewId,
   PluginActivityBar,
@@ -18,9 +19,12 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/trovecn/ui/button';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
+import type { AgentPluginViewContext } from '@/packages/agent-plugin-context';
+import { createAiChatPluginModule } from '@/packages/ai-chat-plugin/view';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
 import { createPluginHost } from '@/packages/plugin-host';
+import { createSubagentsPluginModule } from '@/packages/subagents-plugin/view';
 
 const disabledPluginsStorageKey = 'ernie:disabled-plugins:v1';
 
@@ -66,9 +70,21 @@ export function ErnieShell({
   reactGrabEnabled,
 }: ErnieShellProps): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
+  const agentPluginContext = useRef<AgentPluginViewContext | null>(null);
   const pluginHost = useMemo(() => {
+    const getAgentPluginContext = (): AgentPluginViewContext => {
+      const context = agentPluginContext.current;
+      if (context === null) {
+        throw new Error('The focused Agent context is unavailable.');
+      }
+      return context;
+    };
     const created = createPluginHost(
-      [createBrowserPluginModule(window.ernie)],
+      [
+        createAiChatPluginModule(getAgentPluginContext),
+        createSubagentsPluginModule(getAgentPluginContext),
+        createBrowserPluginModule(window.ernie),
+      ],
       readDisabledPluginIds(),
     );
     if (!created.ok) throw created.error;
@@ -76,6 +92,12 @@ export function ErnieShell({
   }, []);
   const pluginManifests = useMemo(() => pluginHost.listPlugins(), [pluginHost]);
   const pluginViews = pluginHost.listViews();
+  const primaryPluginViews = pluginViews.filter(
+    (view) => view.location === 'primary',
+  );
+  const agentPluginViews = pluginViews.filter(
+    (view) => view.location === 'agent',
+  );
   const selectionSequence = useRef(0);
   const [activeViewId, setActiveViewId] = useState(agentsViewId);
   const [activePluginContent, setActivePluginContent] =
@@ -99,6 +121,13 @@ export function ErnieShell({
     workspace.selectedSessionView?.activeSessionId === workspace.selectedSessionId
       ? workspace.selectedSessionView
       : null;
+  agentPluginContext.current =
+    selectedSessionView === null
+      ? null
+      : {
+          onOpenSpawnedSession: workspace.openSpawnedSession,
+          sessionView: selectedSessionView,
+        };
   const workingAgentCount =
     selectedSessionView?.spawnedSessions.filter(
       (session) => session.status === 'working' || session.status === 'queued',
@@ -186,7 +215,7 @@ export function ErnieShell({
       <div className="flex h-svh min-w-0 select-none">
         <PluginActivityBar
           activeViewId={activeViewId}
-          pluginViews={pluginViews}
+          pluginViews={primaryPluginViews}
           onSelectView={selectView}
         />
         <SidebarProvider defaultOpen className="min-w-0 flex-1">
@@ -287,7 +316,23 @@ export function ErnieShell({
                 }`}
               >
                 {agentsActive ? (
-                  <TaskSurface workspace={workspace} onRetryConnection={onReload} />
+                  <TaskSurface
+                    agentContent={
+                      selectedSessionView === null ? null : (
+                        <AgentPluginViews
+                          host={pluginHost}
+                          manifests={pluginManifests}
+                          onDisablePlugin={(pluginId) =>
+                            changePluginEnabled(pluginId, false)
+                          }
+                          sessionView={selectedSessionView}
+                          views={agentPluginViews}
+                        />
+                      )
+                    }
+                    workspace={workspace}
+                    onRetryConnection={onReload}
+                  />
                 ) : activePluginContent !== null &&
                   activePluginView !== null &&
                   activePluginManifest !== undefined &&

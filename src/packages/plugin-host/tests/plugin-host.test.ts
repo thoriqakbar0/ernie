@@ -52,7 +52,10 @@ function registerTestView(context: PluginActivationContext<string>): void {
   context.registerView(viewId, () => 'Browser view');
 }
 
-function serializedTestManifest(apiVersion = 1): JsonValue {
+function serializedTestManifest(
+  apiVersion = 1,
+  location: 'agent' | 'primary' = 'primary',
+): JsonValue {
   return {
     apiVersion,
     id: 'acme.browser',
@@ -68,7 +71,7 @@ function serializedTestManifest(apiVersion = 1): JsonValue {
           title: 'Browser',
           description: 'Browse the web.',
           icon: 'globe',
-          location: 'primary',
+          location,
         },
       ],
     },
@@ -83,6 +86,14 @@ test('parses a serialized plugin manifest into immutable metadata', () => {
   assert.equal(result.value.id, 'acme.browser');
   assert.equal(Object.isFrozen(result.value), true);
   assert.equal(Object.isFrozen(result.value.contributes.views), true);
+});
+
+test('parses Agent views without exposing them as primary navigation', () => {
+  const result = parsePluginManifest(serializedTestManifest(1, 'agent'));
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.contributes.views[0]?.location, 'agent');
 });
 
 test('rejects unsupported API versions at the manifest boundary', () => {

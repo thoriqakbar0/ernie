@@ -31,6 +31,7 @@ export type {
   PluginResult,
   PluginViewContribution,
   PluginViewIcon,
+  PluginViewLocation,
   PluginViewRenderContext,
   PluginViewRenderer,
 } from './lib/plugin-host.js';

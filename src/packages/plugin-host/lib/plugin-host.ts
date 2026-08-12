@@ -12,19 +12,22 @@ export const currentPluginApiVersion = 1 as const;
 /** An icon token that Ernie can render for a contributed view. */
 export type PluginViewIcon = 'globe' | 'puzzle';
 
+/** A host-owned surface where a plugin view may render. */
+export type PluginViewLocation = 'agent' | 'primary';
+
 /** A command declared by a plugin before activation. */
 export interface PluginCommandContribution {
   readonly id: string;
   readonly title: string;
 }
 
-/** A primary workbench view declared by a plugin before activation. */
+/** A host-owned view declared by a plugin before activation. */
 export interface PluginViewContribution {
   readonly id: string;
   readonly title: string;
   readonly description: string;
   readonly icon: PluginViewIcon;
-  readonly location: 'primary';
+  readonly location: PluginViewLocation;
 }
 
 /** Declarative extension points owned by one plugin. */
@@ -246,7 +249,7 @@ export interface PluginHost<RenderedView> {
   /** List immutable manifests in deterministic registration order. */
   listPlugins(): readonly PluginManifest[];
 
-  /** List primary workbench views contributed by enabled plugins. */
+  /** List views contributed by enabled plugins in registration order. */
   listViews(): readonly PluginViewContribution[];
 
   /** Report whether the user currently permits one plugin to contribute behavior. */
@@ -364,7 +367,7 @@ function parseViewContributions(
       title === null ||
       description === null ||
       (icon !== 'globe' && icon !== 'puzzle') ||
-      location !== 'primary'
+      (location !== 'agent' && location !== 'primary')
     ) {
       return failed(
         new InvalidPluginManifestError(

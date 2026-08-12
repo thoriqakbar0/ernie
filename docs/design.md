@@ -8,6 +8,9 @@ Ernie is a calm desktop home for durable Prime Agent work. It uses the selected 
 
 - Agent is the primary object.
 - Conversation belongs inside an Agent. It is not the global navigation model.
+- Focused Agent content uses ordered renderer plugins.
+- The built-in `ai-chat` plugin owns transcript and execution work.
+- The built-in `subagents` plugin owns recursive delegated work.
 - Attention contains only unresolved conditions that require user action.
 - Workspace comes from local repository and worktree context.
 - Search and filters expose complexity without keeping the full hierarchy open.
@@ -45,6 +48,14 @@ The interface uses flat color, precise one-pixel dividers, and modest radii. It 
 - Attention actions return the user to the related Agent.
 - New Agent creates a local roster item and selects it.
 - React Grab ships with Ernie and can be disabled from the header.
+
+## Renderer plugins
+
+The shared plugin host owns focused Agent content. `AgentPluginViews` supplies
+the current session through the typed `AgentPluginViewContext` contract.
+
+AI Chat and Subagents contribute `agent` views. Browser contributes a `primary`
+view. Registration order determines display order within each location.
 
 ## Responsive behavior
 

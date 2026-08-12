@@ -1019,6 +1019,86 @@ testInTempDirectory(
 );
 
 testInTempDirectory(
+  'deletes a merged local branch and its clean linked worktree',
+  'ernie-git-delete-worktree-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'feature/merged']);
+      const worktreeCwd = join(cwd, 'linked-worktree');
+      yield* runGit([
+        '-C',
+        cwd,
+        'worktree',
+        'add',
+        worktreeCwd,
+        'feature/merged',
+      ]);
+
+      const result = yield* deleteLocalGitBranch({
+        cwd,
+        name: 'feature/merged',
+      });
+
+      assert.deepEqual(result, {
+        ok: true,
+        value: { cwd, current: 'feature/local', names: ['feature/local'] },
+      });
+      const worktrees = yield* runGit([
+        '-C',
+        cwd,
+        'worktree',
+        'list',
+        '--porcelain',
+      ]);
+      assert.doesNotMatch(worktrees.stdout, /linked-worktree/u);
+    }),
+);
+
+testInTempDirectory(
+  'keeps a merged local branch when its linked worktree has changes',
+  'ernie-git-keep-dirty-worktree-',
+  (cwd) =>
+    Effect.gen(function* () {
+      yield* createGitRepository(cwd);
+      yield* runGit(['-C', cwd, 'branch', 'feature/dirty']);
+      const worktreeCwd = join(cwd, 'linked-worktree');
+      yield* runGit([
+        '-C',
+        cwd,
+        'worktree',
+        'add',
+        worktreeCwd,
+        'feature/dirty',
+      ]);
+      yield* Effect.tryPromise(() =>
+        writeFile(join(worktreeCwd, 'uncommitted.txt'), 'keep me', 'utf8'),
+      );
+
+      const result = yield* deleteLocalGitBranch({
+        cwd,
+        name: 'feature/dirty',
+      });
+
+      assert.deepEqual(result, {
+        ok: false,
+        error: {
+          code: 'request_failed',
+          message: 'Git could not delete the local branch.',
+        },
+      });
+      const branches = yield* readLocalGitBranches(cwd);
+      assert.equal(branches.ok && branches.value.names.includes('feature/dirty'), true);
+      assert.equal(
+        yield* Effect.tryPromise(() =>
+          readdir(worktreeCwd).then((entries) => entries.includes('uncommitted.txt')),
+        ),
+        true,
+      );
+    }),
+);
+
+testInTempDirectory(
   'protects the main local Git branch from deletion',
   'ernie-git-protected-',
   (cwd) =>

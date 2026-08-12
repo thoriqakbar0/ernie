@@ -10,6 +10,7 @@ import {
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  Trash2Icon,
   XIcon,
 } from 'lucide-react';
 import {
@@ -92,6 +93,7 @@ type AgentSidebarProps = Pick<
   | 'sessionPreviews'
   | 'sessions'
   | 'changeFolder'
+  | 'deleteGitBranch'
   | 'addWorkspaceDirectory'
   | 'startAgentDraft'
   | 'importSession'
@@ -305,6 +307,7 @@ export function AgentSidebar({
   sessionPreviews,
   sessions,
   changeFolder,
+  deleteGitBranch,
   addWorkspaceDirectory,
   startAgentDraft,
   importSession,
@@ -531,6 +534,20 @@ export function AgentSidebar({
   const copyBranchName = (branchName: string): void => {
     if (navigator.clipboard === undefined) return;
     void navigator.clipboard.writeText(branchName).catch(() => undefined);
+  };
+
+  const confirmDeleteBranch = (
+    branchName: string,
+    repositoryCwd: string,
+    worktreeCwd: string,
+  ): void => {
+    if (
+      window.confirm(
+        `Delete local branch "${branchName}" and its clean Git worktree folder? Uncommitted changes prevent deletion.`,
+      )
+    ) {
+      deleteGitBranch(branchName, repositoryCwd, worktreeCwd);
+    }
   };
 
   useEffect(() => {
@@ -1332,6 +1349,19 @@ export function AgentSidebar({
                                         >
                                           <FolderOpenIcon />
                                           Reveal in Finder
+                                        </ContextMenuItem>
+                                        <ContextMenuItem
+                                          variant="destructive"
+                                          onClick={() =>
+                                            confirmDeleteBranch(
+                                              workspaceLabel,
+                                              workspace.folder.repositoryCwd,
+                                              workspace.folder.value,
+                                            )
+                                          }
+                                        >
+                                          <Trash2Icon />
+                                          Delete branch…
                                         </ContextMenuItem>
                                       </ContextMenuContent>
                                     </ContextMenu>

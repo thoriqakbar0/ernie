@@ -93,7 +93,11 @@ export interface PrimeAgentWorkspaceController {
   readonly chooseWorkspaceDirectory: () => void;
   readonly addWorkspaceDirectory: () => Promise<string | null>;
   readonly changeGitBranch: (name: string | null) => void;
-  readonly deleteGitBranch: (name: string) => void;
+  readonly deleteGitBranch: (
+    name: string,
+    repositoryCwd?: string,
+    worktreeCwd?: string,
+  ) => void;
   readonly initializeGitRepository: () => void;
   readonly createGitWorktree: (branchName: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
@@ -1066,9 +1070,18 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     );
   }
 
-  function deleteGitBranch(name: string): void {
-    if (selectedCwd === null || name === gitBranch) return;
-    const cwd = selectedCwd;
+  function deleteGitBranch(
+    name: string,
+    repositoryCwd = selectedCwd ?? undefined,
+    worktreeCwd?: string,
+  ): void {
+    if (
+      repositoryCwd === undefined ||
+      (worktreeCwd === undefined && name === gitBranch)
+    ) {
+      return;
+    }
+    const cwd = repositoryCwd;
 
     const deleteBranch = Effect.fn('Workspace.deleteGitBranch')(function* () {
       yield* Effect.sync(() => {
@@ -1089,8 +1102,27 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       }
 
       yield* Effect.sync(() => {
-        setGitBranch(result.value.current);
-        setGitBranches(result.value.names);
+        if (worktreeCwd === undefined) {
+          setGitBranch(result.value.current);
+          setGitBranches(result.value.names);
+        } else {
+          setGitBranches((current) =>
+            current.filter((candidate) => candidate !== name),
+          );
+          setAddedCwds((current) =>
+            current.filter((candidate) => candidate !== worktreeCwd),
+          );
+          setGitWorkspaces((current) => {
+            const next = new Map(current);
+            next.delete(worktreeCwd);
+            return next;
+          });
+          if (selectedCwd === worktreeCwd) {
+            setGitBranch(result.value.current);
+            setSelectedCwd(repositoryCwd);
+            setSelectedSessionId(null);
+          }
+        }
         setStatus(`Deleted local Git branch ${name}.`);
       });
     });

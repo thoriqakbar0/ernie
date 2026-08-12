@@ -366,7 +366,7 @@ export const switchLocalGitBranch = Effect.fn('Git.switchLocalGitBranch')(
   },
 );
 
-/** Delete one merged local branch while protecting primary and current branches. */
+/** Delete one merged local branch and its clean linked worktree, if present. */
 export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
   function* (selection: JsonValue) {
     const parsedSelection = parseGitBranchSelection(selection);
@@ -397,6 +397,91 @@ export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
       };
     }
 
+    const deleteFailure = {
+      ok: false as const,
+      error: {
+        code: 'request_failed' as const,
+        message: 'Git could not delete the local branch.',
+      },
+    };
+    const worktreeListAttempt = yield* tryExternal(() =>
+      execFileAsync(
+        'git',
+        [
+          '-C',
+          parsedSelection.value.cwd,
+          'worktree',
+          'list',
+          '--porcelain',
+        ],
+        { encoding: 'utf8', timeout: gitTimeoutMs },
+      ),
+    ).pipe(
+      Effect.match({
+        onFailure: (error) => ({ ok: false as const, error }),
+        onSuccess: (value) => ({ ok: true as const, value }),
+      }),
+    );
+    if (!worktreeListAttempt.ok) {
+      reportGitFailure('delete_branch', worktreeListAttempt.error);
+      return deleteFailure;
+    }
+    const linkedWorktree = parseGitWorktreeList(
+      worktreeListAttempt.value.stdout,
+    ).find(
+      (worktree) =>
+        worktree.branchName === parsedSelection.value.name &&
+        worktree.cwd !== parsedSelection.value.cwd,
+    );
+
+    if (linkedWorktree !== undefined && !linkedWorktree.prunable) {
+      const merged = yield* tryExternal(() =>
+        execFileAsync(
+          'git',
+          [
+            '-C',
+            parsedSelection.value.cwd,
+            'merge-base',
+            '--is-ancestor',
+            parsedSelection.value.name,
+            'HEAD',
+          ],
+          { encoding: 'utf8', timeout: gitTimeoutMs },
+        ),
+      ).pipe(
+        Effect.match({
+          onFailure: () => false,
+          onSuccess: () => true,
+        }),
+      );
+      if (!merged) {
+        return deleteFailure;
+      }
+
+      const removalAttempt = yield* tryExternal(() =>
+        execFileAsync(
+          'git',
+          [
+            '-C',
+            parsedSelection.value.cwd,
+            'worktree',
+            'remove',
+            linkedWorktree.cwd,
+          ],
+          { encoding: 'utf8', timeout: gitWorktreeTimeoutMs },
+        ),
+      ).pipe(
+        Effect.match({
+          onFailure: (error) => ({ ok: false as const, error }),
+          onSuccess: () => ({ ok: true as const }),
+        }),
+      );
+      if (!removalAttempt.ok) {
+        reportGitFailure('delete_branch', removalAttempt.error);
+        return deleteFailure;
+      }
+    }
+
     return yield* tryExternal(() =>
       execFileAsync(
         'git',
@@ -414,13 +499,7 @@ export const deleteLocalGitBranch = Effect.fn('Git.deleteLocalGitBranch')(
       Effect.catch((error) =>
         Effect.sync(() => {
           reportGitFailure('delete_branch', error);
-          return {
-            ok: false as const,
-            error: {
-              code: 'request_failed' as const,
-              message: 'Git could not delete the local branch.',
-            },
-          };
+          return deleteFailure;
         }),
       ),
     );

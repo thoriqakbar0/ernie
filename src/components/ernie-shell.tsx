@@ -282,7 +282,7 @@ export function ErnieShell({
               </div>
             ) : (
               <section
-                className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
+                className={`relative flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto ${
                   agentsActive ? 'px-6 pt-4 pb-6 sm:px-10' : ''
                 }`}
               >

@@ -3,7 +3,7 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { AgentChat } from '@/components/agent-chat';
@@ -45,6 +45,78 @@ test('every trove/cn registry component module loads', () => {
   ];
 
   assert.equal(modules.every((module) => Object.keys(module).length > 0), true);
+});
+
+test('buttons keep an opaque focus ring and stop press motion when requested', () => {
+  render(<Button.Button>Continue</Button.Button>);
+
+  const button = within(document.body).getByRole('button', { name: 'Continue' });
+  assert.match(button.className, /focus-visible:ring-ring(?:\s|$)/u);
+  assert.doesNotMatch(button.className, /focus-visible:ring-ring\//u);
+  assert.match(button.className, /active:not-aria-\[haspopup\]:scale-\[0\.96\]/u);
+  assert.match(
+    button.className,
+    /motion-reduce:active:not-aria-\[haspopup\]:scale-100/u,
+  );
+});
+
+test('jumping to the latest response respects reduced motion', async () => {
+  const user = userEvent.setup();
+  const originalMatchMedia = window.matchMedia;
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) =>
+      ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+      }) as MediaQueryList,
+  });
+
+  try {
+    render(
+      <AgentChat
+        sessionView={{
+          activeSessionId: 'root',
+          isStreaming: false,
+          messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
+          rlmMaxDepth: 2,
+          sessionName: 'Ready',
+          spawnedSessions: [],
+          transcript: [
+            { id: 'one', kind: 'message', role: 'assistant', text: 'ready' },
+          ],
+        }}
+      />,
+    );
+    const conversation = within(document.body).getByRole('region', {
+      name: 'Conversation',
+    });
+    const scrollArea = conversation.parentElement;
+    assert.ok(scrollArea);
+    Object.defineProperties(scrollArea, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    const scrollCalls: ScrollToOptions[] = [];
+    Object.defineProperty(scrollArea, 'scrollTo', {
+      configurable: true,
+      value: (options: ScrollToOptions) => scrollCalls.push(options),
+    });
+
+    fireEvent.scroll(scrollArea);
+    const jump = await waitFor(() =>
+      within(document.body).getByRole('button', { name: 'Jump to latest' }),
+    );
+    await user.click(jump);
+
+    assert.deepEqual(scrollCalls, [{ behavior: 'auto', top: 1_000 }]);
+  } finally {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  }
 });
 
 test('conversation renders authored messages', () => {
@@ -387,7 +459,7 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
   });
   assert.ok(spawnedAgents);
   assert.doesNotMatch(spawnedAgents.className, /border/u);
-  assert.match(spawnedAgents.className, /max-w-\[42rem\]/u);
+  assert.match(spawnedAgents.className, /max-w-\[65ch\]/u);
   assert.ok(within(spawnedAgents).getByLabelText('2 spawned agents'));
   assert.ok(within(spawnedAgents).getByText('Research'));
   assert.ok(within(spawnedAgents).getByText('Verify'));

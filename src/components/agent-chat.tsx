@@ -143,7 +143,7 @@ function IpythonCell({
         >
           <ChevronDownIcon
             aria-hidden="true"
-            className={`transition-transform ${expanded ? '' : '-rotate-90'}`}
+            className={`transition-transform motion-reduce:transition-none ${expanded ? '' : '-rotate-90'}`}
           />
         </Button>
         <span className="font-mono font-medium text-foreground/80">In [{number}]</span>
@@ -194,7 +194,7 @@ function IpythonCell({
               <img
                 src={`data:${attachment.mimeType};base64,${attachment.data}`}
                 alt={attachment.path ?? `IPython output ${index + 1}`}
-                className="max-h-64 w-full object-contain"
+                className="ernie-output-image max-h-64 w-full object-contain"
               />
               <figcaption className="flex h-8 items-center gap-2 border-t border-border/60 px-2 text-[11px] text-muted-foreground">
                 <span className="min-w-0 flex-1 truncate">
@@ -277,7 +277,7 @@ function ExecutionRun({
         <span className="flex size-4 shrink-0 items-center justify-center">
           <ChevronRightIcon
             aria-hidden="true"
-            className={`transition-transform ${expanded ? 'rotate-90' : ''}`}
+            className={`transition-transform motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`}
           />
         </span>
         <span className="font-medium text-foreground">Work</span>
@@ -358,7 +358,7 @@ function SpawnedSessionBranch({
           >
             <ChevronRightIcon
               aria-hidden="true"
-              className={`size-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+              className={`size-3 transition-transform motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`}
             />
           </button>
         )}
@@ -470,7 +470,9 @@ export function AgentChat({
 
   function jumpToLatest(): void {
     transcriptRef.current?.parentElement?.scrollTo({
-      behavior: 'smooth',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth',
       top: transcriptRef.current.parentElement.scrollHeight,
     });
   }
@@ -499,8 +501,8 @@ export function AgentChat({
                 item.role === 'user'
                   ? 'flex justify-end pt-6'
                   : followsExecution
-                    ? 'max-w-[42rem] border-t-2 border-foreground/15 pt-6 text-lede leading-7 text-foreground before:mb-4 before:block before:text-[11px] before:font-medium before:tracking-[0.08em] before:text-muted-foreground before:uppercase before:content-["Answer"]'
-                    : 'max-w-[42rem] text-lede leading-7 text-foreground'
+                    ? 'max-w-[65ch] border-t-2 border-foreground/15 pt-6 text-foreground'
+                    : 'max-w-[65ch] text-foreground'
               }
             >
               {item.role === 'user' ? (
@@ -518,7 +520,7 @@ export function AgentChat({
       {roots.length === 0 ? null : (
         <section
           aria-label="Spawned agents"
-          className="mt-10 w-full max-w-[42rem]"
+          className="mt-10 w-full max-w-[65ch]"
         >
           <header className="mb-2 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
             <h2>Agents</h2>

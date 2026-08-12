@@ -1,13 +1,12 @@
 import {
-  MoreHorizontalIcon,
   MoonIcon,
   RefreshCwIcon,
+  SettingsIcon,
   SunIcon,
 } from 'lucide-react';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
 import { TaskSurface } from '@/components/task-surface';
-import { Field, FieldLabel } from '@/components/ui/field';
 import {
   SidebarInset,
   SidebarProvider,
@@ -17,11 +16,11 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/trovecn/ui/button';
 import {
   Menu,
+  MenuCheckboxItem,
   MenuContent,
   MenuItem,
   MenuTrigger,
 } from '@/components/trovecn/ui/menu';
-import { Switch } from '@/components/trovecn/ui/switch';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 
 type ErnieShellProps = {
@@ -89,14 +88,6 @@ export function ErnieShell({
               )}
             </div>
             <div className="ms-auto flex items-center gap-1">
-              <Field orientation="horizontal" className="w-auto gap-2 px-1">
-                <FieldLabel htmlFor="agentation">annotate</FieldLabel>
-                <Switch
-                  id="agentation"
-                  checked={agentationEnabled}
-                  onCheckedChange={onAgentationEnabledChange}
-                />
-              </Field>
               <Button
                 type="button"
                 variant="ghost"
@@ -120,13 +111,19 @@ export function ErnieShell({
                       variant="ghost"
                       size="icon"
                       className="size-9"
-                      aria-label="More application actions"
+                      aria-label="Application settings"
                     />
                   }
                 >
-                  <MoreHorizontalIcon aria-hidden="true" />
+                  <SettingsIcon aria-hidden="true" />
                 </MenuTrigger>
                 <MenuContent align="end" sideOffset={6}>
+                  <MenuCheckboxItem
+                    checked={agentationEnabled}
+                    onCheckedChange={onAgentationEnabledChange}
+                  >
+                    Annotate
+                  </MenuCheckboxItem>
                   <MenuItem onClick={onReload}>
                     <RefreshCwIcon aria-hidden="true" />
                     Reload renderer

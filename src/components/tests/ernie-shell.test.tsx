@@ -20,8 +20,8 @@ Object.defineProperty(Element.prototype, 'animate', {
     const animation = { cancel: () => undefined };
 
     Object.defineProperty(animation, 'onfinish', {
-      set: (finish: unknown) => {
-        if (typeof finish === 'function') queueMicrotask(() => finish());
+      set: (finish: (() => void) | null) => {
+        if (finish !== null) queueMicrotask(finish);
       },
     });
 
@@ -35,7 +35,10 @@ afterEach(() => {
 });
 
 test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
-  const createdSessions: unknown[] = [];
+  const agentationChanges: boolean[] = [];
+  const createdSessions: Array<
+    Parameters<ErnieRendererApi['createPrimeAgentSession']>[0]
+  > = [];
   let sessionCreated = false;
   let modelCatalogRequests = 0;
   const submittedTasks: Array<{
@@ -64,7 +67,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
           : [],
       },
     }),
-    createPrimeAgentSession: async (creation: unknown) => {
+    createPrimeAgentSession: async (creation) => {
       createdSessions.push(creation);
       sessionCreated = true;
       return {
@@ -175,11 +178,25 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     <ErnieShell
       agentationEnabled={false}
       darkModeEnabled
-      onAgentationEnabledChange={() => undefined}
+      onAgentationEnabledChange={(enabled) => agentationChanges.push(enabled)}
       onDarkModeEnabledChange={() => undefined}
       onReload={() => undefined}
     />,
   );
+
+  assert.equal(within(document.body).queryByText('annotate'), null);
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Application settings' }),
+  );
+  const annotateItem = within(document.body).getByRole('menuitemcheckbox', {
+    name: 'Annotate',
+  });
+  assert.equal(annotateItem.getAttribute('aria-checked'), 'false');
+  assert.ok(
+    within(document.body).getByRole('menuitem', { name: 'Reload renderer' }),
+  );
+  await user.click(annotateItem);
+  assert.deepEqual(agentationChanges, [true]);
 
   assert.ok(
     await within(document.body).findByRole('button', {

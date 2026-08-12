@@ -15,14 +15,20 @@ import { Button } from '@/components/trovecn/ui/button';
 import {
   browserPluginBackCommand,
   browserPluginForwardCommand,
+  browserPluginManifest,
   browserPluginReloadCommand,
+  browserPluginViewId,
   parseBrowserPluginResult,
   parseBrowserPluginState,
   resolveBrowserAddress,
   type BrowserPluginRendererApi,
   type BrowserPluginState,
 } from './index.js';
-import type { PluginResult } from '../plugin-host/index.js';
+import type {
+  PluginActivationContext,
+  PluginModule,
+  PluginResult,
+} from '../plugin-host/index.js';
 
 /** Inputs supplied by Ernie when rendering the Browser plugin view. */
 export interface BrowserPluginViewProps {
@@ -205,4 +211,44 @@ export function BrowserPluginView({
       </div>
     </div>
   );
+}
+
+async function requireSuccessfulOperation(
+  operation: Promise<Parameters<typeof parseBrowserPluginResult>[0]>,
+): Promise<void> {
+  const result = parseBrowserPluginResult(await operation);
+  if (!result.ok) throw result.error;
+}
+
+function registerBrowserCommands(
+  context: PluginActivationContext<React.JSX.Element>,
+  renderer: BrowserPluginRendererApi,
+): void {
+  context.registerCommand(browserPluginBackCommand, () =>
+    requireSuccessfulOperation(renderer.goBackBrowserPlugin()),
+  );
+  context.registerCommand(browserPluginForwardCommand, () =>
+    requireSuccessfulOperation(renderer.goForwardBrowserPlugin()),
+  );
+  context.registerCommand(browserPluginReloadCommand, () =>
+    requireSuccessfulOperation(renderer.reloadBrowserPlugin()),
+  );
+}
+
+/** Create the Browser plugin module with its commands and owned workbench UI. */
+export function createBrowserPluginModule(
+  renderer: BrowserPluginRendererApi,
+): PluginModule<React.JSX.Element> {
+  return {
+    manifest: browserPluginManifest,
+    activate(context) {
+      registerBrowserCommands(context, renderer);
+      context.registerView(browserPluginViewId, ({ executeCommand }) => (
+        <BrowserPluginView
+          renderer={renderer}
+          executeCommand={executeCommand}
+        />
+      ));
+    },
+  };
 }

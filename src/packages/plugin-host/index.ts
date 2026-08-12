@@ -6,8 +6,11 @@ export {
   PluginCommandExecutionError,
   PluginCommandNotFoundError,
   PluginDeactivationError,
+  PluginDisabledError,
   PluginHostDisposedError,
   PluginNotFoundError,
+  PluginViewNotFoundError,
+  PluginViewRenderError,
   createPluginHost,
   currentPluginApiVersion,
   parsePluginManifest,
@@ -28,4 +31,6 @@ export type {
   PluginResult,
   PluginViewContribution,
   PluginViewIcon,
+  PluginViewRenderContext,
+  PluginViewRenderer,
 } from './lib/plugin-host.js';

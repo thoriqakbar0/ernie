@@ -1,5 +1,5 @@
 import { SettingsIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
 import {
@@ -7,6 +7,7 @@ import {
   PluginActivityBar,
 } from '@/components/plugin-activity-bar';
 import { PluginManagerDialog } from '@/components/plugin-manager-dialog';
+import { PluginViewBoundary } from '@/components/plugin-view-boundary';
 import { SettingsPage } from '@/components/settings-page';
 import { TaskSurface } from '@/components/task-surface';
 import {
@@ -17,12 +18,37 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/trovecn/ui/button';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
-import {
-  browserPluginViewId,
-  createBrowserPluginModule,
-} from '@/packages/browser-plugin';
-import { BrowserPluginView } from '@/packages/browser-plugin/view';
+import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
+import { isJsonString, parseJsonValue } from '@/packages/json-value';
 import { createPluginHost } from '@/packages/plugin-host';
+
+const disabledPluginsStorageKey = 'ernie:disabled-plugins:v1';
+
+function readDisabledPluginIds(): ReadonlySet<string> {
+  const stored = window.localStorage.getItem(disabledPluginsStorageKey);
+  if (stored === null) return new Set<string>();
+
+  try {
+    const value = parseJsonValue(JSON.parse(stored));
+    return Array.isArray(value)
+      ? new Set(value.filter(isJsonString))
+      : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function storeDisabledPluginIds(pluginIds: readonly string[]): boolean {
+  try {
+    window.localStorage.setItem(
+      disabledPluginsStorageKey,
+      JSON.stringify(pluginIds),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 type ErnieShellProps = {
   darkModeEnabled: boolean;
@@ -41,18 +67,31 @@ export function ErnieShell({
 }: ErnieShellProps): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
   const pluginHost = useMemo(() => {
-    const created = createPluginHost([createBrowserPluginModule(window.ernie)]);
+    const created = createPluginHost(
+      [createBrowserPluginModule(window.ernie)],
+      readDisabledPluginIds(),
+    );
     if (!created.ok) throw created.error;
     return created.value;
   }, []);
   const pluginManifests = useMemo(() => pluginHost.listPlugins(), [pluginHost]);
-  const pluginViews = useMemo(() => pluginHost.listViews(), [pluginHost]);
+  const pluginViews = pluginHost.listViews();
+  const selectionSequence = useRef(0);
   const [activeViewId, setActiveViewId] = useState(agentsViewId);
+  const [activePluginContent, setActivePluginContent] =
+    useState<React.JSX.Element | null>(null);
+  const [, refreshPluginCatalog] = useState(0);
+  const [busyPluginIds, setBusyPluginIds] = useState<ReadonlySet<string>>(
+    new Set<string>(),
+  );
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const [pluginError, setPluginError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const agentsActive = activeViewId === agentsViewId;
   const activePluginView = pluginViews.find((view) => view.id === activeViewId) ?? null;
+  const activePluginManifest = pluginManifests.find((manifest) =>
+    manifest.contributes.views.some((view) => view.id === activeViewId),
+  );
   const selectedSession = workspace.sessions.find(
     (session) => session.activeSessionId === workspace.selectedSessionId,
   );
@@ -83,18 +122,62 @@ export function ErnieShell({
 
   const selectView = (viewId: string): void => {
     setSettingsOpen(false);
+    const sequence = ++selectionSequence.current;
     if (viewId === agentsViewId) {
       setPluginError(null);
       setActiveViewId(agentsViewId);
+      setActivePluginContent(null);
       return;
     }
-    void pluginHost.activateView(viewId).then((result) => {
+    void pluginHost.renderView(viewId).then((result) => {
+      if (sequence !== selectionSequence.current) return;
       if (result.ok) {
         setPluginError(null);
         setActiveViewId(viewId);
+        setActivePluginContent(result.value);
       } else {
         setPluginError(result.error.message);
       }
+    });
+  };
+
+  const changePluginEnabled = (pluginId: string, enabled: boolean): void => {
+    const finishChange = (): void => {
+      setBusyPluginIds((current) => {
+        const next = new Set(current);
+        next.delete(pluginId);
+        return next;
+      });
+    };
+    setBusyPluginIds((current) => new Set([...current, pluginId]));
+    if (!enabled && activePluginManifest?.id === pluginId) {
+      selectionSequence.current += 1;
+      setActiveViewId(agentsViewId);
+      setActivePluginContent(null);
+    }
+
+    const applyChange = async (): Promise<void> => {
+      const result = enabled
+        ? await pluginHost.enablePlugin(pluginId)
+        : await pluginHost.disablePlugin(pluginId);
+      refreshPluginCatalog((revision) => revision + 1);
+
+      const disabledPluginIds = pluginManifests
+        .filter((manifest) => !pluginHost.isPluginEnabled(manifest.id))
+        .map((manifest) => manifest.id);
+      const stored = storeDisabledPluginIds(disabledPluginIds);
+      if (!result.ok) {
+        setPluginError(result.error.message);
+      } else if (!stored) {
+        setPluginError('The plugin change applies until Ernie closes.');
+      } else {
+        setPluginError(null);
+      }
+      finishChange();
+    };
+    void applyChange().catch(() => {
+      setPluginError('The plugin setting could not be changed.');
+      finishChange();
     });
   };
 
@@ -205,13 +288,19 @@ export function ErnieShell({
               >
                 {agentsActive ? (
                   <TaskSurface workspace={workspace} onRetryConnection={onReload} />
-                ) : activeViewId === browserPluginViewId && !pluginManagerOpen ? (
-                  <BrowserPluginView
-                    renderer={window.ernie}
-                    executeCommand={(commandId) =>
-                      pluginHost.executeCommand(commandId)
+                ) : activePluginContent !== null &&
+                  activePluginView !== null &&
+                  activePluginManifest !== undefined &&
+                  !pluginManagerOpen ? (
+                  <PluginViewBoundary
+                    pluginName={activePluginManifest.name}
+                    viewId={activePluginView.id}
+                    onDisable={() =>
+                      changePluginEnabled(activePluginManifest.id, false)
                     }
-                  />
+                  >
+                    {activePluginContent}
+                  </PluginViewBoundary>
                 ) : null}
                 {pluginError === null ? null : (
                   <div
@@ -227,7 +316,10 @@ export function ErnieShell({
         </SidebarProvider>
       </div>
       <PluginManagerDialog
+        busyPluginIds={busyPluginIds}
+        isPluginEnabled={pluginHost.isPluginEnabled}
         manifests={pluginManifests}
+        onPluginEnabledChange={changePluginEnabled}
         open={pluginManagerOpen}
         onOpenChange={setPluginManagerOpen}
       />

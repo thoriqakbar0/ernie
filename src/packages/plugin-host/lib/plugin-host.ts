@@ -59,12 +59,26 @@ export interface PluginDisposable {
 /** Work performed by one registered plugin command. */
 export type PluginCommandHandler = () => void | Promise<void>;
 
+/** Host capabilities available while one contributed view is rendered. */
+export interface PluginViewRenderContext {
+  /** Execute one command declared by the plugin that owns this view. */
+  readonly executeCommand: (commandId: string) => Promise<PluginResult<void>>;
+}
+
+/** Render one plugin view inside the workbench slot assigned by Ernie. */
+export type PluginViewRenderer<RenderedView> = (
+  context: PluginViewRenderContext,
+) => RenderedView;
+
 /** Capabilities supplied to a plugin during its isolated activation transaction. */
-export interface PluginActivationContext {
+export interface PluginActivationContext<RenderedView> {
   readonly pluginId: string;
 
   /** Attach a handler to a command declared by this plugin. */
   registerCommand(commandId: string, handler: PluginCommandHandler): void;
+
+  /** Attach a renderer to a view declared by this plugin. */
+  registerView(viewId: string, renderer: PluginViewRenderer<RenderedView>): void;
 }
 
 /** The value returned by plugin activation, including optional lifecycle cleanup. */
@@ -74,11 +88,11 @@ export type PluginActivation =
   | Promise<void | PluginDisposable>;
 
 /** One executable plugin supplied to the Ernie composition root. */
-export interface PluginModule {
+export interface PluginModule<RenderedView> {
   readonly manifest: PluginManifest;
 
   /** Lazily register runtime behavior for this plugin's declared contributions. */
-  activate(context: PluginActivationContext): PluginActivation;
+  activate(context: PluginActivationContext<RenderedView>): PluginActivation;
 }
 
 /** A successful value or a typed failure returned without throwing. */
@@ -128,6 +142,24 @@ export class PluginNotFoundError extends Error {
   }
 }
 
+/** A requested view is absent from this host. */
+export class PluginViewNotFoundError extends Error {
+  readonly _tag = 'PluginViewNotFoundError';
+
+  constructor(readonly viewId: string) {
+    super(`Plugin view ${viewId} is not registered.`);
+  }
+}
+
+/** A caller requested a plugin capability after the user disabled it. */
+export class PluginDisabledError extends Error {
+  readonly _tag = 'PluginDisabledError';
+
+  constructor(readonly pluginId: string) {
+    super(`Plugin ${pluginId} is disabled.`);
+  }
+}
+
 /** A requested command is absent from this host. */
 export class PluginCommandNotFoundError extends Error {
   readonly _tag = 'PluginCommandNotFoundError';
@@ -161,6 +193,18 @@ export class PluginCommandExecutionError extends Error {
   }
 }
 
+/** A plugin view factory failed without exposing the thrown value to callers. */
+export class PluginViewRenderError extends Error {
+  readonly _tag = 'PluginViewRenderError';
+
+  constructor(
+    readonly viewId: string,
+    cause: unknown,
+  ) {
+    super(`Plugin view ${viewId} could not render.`, { cause });
+  }
+}
+
 /** Plugin cleanup failed without preventing cleanup of other plugins. */
 export class PluginDeactivationError extends Error {
   readonly _tag = 'PluginDeactivationError';
@@ -188,21 +232,34 @@ export type PluginHostError =
   | DuplicatePluginIdError
   | DuplicatePluginContributionError
   | PluginNotFoundError
+  | PluginViewNotFoundError
+  | PluginDisabledError
   | PluginCommandNotFoundError
   | PluginActivationError
   | PluginCommandExecutionError
+  | PluginViewRenderError
+  | PluginDeactivationError
   | PluginHostDisposedError;
 
 /** Runtime access to validated plugin metadata, activation, and commands. */
-export interface PluginHost {
+export interface PluginHost<RenderedView> {
   /** List immutable manifests in deterministic registration order. */
   listPlugins(): readonly PluginManifest[];
 
-  /** List primary workbench views contributed by all registered plugins. */
+  /** List primary workbench views contributed by enabled plugins. */
   listViews(): readonly PluginViewContribution[];
 
-  /** Lazily activate the plugin that owns a selected view. */
-  activateView(viewId: string): Promise<PluginResult<void>>;
+  /** Report whether the user currently permits one plugin to contribute behavior. */
+  isPluginEnabled(pluginId: string): boolean;
+
+  /** Permit a disabled plugin to activate again after cleanup completes. */
+  enablePlugin(pluginId: string): Promise<PluginResult<void>>;
+
+  /** Remove one plugin's runtime contributions and release its resources. */
+  disablePlugin(pluginId: string): Promise<PluginResult<void>>;
+
+  /** Lazily activate and render the plugin that owns a selected view. */
+  renderView(viewId: string): Promise<PluginResult<RenderedView>>;
 
   /** Lazily activate a command owner and execute the command. */
   executeCommand(commandId: string): Promise<PluginResult<void>>;
@@ -218,10 +275,20 @@ type PluginRuntimeState =
       activation: Promise<PluginResult<void>>;
     }>
   | Readonly<{ status: 'active'; disposable: PluginDisposable | null }>
+  | Readonly<{
+      status: 'deactivation-failed';
+      disposable: PluginDisposable;
+      error: PluginDeactivationError;
+    }>
+  | Readonly<{
+      status: 'deactivating';
+      deactivation: Promise<PluginResult<void>>;
+    }>
   | Readonly<{ status: 'failed'; error: PluginActivationError }>;
 
-interface PluginRecord {
-  readonly module: PluginModule;
+interface PluginRecord<RenderedView> {
+  readonly module: PluginModule<RenderedView>;
+  enabled: boolean;
   state: PluginRuntimeState;
 }
 
@@ -454,10 +521,11 @@ export function parsePluginManifest(value: JsonValue): PluginResult<PluginManife
 }
 
 /** Build one host after validating all module and contribution ownership. */
-export function createPluginHost(
-  modules: readonly PluginModule[],
-): PluginResult<PluginHost> {
-  const records = new Map<string, PluginRecord>();
+export function createPluginHost<RenderedView>(
+  modules: readonly PluginModule<RenderedView>[],
+  initiallyDisabledPluginIds: ReadonlySet<string> = new Set<string>(),
+): PluginResult<PluginHost<RenderedView>> {
+  const records = new Map<string, PluginRecord<RenderedView>>();
   const commandOwners = new Map<string, string>();
   const viewOwners = new Map<string, string>();
   const manifests: PluginManifest[] = [];
@@ -485,27 +553,37 @@ export function createPluginHost(
     manifests.push(manifest);
     records.set(manifest.id, {
       module: { manifest, activate: module.activate },
+      enabled: !initiallyDisabledPluginIds.has(manifest.id),
       state: { status: 'inactive' },
     });
   }
 
   const commandHandlers = new Map<string, PluginCommandHandler>();
+  const viewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
   let lifecycle: 'open' | 'disposing' | 'disposed' = 'open';
 
   const activatePlugin = async (pluginId: string): Promise<PluginResult<void>> => {
     if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
     const record = records.get(pluginId);
     if (record === undefined) return failed(new PluginNotFoundError(pluginId));
+    if (!record.enabled) return failed(new PluginDisabledError(pluginId));
     if (record.state.status === 'active') return succeeded(undefined);
+    if (record.state.status === 'deactivation-failed') {
+      return failed(record.state.error);
+    }
     if (record.state.status === 'failed') return failed(record.state.error);
     if (record.state.status === 'activating') return record.state.activation;
 
     const activation = Promise.resolve().then(async (): Promise<PluginResult<void>> => {
       const localHandlers = new Map<string, PluginCommandHandler>();
+      const localViewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
       const declaredCommands = new Set(
         record.module.manifest.contributes.commands.map((command) => command.id),
       );
-      const context: PluginActivationContext = {
+      const declaredViews = new Set(
+        record.module.manifest.contributes.views.map((view) => view.id),
+      );
+      const context: PluginActivationContext<RenderedView> = {
         pluginId,
         registerCommand(commandId, handler) {
           if (!declaredCommands.has(commandId)) {
@@ -516,21 +594,66 @@ export function createPluginHost(
           }
           localHandlers.set(commandId, handler);
         },
+        registerView(viewId, renderer) {
+          if (!declaredViews.has(viewId)) {
+            throw new Error(`Plugin ${pluginId} did not declare view ${viewId}.`);
+          }
+          if (localViewRenderers.has(viewId)) {
+            throw new Error(`Plugin ${pluginId} registered view ${viewId} twice.`);
+          }
+          localViewRenderers.set(viewId, renderer);
+        },
       };
 
+      let disposable: PluginDisposable | null = null;
       try {
-        const disposable = (await record.module.activate(context)) ?? null;
+        disposable = (await record.module.activate(context)) ?? null;
         for (const commandId of declaredCommands) {
           if (!localHandlers.has(commandId)) {
             throw new Error(`Plugin ${pluginId} did not register command ${commandId}.`);
           }
         }
+        for (const viewId of declaredViews) {
+          if (!localViewRenderers.has(viewId)) {
+            throw new Error(`Plugin ${pluginId} did not register view ${viewId}.`);
+          }
+        }
+        if (!record.enabled) {
+          if (disposable !== null) {
+            try {
+              await disposable.dispose();
+            } catch (cause) {
+              const error = new PluginDeactivationError(pluginId, cause);
+              record.state = { status: 'deactivation-failed', disposable, error };
+              return failed(error);
+            }
+          }
+          record.state = { status: 'inactive' };
+          return failed(new PluginDisabledError(pluginId));
+        }
         for (const [commandId, handler] of localHandlers) {
           commandHandlers.set(commandId, handler);
+        }
+        for (const [viewId, renderer] of localViewRenderers) {
+          viewRenderers.set(viewId, renderer);
         }
         record.state = { status: 'active', disposable };
         return succeeded(undefined);
       } catch (cause) {
+        if (disposable !== null) {
+          try {
+            await disposable.dispose();
+          } catch (cleanupCause) {
+            record.enabled = false;
+            const error = new PluginDeactivationError(pluginId, cleanupCause);
+            record.state = { status: 'deactivation-failed', disposable, error };
+            return failed(error);
+          }
+        }
+        if (!record.enabled) {
+          record.state = { status: 'inactive' };
+          return failed(new PluginDisabledError(pluginId));
+        }
         const error = new PluginActivationError(pluginId, cause);
         record.state = { status: 'failed', error };
         return failed(error);
@@ -541,59 +664,175 @@ export function createPluginHost(
     return activation;
   };
 
-  const host: PluginHost = {
+  const executeCommand = async (commandId: string): Promise<PluginResult<void>> => {
+    if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+    const pluginId = commandOwners.get(commandId);
+    if (pluginId === undefined) {
+      return failed(new PluginCommandNotFoundError(commandId));
+    }
+    const activation = await activatePlugin(pluginId);
+    if (!activation.ok) return activation;
+    const handler = commandHandlers.get(commandId);
+    if (handler === undefined) {
+      return failed(new PluginCommandNotFoundError(commandId));
+    }
+    try {
+      await handler();
+      return succeeded(undefined);
+    } catch (cause) {
+      return failed(new PluginCommandExecutionError(commandId, cause));
+    }
+  };
+
+  const host: PluginHost<RenderedView> = {
     listPlugins() {
       return manifests;
     },
     listViews() {
-      return manifests.flatMap((manifest) => manifest.contributes.views);
+      return manifests.flatMap((manifest) =>
+        records.get(manifest.id)?.enabled === true
+          ? manifest.contributes.views
+          : [],
+      );
     },
-    async activateView(viewId) {
+    isPluginEnabled(pluginId) {
+      return records.get(pluginId)?.enabled === true;
+    },
+    async enablePlugin(pluginId) {
+      if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+      const record = records.get(pluginId);
+      if (record === undefined) return failed(new PluginNotFoundError(pluginId));
+      if (!record.enabled && record.state.status === 'activating') {
+        const activation = await record.state.activation;
+        if (
+          !activation.ok &&
+          activation.error instanceof PluginDeactivationError
+        ) {
+          return activation;
+        }
+        if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+      }
+      if (record.state.status === 'deactivating') {
+        const deactivation = await record.state.deactivation;
+        if (!deactivation.ok) return deactivation;
+        if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+      }
+      if (record.state.status === 'deactivation-failed') {
+        return failed(record.state.error);
+      }
+      record.enabled = true;
+      if (record.state.status === 'failed') {
+        record.state = { status: 'inactive' };
+      }
+      return succeeded(undefined);
+    },
+    async disablePlugin(pluginId) {
+      if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+      const record = records.get(pluginId);
+      if (record === undefined) return failed(new PluginNotFoundError(pluginId));
+      if (record.state.status === 'deactivating') {
+        return record.state.deactivation;
+      }
+
+      const wasEnabled = record.enabled;
+      record.enabled = false;
+      if (record.state.status === 'activating') {
+        const activation = await record.state.activation;
+        if (
+          !activation.ok &&
+          activation.error instanceof PluginDeactivationError
+        ) {
+          return activation;
+        }
+      }
+      if (!wasEnabled && record.state.status !== 'deactivation-failed') {
+        return succeeded(undefined);
+      }
+      for (const command of record.module.manifest.contributes.commands) {
+        commandHandlers.delete(command.id);
+      }
+      for (const view of record.module.manifest.contributes.views) {
+        viewRenderers.delete(view.id);
+      }
+      const disposable =
+        record.state.status === 'active' ||
+        record.state.status === 'deactivation-failed'
+          ? record.state.disposable
+          : null;
+      if (disposable === null) {
+        record.state = { status: 'inactive' };
+        return succeeded(undefined);
+      }
+      const deactivation = Promise.resolve().then(
+        async (): Promise<PluginResult<void>> => {
+          try {
+            await disposable.dispose();
+            record.state = { status: 'inactive' };
+            return succeeded(undefined);
+          } catch (cause) {
+            const error = new PluginDeactivationError(pluginId, cause);
+            record.state = { status: 'deactivation-failed', disposable, error };
+            return failed(error);
+          }
+        },
+      );
+      record.state = { status: 'deactivating', deactivation };
+      return deactivation;
+    },
+    async renderView(viewId) {
       if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
       const pluginId = viewOwners.get(viewId);
-      return pluginId === undefined
-        ? failed(new PluginNotFoundError(viewId))
-        : activatePlugin(pluginId);
-    },
-    async executeCommand(commandId) {
-      if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
-      const pluginId = commandOwners.get(commandId);
-      if (pluginId === undefined) {
-        return failed(new PluginCommandNotFoundError(commandId));
-      }
+      if (pluginId === undefined) return failed(new PluginViewNotFoundError(viewId));
       const activation = await activatePlugin(pluginId);
       if (!activation.ok) return activation;
-      const handler = commandHandlers.get(commandId);
-      if (handler === undefined) {
-        return failed(new PluginCommandNotFoundError(commandId));
-      }
+      const renderer = viewRenderers.get(viewId);
+      if (renderer === undefined) return failed(new PluginViewNotFoundError(viewId));
       try {
-        await handler();
-        return succeeded(undefined);
+        return succeeded(
+          renderer({
+            executeCommand: (commandId) =>
+              commandOwners.get(commandId) === pluginId
+                ? executeCommand(commandId)
+                : Promise.resolve(failed(new PluginCommandNotFoundError(commandId))),
+          }),
+        );
       } catch (cause) {
-        return failed(new PluginCommandExecutionError(commandId, cause));
+        return failed(new PluginViewRenderError(viewId, cause));
       }
     },
+    executeCommand,
     async dispose() {
       if (lifecycle !== 'open') return [];
       lifecycle = 'disposing';
       const errors: PluginDeactivationError[] = [];
+      for (const record of records.values()) record.enabled = false;
       await Promise.all(
         [...records.entries()].map(async ([pluginId, record]) => {
           if (record.state.status === 'activating') {
             await record.state.activation;
           }
-          if (record.state.status !== 'active' || record.state.disposable === null) {
+          if (record.state.status === 'deactivating') {
+            await record.state.deactivation;
+          }
+          if (
+            (record.state.status !== 'active' &&
+              record.state.status !== 'deactivation-failed') ||
+            record.state.disposable === null
+          ) {
+            record.state = { status: 'inactive' };
             return;
           }
+          const disposable = record.state.disposable;
           try {
-            await record.state.disposable.dispose();
+            await disposable.dispose();
           } catch (cause) {
             errors.push(new PluginDeactivationError(pluginId, cause));
           }
+          record.state = { status: 'inactive' };
         }),
       );
       commandHandlers.clear();
+      viewRenderers.clear();
       lifecycle = 'disposed';
       return errors;
     },

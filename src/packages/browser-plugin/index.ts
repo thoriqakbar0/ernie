@@ -1,8 +1,6 @@
 import {
   currentPluginApiVersion,
-  type PluginActivationContext,
   type PluginManifest,
-  type PluginModule,
   type PluginResult,
 } from '../plugin-host/index.js';
 import {
@@ -256,38 +254,4 @@ export function parseBrowserPluginResult(value: JsonValue): BrowserPluginResult 
     };
   }
   return { ok: false, error: new BrowserPluginOperationError(code, message) };
-}
-
-async function requireSuccessfulOperation(
-  operation: Promise<JsonValue>,
-): Promise<void> {
-  const result = parseBrowserPluginResult(await operation);
-  if (!result.ok) throw result.error;
-}
-
-function registerBrowserCommands(
-  context: PluginActivationContext,
-  renderer: BrowserPluginRendererApi,
-): void {
-  context.registerCommand(browserPluginBackCommand, () =>
-    requireSuccessfulOperation(renderer.goBackBrowserPlugin()),
-  );
-  context.registerCommand(browserPluginForwardCommand, () =>
-    requireSuccessfulOperation(renderer.goForwardBrowserPlugin()),
-  );
-  context.registerCommand(browserPluginReloadCommand, () =>
-    requireSuccessfulOperation(renderer.reloadBrowserPlugin()),
-  );
-}
-
-/** Create the Browser plugin module against Ernie's narrow renderer capability. */
-export function createBrowserPluginModule(
-  renderer: BrowserPluginRendererApi,
-): PluginModule {
-  return {
-    manifest: browserPluginManifest,
-    activate(context) {
-      registerBrowserCommands(context, renderer);
-    },
-  };
 }

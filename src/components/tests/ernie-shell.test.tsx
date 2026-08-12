@@ -254,15 +254,38 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   });
   assert.equal(annotateSwitch.getAttribute('aria-checked'), 'false');
   await user.click(within(settings).getByRole('button', { name: 'Manage' }));
-  assert.ok(
-    await within(document.body).findByRole('dialog', { name: 'Plugins' }),
+  const pluginDialog = await within(document.body).findByRole('dialog', {
+    name: 'Plugins',
+  });
+  const browserPluginSwitch = within(pluginDialog).getByRole('switch', {
+    name: 'Enable Browser plugin',
+  });
+  assert.equal(browserPluginSwitch.getAttribute('aria-checked'), 'true');
+  await user.click(browserPluginSwitch);
+  await waitFor(() =>
+    assert.equal(
+      within(document.body).queryByRole('button', { name: 'Browser' }),
+      null,
+    ),
   );
-  await user.keyboard('{Escape}');
+  assert.equal(
+    window.localStorage.getItem('ernie:disabled-plugins:v1'),
+    '["ernie.browser"]',
+  );
+  await user.click(browserPluginSwitch);
+  await user.click(within(pluginDialog).getByRole('button', { name: 'Close' }));
   await waitFor(() =>
     assert.equal(
       within(document.body).queryByRole('dialog', { name: 'Plugins' }),
       null,
     ),
+  );
+  assert.ok(
+    await within(document.body).findByRole('button', { name: 'Browser' }),
+  );
+  assert.equal(
+    window.localStorage.getItem('ernie:disabled-plugins:v1'),
+    '[]',
   );
   await user.click(annotateSwitch);
   assert.deepEqual(reactGrabChanges, [true]);

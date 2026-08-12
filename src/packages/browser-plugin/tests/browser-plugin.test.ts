@@ -5,11 +5,11 @@ import {
   browserPluginBackCommand,
   browserPluginManifest,
   browserPluginViewId,
-  createBrowserPluginModule,
   parseBrowserPluginResult,
   resolveBrowserAddress,
   type BrowserPluginRendererApi,
 } from '@/packages/browser-plugin';
+import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { createPluginHost } from '@/packages/plugin-host';
 
 const state = {
@@ -72,7 +72,7 @@ test('activates the built-in Browser plugin through its contributed view', async
 
   assert.deepEqual(created.value.listPlugins(), [browserPluginManifest]);
   assert.equal(created.value.listViews()[0]?.id, browserPluginViewId);
-  assert.equal((await created.value.activateView(browserPluginViewId)).ok, true);
+  assert.equal((await created.value.renderView(browserPluginViewId)).ok, true);
   assert.equal(
     (await created.value.executeCommand(browserPluginBackCommand)).ok,
     true,

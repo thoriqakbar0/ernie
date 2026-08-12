@@ -189,12 +189,14 @@ test('focused chat groups completed work and keeps output streams distinct', asy
     null,
   );
   const work = within(document.body).getByRole('region', {
-    name: 'Work: 2 steps, done',
+    name: 'Work: 2 steps, complete',
   });
   assert.doesNotMatch(work.className, /border/u);
   const workHeader = work.querySelector('header');
   assert.ok(workHeader);
   assert.match(workHeader.className, /min-h-8/u);
+  const completedStatus = within(work).getByText('2 steps complete');
+  assert.match(completedStatus.parentElement?.className ?? '', /text-emerald/u);
   await user.click(within(work).getByRole('button', { name: 'Expand work' }));
   assert.equal(
     within(work).getAllByRole('region', { name: /IPython cell/u }).length,
@@ -260,7 +262,7 @@ test('focused chat expands only the newest work while streaming', () => {
   );
 
   const completedWork = within(document.body).getByRole('region', {
-    name: 'Work: 1 step, done',
+    name: 'Work: 1 step, complete',
   });
   const activeWork = within(document.body).getByRole('region', {
     name: 'Work: 1 step, working',
@@ -271,6 +273,69 @@ test('focused chat expands only the newest work while streaming', () => {
   );
   assert.ok(
     within(activeWork).getByRole('region', { name: 'IPython cell 2' }),
+  );
+});
+
+test('sending a follow-up keeps completed work collapsed', () => {
+  const completedCell = {
+    attachments: [],
+    code: 'inspect_repository()',
+    durationMs: 18,
+    id: 'cell-1',
+    kind: 'ipython' as const,
+    result: 'ready',
+    status: 'ok' as const,
+    stderr: null,
+    stdout: null,
+    traceback: [],
+  };
+  const { rerender } = render(
+    <AgentChat
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: false,
+        messages: [{ id: 'answer', role: 'assistant', text: 'ready' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Inspect',
+        spawnedSessions: [],
+        transcript: [completedCell],
+      }}
+    />,
+  );
+
+  const completedWork = within(document.body).getByRole('region', {
+    name: 'Work: 1 step, complete',
+  });
+  assert.equal(
+    within(completedWork).queryByRole('region', { name: 'IPython cell 1' }),
+    null,
+  );
+
+  rerender(
+    <AgentChat
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: true,
+        messages: [{ id: 'follow-up', role: 'user', text: 'Check it again' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Inspect',
+        spawnedSessions: [],
+        transcript: [
+          completedCell,
+          {
+            id: 'follow-up',
+            kind: 'message',
+            role: 'user',
+            text: 'Check it again',
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.equal(
+    within(completedWork).queryByRole('region', { name: 'IPython cell 1' }),
+    null,
   );
 });
 

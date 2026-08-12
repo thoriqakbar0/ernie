@@ -45,6 +45,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     selectedSessionId: null,
     selectedSessionView: null,
     selectedSessionRlmMaxDepth: null,
+    sessionPreviews: {},
     sessions: [],
     savedSessions: [],
     status: 'The Prime Agent daemon is not available.',

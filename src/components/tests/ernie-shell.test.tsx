@@ -352,7 +352,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   );
   assert.equal(
     within(document.body)
-      .getByRole('button', { name: 'Blank Agent' })
+      .getByRole('button', { name: 'Polish the sidebar' })
       .getAttribute('aria-current'),
     null,
   );

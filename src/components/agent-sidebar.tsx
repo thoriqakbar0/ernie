@@ -88,6 +88,7 @@ type AgentSidebarProps = Pick<
   | 'savedSessions'
   | 'selectedCwd'
   | 'selectedSessionId'
+  | 'sessionPreviews'
   | 'sessions'
   | 'changeFolder'
   | 'addWorkspaceDirectory'
@@ -157,6 +158,16 @@ const collapsedWorktreeLimit = 5;
 
 function conversationFallbackIdentity(cwd: string, name: string): string {
   return `${cwd}\u0000${name}`;
+}
+
+function conversationLabel(
+  conversation: ThreadConversation,
+  sessionPreviews: Readonly<Record<string, string>>,
+): string {
+  return conversation.kind === 'live'
+    ? (sessionPreviews[conversation.session.activeSessionId] ??
+      conversation.session.name)
+    : conversation.session.name;
 }
 
 function sessionAge(modifiedAt: string | null): string | null {
@@ -255,6 +266,7 @@ export function AgentSidebar({
   savedSessions,
   selectedCwd,
   selectedSessionId,
+  sessionPreviews,
   sessions,
   changeFolder,
   addWorkspaceDirectory,
@@ -572,7 +584,7 @@ export function AgentSidebar({
             conversation,
             key: `Agent:${id}`,
             kind: 'Agent',
-            label: conversation.session.name,
+            label: conversationLabel(conversation, sessionPreviews),
             repositoryPath: repository.folder.value,
           });
         }
@@ -650,6 +662,7 @@ export function AgentSidebar({
       conversation.kind === 'saved' &&
       importingSessionPath === conversation.session.path;
     const activity = conversationActivity(conversation, connected);
+    const label = conversationLabel(conversation, sessionPreviews);
 
     return (
       <ThreadRow
@@ -660,6 +673,7 @@ export function AgentSidebar({
         disabled={importingSessionPath !== null}
         dragging={draggedThread?.id === id}
         importing={importing}
+        label={label}
         pinned={pinned}
         selected={
           conversation.kind === 'live' &&

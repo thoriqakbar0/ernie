@@ -25,6 +25,7 @@ interface SidebarFixtureOverrides {
   readonly folders?: readonly PrimeAgentFolderChoice[];
   readonly primeAgentConnection?: 'connecting' | 'ready' | 'unavailable';
   readonly savedSessions?: readonly PrimeAgentSavedSession[];
+  readonly sessionPreviews?: Readonly<Record<string, string>>;
   readonly selectedCwd?: string;
   readonly selectedSessionId?: string | null;
   readonly sessions?: readonly PrimeAgentSession[];
@@ -109,6 +110,7 @@ function renderSidebar(actions: {
           folders={folders}
           selectedCwd={overrides.selectedCwd ?? '/workspace/ernie'}
           selectedSessionId={overrides.selectedSessionId ?? 'ernie-agent'}
+          sessionPreviews={overrides.sessionPreviews ?? {}}
           sessions={sessions}
           savedSessions={savedSessions}
           changeFolder={actions.changeFolder ?? (() => undefined)}
@@ -124,6 +126,29 @@ function renderSidebar(actions: {
     </TooltipProvider>,
   );
 }
+
+test('live Agent rows preview the latest user message', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      sessionPreviews: {
+        'ernie-agent': 'Review the empty state next',
+      },
+    },
+  );
+
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Review the empty state next',
+    }),
+  );
+});
 
 test('user can select a nested Agent conversation', async () => {
   const selectedSessions: string[] = [];

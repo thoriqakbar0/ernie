@@ -34,6 +34,7 @@ interface ThreadRowProps {
   readonly disabled: boolean;
   readonly dragging: boolean;
   readonly importing: boolean;
+  readonly label: string;
   readonly pinned: boolean;
   readonly selected: boolean;
   readonly thread: ThreadConversation;
@@ -54,6 +55,7 @@ export function ThreadRow({
   disabled,
   dragging,
   importing,
+  label,
   pinned,
   selected,
   thread,
@@ -116,15 +118,15 @@ export function ThreadRow({
           aria-current={selected ? 'page' : undefined}
           aria-label={
             thread.kind === 'saved'
-              ? `${thread.session.name}, saved session`
-              : thread.session.name
+              ? `${label}, saved session`
+              : label
           }
-          title={thread.session.name}
+          title={label}
           className={`h-8 min-w-0 flex-1 justify-start rounded-lg border-l-2 pl-[18px] pr-16 text-left text-sidebar-foreground hover:bg-sidebar-accent ${selected ? 'border-sidebar-foreground/35 bg-sidebar-accent' : 'border-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
         >
           <span className="min-w-0 flex-1 truncate">
-            <span>{thread.session.name}</span>
+            <span>{label}</span>
             {pinned && detail !== null ? (
               <span className="text-xs text-muted-foreground"> · {detail}</span>
             ) : null}
@@ -154,8 +156,8 @@ export function ThreadRow({
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                aria-label={`Manage ${thread.session.name}`}
-                title={`Manage ${thread.session.name}`}
+                aria-label={`Manage ${label}`}
+                title={`Manage ${label}`}
                 className="mr-1 text-muted-foreground opacity-0 group-hover/thread:opacity-100 group-focus-within/thread:opacity-100 aria-expanded:opacity-100"
               />
             }

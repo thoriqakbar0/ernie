@@ -65,6 +65,7 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedSessionId: string | null;
   readonly selectedSessionView: PrimeAgentSessionView | null;
   readonly selectedSessionRlmMaxDepth: number | null;
+  readonly sessionPreviews: Readonly<Record<string, string>>;
   readonly sessions: readonly PrimeAgentSession[];
   readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
@@ -119,9 +120,11 @@ type WorkspaceDirectorySelection =
   | { readonly ok: false };
 
 function parseWorkspaceDirectorySelection(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function parses the Electron IPC boundary value before use.
   value: unknown,
 ): WorkspaceDirectorySelection {
   if (value === null) return { ok: true, value: null };
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- The boundary parser must distinguish the one accepted primitive.
   if (typeof value === 'string' && value.trim().length > 0) {
     return { ok: true, value };
   }
@@ -140,6 +143,18 @@ function newestSession(
   return sessions.find((session) => session.cwd === cwd) ?? null;
 }
 
+function latestUserMessage(
+  messages: PrimeAgentSessionView['messages'],
+): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== 'user') continue;
+    const text = message.text.trim();
+    if (text.length > 0) return text;
+  }
+  return null;
+}
+
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
 export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
@@ -150,6 +165,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   );
   const [selectedSessionView, setSelectedSessionView] =
     useState<PrimeAgentSessionView | null>(null);
+  const [sessionPreviews, setSessionPreviews] = useState<
+    Readonly<Record<string, string>>
+  >({});
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
   const [skills, setSkills] = useState<readonly PrimeAgentSkill[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
@@ -472,6 +490,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         if (!view.ok || view.value.activeSessionId !== activeSessionId) return;
         yield* Effect.sync(() => {
           setSelectedSessionView(view.value);
+          const preview = latestUserMessage(view.value.messages);
+          if (preview !== null) {
+            setSessionPreviews((current) =>
+              current[activeSessionId] === preview
+                ? current
+                : { ...current, [activeSessionId]: preview },
+            );
+          }
           if (view.value.sessionName !== null) {
             setWorkspace((current) =>
               current === null
@@ -1210,6 +1236,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedSessionId,
     selectedSessionView,
     selectedSessionRlmMaxDepth: selectedSessionView?.rlmMaxDepth ?? null,
+    sessionPreviews,
     sessions: workspace?.sessions ?? [],
     savedSessions,
     status,

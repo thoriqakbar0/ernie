@@ -246,10 +246,8 @@ function IpythonCell({
 }
 
 function ExecutionRun({
-  active,
   cells,
 }: {
-  readonly active: boolean;
   readonly cells: readonly NumberedIpythonCell[];
 }): React.JSX.Element {
   const containsError = cells.some(({ cell }) => cell.status === 'error');
@@ -258,25 +256,32 @@ function ExecutionRun({
     ({ cell }) => cell.status === 'running' || cell.status === 'starting',
   );
   const [expanded, setExpanded] = useState(
-    active || containsError || containsAborted || containsRunning,
+    containsError || containsAborted || containsRunning,
   );
 
   useEffect(() => {
-    if (active || containsError || containsAborted || containsRunning) {
+    if (containsError || containsAborted || containsRunning) {
       setExpanded(true);
       return;
     }
     setExpanded(false);
-  }, [active, containsAborted, containsError, containsRunning]);
+  }, [containsAborted, containsError, containsRunning]);
 
   const countLabel = `${cells.length} ${cells.length === 1 ? 'step' : 'steps'}`;
   const status = containsError
     ? 'needs attention'
     : containsAborted
       ? 'interrupted'
-    : active || containsRunning
-      ? 'working'
-      : 'done';
+      : containsRunning
+        ? 'working'
+        : 'complete';
+  const statusTone = containsError
+    ? 'text-destructive'
+    : containsAborted
+      ? 'text-muted-foreground'
+      : containsRunning
+        ? 'text-foreground'
+        : 'text-emerald-700 dark:text-emerald-400';
 
   return (
     <section
@@ -298,11 +303,13 @@ function ExecutionRun({
           />
         </Button>
         <span className="font-medium text-foreground">Work</span>
-        <span className="text-muted-foreground">{countLabel}</span>
-        <span
-          className={`ml-auto font-medium ${containsError ? 'text-destructive' : 'text-muted-foreground'}`}
-        >
-          {status}
+        <span className={`ml-auto flex items-center gap-1.5 font-medium ${statusTone}`}>
+          {status === 'complete' ? (
+            <CheckIcon aria-hidden="true" className="size-3.5" />
+          ) : (
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+          )}
+          <span>{countLabel} {status}</span>
         </span>
       </header>
       {!expanded ? null : (
@@ -456,10 +463,6 @@ export function AgentChat({
     () => transcriptBlocks(sessionView.transcript),
     [sessionView.transcript],
   );
-  const latestExecutionBlockIndex = blocks.reduce(
-    (latest, block, index) => (block.kind === 'execution' ? index : latest),
-    -1,
-  );
 
   useEffect(() => {
     const scrollArea = transcriptRef.current?.parentElement;
@@ -489,7 +492,6 @@ export function AgentChat({
             return (
               <ExecutionRun
                 key={block.id}
-                active={sessionView.isStreaming && index === latestExecutionBlockIndex}
                 cells={block.cells}
               />
             );

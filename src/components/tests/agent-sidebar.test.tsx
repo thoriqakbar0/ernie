@@ -110,7 +110,11 @@ function renderSidebar(actions: {
           renamingSession={false}
           folders={folders}
           selectedCwd={overrides.selectedCwd ?? '/workspace/ernie'}
-          selectedSessionId={overrides.selectedSessionId ?? 'ernie-agent'}
+          selectedSessionId={
+            overrides.selectedSessionId === undefined
+              ? 'ernie-agent'
+              : overrides.selectedSessionId
+          }
           sessionPreviews={overrides.sessionPreviews ?? {}}
           sessions={sessions}
           savedSessions={savedSessions}
@@ -303,6 +307,83 @@ test('linked Git worktrees nest inside their repository', () => {
       name: 'New Agent in feature/calm-ui',
     }),
   );
+});
+
+test('selected Agent is the only active row in its repository', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  const repository = within(document.body).getByRole('button', {
+    name: 'ernie',
+  });
+  const agent = within(document.body).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+
+  assert.doesNotMatch(repository.className, /\bbg-sidebar-accent\/60\b/u);
+  assert.match(repository.className, /\baria-expanded:bg-transparent\b/u);
+  assert.doesNotMatch(repository.className, /\baria-expanded:bg-muted\b/u);
+  assert.equal(repository.getAttribute('data-active'), 'false');
+  assert.equal(agent.getAttribute('data-active'), 'true');
+});
+
+test('selected Agent is the only active row in its worktree', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      selectedCwd: '/workspace/ernie-worktrees/feature/calm-ui',
+      selectedSessionId: 'worktree-agent',
+    },
+  );
+
+  const worktree = within(document.body).getByRole('listitem', {
+    name: 'feature/calm-ui worktree',
+  });
+  const worktreeHeader = within(worktree).getByTitle('feature/calm-ui').parentElement;
+  const agent = within(worktree).getByRole('button', {
+    name: 'Calm worktree task',
+  });
+
+  assert.notEqual(worktreeHeader, null);
+  if (worktreeHeader === null) return;
+  assert.doesNotMatch(worktreeHeader.className, /\bbg-sidebar-accent\/60\b/u);
+  assert.equal(worktreeHeader.getAttribute('data-active'), 'false');
+  assert.equal(agent.getAttribute('data-active'), 'true');
+});
+
+test('repository owns the active row when no Agent is selected', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { selectedSessionId: null },
+  );
+
+  const repository = within(document.body).getByRole('button', {
+    name: 'ernie',
+  });
+  const agent = within(document.body).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+
+  assert.equal(repository.getAttribute('data-active'), 'true');
+  assert.match(repository.className, /\bbg-sidebar-accent\/60\b/u);
+  assert.equal(agent.getAttribute('data-active'), 'false');
 });
 
 test('sidebar hides empty pin furniture and counts only working Agents', () => {

@@ -961,6 +961,11 @@ export function AgentSidebar({
                     const { folder } = repository;
                     const expanded =
                       management.expandedRepositoryPath === folder.value;
+                    const repositoryActive =
+                      selectedThreadId === null && selectedCwd === folder.value;
+                    const repositoryActiveClass = repositoryActive
+                      ? 'bg-sidebar-accent/60 aria-expanded:bg-sidebar-accent/60'
+                      : 'aria-expanded:bg-transparent';
                     const conversationsId = `repository-${index}-conversations`;
                     const rootWorkspace = repository.workspaces.find(
                       (workspace) => workspace.folder.value === folder.value,
@@ -1076,8 +1081,9 @@ export function AgentSidebar({
                                 <Button
                                   type="button"
                                   variant="ghost"
+                                  data-active={repositoryActive}
                                   data-sidebar-tree-row
-                                  className={`h-9 min-w-0 flex-1 justify-start gap-2 px-2 pr-9 text-[13px] font-medium ${selectedCwd === folder.value ? 'bg-sidebar-accent/60' : ''}`}
+                                  className={`h-9 min-w-0 flex-1 justify-start gap-2 px-2 pr-9 text-[13px] font-medium ${repositoryActiveClass}`}
                                   aria-label={folder.label}
                                   aria-controls={conversationsId}
                                   aria-expanded={expanded}
@@ -1197,6 +1203,9 @@ export function AgentSidebar({
                               ({ workspace, visibleConversations }) => {
                                 const workspaceLabel =
                                   workspace.folder.branchName ?? workspace.folder.label;
+                                const worktreeActive =
+                                  selectedThreadId === null &&
+                                  selectedCwd === workspace.folder.value;
                                 const workspaceUnarchived = workspace.conversations.filter(
                                   (conversation) =>
                                     !archivedThreadIds.has(
@@ -1250,7 +1259,8 @@ export function AgentSidebar({
                                       <ContextMenuTrigger
                                         render={
                                           <div
-                                            className={`group/worktree flex h-8 items-center gap-1 px-2 ${selectedCwd === workspace.folder.value ? 'rounded-lg bg-sidebar-accent/60' : ''}`}
+                                            data-active={worktreeActive}
+                                            className={`group/worktree flex h-8 items-center gap-1 px-2 ${worktreeActive ? 'rounded-lg bg-sidebar-accent/60' : ''}`}
                                           />
                                         }
                                       >

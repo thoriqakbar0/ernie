@@ -297,6 +297,49 @@ test('sidebar hides empty pin furniture and counts only working Agents', () => {
   assert.equal(within(document.body).queryByLabelText('Working'), null);
 });
 
+test('space status turns green when every Agent is settled', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      folders: [
+        {
+          branchName: null,
+          label: 'leslie',
+          repositoryCwd: '/workspace/leslie',
+          value: '/workspace/leslie',
+        },
+      ],
+      savedSessions: [],
+      selectedCwd: '/workspace/leslie',
+      selectedSessionId: 'leslie-agent',
+      sessions: [
+        {
+          activeSessionId: 'leslie-agent',
+          activity: 'settled',
+          cwd: '/workspace/leslie',
+          modifiedAt: null,
+          model: null,
+          name: 'Build Leslie creative assets',
+          sessionPath: '/sessions/leslie-agent.jsonl',
+        },
+      ],
+    },
+  );
+
+  const repository = within(document.body).getByRole('listitem', {
+    name: 'leslie repository',
+  });
+  const done = within(repository).getByLabelText('All Agents done');
+  assert.match(done.className, /bg-emerald-500/u);
+  assert.equal(within(repository).queryByLabelText('Needs attention'), null);
+});
+
 test('Agents are grouped by truthful status without an active filter', () => {
   renderSidebar({
     addRepository: () => undefined,

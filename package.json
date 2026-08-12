@@ -12,6 +12,7 @@
     "build:renderer": "vite build",
     "build": "nub run build:main && nub run build:renderer",
     "typecheck": "tsc --noEmit",
+    "lint:anti-slop": "oxlint --config .oxlintrc.json src scripts tools/oxlint/anti-slop vite.config.mts",
     "lint:boundaries": "depcruise src",
     "test": "nub --test \"src/packages/**/tests/*.test.ts\" \"src/components/tests/*.test.tsx\"",
     "check:agentation": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js scripts/agentation-check",
@@ -55,6 +56,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.11.2",
+    "@oxlint/plugins": "1.78.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
@@ -64,6 +66,7 @@
     "@vitejs/plugin-react": "^6.0.5",
     "dependency-cruiser": "^18.1.1",
     "electron": "43.3.0",
+    "oxlint": "1.78.0",
     "run-local-ci": "0.18.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",

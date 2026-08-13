@@ -1,26 +1,25 @@
-# AGENTS.md
+# Lynx application
 
-You are an expert in JavaScript, Rspeedy, and Lynx application development. You write maintainable, performant, and accessible code.
+## Lynx documentation
 
-## Read in Advance
+Lynx tasks: read the official [Lynx documentation index](https://lynxjs.org/next/llms.txt) before implementation.
 
-Read docs below in advance to help you understand the library or frameworks this project depends on.
+Rspeedy configuration tasks: read the [Rsbuild](https://rsbuild.rs/llms.txt) and [Rspack](https://rspack.rs/llms.txt) indexes.
 
-- Lynx: [llms.txt](https://lynxjs.org/next/llms.txt), **REQUIRED**.
-  While dealing with a Lynx task, an agent **MUST** read this doc because it is an entry point of all available docs about Lynx.
+## Component ports
 
-## Commands
+Before changing a Lynx component, inspect its counterpart and tests under `../src/**`.
 
-- `npm run dev` - Start the dev server
+Preserve the source component's information hierarchy, states, interactions, naming, and visual language.
 
-- `npm run build` - Build the app for production
+Translate renderer-specific markup at the boundary. Keep shared daemon contracts and product behavior aligned.
 
-- `npm run preview` - Preview the production build locally
+Account for every source state and interaction as ported or explicitly deferred before completion.
 
-- `npm exec rspeedy inspect` - Inspect the Rspeedy config and Rspack config of the project.
+Follow [`../STYLE.md`](../STYLE.md) for source names and code style.
 
-## Related Docs
+## Workflow
 
-- Rsbuild: <https://rsbuild.rs/llms.txt>
+Use Nub for dependency installation, TypeScript execution, and package scripts.
 
-- Rspack: <https://rspack.rs/llms.txt>
+Run `nub run check` after changing the Lynx application.

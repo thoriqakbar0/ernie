@@ -9,6 +9,8 @@
   },
   "include": [
     "src/main.ts",
+    "src/lynx-daemon-bridge.ts",
+    "src/lynx-host.ts",
     "src/preload.cts",
     "src/packages/prime-agent-daemon/daemon-runner.ts",
     "src/packages/session-name-hook/index.ts"

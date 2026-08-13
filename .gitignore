@@ -26,3 +26,4 @@ report.*.json
 # TypeScript and tooling caches
 *.tsbuildinfo
 .eslintcache
+quickjs_cache/

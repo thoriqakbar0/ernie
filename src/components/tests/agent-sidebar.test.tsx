@@ -425,6 +425,12 @@ test('Agent rows reserve one stable trailing status column', () => {
       'Needs input',
     ),
   );
+  assert.equal(
+    within(needsInput.parentElement ?? document.body).queryByTitle(
+      'Needs input',
+    )?.className.includes('amber'),
+    false,
+  );
 });
 
 test('selected Agent is the only active row in its worktree', () => {

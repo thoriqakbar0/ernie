@@ -587,7 +587,12 @@ function parseSessionActivity(
     (value.isSessionActive && sessionActions.queuedCount === 0);
   if (hasConcreteWork) return 'working';
   if (sessionActions.queuedCount > 0) return 'queued';
-  if (value.taskState === 'needs_input') return 'needs_input';
+  if (
+    value.taskState === 'needs_input' &&
+    nonEmptyString(value.summary) !== null
+  ) {
+    return 'needs_input';
+  }
   return value.taskState === 'completed' ? 'settled' : 'idle';
 }
 

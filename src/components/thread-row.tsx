@@ -4,6 +4,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   EllipsisIcon,
+  MessageCircleQuestionIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
@@ -101,8 +102,10 @@ export function ThreadRow({
       <span
         aria-label="Needs input"
         title="Needs input"
-        className="size-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-500/15"
-      />
+        className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground"
+      >
+        <MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
+      </span>
     ),
     idle: null,
     settled: null,

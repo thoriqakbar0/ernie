@@ -104,7 +104,7 @@ test('connected Agent uses the compact quick composer', () => {
   assert.equal(composer.getAttribute('placeholder'), 'Ask Prime Agent…');
   assert.ok(
     inputGroup?.className.includes(
-      'has-[[data-slot=input-group-control]:focus-visible]:border-transparent',
+      'has-[[data-slot=input-group-control]:focus-visible]:border-input',
     ),
   );
   assert.ok(
@@ -112,6 +112,8 @@ test('connected Agent uses the compact quick composer', () => {
       'has-[[data-slot=input-group-control]:focus-visible]:ring-0',
     ),
   );
+  assert.ok(composer.className.includes('focus-visible:border-0'));
+  assert.ok(composer.className.includes('focus-visible:outline-none'));
 });
 
 test('working Agent keeps an editable follow-up queue', async () => {

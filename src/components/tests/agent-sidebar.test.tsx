@@ -825,6 +825,31 @@ test('archived threads remain recoverable from undo and the archive', async () =
   );
 });
 
+test('archiving the last visible Agent removes its empty worktree', async () => {
+  const user = userEvent.setup();
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'More actions for Calm worktree task',
+    }),
+  );
+  await user.click(within(document.body).getByRole('menuitem', { name: 'Archive' }));
+
+  assert.equal(
+    within(document.body).queryByRole('listitem', {
+      name: 'feature/calm-ui worktree',
+    }),
+    null,
+  );
+});
+
 test('thread action menu provides keyboard-accessible reordering', async () => {
   const user = userEvent.setup();
   renderSidebar(

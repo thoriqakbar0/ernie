@@ -168,7 +168,7 @@ export const TaskComposer = memo(function TaskComposer({
     <>
       <form onSubmit={submitTask} aria-disabled={disabled}>
         <InputGroup
-          className={`min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm transition-opacity has-[[data-slot=input-group-control]:focus-visible]:border-transparent has-[[data-slot=input-group-control]:focus-visible]:ring-0 ${disabled ? 'opacity-45' : ''}`}
+          className={`min-h-14 items-end rounded-2xl bg-card p-2 shadow-sm transition-opacity has-[[data-slot=input-group-control]:focus-visible]:border-input has-[[data-slot=input-group-control]:focus-visible]:ring-0 ${disabled ? 'opacity-45' : ''}`}
         >
           {skillsOpen ? (
             <div
@@ -223,7 +223,7 @@ export const TaskComposer = memo(function TaskComposer({
             autoFocus={selectedSessionId === null && selectedCwd !== null}
             rows={1}
             value={task.draft}
-            className="max-h-28 min-h-9 select-text px-3 py-2 text-base [field-sizing:content]"
+            className="max-h-28 min-h-9 select-text px-3 py-2 text-base focus-visible:border-0 focus-visible:outline-none [field-sizing:content]"
             placeholder={isGenerating ? 'Add a follow-up…' : 'Ask Prime Agent…'}
             aria-autocomplete="list"
             aria-controls={skillsOpen ? skillsListId : undefined}

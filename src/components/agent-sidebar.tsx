@@ -1074,28 +1074,40 @@ export function AgentSidebar({
                     const worktrees = repository.workspaces.filter(
                       (workspace) => workspace.folder.value !== folder.value,
                     );
-                    const worktreeEntries = worktrees.map((workspace, order) => {
-                      const visibleConversations = conversationsFor(workspace);
-                      const alwaysVisible =
-                        workspace.folder.value === selectedCwd ||
-                        workspace.folder.value === revealedWorkspaceCwd ||
-                        visibleConversations.some((conversation) => {
-                          const activity = conversationActivity(conversation, connected);
-                          return (
-                            activity === 'working' ||
-                            activity === 'needs_input' ||
-                            activity === 'queued' ||
-                            activity === 'settled'
-                          );
-                        });
-                      return {
-                        alwaysVisible,
-                        latestActivity: workspaceLatestActivity(workspace),
-                        order,
-                        visibleConversations,
-                        workspace,
-                      };
-                    });
+                    const worktreeEntries = worktrees
+                      .map((workspace, order) => {
+                        const visibleConversations = conversationsFor(workspace);
+                        const selectedOrRevealed =
+                          workspace.folder.value === selectedCwd ||
+                          workspace.folder.value === revealedWorkspaceCwd;
+                        const alwaysVisible =
+                          selectedOrRevealed ||
+                          visibleConversations.some((conversation) => {
+                            const activity = conversationActivity(
+                              conversation,
+                              connected,
+                            );
+                            return (
+                              activity === 'working' ||
+                              activity === 'needs_input' ||
+                              activity === 'queued' ||
+                              activity === 'settled'
+                            );
+                          });
+                        return {
+                          alwaysVisible,
+                          latestActivity: workspaceLatestActivity(workspace),
+                          order,
+                          selectedOrRevealed,
+                          visibleConversations,
+                          workspace,
+                        };
+                      })
+                      .filter(
+                        (entry) =>
+                          entry.selectedOrRevealed ||
+                          entry.visibleConversations.length > 0,
+                      );
                     const alwaysVisibleWorktrees = worktreeEntries.filter(
                       (entry) => entry.alwaysVisible,
                     );

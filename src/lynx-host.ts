@@ -1,4 +1,5 @@
 import { access, readFile, stat } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -11,6 +12,11 @@ import type {
 } from './packages/prime-agent-daemon/types.js';
 
 const rosterRefreshMilliseconds = 500;
+const require = createRequire(import.meta.url);
+
+interface LynxNaturalScrollAddon {
+  readonly installNaturalScrolling: () => unknown;
+}
 
 type LynxActiveAgent = PrimeAgentSession & Readonly<{
   sessionJsonl: string | null;
@@ -33,6 +39,31 @@ function wait(milliseconds: number): Promise<void> {
   return new Promise(resolve => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+function isLynxNaturalScrollAddon(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This parser owns the compiled native-addon boundary.
+  value: unknown,
+): value is LynxNaturalScrollAddon {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- This parser owns the compiled native-addon boundary.
+  if (typeof value !== 'object' || value === null) return false;
+  return 'installNaturalScrolling' in value
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- The boundary accepts exactly one callable native export.
+    && typeof value.installNaturalScrolling === 'function';
+}
+
+function installNaturalScrolling(repositoryRoot: string): void {
+  const addonPath = path.join(
+    repositoryRoot,
+    '.build/native/lynx-natural-scroll.node',
+  );
+  const addon: unknown = require(addonPath);
+  if (!isLynxNaturalScrollAddon(addon)) {
+    throw new Error('The Lynx natural scrolling adapter has an invalid interface.');
+  }
+  if (addon.installNaturalScrolling() !== true) {
+    throw new Error('The Lynx natural scrolling adapter did not install.');
+  }
 }
 
 /** Run the native Lynx receiver and feed it Prime Agent's live agent roster. */
@@ -59,6 +90,7 @@ async function run(): Promise<void> {
     title: 'Ernie + Lynx',
     width: 1_200,
   });
+  installNaturalScrolling(repositoryRoot);
   let closed = false;
   let revision = 0;
   let previousPayload = '';

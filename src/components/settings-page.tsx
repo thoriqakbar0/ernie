@@ -12,8 +12,10 @@ import { Switch } from '@/components/trovecn/ui/switch';
 interface SettingsPageProps {
   readonly backLabel: string;
   readonly darkModeEnabled: boolean;
+  readonly debugHudEnabled: boolean;
   readonly onClose: () => void;
   readonly onDarkModeEnabledChange: (enabled: boolean) => void;
+  readonly onDebugHudEnabledChange: (enabled: boolean) => void;
   readonly onOpenPlugins: () => void;
   readonly onReactGrabEnabledChange: (enabled: boolean) => void;
   readonly onReload: () => void;
@@ -24,8 +26,10 @@ interface SettingsPageProps {
 export function SettingsPage({
   backLabel,
   darkModeEnabled,
+  debugHudEnabled,
   onClose,
   onDarkModeEnabledChange,
+  onDebugHudEnabledChange,
   onOpenPlugins,
   onReactGrabEnabledChange,
   onReload,
@@ -115,6 +119,20 @@ export function SettingsPage({
                 aria-label="Annotate"
                 checked={reactGrabEnabled}
                 onCheckedChange={onReactGrabEnabledChange}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-6 px-4 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Debug interface</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Show the last clicked element and current loading states until
+                  Ernie reloads.
+                </p>
+              </div>
+              <Switch
+                aria-label="Debug interface"
+                checked={debugHudEnabled}
+                onCheckedChange={onDebugHudEnabledChange}
               />
             </div>
             <div className="flex items-center justify-between gap-6 px-4 py-4">

@@ -83,7 +83,7 @@ export function TaskSurface({
         <div
           className={
             chatVisible
-              ? 'mx-auto w-full max-w-[48rem] shrink-0 bg-background/95 pt-3 pb-1 backdrop-blur-sm'
+              ? 'mx-auto w-full max-w-[44rem] shrink-0 bg-background/95 pt-3 pb-1 backdrop-blur-sm'
               : undefined
           }
         >

@@ -287,26 +287,6 @@ function modifiedTime(conversation: ThreadConversation): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function orderVisibleConversations(
-  conversations: readonly ThreadConversation[],
-  connected: boolean,
-): readonly ThreadConversation[] {
-  return conversations
-    .map((conversation, index) => ({ conversation, index }))
-    .sort((left, right) => {
-      const leftActivity = conversationActivity(left.conversation, connected);
-      const rightActivity = conversationActivity(right.conversation, connected);
-      const statusDifference =
-        activityOrder(leftActivity) - activityOrder(rightActivity);
-      if (statusDifference !== 0) return statusDifference;
-      if (leftActivity === 'settled') {
-        return modifiedTime(right.conversation) - modifiedTime(left.conversation);
-      }
-      return left.index - right.index;
-    })
-    .map(({ conversation }) => conversation);
-}
-
 function workspaceLatestActivity(workspace: WorkspaceGroup): number {
   return Math.max(0, ...workspace.conversations.map(modifiedTime));
 }
@@ -1120,22 +1100,19 @@ export function AgentSidebar({
                       settled.length - recentSettledLimit,
                     );
                     const conversationsFor = (workspace: WorkspaceGroup) =>
-                      orderVisibleConversations(
-                        workspace.conversations.filter((conversation) => {
-                          const id = threadConversationId(conversation);
-                          if (
-                            archivedThreadIds.has(id) ||
-                            pinnedThreadIds.has(id)
-                          ) {
-                            return false;
-                          }
-                          return (
-                            conversationActivity(conversation, connected) !==
-                              'settled' || visibleSettledIds.has(id)
-                          );
-                        }),
-                        connected,
-                      );
+                      workspace.conversations.filter((conversation) => {
+                        const id = threadConversationId(conversation);
+                        if (
+                          archivedThreadIds.has(id) ||
+                          pinnedThreadIds.has(id)
+                        ) {
+                          return false;
+                        }
+                        return (
+                          conversationActivity(conversation, connected) !==
+                            'settled' || visibleSettledIds.has(id)
+                        );
+                      });
                     const worktrees = repository.workspaces.filter(
                       (workspace) =>
                         workspace.folder.value !== folder.value &&

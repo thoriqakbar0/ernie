@@ -282,7 +282,9 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   render(
     <ErnieShell
       darkModeEnabled
+      debugHudEnabled={false}
       onDarkModeEnabledChange={() => undefined}
+      onDebugHudEnabledChange={() => undefined}
       onReload={() => undefined}
       onReactGrabEnabledChange={(enabled) => reactGrabChanges.push(enabled)}
       reactGrabEnabled={false}

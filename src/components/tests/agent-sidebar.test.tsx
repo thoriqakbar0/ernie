@@ -582,6 +582,51 @@ test('Agents are grouped by truthful status without an active filter', () => {
   ]);
 });
 
+test('live status changes do not reorder Agent rows', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      savedSessions: [],
+      sessions: [
+        {
+          activeSessionId: 'needs-input-agent',
+          activity: 'needs_input',
+          cwd: '/workspace/ernie',
+          modifiedAt: null,
+          model: null,
+          name: 'First Agent',
+          sessionPath: '/sessions/needs-input-agent.jsonl',
+        },
+        {
+          activeSessionId: 'working-agent',
+          activity: 'working',
+          cwd: '/workspace/ernie',
+          modifiedAt: null,
+          model: null,
+          name: 'Second Agent',
+          sessionPath: '/sessions/working-agent.jsonl',
+        },
+      ],
+    },
+  );
+
+  const repository = within(document.body).getByRole('listitem', {
+    name: 'ernie repository',
+  });
+  const threadLabels = within(repository)
+    .getAllByRole('button')
+    .map((button) => button.getAttribute('aria-label'))
+    .filter((label) => label === 'First Agent' || label === 'Second Agent');
+
+  assert.deepEqual(threadLabels, ['First Agent', 'Second Agent']);
+});
+
 test('needs-input summaries stay compact without losing their meaning', () => {
   renderSidebar({
     addRepository: () => undefined,

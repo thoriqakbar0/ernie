@@ -3,7 +3,7 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { AgentChat } from '@/components/agent-chat';
@@ -61,7 +61,7 @@ test('buttons keep an opaque focus ring and stop press motion when requested', (
   );
 });
 
-test('scroll-to-bottom control stays available and respects reduced motion', async () => {
+test('jump-to-latest control respects reduced motion', async () => {
   const user = userEvent.setup();
   const originalMatchMedia = window.matchMedia;
   Object.defineProperty(window, 'matchMedia', {
@@ -92,7 +92,9 @@ test('scroll-to-bottom control stays available and respects reduced motion', asy
     const conversation = within(document.body).getByRole('region', {
       name: 'Conversation',
     });
-    const scrollArea = conversation.parentElement;
+    const scrollArea = document.querySelector<HTMLDivElement>(
+      '[data-slot="conversation-scroll-area"]',
+    );
     assert.ok(scrollArea);
     Object.defineProperties(scrollArea, {
       clientHeight: { configurable: true, value: 100 },
@@ -104,9 +106,10 @@ test('scroll-to-bottom control stays available and respects reduced motion', asy
       configurable: true,
       value: (options: ScrollToOptions) => scrollCalls.push(options),
     });
+    fireEvent.scroll(scrollArea);
 
     const scrollToBottom = within(document.body).getByRole('button', {
-      name: 'Scroll to bottom',
+      name: 'Jump to latest',
     });
     assert.equal(conversation.contains(scrollToBottom), false);
     assert.match(scrollToBottom.className, /absolute/u);
@@ -140,10 +143,9 @@ test('conversation follows new output to the bottom', () => {
     ],
   };
   const view = render(<AgentChat sessionView={initialView} />);
-  const conversation = within(document.body).getByRole('region', {
-    name: 'Conversation',
-  });
-  const scrollArea = conversation.parentElement;
+  const scrollArea = document.querySelector<HTMLDivElement>(
+    '[data-slot="conversation-scroll-area"]',
+  );
   assert.ok(scrollArea);
   Object.defineProperties(scrollArea, {
     scrollHeight: { configurable: true, value: 1_000 },
@@ -167,6 +169,88 @@ test('conversation follows new output to the bottom', () => {
   );
 
   assert.equal(scrollArea.scrollTop, 1_000);
+});
+
+test('conversation keeps the reader in place when new output arrives', () => {
+  const initialView = {
+    activeSessionId: 'root',
+    isStreaming: true,
+    messages: [{ id: 'one', role: 'assistant' as const, text: 'working' }],
+    rlmMaxDepth: 2,
+    sessionName: 'Working',
+    spawnedSessions: [],
+    transcript: [
+      {
+        id: 'one',
+        kind: 'message' as const,
+        role: 'assistant' as const,
+        text: 'working',
+      },
+    ],
+  };
+  const view = render(<AgentChat sessionView={initialView} />);
+  const scrollArea = document.querySelector<HTMLDivElement>(
+    '[data-slot="conversation-scroll-area"]',
+  );
+  assert.ok(scrollArea);
+  Object.defineProperties(scrollArea, {
+    clientHeight: { configurable: true, value: 100 },
+    scrollHeight: { configurable: true, value: 1_000 },
+    scrollTop: { configurable: true, value: 0, writable: true },
+  });
+  fireEvent.scroll(scrollArea);
+
+  view.rerender(
+    <AgentChat
+      sessionView={{
+        ...initialView,
+        transcript: [
+          {
+            id: 'one',
+            kind: 'message',
+            role: 'assistant',
+            text: 'working more',
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.equal(scrollArea.scrollTop, 0);
+  assert.ok(within(document.body).getByRole('button', { name: 'Jump to latest' }));
+});
+
+test('conversation hides the latest-response action when all content fits', () => {
+  render(
+    <AgentChat
+      sessionView={{
+        activeSessionId: 'root',
+        isStreaming: false,
+        messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Ready',
+        spawnedSessions: [],
+        transcript: [
+          { id: 'one', kind: 'message', role: 'assistant', text: 'ready' },
+        ],
+      }}
+    />,
+  );
+  const scrollArea = document.querySelector<HTMLDivElement>(
+    '[data-slot="conversation-scroll-area"]',
+  );
+  assert.ok(scrollArea);
+  Object.defineProperties(scrollArea, {
+    clientHeight: { configurable: true, value: 1_000 },
+    scrollHeight: { configurable: true, value: 500 },
+    scrollTop: { configurable: true, value: 0, writable: true },
+  });
+  fireEvent.scroll(scrollArea);
+
+  assert.equal(
+    within(document.body).queryByRole('button', { name: 'Jump to latest' }),
+    null,
+  );
 });
 
 test('Motion boundary rejects native callbacks it cannot preserve', () => {

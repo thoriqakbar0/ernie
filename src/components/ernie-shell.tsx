@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
+import { DebugHud } from '@/components/debug-hud';
 import {
   agentsViewId,
   PluginActivityBar,
@@ -50,7 +51,9 @@ function storeDisabledPluginIds(pluginIds: readonly string[]): boolean {
 
 type ErnieShellProps = {
   darkModeEnabled: boolean;
+  debugHudEnabled: boolean;
   onDarkModeEnabledChange: (enabled: boolean) => void;
+  onDebugHudEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
   onReactGrabEnabledChange: (enabled: boolean) => void;
   reactGrabEnabled: boolean;
@@ -58,7 +61,9 @@ type ErnieShellProps = {
 
 export function ErnieShell({
   darkModeEnabled,
+  debugHudEnabled,
   onDarkModeEnabledChange,
+  onDebugHudEnabledChange,
   onReload,
   onReactGrabEnabledChange,
   reactGrabEnabled,
@@ -109,6 +114,22 @@ export function ErnieShell({
         : selectedSessionView === null
           ? null
           : 'done';
+  const debugLoadingOperations: string[] = [];
+  if (workspace.loadingWorkspace) debugLoadingOperations.push('workspace');
+  if (workspace.loadingSavedSessions) debugLoadingOperations.push('saved sessions');
+  if (workspace.importingSessionPath !== null) debugLoadingOperations.push('session import');
+  if (workspace.renamingSession) debugLoadingOperations.push('session rename');
+  if (workspace.modelBusy) debugLoadingOperations.push('model');
+  if (workspace.gitBranchBusy) debugLoadingOperations.push('Git branch');
+  if (workspace.creatingAgent) debugLoadingOperations.push('new Agent');
+  if (selectedSessionView?.isStreaming === true) {
+    debugLoadingOperations.push('Agent response');
+  }
+  if (busyPluginIds.size > 0) {
+    debugLoadingOperations.push(
+      `${busyPluginIds.size} ${busyPluginIds.size === 1 ? 'plugin' : 'plugins'}`,
+    );
+  }
 
   useEffect(() => {
     const disposePlugins = (): void => {
@@ -256,8 +277,10 @@ export function ErnieShell({
                       : `Back to ${activePluginView?.title ?? 'plugin'}`
                   }
                   darkModeEnabled={darkModeEnabled}
+                  debugHudEnabled={debugHudEnabled}
                   onClose={() => setSettingsOpen(false)}
                   onDarkModeEnabledChange={onDarkModeEnabledChange}
+                  onDebugHudEnabledChange={onDebugHudEnabledChange}
                   onOpenPlugins={() => setPluginManagerOpen(true)}
                   onReactGrabEnabledChange={onReactGrabEnabledChange}
                   onReload={onReload}
@@ -307,6 +330,13 @@ export function ErnieShell({
         open={pluginManagerOpen}
         onOpenChange={setPluginManagerOpen}
       />
+      {debugHudEnabled ? (
+        <DebugHud
+          connection={workspace.primeAgentConnection}
+          loadingOperations={debugLoadingOperations}
+          status={workspace.status}
+        />
+      ) : null}
     </TooltipProvider>
   );
 }

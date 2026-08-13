@@ -15,6 +15,7 @@ interface RendererAppProps {
 export function RendererApp({
   initialColorTheme,
 }: RendererAppProps): React.JSX.Element {
+  const [debugHudEnabled, setDebugHudEnabled] = useState(false);
   const [reactGrabEnabled, setReactGrabEnabled] = useState(true);
   const [colorTheme, setColorTheme] = useState(initialColorTheme);
 
@@ -38,7 +39,9 @@ export function RendererApp({
     <>
       <ErnieShell
         darkModeEnabled={colorTheme === 'dark'}
+        debugHudEnabled={debugHudEnabled}
         onDarkModeEnabledChange={changeDarkMode}
+        onDebugHudEnabledChange={setDebugHudEnabled}
         onReload={reloadRenderer}
         onReactGrabEnabledChange={changeReactGrab}
         reactGrabEnabled={reactGrabEnabled}

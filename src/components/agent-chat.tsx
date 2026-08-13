@@ -432,6 +432,9 @@ export function AgentChat({
   sessionView,
 }: AgentChatProps): React.JSX.Element {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const activeSessionIdRef = useRef(sessionView.activeSessionId);
+  const followsLatestRef = useRef(true);
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
   const childrenByParent = useMemo(() => {
     const sessionIds = new Set(
       sessionView.spawnedSessions.map((session) => session.id),
@@ -454,15 +457,49 @@ export function AgentChat({
     [sessionView.transcript],
   );
 
+  const updateScrollState = (scrollArea: HTMLDivElement): void => {
+    const remaining = Math.max(
+      0,
+      scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight,
+    );
+    const followsLatest = remaining <= 160;
+    followsLatestRef.current = followsLatest;
+    setAwayFromLatest(!followsLatest);
+  };
+
   useLayoutEffect(() => {
     const scrollArea = scrollAreaRef.current;
     if (scrollArea === null) return;
-    scrollArea.scrollTop = scrollArea.scrollHeight;
+    if (activeSessionIdRef.current !== sessionView.activeSessionId) {
+      activeSessionIdRef.current = sessionView.activeSessionId;
+      followsLatestRef.current = true;
+    }
+    if (followsLatestRef.current) {
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+    }
+    updateScrollState(scrollArea);
   }, [sessionView.activeSessionId, sessionView.transcript]);
 
-  function scrollToBottom(): void {
+  useEffect(() => {
     const scrollArea = scrollAreaRef.current;
     if (scrollArea === null) return;
+    const update = (): void => updateScrollState(scrollArea);
+    update();
+    scrollArea.addEventListener('scroll', update, { passive: true });
+    const resizeObserver =
+      'ResizeObserver' in window ? new ResizeObserver(update) : null;
+    resizeObserver?.observe(scrollArea);
+    return () => {
+      scrollArea.removeEventListener('scroll', update);
+      resizeObserver?.disconnect();
+    };
+  }, [sessionView.activeSessionId]);
+
+  function jumpToLatest(): void {
+    const scrollArea = scrollAreaRef.current;
+    if (scrollArea === null) return;
+    followsLatestRef.current = true;
+    setAwayFromLatest(false);
     scrollArea.scrollTo({
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ? 'auto'
@@ -473,8 +510,15 @@ export function AgentChat({
 
   return (
     <div className="relative h-full min-h-0">
-      <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-        <section aria-label="Conversation" className="mx-auto w-full max-w-[48rem] select-text pb-16">
+      <div
+        ref={scrollAreaRef}
+        data-slot="conversation-scroll-area"
+        className="h-full min-h-0 overflow-y-auto"
+      >
+        <section
+          aria-label="Conversation"
+          className="mx-auto w-full max-w-[44rem] select-text pb-16"
+        >
           <div className="flex flex-col gap-6">
             {blocks.map((block, index) => {
               if (block.kind === 'execution') {
@@ -538,16 +582,18 @@ export function AgentChat({
         </section>
       </div>
 
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
-        onClick={scrollToBottom}
-      >
-        <ArrowDownIcon aria-hidden="true" />
-        Scroll to bottom
-      </Button>
+      {!awayFromLatest ? null : (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
+          onClick={jumpToLatest}
+        >
+          <ArrowDownIcon aria-hidden="true" />
+          Jump to latest
+        </Button>
+      )}
     </div>
   );
 }

@@ -340,6 +340,32 @@ test('selected Agent is the only active row in its repository', () => {
   assert.doesNotMatch(repository.className, /\baria-expanded:bg-muted\b/u);
   assert.equal(repository.getAttribute('data-active'), 'false');
   assert.equal(agent.getAttribute('data-active'), 'true');
+  assert.match(agent.className, /\bbg-sidebar-accent\b/u);
+  assert.doesNotMatch(agent.className, /\bborder-s-2\b/u);
+});
+
+test('Agent rows reserve one stable trailing status column', () => {
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+
+  const working = within(document.body).getByRole('button', {
+    name: 'Codebase rating feedback',
+  });
+  const needsInput = within(document.body).getByRole('button', {
+    name: 'Calm worktree task',
+  });
+  assert.match(working.className, /\bpe-14\b/u);
+  assert.ok(within(working.parentElement ?? document.body).getByLabelText('Working'));
+  assert.ok(
+    within(needsInput.parentElement ?? document.body).getByLabelText(
+      'Needs input',
+    ),
+  );
 });
 
 test('selected Agent is the only active row in its worktree', () => {
@@ -412,12 +438,16 @@ test('sidebar hides empty pin furniture and counts only working Agents', () => {
   const ernieRepository = within(document.body).getByRole('button', {
     name: 'ernie',
   });
-  assert.match(ernieRepository.textContent ?? '', /1 working/u);
+  assert.ok(within(ernieRepository).getByTitle('1 Agent working'));
   const workingThread = within(document.body).getByRole('button', {
     name: 'Codebase rating feedback',
   });
   assert.equal(workingThread.getAttribute('aria-description'), 'working');
-  assert.ok(within(document.body).getAllByText('working').length > 0);
+  assert.ok(
+    within(workingThread.parentElement ?? document.body).getByLabelText(
+      'Working',
+    ),
+  );
 });
 
 test('settled spaces stay quiet', () => {
@@ -645,6 +675,41 @@ test('shows three recent settled Agents and discloses only the hidden remainder'
     }),
   );
   assert.ok(within(document.body).getByRole('button', { name: 'Hide settled' }));
+});
+
+test('Control+O reveals every hidden thread group', () => {
+  const savedSessions = Array.from({ length: 5 }, (_, index) => ({
+    activity: 'settled' as const,
+    cwd: '/workspace/ernie',
+    messageCount: 1,
+    modifiedAt: `2026-08-${String(10 - index).padStart(2, '0')}T10:00:00.000Z`,
+    name: `Open all ${index + 1}`,
+    path: `/sessions/open-all-${index + 1}.jsonl`,
+  }));
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { savedSessions },
+  );
+  assert.equal(
+    within(document.body).queryByRole('button', {
+      name: 'Open all 5, saved session',
+    }),
+    null,
+  );
+
+  fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
+
+  assert.ok(
+    within(document.body).getByRole('button', {
+      name: 'Open all 5, saved session',
+    }),
+  );
 });
 
 test('compact search finds hidden settled Agents and restores the tree after opening', async () => {
@@ -1179,11 +1244,13 @@ test('pinned threads lift above repositories and return when unpinned', async ()
       name: 'Codebase rating feedback',
     }),
   );
-  assert.match(
-    within(pinnedTasks).getByRole('button', {
-      name: 'Codebase rating feedback',
-    }).textContent ?? '',
-    /ernie/u,
+  assert.equal(
+    within(pinnedTasks)
+      .getByRole('button', {
+        name: 'Codebase rating feedback',
+      })
+      .getAttribute('title'),
+    'Codebase rating feedback · ernie',
   );
   assert.equal(
     within(ernieRepository).queryByRole('button', {

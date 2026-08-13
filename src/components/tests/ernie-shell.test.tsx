@@ -460,10 +460,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   );
   await waitFor(
     () =>
-      assert.match(
-        within(document.body).getByRole('button', { name: 'kastuli' })
-          .textContent ?? '',
-        /1 working/u,
+      assert.ok(
+        within(
+          within(document.body).getByRole('button', { name: 'kastuli' }),
+        ).getByTitle('1 Agent working'),
       ),
     { timeout: 2_500 },
   );

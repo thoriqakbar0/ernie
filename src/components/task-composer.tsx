@@ -126,6 +126,17 @@ export const TaskComposer = memo(function TaskComposer({
     }
 
     if (
+      event.key === 'Enter' &&
+      event.altKey &&
+      isGenerating &&
+      selectedSessionId !== null
+    ) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+      return;
+    }
+
+    if (
       skillsOpen &&
       matchingSkills.length > 0 &&
       event.key === 'Enter' &&
@@ -154,6 +165,7 @@ export const TaskComposer = memo(function TaskComposer({
     }
 
     if (event.key !== 'Enter') return;
+    if (isGenerating && selectedSessionId !== null) return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
   }
@@ -229,14 +241,18 @@ export const TaskComposer = memo(function TaskComposer({
             aria-controls={skillsOpen ? skillsListId : undefined}
             aria-expanded={skillsOpen}
             aria-keyshortcuts={
-              selectedSessionId === null || isGenerating
+              selectedSessionId === null
                 ? undefined
-                : 'Shift+Enter'
+                : isGenerating
+                  ? 'Alt+Enter'
+                  : 'Shift+Enter'
             }
             title={
-              selectedSessionId === null || isGenerating
+              selectedSessionId === null
                 ? undefined
-                : 'Enter to send · Shift+Enter to refine'
+                : isGenerating
+                  ? 'Option+Enter to queue'
+                  : 'Enter to send · Shift+Enter to refine'
             }
             disabled={disabled}
             aria-activedescendant={
@@ -253,7 +269,9 @@ export const TaskComposer = memo(function TaskComposer({
               size="icon-sm"
               className="size-8 rounded-full bg-foreground text-background hover:bg-foreground/85 hover:text-background"
               aria-label={isGenerating ? 'Queue task' : 'Send task'}
-              title={isGenerating ? 'Queue task (Enter)' : 'Send task (Enter)'}
+              title={
+                isGenerating ? 'Queue task (⌥↵)' : 'Send task (Enter)'
+              }
               disabled={
                 disabled ||
                 !task.canSubmit ||

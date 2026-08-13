@@ -245,7 +245,19 @@ function ActivitySummary({
         </span>
       ) : null}
       {workingCount > 0 ? (
-        <span className="tabular-nums">{workingCount} working</span>
+        <span
+          className="inline-flex items-center gap-1 tabular-nums"
+          title={`${workingCount} ${workingCount === 1 ? 'Agent' : 'Agents'} working`}
+        >
+          <span
+            aria-hidden="true"
+            className="size-1.5 animate-pulse rounded-full bg-sky-500 motion-reduce:animate-none"
+          />
+          {workingCount}
+          <span className="sr-only">
+            {workingCount === 1 ? ' Agent working' : ' Agents working'}
+          </span>
+        </span>
       ) : null}
     </span>
   );
@@ -489,6 +501,29 @@ export function AgentSidebar({
       return repository === undefined ? [] : [repository];
     });
   }, [management, workspaceGroups]);
+
+  useEffect(() => {
+    const openAllThreads = (event: globalThis.KeyboardEvent): void => {
+      if (
+        event.key.toLowerCase() !== 'o' ||
+        !event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const repositoryPaths = repositories.map(
+        (repository) => repository.folder.value,
+      );
+      setPinsExpanded(true);
+      setArchiveExpanded(true);
+      setSettledExpandedPaths(new Set(repositoryPaths));
+      setWorktreesExpandedPaths(new Set(repositoryPaths));
+    };
+    window.addEventListener('keydown', openAllThreads);
+    return () => window.removeEventListener('keydown', openAllThreads);
+  }, [repositories]);
 
   useEffect(() => {
     setManagement((current) =>

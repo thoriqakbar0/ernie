@@ -84,12 +84,18 @@ export function ThreadRow({
 
   const activityMark = {
     working: (
-      <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
-        working
-      </span>
+      <span
+        aria-label="Working"
+        title="Working"
+        className="size-2 shrink-0 animate-pulse rounded-full bg-sky-500 motion-reduce:animate-none"
+      />
     ),
     queued: (
-      <span className="shrink-0 text-[11px] text-muted-foreground">queued</span>
+      <span
+        aria-label="Queued"
+        title="Queued"
+        className="size-2 shrink-0 rounded-full border border-muted-foreground/70"
+      />
     ),
     needs_input: (
       <span
@@ -130,15 +136,12 @@ export function ThreadRow({
           aria-current={selected ? 'page' : undefined}
           aria-description={activityLabel ?? undefined}
           aria-label={thread.kind === 'saved' ? `${label}, saved session` : label}
-          title={label}
-          className={`h-8 min-w-0 flex-1 justify-start rounded-lg border-s-2 ps-2 pe-16 text-start text-sidebar-foreground hover:bg-sidebar-accent ${selected ? 'border-sidebar-foreground/35 bg-sidebar-accent' : 'border-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
+          title={pinned && detail !== null ? `${label} · ${detail}` : label}
+          className={`h-8 min-w-0 flex-1 justify-start rounded-md px-2 pe-14 text-start text-sidebar-foreground hover:bg-sidebar-accent/70 ${selected ? 'bg-sidebar-accent' : 'bg-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
         >
           <span className="min-w-0 flex-1 truncate">
             <span>{label}</span>
-            {pinned && detail !== null ? (
-              <span className="text-xs text-muted-foreground"> · {detail}</span>
-            ) : null}
           </span>
         </Button>
         {importing ? (
@@ -148,14 +151,9 @@ export function ThreadRow({
           />
         ) : (
           <>
-            <span className="absolute end-8 group-hover/thread:hidden group-focus-within/thread:hidden">
-              {activityMark}
+            <span className="pointer-events-none absolute end-8 flex w-5 items-center justify-center text-[10px] tabular-nums text-muted-foreground">
+              {activityMark ?? detail}
             </span>
-            {pinned || detail === null ? null : (
-              <span className="pointer-events-none absolute end-8 text-xs tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover/thread:opacity-100 group-focus-within/thread:opacity-100">
-                {detail}
-              </span>
-            )}
           </>
         )}
         <Menu>

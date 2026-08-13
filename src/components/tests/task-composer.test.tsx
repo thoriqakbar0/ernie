@@ -7,7 +7,10 @@ import { cleanup, render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TaskComposer } from '@/components/task-composer';
-import type { PrimeAgentRefinementRequest } from '@/packages/prime-agent-daemon/types';
+import type {
+  PrimeAgentRefinementRequest,
+  PrimeAgentTaskSubmission,
+} from '@/packages/prime-agent-daemon/types';
 
 Object.defineProperty(Element.prototype, 'getAnimations', {
   configurable: true,
@@ -151,6 +154,49 @@ test('working Agent keeps an editable follow-up queue', async () => {
   assert.equal(
     (composer as HTMLTextAreaElement).value,
     'Review the tests next',
+  );
+  assert.equal(composer.getAttribute('aria-keyshortcuts'), 'Alt+Enter');
+  assert.equal(composer.getAttribute('title'), 'Option+Enter to queue');
+});
+
+test('Option+Enter queues a working Agent follow-up', async () => {
+  const submittedTasks: PrimeAgentTaskSubmission[] = [];
+  Object.defineProperty(window, 'ernie', {
+    configurable: true,
+    value: {
+      submitAgentTask: async (submission: PrimeAgentTaskSubmission) => {
+        submittedTasks.push(submission);
+        return { ok: true, value: { accepted: true } };
+      },
+    },
+  });
+  const user = userEvent.setup();
+  render(
+    <TaskComposer
+      {...activeSessionDepthProps}
+      isGenerating
+      modelBusy={false}
+      models={models}
+      skills={skills}
+      selectedCwd="/workspace/ernie"
+      selectedModelKey="openai:gpt-5.6"
+      selectedSessionId="active-agent"
+      changeModel={() => undefined}
+      createAgentWithTask={async () => ({ ok: true })}
+    />,
+  );
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, 'Queue this after the current work');
+  await user.keyboard('{Alt>}{Enter}{/Alt}');
+
+  await waitFor(() =>
+    assert.deepEqual(submittedTasks, [
+      {
+        activeSessionId: 'active-agent',
+        message: 'Queue this after the current work',
+      },
+    ]),
   );
 });
 

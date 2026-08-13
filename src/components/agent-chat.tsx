@@ -484,7 +484,7 @@ export function AgentChat({
   }
 
   return (
-    <section ref={transcriptRef} aria-label="Conversation" className="relative w-full select-text pb-6">
+    <section ref={transcriptRef} aria-label="Conversation" className="relative mx-auto w-full max-w-[48rem] select-text pb-6">
       <div className="flex flex-col gap-6">
         {blocks.map((block, index) => {
           if (block.kind === 'execution') {

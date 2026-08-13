@@ -432,7 +432,6 @@ export function AgentChat({
   sessionView,
 }: AgentChatProps): React.JSX.Element {
   const transcriptRef = useRef<HTMLElement>(null);
-  const [awayFromLatest, setAwayFromLatest] = useState(false);
   const childrenByParent = useMemo(() => {
     const sessionIds = new Set(
       sessionView.spawnedSessions.map((session) => session.id),
@@ -461,20 +460,7 @@ export function AgentChat({
     scrollArea.scrollTop = scrollArea.scrollHeight;
   }, [sessionView.activeSessionId, sessionView.transcript]);
 
-  useEffect(() => {
-    const scrollArea = transcriptRef.current?.parentElement;
-    if (scrollArea === null || scrollArea === undefined) return;
-    const update = (): void => {
-      const remaining =
-        scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
-      setAwayFromLatest(remaining > 160);
-    };
-    update();
-    scrollArea.addEventListener('scroll', update, { passive: true });
-    return () => scrollArea.removeEventListener('scroll', update);
-  }, [sessionView.transcript.length]);
-
-  function jumpToLatest(): void {
+  function scrollToBottom(): void {
     transcriptRef.current?.parentElement?.scrollTo({
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ? 'auto'
@@ -550,18 +536,16 @@ export function AgentChat({
         </section>
       )}
 
-      {!awayFromLatest ? null : (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="sticky bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
-          onClick={jumpToLatest}
-        >
-          <ArrowDownIcon aria-hidden="true" />
-          Jump to latest
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="sticky bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
+        onClick={scrollToBottom}
+      >
+        <ArrowDownIcon aria-hidden="true" />
+        Scroll to bottom
+      </Button>
     </section>
   );
 }

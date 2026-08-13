@@ -3,7 +3,7 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { AgentChat } from '@/components/agent-chat';
@@ -61,7 +61,7 @@ test('buttons keep an opaque focus ring and stop press motion when requested', (
   );
 });
 
-test('jumping to the latest response respects reduced motion', async () => {
+test('scroll-to-bottom control stays available and respects reduced motion', async () => {
   const user = userEvent.setup();
   const originalMatchMedia = window.matchMedia;
   Object.defineProperty(window, 'matchMedia', {
@@ -105,11 +105,10 @@ test('jumping to the latest response respects reduced motion', async () => {
       value: (options: ScrollToOptions) => scrollCalls.push(options),
     });
 
-    fireEvent.scroll(scrollArea);
-    const jump = await waitFor(() =>
-      within(document.body).getByRole('button', { name: 'Jump to latest' }),
-    );
-    await user.click(jump);
+    const scrollToBottom = within(document.body).getByRole('button', {
+      name: 'Scroll to bottom',
+    });
+    await user.click(scrollToBottom);
 
     assert.deepEqual(scrollCalls, [{ behavior: 'auto', top: 1_000 }]);
   } finally {

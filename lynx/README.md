@@ -13,7 +13,8 @@ working, queued, needs-input, idle, and settled states from Prime Agent.
 The first slice stays intentionally read-only and unvirtualized. Tap an Agent
 row to select it. On desktop, focused rows follow native arrow-key traversal.
 The open canvas shows the complete selected session object received from the
-Prime Agent workspace boundary as formatted JSON.
+Prime Agent workspace boundary as formatted JSON. It also shows the raw JSONL
+session file. The Node host caches unchanged files between roster updates.
 
 Run the native receiver from the repository root:
 

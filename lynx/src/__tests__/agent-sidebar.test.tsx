@@ -14,6 +14,7 @@ const roster = {
       model: null,
       modifiedAt: null,
       name: 'Quiet research',
+      sessionJsonl: null,
       sessionPath: null,
     },
     {
@@ -23,6 +24,7 @@ const roster = {
       model: null,
       modifiedAt: null,
       name: 'Build Lynx sidebar',
+      sessionJsonl: null,
       sessionPath: null,
     },
     {
@@ -32,6 +34,7 @@ const roster = {
       model: null,
       modifiedAt: null,
       name: 'Review daemon contract',
+      sessionJsonl: null,
       sessionPath: null,
     },
   ],

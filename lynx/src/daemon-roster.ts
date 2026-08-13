@@ -19,6 +19,7 @@ export type ActiveAgent = Readonly<{
   }> | null
   modifiedAt: string | null
   name: string
+  sessionJsonl: string | null
   sessionPath: string | null
 }>
 
@@ -74,6 +75,7 @@ function parseActiveAgent(value: unknown): ActiveAgent | null {
     model === undefined ||
     (value.modifiedAt !== null && typeof value.modifiedAt !== 'string') ||
     typeof value.name !== 'string' ||
+    (value.sessionJsonl !== null && typeof value.sessionJsonl !== 'string') ||
     (value.sessionPath !== null && typeof value.sessionPath !== 'string')
   ) {
     return null
@@ -85,6 +87,7 @@ function parseActiveAgent(value: unknown): ActiveAgent | null {
     model,
     modifiedAt: value.modifiedAt,
     name: value.name,
+    sessionJsonl: value.sessionJsonl,
     sessionPath: value.sessionPath,
   }
 }

@@ -253,3 +253,19 @@
   line-height: 18px;
   white-space: normal;
 }
+
+.RawSessionSectionTitle {
+  margin-bottom: 10px;
+  color: #85827c;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.RawSessionSectionTitle--jsonl {
+  margin-top: 24px;
+}
+
+.RawSessionUnavailable {
+  color: #85827c;
+  font-size: 12px;
+}

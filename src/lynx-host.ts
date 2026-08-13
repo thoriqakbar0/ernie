@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -12,7 +12,15 @@ import type {
 
 const rosterRefreshMilliseconds = 500;
 
-type LynxActiveAgent = PrimeAgentSession;
+type LynxActiveAgent = PrimeAgentSession & Readonly<{
+  sessionJsonl: string | null;
+}>;
+
+interface CachedSessionJsonl {
+  readonly content: string;
+  readonly modifiedAtMilliseconds: number;
+  readonly size: number;
+}
 
 type LynxDaemonRoster = Readonly<{
   activeAgents: readonly LynxActiveAgent[];
@@ -54,6 +62,7 @@ async function run(): Promise<void> {
   let closed = false;
   let revision = 0;
   let previousPayload = '';
+  const sessionJsonlCache = new Map<string, CachedSessionJsonl>();
   const close = (): void => {
     if (closed) return;
     closed = true;
@@ -61,6 +70,33 @@ async function run(): Promise<void> {
   };
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
+
+  const readSessionJsonl = async (
+    sessionPath: string | null,
+  ): Promise<string | null> => {
+    if (sessionPath === null) return null;
+    try {
+      const metadata = await stat(sessionPath);
+      const cached = sessionJsonlCache.get(sessionPath);
+      if (
+        cached !== undefined &&
+        cached.modifiedAtMilliseconds === metadata.mtimeMs &&
+        cached.size === metadata.size
+      ) {
+        return cached.content;
+      }
+      const content = await readFile(sessionPath, 'utf8');
+      sessionJsonlCache.set(sessionPath, {
+        content,
+        modifiedAtMilliseconds: metadata.mtimeMs,
+        size: metadata.size,
+      });
+      return content;
+    } catch {
+      sessionJsonlCache.delete(sessionPath);
+      return null;
+    }
+  };
 
   const receiveRoster = async (): Promise<LynxDaemonRoster> => {
     const workspace = await Effect.runPromise(daemon.listWorkspace());
@@ -72,8 +108,14 @@ async function run(): Promise<void> {
         revision,
       };
     }
+    const activeAgents = await Promise.all(
+      workspace.value.sessions.map(async (session): Promise<LynxActiveAgent> => ({
+        ...session,
+        sessionJsonl: await readSessionJsonl(session.sessionPath),
+      })),
+    );
     return {
-      activeAgents: workspace.value.sessions,
+      activeAgents,
       connection: 'ready',
       currentCwd: workspace.value.currentCwd,
       revision,

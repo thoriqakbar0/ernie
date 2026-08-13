@@ -19,6 +19,7 @@ test('shows the complete selected Prime Agent session payload', async () => {
         },
         modifiedAt: '2026-08-13T09:00:00.000Z',
         name: 'Build Lynx sidebar',
+        sessionJsonl: '{"type":"message","role":"user"}\n{"type":"message","role":"assistant"}\n',
         sessionPath: '/sessions/working-agent.jsonl',
       }}
     />,
@@ -32,6 +33,8 @@ test('shows the complete selected Prime Agent session payload', async () => {
   expect(await screen.findByText('"activeSessionId": "working-agent",')).toBeInTheDocument()
   expect(await screen.findByText('"provider": "anthropic"')).toBeInTheDocument()
   expect(await screen.findByText('"sessionPath": "/sessions/working-agent.jsonl"')).toBeInTheDocument()
+  expect(await screen.findByText('{"type":"message","role":"user"}')).toBeInTheDocument()
+  expect(await screen.findByText('{"type":"message","role":"assistant"}')).toBeInTheDocument()
 })
 
 test('asks for a selection before showing raw session data', async () => {

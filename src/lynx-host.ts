@@ -1,84 +1,150 @@
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
-const daemonHealthUrl = 'http://127.0.0.1:4319/v1/health';
-const daemonStartupAttempts = 50;
-const daemonStartupIntervalMilliseconds = 100;
+import { WindowedLynxView } from '@lynx-js/node-lynx';
+import { Effect } from 'effect';
 
-function waitForExit(child: ChildProcess): Promise<number> {
-  return new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', code => resolve(code ?? 1));
+import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js';
+import type {
+  PrimeAgentSession,
+  PrimeAgentSessionActivity,
+} from './packages/prime-agent-daemon/types.js';
+
+const rosterRefreshMilliseconds = 500;
+
+interface LynxActiveAgent {
+  readonly activeSessionId: string;
+  readonly activity: PrimeAgentSessionActivity;
+  readonly cwd: string;
+  readonly modifiedAt: string | null;
+  readonly name: string;
+}
+
+type LynxDaemonRoster = Readonly<{
+  activeAgents: readonly LynxActiveAgent[];
+  connection: 'ready' | 'unavailable';
+  currentCwd: string;
+  revision: number;
+}>;
+
+function projectActiveAgent(session: PrimeAgentSession): LynxActiveAgent {
+  return {
+    activeSessionId: session.activeSessionId,
+    activity: session.activity,
+    cwd: session.cwd,
+    modifiedAt: session.modifiedAt,
+    name: session.name,
+  };
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, milliseconds);
   });
 }
 
-async function waitForDaemon(): Promise<void> {
-  for (let attempt = 0; attempt < daemonStartupAttempts; attempt += 1) {
-    try {
-      const response = await fetch(daemonHealthUrl);
-      if (response.ok) return;
-    } catch {
-      // The sidecar may still be binding its loopback socket.
-    }
-    await new Promise(resolve => {
-      setTimeout(resolve, daemonStartupIntervalMilliseconds);
-    });
-  }
-  throw new Error('The Ernie Lynx daemon did not become ready.');
-}
-
-function stopChild(child: ChildProcess): void {
-  if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-}
-
+/** Run the native Lynx receiver and feed it Prime Agent's live agent roster. */
 async function run(): Promise<void> {
   const repositoryRoot = process.cwd();
   const bundlePath = path.join(repositoryRoot, 'lynx/dist/main.lynx.bundle');
-  const daemonPath = path.join(repositoryRoot, '.build/main/lynx-daemon-bridge.js');
-  await Promise.all([access(bundlePath), access(daemonPath)]);
+  await access(bundlePath);
 
-  const daemon = spawn(process.execPath, [daemonPath], {
-    cwd: repositoryRoot,
-    stdio: 'inherit',
+  const daemon = createPrimeAgentDaemon({
+    currentCwd: repositoryRoot,
+    daemonEntrypointPath: path.join(
+      import.meta.dirname,
+      'packages/prime-agent-daemon/daemon-runner.js',
+    ),
+    executablePath: process.execPath,
+    sessionNameExtensionPath: path.join(
+      import.meta.dirname,
+      'packages/session-name-hook/index.js',
+    ),
   });
-  let runtime: ChildProcess | null = null;
-  const stop = (): void => {
-    if (runtime !== null) stopChild(runtime);
-    stopChild(daemon);
+  const view = new WindowedLynxView({
+    devicePixelRatio: 1,
+    height: 800,
+    title: 'Ernie + Lynx',
+    width: 1_200,
+  });
+  let closed = false;
+  let revision = 0;
+  let previousPayload = '';
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    view.close();
   };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
+  process.once('SIGINT', close);
+  process.once('SIGTERM', close);
+
+  const receiveRoster = async (): Promise<LynxDaemonRoster> => {
+    const workspace = await Effect.runPromise(daemon.listWorkspace());
+    if (!workspace.ok) {
+      return {
+        activeAgents: [],
+        connection: 'unavailable',
+        currentCwd: repositoryRoot,
+        revision,
+      };
+    }
+    return {
+      activeAgents: workspace.value.sessions.map(projectActiveAgent),
+      connection: 'ready',
+      currentCwd: workspace.value.currentCwd,
+      revision,
+    };
+  };
+
+  const nextRoster = async (): Promise<LynxDaemonRoster> => {
+    const roster = await receiveRoster();
+    const payload = JSON.stringify({
+      activeAgents: roster.activeAgents,
+      connection: roster.connection,
+      currentCwd: roster.currentCwd,
+    });
+    if (payload !== previousPayload) {
+      previousPayload = payload;
+      revision += 1;
+    }
+    return { ...roster, revision };
+  };
 
   try {
-    await waitForDaemon();
-    runtime = spawn('nub', [
-      'dlx',
-      '@lynx-js/node-lynx@0.1.1',
-      'preview',
-      '--template',
-      bundlePath,
-      '--width',
-      '1200',
-      '--height',
-      '800',
-      '--dpr',
-      '1',
-      '--title',
-      'Ernie + Lynx',
-      '--no-debug-router',
-    ], {
-      cwd: repositoryRoot,
-      stdio: 'inherit',
+    const initialRoster = await nextRoster();
+    await view.loadTemplate(await readFile(bundlePath), {
+      initialData: { daemonRoster: initialRoster },
+      url: pathToFileURL(bundlePath).toString(),
     });
+    console.log(
+      `Ernie + Lynx received ${initialRoster.activeAgents.length} active agents from Prime Agent.`,
+    );
+    let deliveredRevision = initialRoster.revision;
 
-    const exitCode = await Promise.race([
-      waitForExit(runtime),
-      waitForExit(daemon),
-    ]);
-    process.exitCode = exitCode;
+    const receiveLoop = (async (): Promise<void> => {
+      while (!closed) {
+        await wait(rosterRefreshMilliseconds);
+        if (closed) return;
+        const roster = await nextRoster();
+        if (roster.revision === deliveredRevision) continue;
+        view.updateData({ daemonRoster: roster });
+        deliveredRevision = roster.revision;
+        console.log(
+          `Ernie + Lynx received ${roster.activeAgents.length} active agents from Prime Agent.`,
+        );
+      }
+    })();
+
+    await view.waitUntilClosed();
+    closed = true;
+    await receiveLoop;
   } finally {
-    stop();
+    closed = true;
+    daemon.close();
+    view.destroy();
+    process.removeListener('SIGINT', close);
+    process.removeListener('SIGTERM', close);
   }
 }
 

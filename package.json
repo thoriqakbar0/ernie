@@ -10,7 +10,6 @@
     "start": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js .",
     "dev": "nub run build:main && nub --node scripts/development.mjs",
     "dev:lynx": "nub run build:main && nub --cwd lynx run build && nub --node .build/main/lynx-host.js",
-    "dev:lynx-daemon": "nub run build:main && nub --node .build/main/lynx-daemon-bridge.js",
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
     "build": "nub run build:main && nub run build:renderer",
@@ -55,6 +54,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.11.2",
+    "@lynx-js/node-lynx": "0.1.1",
     "@oxlint/plugins": "1.78.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.2",

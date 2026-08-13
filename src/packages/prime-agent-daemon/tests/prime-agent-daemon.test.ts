@@ -289,7 +289,14 @@ testInTempDirectory(
         cwd,
         '.prime/agent/skills/interface-audit',
       );
+      const missingSkillDirectory = join(
+        cwd,
+        '.prime/agent/skills/missing-skill',
+      );
       yield* Effect.tryPromise(() => mkdir(skillDirectory, { recursive: true }));
+      yield* Effect.tryPromise(() =>
+        mkdir(missingSkillDirectory, { recursive: true }),
+      );
       yield* Effect.tryPromise(() =>
         writeFile(
           join(skillDirectory, 'SKILL.md'),
@@ -300,6 +307,21 @@ testInTempDirectory(
             '---',
             '',
             'Inspect the interface hierarchy.',
+          ].join('\n'),
+          'utf8',
+        ),
+      );
+      const missingSkillPath = join(missingSkillDirectory, 'SKILL.md');
+      yield* Effect.tryPromise(() =>
+        writeFile(
+          missingSkillPath,
+          [
+            '---',
+            'name: missing-skill',
+            'description: This file will disappear.',
+            '---',
+            '',
+            'This content must never become an empty searchable skill.',
           ].join('\n'),
           'utf8',
         ),
@@ -321,6 +343,7 @@ testInTempDirectory(
       const created = yield* daemon.createSession({ cwd, rlmMaxDepth: 3 });
       assert.equal(created.ok, true);
       if (!created.ok) return;
+      yield* Effect.tryPromise(() => rm(missingSkillPath));
 
       const initialFeedItem = yield* Deferred.make<void>();
       const renamedFeedItem = yield* Deferred.make<void>();
@@ -379,6 +402,10 @@ testInTempDirectory(
             skill.name === 'interface-audit' &&
             skill.content.includes('Inspect the interface hierarchy.'),
         ),
+      );
+      assert.equal(
+        skills.value.some((skill) => skill.name === 'missing-skill'),
+        false,
       );
 
       const searchSkills = createSkillSearch(skills.value);

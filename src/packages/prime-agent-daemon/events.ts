@@ -48,7 +48,7 @@ function failure(): PrimeAgentResult<never> {
   };
 }
 
-function parseFailure(value: JsonValue): PrimeAgentFailure | null {
+function parseFailure(value: JsonValue | undefined): PrimeAgentFailure | null {
   if (!isJsonRecord(value) || !isJsonString(value.message)) return null;
   const code = value.code;
   if (
@@ -65,12 +65,17 @@ function parseFailure(value: JsonValue): PrimeAgentFailure | null {
   return message.length === 0 ? null : { code, message };
 }
 
-function parseView(value: JsonValue): PrimeAgentSessionView | null {
+function parseView(
+  value: JsonValue | undefined,
+): PrimeAgentSessionView | null {
+  if (value === undefined) return null;
   const result = parseSessionViewResult({ ok: true, value });
   return result.ok ? result.value : null;
 }
 
-function parseFeedItem(value: JsonValue): PrimeAgentSessionFeedItem | null {
+function parseFeedItem(
+  value: JsonValue | undefined,
+): PrimeAgentSessionFeedItem | null {
   if (!isJsonRecord(value)) return null;
 
   if (value.kind === 'snapshot') {
@@ -79,6 +84,13 @@ function parseFeedItem(value: JsonValue): PrimeAgentSessionFeedItem | null {
   }
 
   if (value.kind === 'conversation-replaced') {
+    if (
+      value.isStreaming === undefined ||
+      value.messages === undefined ||
+      value.transcript === undefined
+    ) {
+      return null;
+    }
     const view = parseView({
       activeSessionId: 'feed-validation',
       isStreaming: value.isStreaming,
@@ -99,6 +111,7 @@ function parseFeedItem(value: JsonValue): PrimeAgentSessionFeedItem | null {
   }
 
   if (value.kind === 'spawned-sessions-replaced') {
+    if (value.sessions === undefined) return null;
     const view = parseView({
       activeSessionId: 'feed-validation',
       isStreaming: false,
@@ -157,6 +170,7 @@ export function parsePrimeAgentWorkspaceFeedItem(
   if (value.kind !== 'workspace-replaced') {
     return failure();
   }
+  if (value.workspace === undefined) return failure();
   const workspace = parseWorkspaceResult({ ok: true, value: value.workspace });
   return workspace.ok
     ? {

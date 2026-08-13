@@ -182,7 +182,7 @@ export function resolveBrowserAddress(
 
 /** Parse one serialized Browser plugin state update. */
 export function parseBrowserPluginState(
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PluginResult<BrowserPluginState, BrowserPluginOperationError> {
   if (!isJsonRecord(value)) {
     return {

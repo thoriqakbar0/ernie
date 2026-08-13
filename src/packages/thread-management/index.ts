@@ -26,7 +26,9 @@ export const emptyThreadManagementState: ThreadManagementState = {
   repositoryOrder: [],
 };
 
-function parseUniqueStrings(value: JsonValue): readonly string[] | null {
+function parseUniqueStrings(
+  value: JsonValue | undefined,
+): readonly string[] | null {
   if (!Array.isArray(value)) return null;
   const strings = value.filter(
     (item): item is string => isJsonString(item) && item.length > 0,
@@ -36,7 +38,9 @@ function parseUniqueStrings(value: JsonValue): readonly string[] | null {
     : null;
 }
 
-function parseStringRecord(value: JsonValue): Readonly<Record<string, string>> | null {
+function parseStringRecord(
+  value: JsonValue | undefined,
+): Readonly<Record<string, string>> | null {
   if (!isJsonRecord(value)) return null;
   const result: Record<string, string> = {};
   for (const [key, item] of Object.entries(value)) {

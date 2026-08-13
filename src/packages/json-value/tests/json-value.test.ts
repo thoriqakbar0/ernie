@@ -14,9 +14,21 @@ test('narrows serialized boundary values without broad escape hatches', () => {
   assert.equal(isJsonRecord(['ready']), false);
   assert.equal(isJsonString('ready'), true);
   assert.equal(isJsonNumber(1), true);
+  assert.equal(isJsonNumber(Number.NaN), false);
+  assert.equal(isJsonNumber(Number.POSITIVE_INFINITY), false);
   assert.equal(isJsonBoolean(false), true);
   assert.deepEqual(parseJsonValue({ nested: ['ready', 1] }), {
     nested: ['ready', 1],
   });
-  assert.equal(parseJsonValue(Symbol('invalid')), null);
+  for (const invalid of [
+    undefined,
+    Number.NaN,
+    Number.NEGATIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Symbol('invalid'),
+    { nested: undefined },
+    [undefined],
+  ]) {
+    assert.equal(parseJsonValue(invalid), undefined);
+  }
 });

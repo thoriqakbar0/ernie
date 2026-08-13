@@ -8,6 +8,13 @@ type NativeMotionConflict =
   | "onDragStart"
   | "style";
 
+const unsupportedNativeMotionCallbacks = [
+  "onAnimationStart",
+  "onDrag",
+  "onDragEnd",
+  "onDragStart",
+] as const satisfies readonly Exclude<NativeMotionConflict, "style">[];
+
 type MotionCompatibleAttributes<Element extends HTMLElement> = Omit<
   HTMLAttributes<Element>,
   NativeMotionConflict
@@ -23,14 +30,25 @@ function motionStyle(cssStyle: CSSProperties): MotionStyle {
   return style;
 }
 
-/** Remove native callbacks whose names Motion owns with incompatible contracts. */
-export function motionSafeProps<Element extends HTMLElement>({
-  onAnimationStart: _onAnimationStart,
-  onDrag: _onDrag,
-  onDragEnd: _onDragEnd,
-  onDragStart: _onDragStart,
-  style,
-  ...props
-}: HTMLAttributes<Element>): MotionCompatibleAttributes<Element> {
+/** Translate native attributes while rejecting callbacks Motion cannot preserve. */
+export function motionSafeProps<Element extends HTMLElement>(
+  attributes: HTMLAttributes<Element>,
+): MotionCompatibleAttributes<Element> {
+  for (const callback of unsupportedNativeMotionCallbacks) {
+    if (attributes[callback] !== undefined) {
+      throw new TypeError(
+        `${callback} cannot cross a Motion render boundary. Handle it on the owning component.`,
+      );
+    }
+  }
+
+  const {
+    onAnimationStart: _onAnimationStart,
+    onDrag: _onDrag,
+    onDragEnd: _onDragEnd,
+    onDragStart: _onDragStart,
+    style,
+    ...props
+  } = attributes;
   return style === undefined ? props : { ...props, style: motionStyle(style) };
 }

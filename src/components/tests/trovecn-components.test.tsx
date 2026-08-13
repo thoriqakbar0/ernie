@@ -23,6 +23,7 @@ import * as Tabs from '@/components/trovecn/ui/tabs';
 import * as Tooltip from '@/components/trovecn/ui/tooltip';
 import { Conversation } from '@/components/trovecn/ai-workbench/conversation';
 import { PromptComposer } from '@/components/trovecn/ai-workbench/prompt-composer';
+import { motionSafeProps } from '@/components/trovecn/lib/motion-safe-props';
 
 afterEach(cleanup);
 
@@ -164,6 +165,16 @@ test('conversation follows new output to the bottom', () => {
   );
 
   assert.equal(scrollArea.scrollTop, 1_000);
+});
+
+test('Motion boundary rejects native callbacks it cannot preserve', () => {
+  assert.throws(
+    () =>
+      motionSafeProps<HTMLDivElement>({
+        onDrag: () => undefined,
+      }),
+    /onDrag cannot cross a Motion render boundary/u,
+  );
 });
 
 test('conversation renders authored messages', () => {

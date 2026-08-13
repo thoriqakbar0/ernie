@@ -67,14 +67,14 @@ function closedItem(failure: PrimeAgentFailure): PrimeAgentSessionFeedItem {
   return { kind: 'closed', failure };
 }
 
-function recordField(value: JsonValue): JsonRecord | null {
+function recordField(value: JsonValue | undefined): JsonRecord | null {
   return isJsonRecord(value) ? value : null;
 }
 
 function initialProjection(
   activeSessionId: string,
-  snapshotValue: JsonValue,
-  depthValue: JsonValue,
+  snapshotValue: JsonValue | undefined,
+  depthValue: JsonValue | undefined,
 ): SessionProjection | null {
   if (!isJsonRecord(snapshotValue)) return null;
   const state = recordField(snapshotValue.state);
@@ -286,9 +286,15 @@ function applySessionEvent(
     if (event.name !== undefined && !isJsonString(event.name)) return null;
     const sessionName = isJsonString(event.name) ? event.name.trim() : null;
     if (sessionName === '') return null;
+    const state = { ...projection.state };
+    if (sessionName === null) {
+      delete state.sessionName;
+    } else {
+      state.sessionName = sessionName;
+    }
     const next = {
       ...projection,
-      state: { ...projection.state, sessionName: sessionName ?? undefined },
+      state,
     };
     return {
       projection: next,

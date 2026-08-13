@@ -310,7 +310,7 @@ function readRequiredText(record: JsonRecord, key: string): string | null {
 
 function parseCommandContributions(
   pluginId: string,
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PluginResult<readonly PluginCommandContribution[]> {
   if (!Array.isArray(value)) {
     return failed(
@@ -339,7 +339,7 @@ function parseCommandContributions(
 
 function parseViewContributions(
   pluginId: string,
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PluginResult<readonly PluginViewContribution[]> {
   if (!Array.isArray(value)) {
     return failed(
@@ -380,7 +380,7 @@ function parseViewContributions(
 
 function parseActivationEvents(
   pluginId: string,
-  value: JsonValue,
+  value: JsonValue | undefined,
 ): PluginResult<readonly PluginActivationEvent[]> {
   if (!Array.isArray(value)) {
     return failed(

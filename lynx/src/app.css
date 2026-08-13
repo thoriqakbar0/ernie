@@ -121,6 +121,20 @@
   background-color: #292826;
 }
 
+.AgentRow--selected {
+  background-color: #383633;
+  border-left: 2px solid #aaa7a0;
+  padding-left: 6px;
+}
+
+.AgentRow:focus {
+  background-color: #383633;
+}
+
+.AgentRow:active {
+  opacity: 0.8;
+}
+
 .ActivityMark {
   width: 6px;
   height: 6px;

@@ -1,7 +1,9 @@
 import type { ActiveAgent, AgentActivity, DaemonRoster } from './daemon-roster.js'
 
 interface AgentSidebarProps {
+  readonly onSelectAgent: (activeSessionId: string) => void
   readonly roster: DaemonRoster | null
+  readonly selectedAgentId: string | null
 }
 
 const activityLabels = {
@@ -35,7 +37,11 @@ function orderAgents(agents: readonly ActiveAgent[]): readonly ActiveAgent[] {
 }
 
 /** Show the active Prime Agent roster received from the Node host. */
-export function AgentSidebar({ roster }: AgentSidebarProps) {
+export function AgentSidebar({
+  onSelectAgent,
+  roster,
+  selectedAgentId,
+}: AgentSidebarProps) {
   const activeAgents = orderAgents(roster?.activeAgents ?? [])
   const connection = roster?.connection ?? 'unavailable'
   const currentCwd = roster?.currentCwd ?? ''
@@ -79,12 +85,19 @@ export function AgentSidebar({ roster }: AgentSidebarProps) {
                 {connection === 'ready' ? 'No active agents' : 'Prime Agent unavailable'}
               </text>
             </view>
-          ) : activeAgents.map(agent => {
+          ) : activeAgents.map((agent, index) => {
             const activityLabel = activityLabels[agent.activity]
+            const selected = agent.activeSessionId === selectedAgentId
             return (
               <view
-                accessibility-label={`${agent.name}, ${activityLabel ?? agent.activity}`}
-                className={`AgentRow AgentRow--${agent.activity}`}
+                accessibility-element={true}
+                accessibility-label={`${agent.name}, ${activityLabel ?? agent.activity}${selected ? ', selected' : ''}`}
+                accessibility-traits={selected ? 'selected' : 'button'}
+                bindfocus={() => onSelectAgent(agent.activeSessionId)}
+                bindtap={() => onSelectAgent(agent.activeSessionId)}
+                className={`AgentRow AgentRow--${agent.activity} ${selected ? 'AgentRow--selected' : ''}`}
+                focus-index={`0, ${index}`}
+                focusable={true}
                 key={agent.activeSessionId}
               >
                 <view className={`ActivityMark ActivityMark--${agent.activity}`} />

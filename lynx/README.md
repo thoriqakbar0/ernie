@@ -10,7 +10,8 @@ The Lynx boundary validates every roster before accepting it.
 
 The sidebar shows the current workspace and live top-level Agent names. It keeps
 working, queued, needs-input, idle, and settled states from Prime Agent.
-The first slice stays intentionally read-only and unvirtualized.
+The first slice stays intentionally read-only and unvirtualized. Tap an Agent
+row to select it. On desktop, focused rows follow native arrow-key traversal.
 
 Run the native receiver from the repository root:
 

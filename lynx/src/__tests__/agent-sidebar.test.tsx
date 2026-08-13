@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 import { expect, test } from '@rstest/core'
-import { getQueriesForElement, render } from '@lynx-js/react/testing-library'
+import { fireEvent, getQueriesForElement, render } from '@lynx-js/react/testing-library'
 
 import { AgentSidebar } from '../agent-sidebar.js'
 import type { DaemonRoster } from '../daemon-roster.js'
@@ -35,7 +35,13 @@ const roster = {
 } as const satisfies DaemonRoster
 
 test('shows active Agent names and truthful activity summaries', async () => {
-  render(<AgentSidebar roster={roster} />)
+  render(
+    <AgentSidebar
+      onSelectAgent={() => undefined}
+      roster={roster}
+      selectedAgentId={null}
+    />,
+  )
 
   const root = elementTree.root
   if (root === undefined) throw new Error('The Lynx element root is missing.')
@@ -49,11 +55,38 @@ test('shows active Agent names and truthful activity summaries', async () => {
 })
 
 test('shows the connected empty state without inventing Agents', async () => {
-  render(<AgentSidebar roster={{ ...roster, activeAgents: [] }} />)
+  render(
+    <AgentSidebar
+      onSelectAgent={() => undefined}
+      roster={{ ...roster, activeAgents: [] }}
+      selectedAgentId={null}
+    />,
+  )
 
   const root = elementTree.root
   if (root === undefined) throw new Error('The Lynx element root is missing.')
   const screen = getQueriesForElement(root)
 
   expect(await screen.findByText('No active agents')).toBeInTheDocument()
+})
+
+test('selects an Agent through the traversable row boundary', async () => {
+  const selections: string[] = []
+  render(
+    <AgentSidebar
+      onSelectAgent={activeSessionId => selections.push(activeSessionId)}
+      roster={roster}
+      selectedAgentId='working-agent'
+    />,
+  )
+
+  const root = elementTree.root
+  if (root === undefined) throw new Error('The Lynx element root is missing.')
+  const screen = getQueriesForElement(root)
+
+  fireEvent.tap(await screen.findByText('Review daemon contract'))
+
+  expect(selections).toEqual(['input-agent'])
+  expect(root.querySelector('.AgentRow--selected'))
+    .toHaveAttribute('accessibility-label', 'Build Lynx sidebar, working, selected')
 })

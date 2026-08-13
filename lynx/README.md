@@ -17,6 +17,8 @@ Prime Agent workspace boundary as formatted JSON. It also shows the raw JSONL
 session file. The Node host caches unchanged files between roster updates. A
 native desktop scroll view renders metadata and JSONL as two text nodes, keeping
 trackpad scrolling responsive without mounting a native node for every line.
+Long sessions reveal 200 JSONL lines at a time instead of laying out the entire
+file on selection.
 
 Run the native receiver from the repository root:
 

@@ -270,3 +270,24 @@
   color: #85827c;
   font-size: 12px;
 }
+
+.RawSessionMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  margin-top: 18px;
+  border: 1px solid #4a4844;
+  border-radius: 8px;
+  background-color: #302f2d;
+}
+
+.RawSessionMore:focus,
+.RawSessionMore:active {
+  background-color: #3a3835;
+}
+
+.RawSessionMoreText {
+  color: #c9c6bf;
+  font-size: 11px;
+}

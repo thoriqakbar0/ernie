@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 import { expect, test } from '@rstest/core'
-import { getQueriesForElement, render } from '@lynx-js/react/testing-library'
+import { fireEvent, getQueriesForElement, render } from '@lynx-js/react/testing-library'
 
 import { RawSessionPanel } from '../raw-session-panel.js'
 
@@ -44,4 +44,35 @@ test('asks for a selection before showing raw session data', async () => {
   const screen = getQueriesForElement(root)
 
   expect(await screen.findByText('Select an Agent')).toBeInTheDocument()
+})
+
+test('reveals long JSONL in bounded batches', async () => {
+  const jsonlLines = Array.from(
+    { length: 201 },
+    (_, index) => `{"line":${index + 1}}`,
+  )
+  render(
+    <RawSessionPanel
+      session={{
+        activeSessionId: 'long-agent',
+        activity: 'idle',
+        cwd: '/workspace/ernie',
+        model: null,
+        modifiedAt: null,
+        name: 'Long session',
+        sessionJsonl: jsonlLines.join('\n'),
+        sessionPath: '/sessions/long-agent.jsonl',
+      }}
+    />,
+  )
+
+  const root = elementTree.root
+  if (root === undefined) throw new Error('The Lynx element root is missing.')
+  const screen = getQueriesForElement(root)
+
+  expect(screen.queryByText(/"line":201/u)).not.toBeInTheDocument()
+  const showMore = root.querySelector('.RawSessionMore')
+  if (showMore === null) throw new Error('The JSONL show-more action is missing.')
+  fireEvent.tap(showMore)
+  expect(await screen.findByText(/"line":201/u)).toBeInTheDocument()
 })

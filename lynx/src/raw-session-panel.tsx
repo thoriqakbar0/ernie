@@ -1,11 +1,20 @@
+import { useState } from '@lynx-js/react'
+
 import type { ActiveAgent } from './daemon-roster.js'
 
 interface RawSessionPanelProps {
   readonly session: ActiveAgent | null
 }
 
+const jsonlBatchSize = 200
+
 /** Show the complete selected session payload received from Prime Agent. */
 export function RawSessionPanel({ session }: RawSessionPanelProps) {
+  const [visibleWindow, setVisibleWindow] = useState({
+    lineCount: jsonlBatchSize,
+    sessionId: '',
+  })
+
   if (session === null) {
     return (
       <view className='RawSessionPanel RawSessionPanel--empty'>
@@ -28,6 +37,12 @@ export function RawSessionPanel({ session }: RawSessionPanelProps) {
   }
   const metadataText = JSON.stringify(metadata, null, 2) ?? ''
   const jsonlText = session.sessionJsonl?.trimEnd() ?? ''
+  const jsonlLines = jsonlText.length === 0 ? [] : jsonlText.split('\n')
+  const visibleLineCount = visibleWindow.sessionId === session.activeSessionId
+    ? visibleWindow.lineCount
+    : jsonlBatchSize
+  const visibleJsonlText = jsonlLines.slice(0, visibleLineCount).join('\n')
+  const remainingLineCount = Math.max(0, jsonlLines.length - visibleLineCount)
 
   return (
     <view className='RawSessionPanel'>
@@ -47,10 +62,27 @@ export function RawSessionPanel({ session }: RawSessionPanelProps) {
           <text className='RawSessionSectionTitle RawSessionSectionTitle--jsonl'>
             Session JSONL
           </text>
-          {jsonlText.length === 0 ? (
+          {visibleJsonlText.length === 0 ? (
             <text className='RawSessionUnavailable'>Session JSONL is unavailable.</text>
           ) : (
-            <text className='RawSessionBlock'>{jsonlText}</text>
+            <text className='RawSessionBlock'>{visibleJsonlText}</text>
+          )}
+          {remainingLineCount === 0 ? null : (
+            <view
+              accessibility-element={true}
+              accessibility-label={`Show 200 more JSONL lines, ${remainingLineCount} remaining`}
+              accessibility-traits='button'
+              bindtap={() => setVisibleWindow({
+                lineCount: visibleLineCount + jsonlBatchSize,
+                sessionId: session.activeSessionId,
+              })}
+              className='RawSessionMore'
+              focusable={true}
+            >
+              <text className='RawSessionMoreText'>
+                Show 200 more · {remainingLineCount} remaining
+              </text>
+            </view>
           )}
         </view>
       </scroll-view>

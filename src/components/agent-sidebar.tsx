@@ -162,6 +162,22 @@ type SearchResult =
 const recentSettledLimit = 3;
 const collapsedPinLimit = 5;
 const collapsedWorktreeLimit = 5;
+const branchColorClasses = [
+  'text-blue-700 dark:text-blue-300',
+  'text-violet-700 dark:text-violet-300',
+  'text-emerald-700 dark:text-emerald-300',
+  'text-amber-700 dark:text-amber-300',
+  'text-rose-700 dark:text-rose-300',
+  'text-cyan-700 dark:text-cyan-300',
+] as const;
+
+function branchColorClass(branchName: string): string {
+  let hash = 0;
+  for (const character of branchName) {
+    hash = (hash * 31 + character.codePointAt(0)!) >>> 0;
+  }
+  return branchColorClasses[hash % branchColorClasses.length]!;
+}
 
 function conversationFallbackIdentity(cwd: string, name: string): string {
   return `${cwd}\u0000${name}`;
@@ -1374,7 +1390,7 @@ export function AgentSidebar({
                                         }
                                       >
                                         <span
-                                          className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
+                                          className={`min-w-0 flex-1 truncate text-xs font-medium ${branchColorClass(workspaceLabel)}`}
                                           title={workspaceLabel}
                                         >
                                           {workspaceLabel}
@@ -1534,7 +1550,7 @@ export function AgentSidebar({
                             className="size-3.5 shrink-0 text-muted-foreground"
                           />
                           <span
-                            className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+                            className={`min-w-0 flex-1 truncate text-xs ${branchColorClass(branchName)}`}
                             title={`${repository.folder.label} · ${branchName}`}
                           >
                             {branchName}

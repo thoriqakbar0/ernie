@@ -313,6 +313,70 @@ test('linked Git worktrees nest inside their repository', () => {
   );
 });
 
+test('branch labels receive stable distinct colors', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      folders: [
+        {
+          branchName: null,
+          label: 'ernie',
+          repositoryCwd: '/workspace/ernie',
+          value: '/workspace/ernie',
+        },
+        {
+          branchName: 'feat/better-visual-for-chat',
+          label: 'better-visual-for-chat',
+          repositoryCwd: '/workspace/ernie',
+          value: '/workspace/better-visual-for-chat',
+        },
+        {
+          branchName: 'fix/sidebar-color',
+          label: 'sidebar-color',
+          repositoryCwd: '/workspace/ernie',
+          value: '/workspace/sidebar-color',
+        },
+      ],
+      sessions: [
+        {
+          activeSessionId: 'visual-agent',
+          activity: 'idle',
+          cwd: '/workspace/better-visual-for-chat',
+          modifiedAt: null,
+          model: null,
+          name: 'Improve chat visuals',
+          sessionPath: '/sessions/visual-agent.jsonl',
+        },
+        {
+          activeSessionId: 'color-agent',
+          activity: 'idle',
+          cwd: '/workspace/sidebar-color',
+          modifiedAt: null,
+          model: null,
+          name: 'Color branch labels',
+          sessionPath: '/sessions/color-agent.jsonl',
+        },
+      ],
+    },
+  );
+
+  const visualBranch = within(document.body).getByTitle(
+    'feat/better-visual-for-chat',
+  );
+  const colorBranch = within(document.body).getByTitle('fix/sidebar-color');
+
+  assert.match(visualBranch.className, /\btext-amber-700\b/u);
+  assert.match(visualBranch.className, /\bdark:text-amber-300\b/u);
+  assert.match(colorBranch.className, /\btext-blue-700\b/u);
+  assert.match(colorBranch.className, /\bdark:text-blue-300\b/u);
+});
+
 test('selected Agent is the only active row in its repository', () => {
   renderSidebar({
     addRepository: () => undefined,

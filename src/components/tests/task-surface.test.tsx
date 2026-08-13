@@ -85,10 +85,10 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
 
   assert.ok(
     within(document.body).getByRole('heading', {
-      name: 'Everything is a plugin.',
+      name: 'Ernie',
     }),
   );
-  assert.ok(within(document.body).getByText('Ernie core'));
+  assert.ok(within(document.body).getByText('An attempt at RLM-native harnesses.'));
 
   assert.equal(
     within(document.body).getByRole('textbox', { name: 'Give Ernie a task' })

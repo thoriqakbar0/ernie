@@ -2,7 +2,6 @@ import { RefreshCwIcon } from 'lucide-react';
 
 import { AgentChat } from '@/components/agent-chat';
 import { CurrentWorkspace } from '@/components/current-workspace';
-import { JellywareLanding } from '@/components/jellyware-landing';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/trovecn/ui/button';
@@ -43,7 +42,14 @@ export function TaskSurface({
 
         {workspace.selectedSessionId === null ? (
           <div className="flex flex-col gap-6">
-            <JellywareLanding />
+            <header className="border-b border-border/70 pb-6">
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+                Ernie
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                An attempt at RLM-native harnesses.
+              </p>
+            </header>
             <CurrentWorkspace
               busy={workspace.busy || agentUnavailable}
               disabled={agentUnavailable}

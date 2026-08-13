@@ -117,6 +117,8 @@ async function run(): Promise<void> {
       initialData: { daemonRoster: initialRoster },
       url: pathToFileURL(bundlePath).toString(),
     });
+    await view.waitForFrame();
+    await view.flushFrame(100);
     console.log(
       `Ernie + Lynx received ${initialRoster.activeAgents.length} active agents from Prime Agent.`,
     );

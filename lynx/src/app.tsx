@@ -1,18 +1,17 @@
 import { useInitData } from '@lynx-js/react'
 
 import './app.css'
+import { AgentSidebar } from './agent-sidebar.js'
 import { parseDaemonRoster } from './daemon-roster.js'
 
-/** Receive Prime Agent roster updates without rendering product UI. */
+/** Receive Prime Agent roster updates and render the first sidebar data slice. */
 export function App() {
   const roster = parseDaemonRoster(useInitData().daemonRoster)
-  const agentCount = roster?.activeAgents.length ?? 0
-  const connection = roster?.connection ?? 'unavailable'
 
   return (
-    <view
-      accessibility-label={`Prime Agent ${connection}; ${agentCount} active agents received`}
-      className={`DaemonReceiver DaemonReceiver--${connection}`}
-    />
+    <view className='App'>
+      <AgentSidebar roster={roster} />
+      <view className='WorkspaceCanvas' />
+    </view>
   )
 }

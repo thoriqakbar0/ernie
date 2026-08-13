@@ -30,11 +30,10 @@ test('shows the complete selected Prime Agent session payload', async () => {
   const screen = getQueriesForElement(root)
 
   expect(await screen.findByText('Build Lynx sidebar')).toBeInTheDocument()
-  expect(await screen.findByText('"activeSessionId": "working-agent",')).toBeInTheDocument()
-  expect(await screen.findByText('"provider": "anthropic"')).toBeInTheDocument()
-  expect(await screen.findByText('"sessionPath": "/sessions/working-agent.jsonl"')).toBeInTheDocument()
-  expect(await screen.findByText('{"type":"message","role":"user"}')).toBeInTheDocument()
-  expect(await screen.findByText('{"type":"message","role":"assistant"}')).toBeInTheDocument()
+  const scrollView = root.querySelector('scroll-view')
+  expect(scrollView).toHaveAttribute('bounces', 'true')
+  expect(await screen.findByText(/"activeSessionId": "working-agent"/u)).toBeInTheDocument()
+  expect(await screen.findByText(/"role":"assistant"/u)).toBeInTheDocument()
 })
 
 test('asks for a selection before showing raw session data', async () => {

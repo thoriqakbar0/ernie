@@ -238,6 +238,7 @@
 
 .RawSessionScroll {
   flex: 1;
+  min-height: 0;
 }
 
 .RawSessionCode {
@@ -246,7 +247,7 @@
   padding: 20px 24px 32px;
 }
 
-.RawSessionLine {
+.RawSessionBlock {
   color: #c9c6bf;
   font-family: Menlo;
   font-size: 12px;

@@ -26,8 +26,8 @@ export function RawSessionPanel({ session }: RawSessionPanelProps) {
     name: session.name,
     sessionPath: session.sessionPath,
   }
-  const metadataLines = (JSON.stringify(metadata, null, 2) ?? '').split('\n')
-  const jsonlLines = session.sessionJsonl?.split('\n') ?? []
+  const metadataText = JSON.stringify(metadata, null, 2) ?? ''
+  const jsonlText = session.sessionJsonl?.trimEnd() ?? ''
 
   return (
     <view className='RawSessionPanel'>
@@ -36,23 +36,22 @@ export function RawSessionPanel({ session }: RawSessionPanelProps) {
         <text className='RawSessionSubtitle'>Raw Prime Agent session</text>
       </view>
       <scroll-view
+        bounces={true}
         className='RawSessionScroll'
         scroll-bar-enable={true}
         scroll-orientation='vertical'
       >
         <view className='RawSessionCode'>
           <text className='RawSessionSectionTitle'>Session metadata</text>
-          {metadataLines.map((line, index) => (
-            <text className='RawSessionLine' key={`metadata:${index}:${line}`}>{line}</text>
-          ))}
+          <text className='RawSessionBlock'>{metadataText}</text>
           <text className='RawSessionSectionTitle RawSessionSectionTitle--jsonl'>
             Session JSONL
           </text>
-          {jsonlLines.length === 0 ? (
+          {jsonlText.length === 0 ? (
             <text className='RawSessionUnavailable'>Session JSONL is unavailable.</text>
-          ) : jsonlLines.map((line, index) => (
-            <text className='RawSessionLine' key={`jsonl:${index}:${line}`}>{line}</text>
-          ))}
+          ) : (
+            <text className='RawSessionBlock'>{jsonlText}</text>
+          )}
         </view>
       </scroll-view>
     </view>

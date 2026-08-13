@@ -14,7 +14,9 @@ The first slice stays intentionally read-only and unvirtualized. Tap an Agent
 row to select it. On desktop, focused rows follow native arrow-key traversal.
 The open canvas shows the complete selected session object received from the
 Prime Agent workspace boundary as formatted JSON. It also shows the raw JSONL
-session file. The Node host caches unchanged files between roster updates.
+session file. The Node host caches unchanged files between roster updates. A
+native desktop scroll view renders metadata and JSONL as two text nodes, keeping
+trackpad scrolling responsive without mounting a native node for every line.
 
 Run the native receiver from the repository root:
 

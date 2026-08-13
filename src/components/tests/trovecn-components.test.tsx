@@ -108,6 +108,9 @@ test('scroll-to-bottom control stays available and respects reduced motion', asy
     const scrollToBottom = within(document.body).getByRole('button', {
       name: 'Scroll to bottom',
     });
+    assert.equal(conversation.contains(scrollToBottom), false);
+    assert.match(scrollToBottom.className, /absolute/u);
+    assert.match(scrollToBottom.className, /left-1\/2/u);
     await user.click(scrollToBottom);
 
     assert.deepEqual(scrollCalls, [{ behavior: 'auto', top: 1_000 }]);

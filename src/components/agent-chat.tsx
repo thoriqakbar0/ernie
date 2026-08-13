@@ -431,7 +431,7 @@ export function AgentChat({
   onOpenSpawnedSession,
   sessionView,
 }: AgentChatProps): React.JSX.Element {
-  const transcriptRef = useRef<HTMLElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const childrenByParent = useMemo(() => {
     const sessionIds = new Set(
       sessionView.spawnedSessions.map((session) => session.id),
@@ -455,97 +455,99 @@ export function AgentChat({
   );
 
   useLayoutEffect(() => {
-    const scrollArea = transcriptRef.current?.parentElement;
-    if (scrollArea === null || scrollArea === undefined) return;
+    const scrollArea = scrollAreaRef.current;
+    if (scrollArea === null) return;
     scrollArea.scrollTop = scrollArea.scrollHeight;
   }, [sessionView.activeSessionId, sessionView.transcript]);
 
   function scrollToBottom(): void {
-    transcriptRef.current?.parentElement?.scrollTo({
+    const scrollArea = scrollAreaRef.current;
+    if (scrollArea === null) return;
+    scrollArea.scrollTo({
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ? 'auto'
         : 'smooth',
-      top: transcriptRef.current.parentElement.scrollHeight,
+      top: scrollArea.scrollHeight,
     });
   }
 
   return (
-    <section ref={transcriptRef} aria-label="Conversation" className="relative mx-auto w-full max-w-[48rem] select-text pb-6">
-      <div className="flex flex-col gap-6">
-        {blocks.map((block, index) => {
-          if (block.kind === 'execution') {
-            return (
-              <ExecutionRun
-                key={block.id}
-                cells={block.cells}
-              />
-            );
-          }
-          const item = block.item;
-          const followsExecution = blocks[index - 1]?.kind === 'execution';
-          return (
-            <article
-              key={item.id}
-              aria-label={
-                item.role === 'user' ? 'Your message' : 'Agent response'
+    <div className="relative h-full min-h-0">
+      <div ref={scrollAreaRef} className="h-full overflow-y-auto">
+        <section aria-label="Conversation" className="mx-auto w-full max-w-[48rem] select-text pb-16">
+          <div className="flex flex-col gap-6">
+            {blocks.map((block, index) => {
+              if (block.kind === 'execution') {
+                return <ExecutionRun key={block.id} cells={block.cells} />;
               }
-              className={
-                item.role === 'user'
-                  ? 'flex min-w-0 max-w-full justify-end pt-6'
-                  : followsExecution
-                    ? 'max-w-[65ch] border-t-2 border-foreground/15 pt-6 text-foreground'
-                    : 'max-w-[65ch] text-foreground'
-              }
-            >
-              {item.role === 'user' ? (
-                <div className="min-w-0 max-w-[min(88%,32rem)] overflow-hidden rounded-2xl bg-muted px-3.5 py-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                  {item.text}
-                </div>
-              ) : (
-                <ChatMarkdown text={item.text} />
-              )}
-            </article>
-          );
-        })}
-      </div>
+              const item = block.item;
+              const followsExecution =
+                blocks[index - 1]?.kind === 'execution';
+              return (
+                <article
+                  key={item.id}
+                  aria-label={
+                    item.role === 'user' ? 'Your message' : 'Agent response'
+                  }
+                  className={
+                    item.role === 'user'
+                      ? 'flex min-w-0 max-w-full justify-end pt-6'
+                      : followsExecution
+                        ? 'max-w-[65ch] border-t-2 border-foreground/15 pt-6 text-foreground'
+                        : 'max-w-[65ch] text-foreground'
+                  }
+                >
+                  {item.role === 'user' ? (
+                    <div className="min-w-0 max-w-[min(88%,32rem)] overflow-hidden rounded-2xl bg-muted px-3.5 py-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                      {item.text}
+                    </div>
+                  ) : (
+                    <ChatMarkdown text={item.text} />
+                  )}
+                </article>
+              );
+            })}
+          </div>
 
-      {roots.length === 0 ? null : (
-        <section
-          aria-label="Spawned agents"
-          className="mt-10 w-full max-w-[65ch]"
-        >
-          <header className="mb-2 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
-            <h2>Agents</h2>
-            <span
-              aria-label={`${sessionView.spawnedSessions.length} spawned agents`}
-              className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums"
+          {roots.length === 0 ? null : (
+            <section
+              aria-label="Spawned agents"
+              className="mt-10 w-full max-w-[65ch]"
             >
-              {sessionView.spawnedSessions.length}
-            </span>
-          </header>
-          <ul className="flex flex-col gap-1 rounded-xl bg-muted/20 p-1">
-            {roots.map((session) => (
-              <SpawnedSessionBranch
-                key={session.id}
-                session={session}
-                childrenByParent={childrenByParent}
-                onOpenSession={onOpenSpawnedSession}
-              />
-            ))}
-          </ul>
+              <header className="mb-2 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+                <h2>Agents</h2>
+                <span
+                  aria-label={`${sessionView.spawnedSessions.length} spawned agents`}
+                  className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums"
+                >
+                  {sessionView.spawnedSessions.length}
+                </span>
+              </header>
+              <ul className="flex flex-col gap-1 rounded-xl bg-muted/20 p-1">
+                {roots.map((session) => (
+                  <SpawnedSessionBranch
+                    key={session.id}
+                    session={session}
+                    childrenByParent={childrenByParent}
+                    onOpenSession={onOpenSpawnedSession}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
         </section>
-      )}
+      </div>
 
       <Button
         type="button"
         variant="secondary"
         size="sm"
-        className="sticky bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
+        className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md"
         onClick={scrollToBottom}
       >
         <ArrowDownIcon aria-hidden="true" />
         Scroll to bottom
       </Button>
-    </section>
+    </div>
   );
 }

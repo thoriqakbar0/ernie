@@ -72,7 +72,7 @@ export function TaskSurface({
             />
           </div>
         ) : selectedSessionView !== null ? (
-          <div className="min-h-0 w-full flex-1 overflow-y-auto">
+          <div className="min-h-0 w-full flex-1 overflow-hidden">
             <AgentChat
               onOpenSpawnedSession={workspace.openSpawnedSession}
               sessionView={selectedSessionView}

@@ -14,6 +14,7 @@ import {
   setRepositoryLabel,
   setThreadArchived,
   setThreadPinned,
+  setWorkspaceArchived,
 } from '../index';
 
 test('rejects malformed persisted thread preferences', () => {
@@ -37,6 +38,25 @@ test('archives and expands one repository without mutating prior state', () => {
   assert.deepEqual(archived.archivedThreadIds, ['session:/one.jsonl']);
   assert.equal(expanded.expandedRepositoryPath, '/workspace/ernie');
   assert.deepEqual(emptyThreadManagementState.archivedThreadIds, []);
+});
+
+test('archives one branch workspace without changing its Git identity', () => {
+  const archived = setWorkspaceArchived(
+    emptyThreadManagementState,
+    '/workspace/ernie-worktrees/feature/calm-ui',
+    true,
+  );
+  const restored = setWorkspaceArchived(
+    archived,
+    '/workspace/ernie-worktrees/feature/calm-ui',
+    false,
+  );
+
+  assert.deepEqual(archived.archivedWorkspacePaths, [
+    '/workspace/ernie-worktrees/feature/calm-ui',
+  ]);
+  assert.deepEqual(restored.archivedWorkspacePaths, []);
+  assert.deepEqual(emptyThreadManagementState.archivedWorkspacePaths, []);
 });
 
 test('loads legacy preferences without pinned threads', () => {

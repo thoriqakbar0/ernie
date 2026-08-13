@@ -2,6 +2,7 @@ import { RefreshCwIcon } from 'lucide-react';
 
 import { AgentChat } from '@/components/agent-chat';
 import { CurrentWorkspace } from '@/components/current-workspace';
+import { JellywareLanding } from '@/components/jellyware-landing';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/trovecn/ui/button';
@@ -30,37 +31,40 @@ export function TaskSurface({
       className={
         chatVisible
           ? 'flex h-full min-h-0 w-full flex-col'
-          : 'w-full py-[clamp(1rem,12vh,6rem)]'
+          : 'w-full py-[clamp(1.5rem,5vh,3.5rem)]'
       }
     >
       <Field
-        className={`mx-auto w-full gap-2 ${chatVisible ? 'min-h-0 max-w-none flex-1' : 'max-w-[50rem]'}`}
+        className={`mx-auto w-full gap-2 ${chatVisible ? 'min-h-0 max-w-none flex-1' : 'max-w-[62rem]'}`}
       >
         <FieldLabel htmlFor="task" className="sr-only">
           Give Ernie a task
         </FieldLabel>
 
         {workspace.selectedSessionId === null ? (
-          <CurrentWorkspace
-            busy={workspace.busy || agentUnavailable}
-            disabled={agentUnavailable}
-            folders={workspace.folders}
-            gitBranch={workspace.gitBranch}
-            gitBranchBusy={workspace.gitBranchBusy}
-            gitBranches={workspace.gitBranches}
-            gitWorktreeError={workspace.gitWorktreeError}
-            loadingWorkspace={workspace.loadingWorkspace}
-            rlmMaxDepth={workspace.rlmMaxDepth}
-            rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
-            selectedCwd={workspace.selectedCwd}
-            changeFolder={workspace.changeFolder}
-            chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
-            changeGitBranch={workspace.changeGitBranch}
-            changeRlmMaxDepth={workspace.changeRlmMaxDepth}
-            deleteGitBranch={workspace.deleteGitBranch}
-            initializeGitRepository={workspace.initializeGitRepository}
-            createGitWorktree={workspace.createGitWorktree}
-          />
+          <div className="flex flex-col gap-6">
+            <JellywareLanding />
+            <CurrentWorkspace
+              busy={workspace.busy || agentUnavailable}
+              disabled={agentUnavailable}
+              folders={workspace.folders}
+              gitBranch={workspace.gitBranch}
+              gitBranchBusy={workspace.gitBranchBusy}
+              gitBranches={workspace.gitBranches}
+              gitWorktreeError={workspace.gitWorktreeError}
+              loadingWorkspace={workspace.loadingWorkspace}
+              rlmMaxDepth={workspace.rlmMaxDepth}
+              rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
+              selectedCwd={workspace.selectedCwd}
+              changeFolder={workspace.changeFolder}
+              chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
+              changeGitBranch={workspace.changeGitBranch}
+              changeRlmMaxDepth={workspace.changeRlmMaxDepth}
+              deleteGitBranch={workspace.deleteGitBranch}
+              initializeGitRepository={workspace.initializeGitRepository}
+              createGitWorktree={workspace.createGitWorktree}
+            />
+          </div>
         ) : selectedSessionView !== null ? (
           <div className="min-h-0 w-full flex-1 overflow-y-auto">
             <AgentChat

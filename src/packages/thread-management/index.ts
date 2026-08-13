@@ -6,6 +6,7 @@ import {
 
 /** Durable, reversible organization for Ernie's thread sidebar. */
 export interface ThreadManagementState {
+  readonly archivedWorkspacePaths: readonly string[];
   readonly archivedThreadIds: readonly string[];
   readonly expandedRepositoryPath: string | null;
   readonly hiddenRepositoryPaths: readonly string[];
@@ -17,6 +18,7 @@ export interface ThreadManagementState {
 
 /** The safe initial state when no thread preferences exist. */
 export const emptyThreadManagementState: ThreadManagementState = {
+  archivedWorkspacePaths: [],
   archivedThreadIds: [],
   expandedRepositoryPath: null,
   hiddenRepositoryPaths: [],
@@ -61,6 +63,10 @@ export function parseThreadManagementState(
   }
 
   const archivedThreadIds = parseUniqueStrings(value.archivedThreadIds);
+  const archivedWorkspacePaths =
+    value.archivedWorkspacePaths === undefined
+      ? []
+      : parseUniqueStrings(value.archivedWorkspacePaths);
   const hiddenRepositoryPaths =
     value.hiddenRepositoryPaths === undefined
       ? []
@@ -87,6 +93,7 @@ export function parseThreadManagementState(
         : undefined;
   if (
     archivedThreadIds === null ||
+    archivedWorkspacePaths === null ||
     hiddenRepositoryPaths === null ||
     pinnedThreadIds === null ||
     repositoryLabels === null ||
@@ -110,12 +117,29 @@ export function parseThreadManagementState(
 
   return {
     archivedThreadIds,
+    archivedWorkspacePaths,
     expandedRepositoryPath,
     hiddenRepositoryPaths,
     orderByRepository,
     pinnedThreadIds,
     repositoryLabels,
     repositoryOrder,
+  };
+}
+
+/** Hide or restore one branch-backed workspace without changing Git. */
+export function setWorkspaceArchived(
+  state: ThreadManagementState,
+  workspacePath: string,
+  archived: boolean,
+): ThreadManagementState {
+  return {
+    ...state,
+    archivedWorkspacePaths: updateMembership(
+      state.archivedWorkspacePaths,
+      workspacePath,
+      archived,
+    ),
   };
 }
 

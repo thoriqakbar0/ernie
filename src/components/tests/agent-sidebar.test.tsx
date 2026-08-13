@@ -39,11 +39,6 @@ interface SidebarFixtureOverrides {
 function renderSidebar(actions: {
   readonly addRepository: () => Promise<string | null> | string | null | void;
   readonly changeFolder?: (cwd: string | null) => void;
-  readonly deleteGitBranch?: (
-    name: string,
-    repositoryCwd?: string,
-    worktreeCwd?: string,
-  ) => void;
   readonly startAgentDraft: (cwd: string) => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
@@ -128,7 +123,6 @@ function renderSidebar(actions: {
           sessions={sessions}
           savedSessions={savedSessions}
           changeFolder={actions.changeFolder ?? (() => undefined)}
-          deleteGitBranch={actions.deleteGitBranch ?? (() => undefined)}
           addWorkspaceDirectory={async () =>
             (await actions.addRepository()) ?? null
           }
@@ -873,7 +867,7 @@ test('archived threads remain recoverable from undo and the archive', async () =
     null,
   );
   const archive = within(document.body).getByRole('region', {
-    name: 'Archived conversations',
+    name: 'Archived sidebar items',
   });
   await user.click(within(archive).getByRole('button', { name: 'Archived (1)' }));
   assert.ok(
@@ -1071,41 +1065,45 @@ test('thread actions open from a right-click context menu', () => {
   );
 });
 
-test('worktree context menu confirms branch and worktree deletion', async () => {
+test('worktree context menu archives and restores the branch in the sidebar', async () => {
   const user = userEvent.setup();
-  const deletions: string[][] = [];
-  const originalConfirm = window.confirm;
-  window.confirm = () => true;
-  try {
-    renderSidebar({
-      addRepository: () => undefined,
-      deleteGitBranch: (name, repositoryCwd, worktreeCwd) => {
-        deletions.push([name, repositoryCwd ?? '', worktreeCwd ?? '']);
-      },
-      startAgentDraft: () => undefined,
-      importSession: () => undefined,
-      renameSession: () => undefined,
-      selectSession: () => undefined,
-    });
-    const worktree = within(document.body).getByRole('listitem', {
+  renderSidebar({
+    addRepository: () => undefined,
+    startAgentDraft: () => undefined,
+    importSession: () => undefined,
+    renameSession: () => undefined,
+    selectSession: () => undefined,
+  });
+  const worktree = within(document.body).getByRole('listitem', {
+    name: 'feature/calm-ui worktree',
+  });
+  const trigger = worktree.querySelector('[data-slot="context-menu-trigger"]');
+  assert.ok(trigger);
+
+  fireEvent.contextMenu(trigger);
+  await user.click(
+    within(document.body).getByRole('menuitem', { name: 'Archive branch' }),
+  );
+
+  assert.equal(
+    within(document.body).queryByRole('listitem', {
       name: 'feature/calm-ui worktree',
-    });
-    const trigger = worktree.querySelector('[data-slot="context-menu-trigger"]');
-    assert.ok(trigger);
-
-    fireEvent.contextMenu(trigger);
-    await user.click(
-      within(document.body).getByRole('menuitem', { name: 'Delete branch…' }),
-    );
-
-    assert.deepEqual(deletions, [[
-      'feature/calm-ui',
-      '/workspace/ernie',
-      '/workspace/ernie-worktrees/feature/calm-ui',
-    ]]);
-  } finally {
-    window.confirm = originalConfirm;
-  }
+    }),
+    null,
+  );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Archived (1)' }),
+  );
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Restore feature/calm-ui branch',
+    }),
+  );
+  assert.ok(
+    within(document.body).getByRole('listitem', {
+      name: 'feature/calm-ui worktree',
+    }),
+  );
 });
 
 test('repository context menu renames the display label only', async () => {

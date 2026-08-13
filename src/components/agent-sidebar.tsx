@@ -1390,7 +1390,7 @@ export function AgentSidebar({
                                         }
                                       >
                                         <span
-                                          className={`min-w-0 flex-1 truncate text-xs font-medium ${branchColorClass(workspaceLabel)}`}
+                                          className={`min-w-0 flex-1 truncate font-mono text-xs font-medium ${branchColorClass(workspaceLabel)}`}
                                           title={workspaceLabel}
                                         >
                                           {workspaceLabel}
@@ -1550,7 +1550,7 @@ export function AgentSidebar({
                             className="size-3.5 shrink-0 text-muted-foreground"
                           />
                           <span
-                            className={`min-w-0 flex-1 truncate text-xs ${branchColorClass(branchName)}`}
+                            className={`min-w-0 flex-1 truncate font-mono text-xs ${branchColorClass(branchName)}`}
                             title={`${repository.folder.label} · ${branchName}`}
                           >
                             {branchName}

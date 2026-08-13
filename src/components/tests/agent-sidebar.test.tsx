@@ -373,6 +373,7 @@ test('branch labels receive stable distinct colors', () => {
 
   assert.match(visualBranch.className, /\btext-amber-700\b/u);
   assert.match(visualBranch.className, /\bdark:text-amber-300\b/u);
+  assert.match(visualBranch.className, /\bfont-mono\b/u);
   assert.match(colorBranch.className, /\btext-blue-700\b/u);
   assert.match(colorBranch.className, /\bdark:text-blue-300\b/u);
 });

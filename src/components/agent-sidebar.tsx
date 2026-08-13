@@ -69,6 +69,7 @@ import type {
 import { useThreadManagement } from '@/hooks/use-thread-management';
 import type { PrimeAgentSessionActivity } from '@/packages/prime-agent-daemon/client';
 import {
+  hasUnseenThreadActivity,
   movePinnedThread,
   moveRepositoryThread,
   orderRepositoryPaths,
@@ -79,7 +80,9 @@ import {
   setRepositoryLabel,
   setThreadArchived,
   setThreadPinned,
+  setThreadViewedAt,
   setWorkspaceArchived,
+  type ThreadManagementState,
 } from '@/packages/thread-management';
 
 type AgentSidebarProps = Pick<
@@ -220,10 +223,22 @@ function rawConversationActivity(
 function conversationActivity(
   conversation: ThreadConversation,
   connected: boolean,
+  management: ThreadManagementState,
 ): PrimeAgentSessionActivity {
   const activity = rawConversationActivity(conversation);
-  if (connected || activity === 'settled') return activity;
-  return 'idle';
+  if (!connected && activity !== 'settled') return 'idle';
+  if (activity === 'working' || activity === 'queued') return activity;
+  if (conversation.session.modifiedAt === null) return activity;
+  if (
+    hasUnseenThreadActivity(
+      management,
+      threadConversationId(conversation),
+      conversation.session.modifiedAt,
+    )
+  ) {
+    return 'needs_input';
+  }
+  return 'settled';
 }
 
 function activityOrder(activity: PrimeAgentSessionActivity): number {
@@ -375,6 +390,24 @@ export function AgentSidebar({
     : selectedLiveSession === undefined
       ? null
       : threadConversationId({ kind: 'live', session: selectedLiveSession });
+
+  useEffect(() => {
+    if (
+      selectedThreadId === null ||
+      selectedLiveSession === undefined ||
+      selectedLiveSession.modifiedAt === null
+    ) {
+      return;
+    }
+    const viewedAt = selectedLiveSession.modifiedAt;
+    setManagement((current) =>
+      setThreadViewedAt(
+        current,
+        selectedThreadId,
+        viewedAt,
+      ),
+    );
+  }, [selectedLiveSession?.modifiedAt, selectedThreadId, setManagement]);
 
   useEffect(() => {
     const openSearch = (event: globalThis.KeyboardEvent): void => {
@@ -702,8 +735,12 @@ export function AgentSidebar({
         if (exactDifference !== 0) return exactDifference;
         if (left.kind === 'Agent' && right.kind === 'Agent') {
           const statusDifference =
-            activityOrder(conversationActivity(left.conversation, connected)) -
-            activityOrder(conversationActivity(right.conversation, connected));
+            activityOrder(
+              conversationActivity(left.conversation, connected, management),
+            ) -
+            activityOrder(
+              conversationActivity(right.conversation, connected, management),
+            );
           if (statusDifference !== 0) return statusDifference;
           return modifiedTime(right.conversation) - modifiedTime(left.conversation);
         }
@@ -763,7 +800,7 @@ export function AgentSidebar({
     const importing =
       conversation.kind === 'saved' &&
       importingSessionPath === conversation.session.path;
-    const activity = conversationActivity(conversation, connected);
+    const activity = conversationActivity(conversation, connected, management);
     const label = conversationLabel(conversation, sessionPreviews);
     const conversationIndex = visibleConversations.findIndex(
       (candidate) => threadConversationId(candidate) === id,
@@ -1067,18 +1104,32 @@ export function AgentSidebar({
                       );
                     const workingCount = unarchived.filter(
                       (conversation) =>
-                        conversationActivity(conversation, connected) === 'working',
+                        conversationActivity(
+                          conversation,
+                          connected,
+                          management,
+                        ) ===
+                        'working',
                     ).length;
                     const needsInputCount = unarchived.filter(
                       (conversation) =>
-                        conversationActivity(conversation, connected) ===
+                        conversationActivity(
+                          conversation,
+                          connected,
+                          management,
+                        ) ===
                         'needs_input',
                     ).length;
                     const settled = unarchived
                       .filter(
                         (conversation) =>
                           !pinnedThreadIds.has(threadConversationId(conversation)) &&
-                          conversationActivity(conversation, connected) === 'settled',
+                          conversationActivity(
+                            conversation,
+                            connected,
+                            management,
+                          ) ===
+                          'settled',
                       )
                       .sort((left, right) => modifiedTime(right) - modifiedTime(left));
                     const recentSettled = settled.slice(0, recentSettledLimit);
@@ -1109,7 +1160,11 @@ export function AgentSidebar({
                           return false;
                         }
                         return (
-                          conversationActivity(conversation, connected) !==
+                          conversationActivity(
+                            conversation,
+                            connected,
+                            management,
+                          ) !==
                             'settled' || visibleSettledIds.has(id)
                         );
                       });
@@ -1130,6 +1185,7 @@ export function AgentSidebar({
                             const activity = conversationActivity(
                               conversation,
                               connected,
+                              management,
                             );
                             return (
                               activity === 'working' ||
@@ -1316,12 +1372,20 @@ export function AgentSidebar({
                                 );
                                 const workspaceWorkingCount = workspaceUnarchived.filter(
                                   (conversation) =>
-                                    conversationActivity(conversation, connected) ===
+                                    conversationActivity(
+                                      conversation,
+                                      connected,
+                                      management,
+                                    ) ===
                                     'working',
                                 ).length;
                                 const workspaceNeedsInputCount = workspaceUnarchived.filter(
                                   (conversation) =>
-                                    conversationActivity(conversation, connected) ===
+                                    conversationActivity(
+                                      conversation,
+                                      connected,
+                                      management,
+                                    ) ===
                                     'needs_input',
                                 ).length;
                                 return (

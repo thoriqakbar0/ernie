@@ -10,6 +10,7 @@ export interface ThreadManagementState {
   readonly archivedThreadIds: readonly string[];
   readonly expandedRepositoryPath: string | null;
   readonly hiddenRepositoryPaths: readonly string[];
+  readonly lastViewedAtByThread: Readonly<Record<string, string>>;
   readonly orderByRepository: Readonly<Record<string, readonly string[]>>;
   readonly pinnedThreadIds: readonly string[];
   readonly repositoryLabels: Readonly<Record<string, string>>;
@@ -22,6 +23,7 @@ export const emptyThreadManagementState: ThreadManagementState = {
   archivedThreadIds: [],
   expandedRepositoryPath: null,
   hiddenRepositoryPaths: [],
+  lastViewedAtByThread: {},
   orderByRepository: {},
   pinnedThreadIds: [],
   repositoryLabels: {},
@@ -54,6 +56,18 @@ function parseStringRecord(
   return result;
 }
 
+function parseTimestampRecord(
+  value: JsonValue | undefined,
+): Readonly<Record<string, string>> | null {
+  const record = parseStringRecord(value);
+  if (record === null) return null;
+  return Object.values(record).every((timestamp) =>
+    Number.isFinite(Date.parse(timestamp)),
+  )
+    ? record
+    : null;
+}
+
 /** Parse unknown persisted preferences into valid thread-management state. */
 export function parseThreadManagementState(
   value: JsonValue,
@@ -75,6 +89,10 @@ export function parseThreadManagementState(
     value.pinnedThreadIds === undefined
       ? []
       : parseUniqueStrings(value.pinnedThreadIds);
+  const lastViewedAtByThread =
+    value.lastViewedAtByThread === undefined
+      ? {}
+      : parseTimestampRecord(value.lastViewedAtByThread);
   const repositoryLabels =
     value.repositoryLabels === undefined
       ? {}
@@ -96,6 +114,7 @@ export function parseThreadManagementState(
     archivedWorkspacePaths === null ||
     hiddenRepositoryPaths === null ||
     pinnedThreadIds === null ||
+    lastViewedAtByThread === null ||
     repositoryLabels === null ||
     repositoryOrder === null ||
     expandedRepositoryPath === undefined ||
@@ -120,11 +139,49 @@ export function parseThreadManagementState(
     archivedWorkspacePaths,
     expandedRepositoryPath,
     hiddenRepositoryPaths,
+    lastViewedAtByThread,
     orderByRepository,
     pinnedThreadIds,
     repositoryLabels,
     repositoryOrder,
   };
+}
+
+/** Record the newest Agent activity that the user has viewed. */
+export function setThreadViewedAt(
+  state: ThreadManagementState,
+  threadId: string,
+  viewedAt: string,
+): ThreadManagementState {
+  const viewedTime = Date.parse(viewedAt);
+  if (!Number.isFinite(viewedTime)) return state;
+  const current = state.lastViewedAtByThread[threadId];
+  if (current !== undefined && Date.parse(current) >= viewedTime) return state;
+  return {
+    ...state,
+    lastViewedAtByThread: {
+      ...state.lastViewedAtByThread,
+      [threadId]: viewedAt,
+    },
+  };
+}
+
+/** Return whether one Agent changed after the user last viewed it. */
+export function hasUnseenThreadActivity(
+  state: ThreadManagementState,
+  threadId: string,
+  activityAt: string | null,
+): boolean {
+  if (activityAt === null) return false;
+  const lastViewedAt = state.lastViewedAtByThread[threadId];
+  if (lastViewedAt === undefined) return false;
+  const activityTime = Date.parse(activityAt);
+  const viewedTime = Date.parse(lastViewedAt);
+  return (
+    Number.isFinite(activityTime) &&
+    Number.isFinite(viewedTime) &&
+    activityTime > viewedTime
+  );
 }
 
 /** Hide or restore one branch-backed workspace without changing Git. */

@@ -588,6 +588,98 @@ test('Agents are grouped by truthful status without an active filter', () => {
   ]);
 });
 
+test('idle Agent needs input only after unseen output arrives', async () => {
+  window.localStorage.setItem(
+    'ernie:thread-management:v1',
+    JSON.stringify({
+      archivedThreadIds: [],
+      lastViewedAtByThread: {
+        'session:/sessions/unseen-agent.jsonl': '2026-08-13T02:00:00.000Z',
+      },
+      orderByRepository: {},
+    }),
+  );
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      savedSessions: [],
+      selectedSessionId: null,
+      sessions: [
+        {
+          activeSessionId: 'unseen-agent',
+          activity: 'idle',
+          cwd: '/workspace/ernie',
+          modifiedAt: '2026-08-13T02:01:00.000Z',
+          model: null,
+          name: 'Unseen Agent output',
+          sessionPath: '/sessions/unseen-agent.jsonl',
+        },
+      ],
+    },
+  );
+
+  await waitFor(() => {
+    assert.equal(
+      within(document.body)
+        .getByRole('button', { name: 'Unseen Agent output' })
+        .getAttribute('aria-description'),
+      'needs input',
+    );
+  });
+});
+
+test('viewing an Agent clears its unseen-output attention', async () => {
+  window.localStorage.setItem(
+    'ernie:thread-management:v1',
+    JSON.stringify({
+      archivedThreadIds: [],
+      lastViewedAtByThread: {
+        'session:/sessions/viewed-agent.jsonl': '2026-08-13T02:00:00.000Z',
+      },
+      orderByRepository: {},
+    }),
+  );
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    {
+      savedSessions: [],
+      selectedSessionId: 'viewed-agent',
+      sessions: [
+        {
+          activeSessionId: 'viewed-agent',
+          activity: 'idle',
+          cwd: '/workspace/ernie',
+          modifiedAt: '2026-08-13T02:01:00.000Z',
+          model: null,
+          name: 'Viewed Agent output',
+          sessionPath: '/sessions/viewed-agent.jsonl',
+        },
+      ],
+    },
+  );
+
+  await waitFor(() => {
+    assert.equal(
+      within(document.body)
+        .getByRole('button', { name: 'Viewed Agent output' })
+        .getAttribute('aria-description'),
+      null,
+    );
+  });
+});
+
 test('live status changes do not reorder Agent rows', () => {
   renderSidebar(
     {

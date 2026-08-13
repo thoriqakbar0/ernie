@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
   emptyThreadManagementState,
+  hasUnseenThreadActivity,
   movePinnedThread,
   moveRepositoryThread,
   orderRepositoryPaths,
@@ -14,8 +15,42 @@ import {
   setRepositoryLabel,
   setThreadArchived,
   setThreadPinned,
+  setThreadViewedAt,
   setWorkspaceArchived,
 } from '../index';
+
+test('tracks unseen Agent output with a monotonic viewed watermark', () => {
+  const viewed = setThreadViewedAt(
+    emptyThreadManagementState,
+    'session:/one.jsonl',
+    '2026-08-13T02:00:00.000Z',
+  );
+
+  assert.equal(
+    hasUnseenThreadActivity(
+      viewed,
+      'session:/one.jsonl',
+      '2026-08-13T02:01:00.000Z',
+    ),
+    true,
+  );
+  assert.equal(
+    hasUnseenThreadActivity(
+      viewed,
+      'session:/one.jsonl',
+      '2026-08-13T02:00:00.000Z',
+    ),
+    false,
+  );
+  assert.equal(
+    setThreadViewedAt(
+      viewed,
+      'session:/one.jsonl',
+      '2026-08-13T01:59:00.000Z',
+    ),
+    viewed,
+  );
+});
 
 test('rejects malformed persisted thread preferences', () => {
   assert.deepEqual(

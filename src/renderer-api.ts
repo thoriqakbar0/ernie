@@ -21,6 +21,18 @@ export const agentHarnessChannel = 'ernie:daemon:harness';
 /** IPC channel that lists live sessions from the Prime Agent daemon. */
 export const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 
+/** IPC channel that starts the daemon-owned workspace feed. */
+export const primeAgentWorkspaceFeedStartChannel =
+  'ernie:prime-agent:workspace-feed:start';
+
+/** IPC channel that stops the daemon-owned workspace feed. */
+export const primeAgentWorkspaceFeedStopChannel =
+  'ernie:prime-agent:workspace-feed:stop';
+
+/** IPC channel carrying daemon-owned workspace changes. */
+export const primeAgentWorkspaceFeedEventChannel =
+  'ernie:prime-agent:workspace-feed:event';
+
 /** IPC channel that creates one fresh Agent session in a workspace. */
 export const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
 
@@ -108,6 +120,8 @@ export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
   describeAgentHarness: () => Promise<JsonValue>;
   listAgentWorkspace: () => Promise<JsonValue>;
+  watchAgentWorkspace: (listener: (value: JsonValue) => void) => string;
+  unwatchAgentWorkspace: (subscriptionId: string) => void;
   createAgentSession: (
     creation: AgentSessionCreation,
   ) => Promise<JsonValue>;

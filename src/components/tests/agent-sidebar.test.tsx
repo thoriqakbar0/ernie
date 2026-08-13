@@ -24,7 +24,11 @@ afterEach(() => {
 interface SidebarFixtureOverrides {
   readonly folders?: readonly PrimeAgentFolderChoice[];
   readonly importingSessionPath?: string | null;
-  readonly primeAgentConnection?: 'connecting' | 'ready' | 'unavailable';
+  readonly primeAgentConnection?:
+    | 'connecting'
+    | 'ready'
+    | 'reconnecting'
+    | 'unavailable';
   readonly savedSessions?: readonly PrimeAgentSavedSession[];
   readonly sessionPreviews?: Readonly<Record<string, string>>;
   readonly selectedCwd?: string;

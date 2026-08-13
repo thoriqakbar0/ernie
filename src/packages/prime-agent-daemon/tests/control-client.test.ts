@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import type {
   DaemonCommand,
+  DaemonOutbound,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
 import { Effect } from 'effect';
@@ -19,6 +20,7 @@ class FakeControlTransport implements PrimeAgentControlTransport {
   connectCount = 0;
   commands: DaemonCommand[] = [];
   reconnectStatus: ((status: PrimeAgentReconnectStatus) => void) | undefined;
+  messageListener: ((message: DaemonOutbound) => void) | undefined;
 
   close(): void {
     this.closeCount += 1;
@@ -34,6 +36,13 @@ class FakeControlTransport implements PrimeAgentControlTransport {
     readonly onStatus?: (status: PrimeAgentReconnectStatus) => void;
   }): void {
     this.reconnectStatus = options.onStatus;
+  }
+
+  onMessage(listener: Parameters<PrimeAgentControlTransport['onMessage']>[0]): () => void {
+    this.messageListener = listener;
+    return () => {
+      if (this.messageListener === listener) this.messageListener = undefined;
+    };
   }
 
   async request(command: DaemonCommand): Promise<DaemonResponse> {
@@ -68,6 +77,10 @@ test('shares one connected Prime Agent command transport', async () => {
     reconnectTimeoutMs: 1_000,
     reportFailure: () => undefined,
   });
+  const states: string[] = [];
+  const unsubscribe = client.subscribe((event) => {
+    if (event.kind === 'connection-changed') states.push(event.state);
+  });
 
   const responses = await Effect.runPromise(
     Effect.all(
@@ -88,10 +101,38 @@ test('shares one connected Prime Agent command transport', async () => {
     'list_saved_sessions',
   ]);
   assert.equal(client.state(), 'ready');
+  assert.deepEqual(states, ['cold', 'connecting', 'ready']);
 
   client.close();
   assert.equal(transport.closeCount, 1);
   assert.equal(client.state(), 'closed');
+  assert.deepEqual(states, ['cold', 'connecting', 'ready', 'closed']);
+  unsubscribe();
+});
+
+test('forwards global daemon messages through the shared control client', async () => {
+  const transport = new FakeControlTransport();
+  const client = createPrimeAgentControlClient({
+    connectTimeoutMs: 100,
+    createTransport: async () => transport,
+    recoverDaemon: async () => undefined,
+    reconnectTimeoutMs: 1_000,
+    reportFailure: () => undefined,
+  });
+  const messageTypes: string[] = [];
+  client.subscribe((event) => {
+    if (event.kind === 'message') messageTypes.push(event.message.type);
+  });
+
+  await Effect.runPromise(client.request({ type: 'list' }, 100));
+  transport.messageListener?.({
+    activeSessionId: 'agent-1',
+    type: 'session_status',
+  } as DaemonOutbound);
+
+  assert.deepEqual(messageTypes, ['session_status']);
+  client.close();
+  assert.equal(transport.messageListener, undefined);
 });
 
 test('waits for Prime Agent recovery before sending a new command', async () => {

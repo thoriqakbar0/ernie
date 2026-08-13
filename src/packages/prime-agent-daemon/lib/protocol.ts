@@ -550,9 +550,22 @@ function parseSessionActivity(
 ): PrimeAgentSessionActivity | null {
   const activity = value.activity;
   const sessionActions = value.sessionActions;
+  const activeAction = isJsonRecord(sessionActions)
+    ? sessionActions.active
+    : undefined;
+  const validActiveAction =
+    activeAction === undefined ||
+    (isJsonRecord(activeAction) &&
+      (activeAction.phase === 'preparing' ||
+        activeAction.phase === 'committing' ||
+        activeAction.phase === 'running'));
   if (
     (activity !== 'working' && activity !== 'idle') ||
+    !isJsonBoolean(value.isSessionActive) ||
+    !isJsonBoolean(value.isStreaming) ||
+    !isJsonBoolean(value.isCompacting) ||
     !isJsonRecord(sessionActions) ||
+    !validActiveAction ||
     !isJsonNumber(sessionActions.queuedCount) ||
     !Number.isSafeInteger(sessionActions.queuedCount) ||
     sessionActions.queuedCount < 0 ||
@@ -563,7 +576,14 @@ function parseSessionActivity(
     return null;
   }
 
-  if (activity === 'working') return 'working';
+  const hasConcreteWork =
+    value.isStreaming ||
+    value.isCompacting ||
+    value.isBashRunning === true ||
+    value.hasRunningRlmChildren === true ||
+    activeAction !== undefined ||
+    (value.isSessionActive && sessionActions.queuedCount === 0);
+  if (hasConcreteWork) return 'working';
   if (sessionActions.queuedCount > 0) return 'queued';
   if (value.taskState === 'needs_input') return 'needs_input';
   return value.taskState === 'completed' ? 'settled' : 'idle';

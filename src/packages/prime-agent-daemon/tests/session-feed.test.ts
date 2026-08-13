@@ -6,9 +6,36 @@ import {
   coalescePrimeAgentSessionFeedItems,
   createPrimeAgentSessionFeedState,
   parsePrimeAgentSessionFeedEnvelope,
+  parsePrimeAgentWorkspaceFeedItem,
   primeAgentSessionFeedView,
   reducePrimeAgentSessionFeed,
 } from '../events';
+
+test('parses daemon-owned workspace feed items at the renderer boundary', () => {
+  assert.deepEqual(
+    parsePrimeAgentWorkspaceFeedItem({
+      kind: 'workspace-replaced',
+      workspace: {
+        currentCwd: '/workspace',
+        sessions: [],
+      },
+    }),
+    {
+      ok: true,
+      value: {
+        kind: 'workspace-replaced',
+        workspace: { currentCwd: '/workspace', sessions: [] },
+      },
+    },
+  );
+  assert.equal(
+    parsePrimeAgentWorkspaceFeedItem({
+      kind: 'connection-changed',
+      status: 'closed',
+    }).ok,
+    false,
+  );
+});
 import {
   createPrimeAgentSessionFeed,
   type PrimeAgentSessionFeedConnection,

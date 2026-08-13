@@ -35,6 +35,7 @@ function fakeHarness(): AgentHarness {
     setModel: unsupported,
     setRlmDepth: unsupported,
     submitTask: unsupported,
+    workspaceFeed: () => Stream.empty,
   };
 }
 

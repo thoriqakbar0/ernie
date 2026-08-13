@@ -39,6 +39,7 @@ import {
   parseTaskSubmission,
 } from './protocol.js';
 import { createPrimeAgentSessionFeed } from './session-feed.js';
+import { createPrimeAgentWorkspaceFeed } from './workspace-feed.js';
 
 const connectTimeoutMs = 3_000;
 const daemonProbeTimeoutMs = 250;
@@ -269,6 +270,13 @@ export function createPrimeAgentDaemon(
       ),
     ),
   );
+
+  const workspaceFeed = () =>
+    createPrimeAgentWorkspaceFeed({
+      connectionState: controlClient.state,
+      listWorkspace,
+      subscribeControl: controlClient.subscribe,
+    });
 
   const listModels = Effect.fn('PrimeAgentDaemon.listModels')(
     (activeSessionId: JsonValue) => {
@@ -690,6 +698,7 @@ export function createPrimeAgentDaemon(
     setRlmDepth,
     submitTask,
     refineSession,
+    workspaceFeed,
     close(): void {
       controlClient.close();
     },

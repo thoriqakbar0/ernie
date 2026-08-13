@@ -6,14 +6,22 @@ import { Effect, Fiber } from 'effect';
 import {
   primeAgentModelsChannel,
   primeAgentRlmDepthChannel,
+  primeAgentSavedSessionsChannel,
   primeAgentSetModelChannel,
   primeAgentSetRlmDepthChannel,
+  primeAgentGitBranchesChannel,
+  primeAgentGitWorkspaceChannel,
   primeAgentWorkspaceChannel,
+  primeAgentWorkspaceFeedEventChannel,
+  primeAgentWorkspaceFeedStartChannel,
+  primeAgentWorkspaceFeedStopChannel,
   rendererReadyChannel,
 } from '../../.build/main/renderer-api.js';
 
 const rendererReadyTimeoutMs = 5_000;
-const settingsButtonSelector = 'button[aria-label="Application settings"]';
+const settingsButtonSelector = 'button[aria-label="Settings"]';
+const removedSettingsButtonSelector =
+  'button[aria-label="Application settings"]';
 const sidebarRailSelector = '[data-sidebar="rail"]';
 const sidebarWidthStorageKey = 'ernie:sidebar-width:v1';
 const workspaceFolderTriggerSelector = '#workspace-folder';
@@ -73,7 +81,30 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
     ok: true,
     value: { currentCwd: process.cwd(), sessions: [] },
   }));
+  ipcMain.on(primeAgentWorkspaceFeedStartChannel, (event, subscriptionId) => {
+    event.sender.send(primeAgentWorkspaceFeedEventChannel, subscriptionId, {
+      kind: 'workspace-replaced',
+      workspace: { currentCwd: process.cwd(), sessions: [] },
+    });
+    event.sender.send(primeAgentWorkspaceFeedEventChannel, subscriptionId, {
+      kind: 'connection-changed',
+      status: 'ready',
+    });
+  });
+  ipcMain.on(primeAgentWorkspaceFeedStopChannel, () => undefined);
+  ipcMain.handle(primeAgentSavedSessionsChannel, () => ({
+    ok: true,
+    value: [],
+  }));
   ipcMain.handle(primeAgentModelsChannel, () => ({ ok: true, value: [] }));
+  ipcMain.handle(primeAgentGitBranchesChannel, (_event, cwd) => ({
+    ok: true,
+    value: { current: null, cwd, names: [] },
+  }));
+  ipcMain.handle(primeAgentGitWorkspaceChannel, (_event, cwd) => ({
+    ok: true,
+    value: { branchName: null, cwd, repositoryCwd: cwd },
+  }));
   ipcMain.handle(primeAgentSetModelChannel, () => ({
     ok: false,
     error: { code: 'invalid_request', message: 'No test session selected.' },
@@ -116,9 +147,15 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
       const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
       return settingsButton instanceof HTMLButtonElement;
     })()`);
+    const removedSettingsButtonExists = yield* executeJavaScript(
+      window,
+      `document.querySelector(${JSON.stringify(removedSettingsButtonSelector)}) !== null`,
+    );
 
-    if (!settingsButtonExists) {
-      process.stdout.write(`${JSON.stringify({ settingsButtonExists })}\n`);
+    if (!settingsButtonExists || removedSettingsButtonExists) {
+      process.stdout.write(
+        `${JSON.stringify({ removedSettingsButtonExists, settingsButtonExists })}\n`,
+      );
       return 1;
     }
 
@@ -140,8 +177,8 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
     })()`);
     yield* Effect.sleep(50);
     yield* executeJavaScript(window, `(() => {
-      const reloadAction = [...document.querySelectorAll('[role="menuitem"]')]
-        .find((item) => item.textContent?.trim() === 'Reload renderer');
+      const reloadAction = [...document.querySelectorAll('button')]
+        .find((item) => item.textContent?.trim() === 'Reload');
       if (!(reloadAction instanceof HTMLElement)) return false;
       reloadAction.click();
       return true;
@@ -161,8 +198,7 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
 
       settingsButton.click();
       window.setTimeout(() => {
-        const annotateItem = [...document.querySelectorAll('[role="menuitemcheckbox"]')]
-          .find((item) => item.textContent?.trim() === 'Annotate');
+        const annotateItem = document.querySelector('[role="switch"][aria-label="Annotate"]');
         if (!(annotateItem instanceof HTMLElement)) {
           resolve(false);
           return;
@@ -170,20 +206,20 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
 
         annotateItem.click();
         const disabled = window.__REACT_GRAB__?.isEnabled() === false;
-        settingsButton.click();
         window.setTimeout(() => {
-          const reopenedItem = [...document.querySelectorAll('[role="menuitemcheckbox"]')]
-            .find((item) => item.textContent?.trim() === 'Annotate');
-          if (!(reopenedItem instanceof HTMLElement)) {
-            resolve(false);
-            return;
-          }
-
-          reopenedItem.click();
+          annotateItem.click();
           resolve(disabled && window.__REACT_GRAB__?.isEnabled() === true);
         }, 50);
       }, 50);
     })`);
+    yield* executeJavaScript(window, `(() => {
+      const backAction = [...document.querySelectorAll('button')]
+        .find((item) => item.textContent?.trim() === 'Back to Agent');
+      if (!(backAction instanceof HTMLButtonElement)) return false;
+      backAction.click();
+      return true;
+    })()`);
+    yield* Effect.sleep(50);
 
     const workspacePickerOpened = yield* executeJavaScript(window, `(() => {
       const trigger = document.querySelector(${JSON.stringify(workspaceFolderTriggerSelector)});
@@ -332,6 +368,7 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
       `${JSON.stringify({
         ...state,
         reactGrabToggleWorks,
+        removedSettingsButtonExists,
         settingsButtonExists,
         sidebarResizable,
         sidebarWidthBefore: sidebarBeforeResize.width,

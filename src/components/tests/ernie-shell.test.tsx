@@ -50,6 +50,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     string,
     Parameters<ErnieRendererApi['watchAgentSession']>[1]
   >();
+  const workspaceFeedListeners = new Map<
+    string,
+    Parameters<ErnieRendererApi['watchAgentWorkspace']>[0]
+  >();
   const submittedTasks: Array<{
     activeSessionId: string;
     message: string;
@@ -81,9 +85,59 @@ test('repository plus opens a draft and the first message creates the Prime Agen
           : [],
       },
     }),
+    watchAgentWorkspace: (listener) => {
+      const subscriptionId = 'test-workspace-feed';
+      workspaceFeedListeners.set(subscriptionId, listener);
+      queueMicrotask(() => {
+        listener({ kind: 'connection-changed', status: 'connecting' });
+        listener({
+          kind: 'workspace-replaced',
+          workspace: {
+            currentCwd: '/workspace/ernie',
+            sessions: sessionCreated
+              ? [
+                  {
+                    activeSessionId: 'blank-agent',
+                    activity: 'working',
+                    cwd: '/workspace/kastuli',
+                    name: 'Blank Agent',
+                    model: null,
+                    modifiedAt: null,
+                    sessionPath: null,
+                  },
+                ]
+              : [],
+          },
+        });
+        listener({ kind: 'connection-changed', status: 'ready' });
+      });
+      return subscriptionId;
+    },
+    unwatchAgentWorkspace: (subscriptionId) => {
+      workspaceFeedListeners.delete(subscriptionId);
+    },
     createAgentSession: async (creation) => {
       createdSessions.push(creation);
       sessionCreated = true;
+      queueMicrotask(() => {
+        workspaceFeedListeners.get('test-workspace-feed')?.({
+          kind: 'workspace-replaced',
+          workspace: {
+            currentCwd: '/workspace/ernie',
+            sessions: [
+              {
+                activeSessionId: 'blank-agent',
+                activity: 'working',
+                cwd: '/workspace/kastuli',
+                name: 'Blank Agent',
+                model: null,
+                modifiedAt: null,
+                sessionPath: null,
+              },
+            ],
+          },
+        });
+      });
       return {
         ok: true,
         value: {

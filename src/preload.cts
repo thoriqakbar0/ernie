@@ -13,6 +13,12 @@ import type { JsonValue } from './packages/json-value/index.js' with {
 const rendererReadyChannel = 'ernie:renderer-ready';
 const agentHarnessChannel = 'ernie:daemon:harness';
 const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
+const primeAgentWorkspaceFeedStartChannel =
+  'ernie:prime-agent:workspace-feed:start';
+const primeAgentWorkspaceFeedStopChannel =
+  'ernie:prime-agent:workspace-feed:stop';
+const primeAgentWorkspaceFeedEventChannel =
+  'ernie:prime-agent:workspace-feed:event';
 const primeAgentCreateSessionChannel = 'ernie:prime-agent:create-session';
 const primeAgentSavedSessionsChannel = 'ernie:prime-agent:saved-sessions';
 const primeAgentImportSessionChannel = 'ernie:prime-agent:import-session';
@@ -52,6 +58,11 @@ const browserPluginReloadChannel = 'ernie:plugin:browser:reload';
 const browserPluginStateChannel = 'ernie:plugin:browser:state';
 
 let nextSessionFeedSubscription = 0;
+let nextWorkspaceFeedSubscription = 0;
+const workspaceFeedListeners = new Map<
+  string,
+  Parameters<ErnieRendererApi['watchAgentWorkspace']>[0]
+>();
 const sessionFeedListeners = new Map<
   string,
   Parameters<ErnieRendererApi['watchAgentSession']>[1]
@@ -66,7 +77,20 @@ ipcRenderer.on(
   },
 );
 
+ipcRenderer.on(
+  primeAgentWorkspaceFeedEventChannel,
+  (_event, subscriptionId, value) => {
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Sandboxed preload cannot import the domain parser; the renderer parses the forwarded item.
+    if (typeof subscriptionId !== 'string') return;
+    workspaceFeedListeners.get(subscriptionId)?.(value);
+  },
+);
+
 window.addEventListener('unload', () => {
+  for (const subscriptionId of workspaceFeedListeners.keys()) {
+    ipcRenderer.send(primeAgentWorkspaceFeedStopChannel, subscriptionId);
+  }
+  workspaceFeedListeners.clear();
   for (const subscriptionId of sessionFeedListeners.keys()) {
     ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
   }
@@ -82,6 +106,18 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   listAgentWorkspace() {
     return ipcRenderer.invoke(primeAgentWorkspaceChannel);
+  },
+  watchAgentWorkspace(listener) {
+    nextWorkspaceFeedSubscription += 1;
+    const subscriptionId =
+      `${Date.now()}-workspace-${nextWorkspaceFeedSubscription}`;
+    workspaceFeedListeners.set(subscriptionId, listener);
+    ipcRenderer.send(primeAgentWorkspaceFeedStartChannel, subscriptionId);
+    return subscriptionId;
+  },
+  unwatchAgentWorkspace(subscriptionId) {
+    workspaceFeedListeners.delete(subscriptionId);
+    ipcRenderer.send(primeAgentWorkspaceFeedStopChannel, subscriptionId);
   },
   createAgentSession(creation) {
     return ipcRenderer.invoke(primeAgentCreateSessionChannel, creation);
@@ -185,3 +221,8 @@ const rendererApi: ErnieRendererApi = Object.freeze({
 });
 
 contextBridge.exposeInMainWorld('ernie', rendererApi);
+window.addEventListener(
+  'DOMContentLoaded',
+  () => window.dispatchEvent(new Event('ernie:preload-ready')),
+  { once: true },
+);

@@ -55,6 +55,9 @@ import {
   primeAgentSubmitTaskChannel,
   primeAgentSwitchGitBranchChannel,
   primeAgentWorkspaceChannel,
+  primeAgentWorkspaceFeedEventChannel,
+  primeAgentWorkspaceFeedStartChannel,
+  primeAgentWorkspaceFeedStopChannel,
   rendererReadyChannel,
   revealWorkspacePathChannel,
 } from './renderer-api.js';
@@ -195,6 +198,7 @@ function registerErnieDaemonHandlers(): void {
     readonly senderId: number;
   }
   const sessionFeeds = new Map<string, OwnedSessionFeed>();
+  const workspaceFeeds = new Map<string, OwnedSessionFeed>();
   const observedSenders = new Set<number>();
   const feedKey = (senderId: number, subscriptionId: string): string =>
     `${senderId}:${subscriptionId}`;
@@ -210,8 +214,73 @@ function registerErnieDaemonHandlers(): void {
     for (const [key, owned] of sessionFeeds) {
       if (owned.senderId === senderId) stopFeed(key);
     }
+    for (const [key, owned] of workspaceFeeds) {
+      if (owned.senderId !== senderId) continue;
+      workspaceFeeds.delete(key);
+      if (owned.fiber !== null) Effect.runFork(Fiber.interrupt(owned.fiber));
+    }
     observedSenders.delete(senderId);
   };
+
+  const observeSender = (senderId: number, event: IpcMainEvent): void => {
+    if (observedSenders.has(senderId)) return;
+    observedSenders.add(senderId);
+    event.sender.once('destroyed', () => stopSenderFeeds(senderId));
+  };
+
+  ipcMain.on(
+    primeAgentWorkspaceFeedStartChannel,
+    (event, subscriptionId: JsonValue) => {
+      const parsed = parsePrimeAgentSessionFeedStop(subscriptionId);
+      if (!parsed.ok) return;
+      const senderId = event.sender.id;
+      const key = feedKey(senderId, parsed.value);
+      const previous = workspaceFeeds.get(key);
+      if (previous?.fiber !== null && previous?.fiber !== undefined) {
+        Effect.runFork(Fiber.interrupt(previous.fiber));
+      }
+      observeSender(senderId, event);
+      const owned: OwnedSessionFeed = { fiber: null, senderId };
+      workspaceFeeds.set(key, owned);
+      owned.fiber = Effect.runFork(
+        daemon.workspaceFeed().pipe(
+          Stream.runForEach((item) =>
+            Effect.sync(() => {
+              if (
+                workspaceFeeds.get(key) !== owned ||
+                event.sender.isDestroyed()
+              ) {
+                return;
+              }
+              event.sender.send(
+                primeAgentWorkspaceFeedEventChannel,
+                parsed.value,
+                item,
+              );
+            }),
+          ),
+          Effect.ensuring(
+            Effect.sync(() => {
+              if (workspaceFeeds.get(key) === owned) workspaceFeeds.delete(key);
+            }),
+          ),
+        ),
+      );
+    },
+  );
+  ipcMain.on(
+    primeAgentWorkspaceFeedStopChannel,
+    (event, subscriptionId: JsonValue) => {
+      const parsed = parsePrimeAgentSessionFeedStop(subscriptionId);
+      if (!parsed.ok) return;
+      const key = feedKey(event.sender.id, parsed.value);
+      const owned = workspaceFeeds.get(key);
+      workspaceFeeds.delete(key);
+      if (owned?.fiber !== null && owned?.fiber !== undefined) {
+        Effect.runFork(Fiber.interrupt(owned.fiber));
+      }
+    },
+  );
 
   ipcMain.on(
     primeAgentSessionFeedStartChannel,
@@ -223,10 +292,7 @@ function registerErnieDaemonHandlers(): void {
       const { activeSessionId, subscriptionId } = parsed.value;
       const key = feedKey(senderId, subscriptionId);
       stopFeed(key);
-      if (!observedSenders.has(senderId)) {
-        observedSenders.add(senderId);
-        event.sender.once('destroyed', () => stopSenderFeeds(senderId));
-      }
+      observeSender(senderId, event);
 
       let revision = 0;
       const owned: OwnedSessionFeed = { fiber: null, senderId };
@@ -377,6 +443,10 @@ function registerErnieDaemonHandlers(): void {
   });
   app.once('will-quit', () => {
     for (const key of sessionFeeds.keys()) stopFeed(key);
+    for (const owned of workspaceFeeds.values()) {
+      if (owned.fiber !== null) Effect.runFork(Fiber.interrupt(owned.fiber));
+    }
+    workspaceFeeds.clear();
     daemon.close();
   });
 }

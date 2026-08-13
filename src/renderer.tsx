@@ -61,15 +61,20 @@ const container = document.querySelector<HTMLElement>('#app');
 if (container === null) {
   throw new Error('Ernie renderer root is missing.');
 }
+const rendererContainer = container;
 
 const initialColorTheme = readInitialColorTheme();
 applyColorTheme(initialColorTheme);
 
-createRoot(container).render(
-  <StrictMode>
-    <RendererApp initialColorTheme={initialColorTheme} />
-  </StrictMode>,
-);
+function mountRenderer(): void {
+  createRoot(rendererContainer).render(
+    <StrictMode>
+      <RendererApp initialColorTheme={initialColorTheme} />
+    </StrictMode>,
+  );
 
-const stopReadySignal = signalReadyAfterPaint();
-window.addEventListener('pagehide', stopReadySignal, { once: true });
+  const stopReadySignal = signalReadyAfterPaint();
+  window.addEventListener('pagehide', stopReadySignal, { once: true });
+}
+
+window.addEventListener('ernie:preload-ready', mountRenderer, { once: true });

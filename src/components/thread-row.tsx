@@ -92,9 +92,11 @@ export function ThreadRow({
       <span className="shrink-0 text-[11px] text-muted-foreground">queued</span>
     ),
     needs_input: (
-      <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
-        needs input
-      </span>
+      <span
+        aria-label="Needs input"
+        title="Needs input"
+        className="size-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-500/15"
+      />
     ),
     idle: null,
     settled: null,

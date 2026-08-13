@@ -153,6 +153,24 @@ export interface PrimeAgentWorkspace {
   readonly sessions: readonly PrimeAgentSession[];
 }
 
+/** Truthful lifecycle states for Ernie's workspace connection. */
+export type PrimeAgentWorkspaceConnection =
+  | 'connecting'
+  | 'ready'
+  | 'reconnecting'
+  | 'unavailable';
+
+/** One daemon-owned workspace change safe to send across Electron IPC. */
+export type PrimeAgentWorkspaceFeedItem =
+  | Readonly<{
+      kind: 'connection-changed';
+      status: PrimeAgentWorkspaceConnection;
+    }>
+  | Readonly<{
+      kind: 'workspace-replaced';
+      workspace: PrimeAgentWorkspace;
+    }>;
+
 /** Configuration required before Prime Agent creates one new session. */
 export interface PrimeAgentSessionCreation {
   readonly cwd: string;
@@ -310,6 +328,7 @@ export interface PrimeAgentDaemon {
   readonly sessionFeed: (
     activeSessionId: JsonValue,
   ) => Stream.Stream<PrimeAgentSessionFeedItem>;
+  readonly workspaceFeed: () => Stream.Stream<PrimeAgentWorkspaceFeedItem>;
   readonly createSession: (
     creation: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSession>>;

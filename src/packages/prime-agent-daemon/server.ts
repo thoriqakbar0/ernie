@@ -3,10 +3,15 @@ export {
   createPrimeAgentControlClient,
   type PrimeAgentControlClient,
   type PrimeAgentControlClientDependencies,
+  type PrimeAgentControlEvent,
   type PrimeAgentControlState,
   type PrimeAgentControlTransport,
   type PrimeAgentReconnectStatus,
 } from './lib/control-client.js';
+export {
+  createPrimeAgentWorkspaceFeed,
+  type PrimeAgentWorkspaceFeedDependencies,
+} from './lib/workspace-feed.js';
 export {
   createPrimeAgentSessionFeed,
   type PrimeAgentSessionFeedConnection,

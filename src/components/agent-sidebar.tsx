@@ -1524,8 +1524,11 @@ export function AgentSidebar({
               aria-label={
                 primeAgentConnection === 'ready'
                   ? 'Settings'
-                  : primeAgentConnection === 'connecting'
-                    ? 'Ernie Connecting'
+                  : primeAgentConnection === 'connecting' ||
+                      primeAgentConnection === 'reconnecting'
+                    ? primeAgentConnection === 'connecting'
+                      ? 'Ernie Connecting'
+                      : 'Ernie Reconnecting'
                     : 'Ernie Prime Agent unavailable'
               }
               isActive={settingsOpen}
@@ -1552,14 +1555,17 @@ export function AgentSidebar({
                   <span
                     aria-hidden="true"
                     className={`size-1.5 shrink-0 rounded-full ${
-                      primeAgentConnection === 'connecting'
+                      primeAgentConnection === 'connecting' ||
+                      primeAgentConnection === 'reconnecting'
                         ? 'animate-pulse bg-muted-foreground motion-reduce:animate-none'
                         : 'bg-destructive'
                     }`}
                   />
                   {primeAgentConnection === 'connecting'
                     ? 'Connecting…'
-                    : 'Prime Agent unavailable'}
+                    : primeAgentConnection === 'reconnecting'
+                      ? 'Reconnecting…'
+                      : 'Prime Agent unavailable'}
                 </span>
               )}
               <SettingsIcon aria-hidden="true" />

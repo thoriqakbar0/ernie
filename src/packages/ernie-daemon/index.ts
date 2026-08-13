@@ -12,6 +12,7 @@ import type {
   AgentSkill,
   AgentTaskReceipt,
   AgentWorkspace,
+  AgentWorkspaceFeedItem,
 } from './client.js';
 
 /** Standard capabilities that an Ernie agent harness can expose. */
@@ -42,6 +43,7 @@ export interface AgentHarness {
   readonly sessionFeed: (
     activeSessionId: JsonValue,
   ) => Stream.Stream<AgentSessionFeedItem>;
+  readonly workspaceFeed: () => Stream.Stream<AgentWorkspaceFeedItem>;
   readonly createSession: (
     creation: JsonValue,
   ) => Effect.Effect<AgentResult<AgentSession>>;
@@ -124,5 +126,6 @@ export function createErnieDaemon(
     setModel: adapter.setModel,
     setRlmDepth: adapter.setRlmDepth,
     submitTask: adapter.submitTask,
+    workspaceFeed: adapter.workspaceFeed,
   });
 }

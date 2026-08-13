@@ -1,7 +1,6 @@
 import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { makeAgentRefreshStream } from '@/packages/agent-refresh-stream';
 import {
   parsePrimeAgentGitBranchesResult,
   parsePrimeAgentGitWorkspaceResult,
@@ -17,7 +16,6 @@ import {
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
-  parsePrimeAgentWorkspaceResult,
   type PrimeAgentModel,
   type PrimeAgentSavedSession,
   type PrimeAgentSession,
@@ -29,11 +27,13 @@ import {
 import {
   createPrimeAgentSessionFeedState,
   parsePrimeAgentSessionFeedEnvelope,
+  parsePrimeAgentWorkspaceFeedItem,
   primeAgentSessionFeedView,
   reducePrimeAgentSessionFeed,
   replacePrimeAgentSessionFeedRlmDepth,
   type PrimeAgentSessionFeedState,
 } from '@/packages/prime-agent-daemon/events';
+import type { PrimeAgentWorkspaceConnection } from '@/packages/prime-agent-daemon/types';
 import { sessionNameFromFirstMessage } from '@/packages/session-name-hook';
 
 /** One folder choice derived from live Prime Agent sessions. */
@@ -64,7 +64,7 @@ export interface PrimeAgentWorkspaceController {
   readonly renamingSession: boolean;
   readonly modelBusy: boolean;
   readonly models: readonly PrimeAgentModel[];
-  readonly primeAgentConnection: 'connecting' | 'ready' | 'unavailable';
+  readonly primeAgentConnection: PrimeAgentWorkspaceConnection;
   readonly skills: readonly PrimeAgentSkill[];
   readonly repoName: string;
   readonly rlmMaxDepth: number;
@@ -190,6 +190,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [gitBranches, setGitBranches] = useState<readonly string[]>([]);
   const [rlmMaxDepth, setRlmMaxDepth] = useState(loadStoredRlmMaxDepth);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
+  const [primeAgentConnection, setPrimeAgentConnection] =
+    useState<PrimeAgentWorkspaceConnection>('connecting');
   const [loadingSavedSessions, setLoadingSavedSessions] = useState(false);
   const [importingSessionPath, setImportingSessionPath] = useState<
     string | null
@@ -211,14 +213,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
-  const workspaceRefreshRequest = useRef<() => void>(() => undefined);
   const selectedSessionView = selectedSessionFeed === null
     ? null
     : primeAgentSessionFeedView(selectedSessionFeed);
-  const requestWorkspaceRefresh = useCallback(() => {
-    workspaceRefreshRequest.current();
-  }, []);
-
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -232,32 +229,51 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   useEffect(() => {
     let active = true;
-    const loadWorkspace = Effect.fn('Workspace.load')(function* () {
-      yield* Effect.sync(() => setStatus('Connecting to Prime Agent…'));
-      const rawWorkspace = yield* Effect.tryPromise(() =>
-        window.ernie.listAgentWorkspace(),
-      );
+    setStatus('Connecting to Prime Agent…');
+    const subscriptionId = window.ernie.watchAgentWorkspace((rawItem) => {
       if (!active) return;
-
-      const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
+      const result = parsePrimeAgentWorkspaceFeedItem(rawItem);
       if (!result.ok) {
-        yield* Effect.sync(() => setStatus(result.error.message));
+        setStatus(result.error.message);
         return;
       }
-      const initialCwd = result.value.sessions.some(
-        (session) => session.cwd === result.value.currentCwd,
-      )
-        ? result.value.currentCwd
-        : (result.value.sessions[0]?.cwd ?? result.value.currentCwd);
-      const initialSession = newestSession(result.value.sessions, initialCwd);
-      yield* Effect.sync(() => {
-        setWorkspace(result.value);
-        setSelectedCwd(initialCwd);
-        setSelectedSessionId(initialSession?.activeSessionId ?? null);
+      const item = result.value;
+      if (item.kind === 'connection-changed') {
+        setPrimeAgentConnection(item.status);
+        setLoadingWorkspace(false);
         setStatus(
-          initialSession === null
-            ? 'No connected agent in this workspace.'
-            : 'Connected to Prime Agent.',
+          item.status === 'ready'
+            ? 'Connected to Prime Agent.'
+            : item.status === 'connecting'
+              ? 'Connecting to Prime Agent…'
+              : item.status === 'reconnecting'
+                ? 'Prime Agent is reconnecting…'
+                : 'The Prime Agent daemon is not available.',
+        );
+        return;
+      }
+
+      const nextWorkspace = item.workspace;
+      setWorkspace(nextWorkspace);
+      setLoadingWorkspace(false);
+      setSelectedCwd((current) => {
+        if (current !== null) return current;
+        return nextWorkspace.sessions.some(
+          (session) => session.cwd === nextWorkspace.currentCwd,
+        )
+          ? nextWorkspace.currentCwd
+          : (nextWorkspace.sessions[0]?.cwd ?? nextWorkspace.currentCwd);
+      });
+      setSelectedSessionId((current) => {
+        if (current !== null) return current;
+        const initialCwd = nextWorkspace.sessions.some(
+          (session) => session.cwd === nextWorkspace.currentCwd,
+        )
+          ? nextWorkspace.currentCwd
+          : (nextWorkspace.sessions[0]?.cwd ?? nextWorkspace.currentCwd);
+        return (
+          newestSession(nextWorkspace.sessions, initialCwd)?.activeSessionId ??
+          null
         );
       });
     });
@@ -272,20 +288,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const result = parsePrimeAgentSavedSessionsResult(rawSavedSessions);
       if (result.ok) yield* Effect.sync(() => setSavedSessions(result.value));
     });
-    const workspaceFiber = Effect.runFork(
-      loadWorkspace().pipe(
-        Effect.catch(() =>
-          Effect.sync(() => {
-            if (active) setStatus('The Prime Agent daemon is not available.');
-          }),
-        ),
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (active) setLoadingWorkspace(false);
-          }),
-        ),
-      ),
-    );
     const savedSessionsFiber = Effect.runFork(
       loadInitialSavedSessions().pipe(
         Effect.catch(() => Effect.void),
@@ -299,58 +301,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     return () => {
       active = false;
-      Effect.runFork(Fiber.interrupt(workspaceFiber));
+      window.ernie.unwatchAgentWorkspace(subscriptionId);
       Effect.runFork(Fiber.interrupt(savedSessionsFiber));
     };
   }, []);
-
-  useEffect(() => {
-    if (loadingWorkspace) return;
-
-    const refreshWorkspace = Effect.fn('Workspace.refresh')(function* () {
-      const rawWorkspace = yield* Effect.tryPromise(() =>
-        window.ernie.listAgentWorkspace(),
-      );
-      const result = parsePrimeAgentWorkspaceResult(rawWorkspace);
-      if (!result.ok) {
-        yield* Effect.sync(() => setStatus('Prime Agent is reconnecting…'));
-        return;
-      }
-
-      yield* Effect.sync(() => {
-        setWorkspace(result.value);
-        setSelectedCwd((current) => current ?? result.value.currentCwd);
-      });
-    });
-    const runRefreshes = Effect.gen(function* () {
-      const controller = yield* makeAgentRefreshStream({
-        isVisible: () => document.visibilityState !== 'hidden',
-        onFailure: () =>
-          Effect.sync(() => {
-            setStatus('Prime Agent is reconnecting…');
-          }),
-        refresh: refreshWorkspace,
-        visibilityTarget: document,
-      });
-      workspaceRefreshRequest.current = controller.request;
-      const poll = window.setInterval(controller.request, 1_000);
-      yield* controller.run.pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            window.clearInterval(poll);
-            if (workspaceRefreshRequest.current === controller.request) {
-              workspaceRefreshRequest.current = () => undefined;
-            }
-          }),
-        ),
-      );
-    });
-    const fiber = Effect.runFork(runRefreshes);
-
-    return () => {
-      Effect.runFork(Fiber.interrupt(fiber));
-    };
-  }, [loadingWorkspace]);
 
   useEffect(() => {
     if (selectedCwd === null) {
@@ -552,10 +506,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
               ? 'Connected to Prime Agent.'
               : 'Prime Agent is reconnecting…',
           );
-          if (item.status === 'live') requestWorkspaceRefresh();
         } else if (item.kind === 'closed') {
           setStatus(item.failure.message);
-          requestWorkspaceRefresh();
         }
       },
     );
@@ -566,7 +518,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     return () => {
       window.ernie.unwatchAgentSession(subscriptionId);
     };
-  }, [requestWorkspaceRefresh, selectedSessionId]);
+  }, [selectedSessionId]);
 
   const workspacePaths = useMemo(() => {
     const paths = new Set([
@@ -662,19 +614,23 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }
 
   function connectAgentSession(session: PrimeAgentSession): void {
-    setWorkspace((current) => ({
-      currentCwd: current?.currentCwd ?? session.cwd,
-      sessions: [
-        session,
-        ...(current?.sessions.filter(
-          (candidate) =>
-            candidate.activeSessionId !== session.activeSessionId,
-        ) ?? []),
-      ],
-    }));
+    setWorkspace((current) => {
+      const daemonSession = current?.sessions.find(
+        (candidate) => candidate.activeSessionId === session.activeSessionId,
+      );
+      return {
+        currentCwd: current?.currentCwd ?? session.cwd,
+        sessions: [
+          daemonSession ?? session,
+          ...(current?.sessions.filter(
+            (candidate) =>
+              candidate.activeSessionId !== session.activeSessionId,
+          ) ?? []),
+        ],
+      };
+    });
     setSelectedCwd(session.cwd);
     setSelectedSessionId(session.activeSessionId);
-    requestWorkspaceRefresh();
   }
 
   function changeFolder(cwd: string | null): void {
@@ -881,7 +837,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             ),
           );
         }
-        requestWorkspaceRefresh();
         setStatus(`Renamed Agent conversation to ${result.value.name}.`);
       });
     });
@@ -1316,12 +1271,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   const modelBusy = loadingWorkspace || loadingSession || savingModel;
   const rlmMaxDepthBusy = loadingWorkspace;
-  const primeAgentConnection = loadingWorkspace
-    ? 'connecting'
-    : workspace === null
-      ? 'unavailable'
-      : 'ready';
-
   return {
     busy:
       modelBusy ||

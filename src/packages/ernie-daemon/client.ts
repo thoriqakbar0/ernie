@@ -19,4 +19,6 @@ export type {
   PrimeAgentTaskReceipt as AgentTaskReceipt,
   PrimeAgentTaskSubmission as AgentTaskSubmission,
   PrimeAgentWorkspace as AgentWorkspace,
+  PrimeAgentWorkspaceConnection as AgentWorkspaceConnection,
+  PrimeAgentWorkspaceFeedItem as AgentWorkspaceFeedItem,
 } from '../prime-agent-daemon/types.js';

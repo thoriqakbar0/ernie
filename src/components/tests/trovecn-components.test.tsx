@@ -119,6 +119,53 @@ test('jumping to the latest response respects reduced motion', async () => {
   }
 });
 
+test('conversation follows new output to the bottom', () => {
+  const initialView = {
+    activeSessionId: 'root',
+    isStreaming: true,
+    messages: [{ id: 'one', role: 'assistant' as const, text: 'working' }],
+    rlmMaxDepth: 2,
+    sessionName: 'Working',
+    spawnedSessions: [],
+    transcript: [
+      {
+        id: 'one',
+        kind: 'message' as const,
+        role: 'assistant' as const,
+        text: 'working',
+      },
+    ],
+  };
+  const view = render(<AgentChat sessionView={initialView} />);
+  const conversation = within(document.body).getByRole('region', {
+    name: 'Conversation',
+  });
+  const scrollArea = conversation.parentElement;
+  assert.ok(scrollArea);
+  Object.defineProperties(scrollArea, {
+    scrollHeight: { configurable: true, value: 1_000 },
+    scrollTop: { configurable: true, value: 0, writable: true },
+  });
+
+  view.rerender(
+    <AgentChat
+      sessionView={{
+        ...initialView,
+        transcript: [
+          {
+            id: 'one',
+            kind: 'message',
+            role: 'assistant',
+            text: 'working more',
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.equal(scrollArea.scrollTop, 1_000);
+});
+
 test('conversation renders authored messages', () => {
   render(
     <Conversation
@@ -181,6 +228,9 @@ test('focused chat keeps user messages free of a divider', () => {
     name: 'Your message',
   });
   assert.doesNotMatch(message.className, /border-t/u);
+  const ask = within(message).getByText('hello');
+  assert.match(ask.className, /overflow-wrap:anywhere/u);
+  assert.match(ask.className, /whitespace-pre-wrap/u);
 });
 
 test('focused chat renders Prime Agent markdown as document structure', () => {

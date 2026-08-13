@@ -5,7 +5,7 @@ import {
   ChevronRightIcon,
   ExternalLinkIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { ChatMarkdown } from '@/components/chat-markdown';
 import { Button } from '@/components/trovecn/ui/button';
@@ -455,6 +455,12 @@ export function AgentChat({
     [sessionView.transcript],
   );
 
+  useLayoutEffect(() => {
+    const scrollArea = transcriptRef.current?.parentElement;
+    if (scrollArea === null || scrollArea === undefined) return;
+    scrollArea.scrollTop = scrollArea.scrollHeight;
+  }, [sessionView.activeSessionId, sessionView.transcript]);
+
   useEffect(() => {
     const scrollArea = transcriptRef.current?.parentElement;
     if (scrollArea === null || scrollArea === undefined) return;
@@ -499,14 +505,14 @@ export function AgentChat({
               }
               className={
                 item.role === 'user'
-                  ? 'flex justify-end pt-6'
+                  ? 'flex min-w-0 max-w-full justify-end pt-6'
                   : followsExecution
                     ? 'max-w-[65ch] border-t-2 border-foreground/15 pt-6 text-foreground'
                     : 'max-w-[65ch] text-foreground'
               }
             >
               {item.role === 'user' ? (
-                <div className="max-w-[min(88%,32rem)] rounded-2xl bg-muted px-3.5 py-2.5">
+                <div className="min-w-0 max-w-[min(88%,32rem)] overflow-hidden rounded-2xl bg-muted px-3.5 py-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                   {item.text}
                 </div>
               ) : (

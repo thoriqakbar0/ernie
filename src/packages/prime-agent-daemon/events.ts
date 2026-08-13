@@ -4,7 +4,7 @@ import {
   isJsonRecord,
   isJsonString,
 } from '../json-value/index.js';
-import { parseSessionViewResult } from './lib/protocol.js';
+import { parseSessionViewResult, parseWorkspaceResult } from './lib/protocol.js';
 import type {
   PrimeAgentFailure,
   PrimeAgentResult,
@@ -12,6 +12,7 @@ import type {
   PrimeAgentSessionFeedItem,
   PrimeAgentSessionFeedRequest,
   PrimeAgentSessionView,
+  PrimeAgentWorkspaceFeedItem,
 } from './types.js';
 
 /** Renderer-owned lifecycle state for one selected Prime Agent session feed. */
@@ -137,6 +138,35 @@ function parseFeedItem(value: JsonValue): PrimeAgentSessionFeedItem | null {
   return parsedFailure === null
     ? null
     : { kind: 'closed', failure: parsedFailure };
+}
+
+/** Parse one daemon-owned workspace event received through Electron IPC. */
+export function parsePrimeAgentWorkspaceFeedItem(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentWorkspaceFeedItem> {
+  if (!isJsonRecord(value)) return failure();
+  if (value.kind === 'connection-changed') {
+    const status = value.status;
+    return status === 'connecting' ||
+      status === 'ready' ||
+      status === 'reconnecting' ||
+      status === 'unavailable'
+      ? { ok: true, value: { kind: 'connection-changed', status } }
+      : failure();
+  }
+  if (value.kind !== 'workspace-replaced') {
+    return failure();
+  }
+  const workspace = parseWorkspaceResult({ ok: true, value: value.workspace });
+  return workspace.ok
+    ? {
+        ok: true,
+        value: {
+          kind: 'workspace-replaced',
+          workspace: workspace.value,
+        },
+      }
+    : failure();
 }
 
 /** Parse one serialized session-feed event received through Electron IPC. */

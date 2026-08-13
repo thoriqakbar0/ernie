@@ -1,5 +1,6 @@
 import type {
   DaemonCommand,
+  DaemonOutbound,
   DaemonResponse,
 } from 'prime-agent' with { 'resolution-mode': 'import' };
 
@@ -15,12 +16,18 @@ export interface PrimeAgentControlTransport {
     readonly timeoutMs?: number;
     readonly onStatus?: (status: PrimeAgentReconnectStatus) => void;
   }) => void;
+  readonly onMessage: (listener: (message: DaemonOutbound) => void) => () => void;
   readonly request: (
     command: DaemonCommand,
     timeoutMs?: number,
   ) => Promise<DaemonResponse>;
   readonly waitForHello: (timeoutMs?: number) => Promise<unknown>;
 }
+
+/** Observable events emitted by the shared Prime Agent control connection. */
+export type PrimeAgentControlEvent =
+  | Readonly<{ kind: 'connection-changed'; state: PrimeAgentControlState }>
+  | Readonly<{ kind: 'message'; message: DaemonOutbound }>;
 
 /** Prime Agent's transport-recovery states consumed by the shared client. */
 export type PrimeAgentReconnectStatus =
@@ -54,6 +61,9 @@ export interface PrimeAgentControlClient {
     timeoutMs: number,
   ) => Effect.Effect<DaemonResponse, unknown>;
   readonly state: () => PrimeAgentControlState;
+  readonly subscribe: (
+    listener: (event: PrimeAgentControlEvent) => void,
+  ) => () => void;
   readonly use: <T>(
     operation: (
       transport: PrimeAgentControlTransport,
@@ -91,6 +101,16 @@ export function createPrimeAgentControlClient(
   let currentState: PrimeAgentControlState = 'cold';
   let closed = false;
   const readyWaiters = new Set<ReadyWaiter>();
+  const listeners = new Set<(event: PrimeAgentControlEvent) => void>();
+  let unsubscribeMessages: (() => void) | null = null;
+
+  const changeState = (state: PrimeAgentControlState): void => {
+    if (currentState === state) return;
+    currentState = state;
+    for (const listener of listeners) {
+      listener({ kind: 'connection-changed', state });
+    }
+  };
 
   const rejectWaiters = (cause: unknown): void => {
     for (const waiter of readyWaiters) waiter.reject(cause);
@@ -104,15 +124,15 @@ export function createPrimeAgentControlClient(
   const onReconnectStatus = (status: PrimeAgentReconnectStatus): void => {
     if (closed) return;
     if (status.status === 'connected') {
-      currentState = 'ready';
+      changeState('ready');
       resolveWaiters();
       return;
     }
     if (status.status === 'reconnecting') {
-      currentState = 'reconnecting';
+      changeState('reconnecting');
       return;
     }
-    currentState = 'unavailable';
+    changeState('unavailable');
     const failure = new PrimeAgentControlUnavailableError(status.error);
     dependencies.reportFailure('Prime Agent reconnection failed.', failure);
     rejectWaiters(failure);
@@ -134,10 +154,13 @@ export function createPrimeAgentControlClient(
       return transport;
     }
 
-    currentState = 'connecting';
+    changeState('connecting');
     const attempt = (async () => {
       await dependencies.recoverDaemon();
       const next = await dependencies.createTransport();
+      const stopMessages = next.onMessage((message) => {
+        for (const listener of listeners) listener({ kind: 'message', message });
+      });
       next.enableAutoReconnect({
         onStatus: onReconnectStatus,
         recoverDaemon: dependencies.recoverDaemon,
@@ -147,15 +170,19 @@ export function createPrimeAgentControlClient(
         await next.connect(dependencies.connectTimeoutMs);
         await next.waitForHello(dependencies.connectTimeoutMs);
       } catch (cause) {
+        stopMessages();
         next.close();
         throw cause;
       }
       if (closed) {
+        stopMessages();
         next.close();
         throw new PrimeAgentControlClosedError();
       }
       transport = next;
-      currentState = 'ready';
+      unsubscribeMessages?.();
+      unsubscribeMessages = stopMessages;
+      changeState('ready');
       resolveWaiters();
       return next;
     })();
@@ -163,7 +190,7 @@ export function createPrimeAgentControlClient(
     try {
       return await attempt;
     } catch (cause) {
-      if (!closed) currentState = 'unavailable';
+      if (!closed) changeState('unavailable');
       dependencies.reportFailure('Prime Agent connection failed.', cause);
       rejectWaiters(cause);
       throw cause;
@@ -176,7 +203,9 @@ export function createPrimeAgentControlClient(
     close(): void {
       if (closed) return;
       closed = true;
-      currentState = 'closed';
+      changeState('closed');
+      unsubscribeMessages?.();
+      unsubscribeMessages = null;
       transport?.close();
       transport = null;
       rejectWaiters(new PrimeAgentControlClosedError());
@@ -187,6 +216,11 @@ export function createPrimeAgentControlClient(
         return activeTransport.request(command, timeoutMs);
       }),
     state: () => currentState,
+    subscribe(listener): () => void {
+      listeners.add(listener);
+      listener({ kind: 'connection-changed', state: currentState });
+      return () => listeners.delete(listener);
+    },
     use: (operation) =>
       Effect.tryPromise(() => connect()).pipe(
         Effect.flatMap(operation),

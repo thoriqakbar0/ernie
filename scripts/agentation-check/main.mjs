@@ -29,7 +29,6 @@ const workspaceSearchSelector =
   'input[aria-label="Search workspaces"]';
 const workspaceDirectoryActionSelector =
   'button[data-workspace-directory-action]';
-
 function waitForRendererReady(window, startedAt) {
   return Effect.callback((resume) => {
     const cleanup = () => {
@@ -76,7 +75,7 @@ function executeJavaScript(window, source) {
   return Effect.tryPromise(() => window.webContents.executeJavaScript(source));
 }
 
-const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
+const checkAgentation = Effect.fn('Agentation.check')(function* () {
   ipcMain.handle(primeAgentWorkspaceChannel, () => ({
     ok: true,
     value: { currentCwd: process.cwd(), sessions: [] },
@@ -143,10 +142,22 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
     ]);
     const revealReadyMs = Math.round(performance.now() - startedAt);
 
-    const settingsButtonExists = yield* executeJavaScript(window, `(() => {
-      const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
-      return settingsButton instanceof HTMLButtonElement;
-    })()`);
+    const settingsButtonExists = yield* executeJavaScript(window, `new Promise((resolve) => {
+      const deadline = performance.now() + 1_000;
+      const inspect = () => {
+        const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
+        if (settingsButton instanceof HTMLButtonElement) {
+          resolve(true);
+          return;
+        }
+        if (performance.now() >= deadline) {
+          resolve(false);
+          return;
+        }
+        window.setTimeout(inspect, 25);
+      };
+      inspect();
+    })`);
     const removedSettingsButtonExists = yield* executeJavaScript(
       window,
       `document.querySelector(${JSON.stringify(removedSettingsButtonSelector)}) !== null`,
@@ -189,28 +200,74 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
     ]);
     const reloadMs = Math.round(performance.now() - reloadStartedAt);
 
-    const reactGrabToggleWorks = yield* executeJavaScript(window, `new Promise((resolve) => {
-      const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
-      if (!(settingsButton instanceof HTMLButtonElement)) {
-        resolve(false);
-        return;
-      }
+    const debuggerToggle = yield* executeJavaScript(window, `new Promise((resolve) => {
+      const waitFor = (predicate) => new Promise((finish) => {
+        const deadline = performance.now() + 1_000;
+        const inspect = () => {
+          if (predicate()) {
+            finish(true);
+            return;
+          }
+          if (performance.now() >= deadline) {
+            finish(false);
+            return;
+          }
+          window.setTimeout(inspect, 25);
+        };
+        inspect();
+      });
 
-      settingsButton.click();
-      window.setTimeout(() => {
-        const annotateItem = document.querySelector('[role="switch"][aria-label="Annotate"]');
-        if (!(annotateItem instanceof HTMLElement)) {
-          resolve(false);
+      void (async () => {
+        const settingsReady = await waitFor(() =>
+          document.querySelector(${JSON.stringify(settingsButtonSelector)}) instanceof HTMLButtonElement,
+        );
+        const settingsButton = document.querySelector(${JSON.stringify(settingsButtonSelector)});
+        if (!settingsReady || !(settingsButton instanceof HTMLButtonElement)) {
+          resolve({ works: false, reason: 'settings-button-missing' });
+          return;
+        }
+        settingsButton.click();
+        const debugSwitchReady = await waitFor(() =>
+          document.querySelector('[role="switch"][aria-label="Debug interface"]') instanceof HTMLElement,
+        );
+        if (!debugSwitchReady) {
+          resolve({ works: false, reason: 'debug-switch-missing' });
           return;
         }
 
-        annotateItem.click();
-        const disabled = window.__REACT_GRAB__?.isEnabled() === false;
-        window.setTimeout(() => {
-          annotateItem.click();
-          resolve(disabled && window.__REACT_GRAB__?.isEnabled() === true);
-        }, 50);
-      }, 50);
+          const clickDebugSwitch = () => {
+            const currentSwitch = document.querySelector(
+              '[role="switch"][aria-label="Debug interface"]',
+            );
+            if (!(currentSwitch instanceof HTMLElement)) return false;
+            currentSwitch.click();
+            return true;
+          };
+          const debuggerDisabled = () =>
+            document.querySelector('[data-agentation-toolbar]') === null &&
+            document.querySelector('[aria-label="Interface debug HUD"]') === null;
+          const debuggerEnabled = () =>
+            document.querySelector('[data-agentation-toolbar]') !== null &&
+            document.querySelector('[aria-label="Interface debug HUD"]') !== null;
+
+          const initiallyDisabled = debuggerDisabled();
+          const enabledClick = clickDebugSwitch();
+          const enabled = enabledClick && await waitFor(debuggerEnabled);
+          const disabledClick = clickDebugSwitch();
+          const disabled = disabledClick && await waitFor(debuggerDisabled);
+          const reenabledClick = clickDebugSwitch();
+          const reenabled = reenabledClick && await waitFor(debuggerEnabled);
+          resolve({
+            works: initiallyDisabled && enabled && disabled && reenabled,
+            initiallyDisabled,
+            enabledClick,
+            enabled,
+            disabledClick,
+            disabled,
+            reenabledClick,
+            reenabled,
+          });
+      })().catch(() => resolve({ works: false, reason: 'toggle-error' }));
     })`);
     yield* executeJavaScript(window, `(() => {
       const backAction = [...document.querySelectorAll('button')]
@@ -333,13 +390,9 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
       sidebarAfterResize.width >= sidebarBeforeResize.width + 40;
 
     const state = yield* executeJavaScript(window, `(() => {
-      const api = window.__REACT_GRAB__;
-      const overlay = document.querySelector('[data-testid="react-grab-overlay"]');
-      const toolbar = overlay?.shadowRoot?.querySelector('[data-react-grab-toolbar]');
+      const toolbar = document.querySelector('[data-agentation-toolbar]');
       if (!(toolbar instanceof HTMLElement)) {
         return {
-          apiExists: api !== undefined,
-          reactGrabEnabled: api?.isEnabled() ?? false,
           toolbarExists: false,
           toolbarVisible: false,
         };
@@ -348,8 +401,6 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
       const bounds = toolbar.getBoundingClientRect();
       const style = getComputedStyle(toolbar);
       return {
-        apiExists: api !== undefined,
-        reactGrabEnabled: api?.isEnabled() ?? false,
         toolbarExists: true,
         toolbarVisible:
           bounds.width > 0 &&
@@ -367,7 +418,7 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
     process.stdout.write(
       `${JSON.stringify({
         ...state,
-        reactGrabToggleWorks,
+        debuggerToggle,
         removedSettingsButtonExists,
         settingsButtonExists,
         sidebarResizable,
@@ -381,10 +432,8 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
         workspacePickerReady,
       })}\n`,
     );
-    return state.apiExists &&
-      state.reactGrabEnabled &&
-      state.toolbarVisible &&
-      reactGrabToggleWorks &&
+    return state.toolbarVisible &&
+      debuggerToggle.works &&
       sidebarResizable &&
       workspacePickerReady
       ? 0
@@ -394,7 +443,7 @@ const checkReactGrab = Effect.fn('ReactGrab.check')(function* () {
 
 void app.whenReady().then(() => {
   void Effect.runPromise(
-    checkReactGrab().pipe(
+    checkAgentation().pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
           process.stderr.write(`${String(error)}\n`);

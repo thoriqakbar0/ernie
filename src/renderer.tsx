@@ -1,5 +1,3 @@
-import 'react-grab';
-
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -8,52 +6,25 @@ import { applyColorTheme, readInitialColorTheme } from '@/color-theme';
 
 import './index.css';
 
-const reactGrabOverlaySelector = '[data-testid="react-grab-overlay"]';
-const reactGrabToolbarSelector = '[data-react-grab-toolbar]';
-
-function isReactGrabToolbarVisible(): boolean {
-  const overlay = document.querySelector(reactGrabOverlaySelector);
-  const toolbar = overlay?.shadowRoot?.querySelector(reactGrabToolbarSelector);
-
-  if (!(toolbar instanceof HTMLElement)) {
-    return false;
-  }
-
-  const bounds = toolbar.getBoundingClientRect();
-  const style = getComputedStyle(toolbar);
-
-  return (
-    bounds.width > 0 &&
-    bounds.height > 0 &&
-    style.display !== 'none' &&
-    style.visibility !== 'hidden' &&
-    Number(style.opacity) > 0
-  );
-}
-
 function signalReadyAfterPaint(): () => void {
-  let frameId: number | undefined;
-  let visibleFrameCount = 0;
+  let firstFrameId: number | undefined;
+  let secondFrameId: number | undefined;
 
-  const signalWhenReady = (): void => {
-    if (isReactGrabToolbarVisible()) {
-      visibleFrameCount += 1;
-      if (visibleFrameCount === 2) {
+  const signal = (): void => {
+    firstFrameId = requestAnimationFrame(() => {
+      secondFrameId = requestAnimationFrame(() => {
         window.ernie.signalReady();
-        return;
-      }
-    } else {
-      visibleFrameCount = 0;
-    }
-
-    frameId = requestAnimationFrame(signalWhenReady);
+      });
+    });
   };
 
-  frameId = requestAnimationFrame(signalWhenReady);
-
-  return () => {
-    if (frameId !== undefined) cancelAnimationFrame(frameId);
+  const cancelScheduledSignal = (): void => {
+    if (firstFrameId !== undefined) cancelAnimationFrame(firstFrameId);
+    if (secondFrameId !== undefined) cancelAnimationFrame(secondFrameId);
   };
+
+  signal();
+  return cancelScheduledSignal;
 }
 
 const container = document.querySelector<HTMLElement>('#app');

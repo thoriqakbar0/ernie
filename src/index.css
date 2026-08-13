@@ -56,6 +56,10 @@ body {
   overflow: hidden;
 }
 
+.ernie-agentation-toolbar {
+  max-width: calc(100vw - 1.5rem);
+}
+
 .ernie-output-image {
   outline: 1px solid oklch(0 0 0 / 10%);
   outline-offset: -1px;

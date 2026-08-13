@@ -17,9 +17,7 @@ interface SettingsPageProps {
   readonly onDarkModeEnabledChange: (enabled: boolean) => void;
   readonly onDebugHudEnabledChange: (enabled: boolean) => void;
   readonly onOpenPlugins: () => void;
-  readonly onReactGrabEnabledChange: (enabled: boolean) => void;
   readonly onReload: () => void;
-  readonly reactGrabEnabled: boolean;
 }
 
 /** Show Ernie's application preferences and apply each change immediately. */
@@ -31,9 +29,7 @@ export function SettingsPage({
   onDarkModeEnabledChange,
   onDebugHudEnabledChange,
   onOpenPlugins,
-  onReactGrabEnabledChange,
   onReload,
-  reactGrabEnabled,
 }: SettingsPageProps): React.JSX.Element {
   return (
     <section
@@ -110,23 +106,10 @@ export function SettingsPage({
           <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-card shadow-sm">
             <div className="flex items-center justify-between gap-6 px-4 py-4">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Annotate</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Select interface elements when sharing structured feedback.
-                </p>
-              </div>
-              <Switch
-                aria-label="Annotate"
-                checked={reactGrabEnabled}
-                onCheckedChange={onReactGrabEnabledChange}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-6 px-4 py-4">
-              <div className="min-w-0">
                 <p className="text-sm font-medium">Debug interface</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Show the last clicked element and current loading states until
-                  Ernie reloads.
+                  Show Agentation, the last clicked element, and current loading
+                  states until Ernie reloads.
                 </p>
               </div>
               <Switch

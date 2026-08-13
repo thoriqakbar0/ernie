@@ -35,7 +35,6 @@ afterEach(() => {
 });
 
 test('repository plus opens a draft and the first message creates the Prime Agent session', async () => {
-  const reactGrabChanges: boolean[] = [];
   const createdSessions: Array<
     Parameters<ErnieRendererApi['createAgentSession']>[0]
   > = [];
@@ -286,8 +285,6 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       onDarkModeEnabledChange={() => undefined}
       onDebugHudEnabledChange={() => undefined}
       onReload={() => undefined}
-      onReactGrabEnabledChange={(enabled) => reactGrabChanges.push(enabled)}
-      reactGrabEnabled={false}
     />,
   );
 
@@ -310,10 +307,6 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   const settings = within(document.body).getByRole('region', {
     name: 'Settings',
   });
-  const annotateSwitch = within(settings).getByRole('switch', {
-    name: 'Annotate',
-  });
-  assert.equal(annotateSwitch.getAttribute('aria-checked'), 'false');
   await user.click(within(settings).getByRole('button', { name: 'Manage' }));
   const pluginDialog = await within(document.body).findByRole('dialog', {
     name: 'Plugins',
@@ -348,8 +341,6 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     window.localStorage.getItem('ernie:disabled-plugins:v1'),
     '[]',
   );
-  await user.click(annotateSwitch);
-  assert.deepEqual(reactGrabChanges, [true]);
   await user.click(
     within(settings).getByRole('button', { name: 'Back to Agent' }),
   );

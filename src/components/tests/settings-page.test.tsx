@@ -12,7 +12,6 @@ afterEach(cleanup);
 
 test('settings apply appearance and tool actions immediately', async () => {
   const themeChanges: boolean[] = [];
-  const annotationChanges: boolean[] = [];
   const debugHudChanges: boolean[] = [];
   let closeCount = 0;
   let openPluginsCount = 0;
@@ -32,11 +31,9 @@ test('settings apply appearance and tool actions immediately', async () => {
       onOpenPlugins={() => {
         openPluginsCount += 1;
       }}
-      onReactGrabEnabledChange={(enabled) => annotationChanges.push(enabled)}
       onReload={() => {
         reloadCount += 1;
       }}
-      reactGrabEnabled={false}
     />,
   );
 
@@ -51,7 +48,6 @@ test('settings apply appearance and tool actions immediately', async () => {
   );
 
   await user.click(within(settings).getByRole('button', { name: 'Light' }));
-  await user.click(within(settings).getByRole('switch', { name: 'Annotate' }));
   await user.click(
     within(settings).getByRole('switch', { name: 'Debug interface' }),
   );
@@ -62,7 +58,6 @@ test('settings apply appearance and tool actions immediately', async () => {
   );
 
   assert.deepEqual(themeChanges, [false]);
-  assert.deepEqual(annotationChanges, [true]);
   assert.deepEqual(debugHudChanges, [true]);
   assert.equal(reloadCount, 1);
   assert.equal(openPluginsCount, 1);

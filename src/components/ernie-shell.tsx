@@ -55,8 +55,6 @@ type ErnieShellProps = {
   onDarkModeEnabledChange: (enabled: boolean) => void;
   onDebugHudEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
-  onReactGrabEnabledChange: (enabled: boolean) => void;
-  reactGrabEnabled: boolean;
 };
 
 export function ErnieShell({
@@ -65,8 +63,6 @@ export function ErnieShell({
   onDarkModeEnabledChange,
   onDebugHudEnabledChange,
   onReload,
-  onReactGrabEnabledChange,
-  reactGrabEnabled,
 }: ErnieShellProps): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
   const pluginHost = useMemo(() => {
@@ -282,9 +278,7 @@ export function ErnieShell({
                   onDarkModeEnabledChange={onDarkModeEnabledChange}
                   onDebugHudEnabledChange={onDebugHudEnabledChange}
                   onOpenPlugins={() => setPluginManagerOpen(true)}
-                  onReactGrabEnabledChange={onReactGrabEnabledChange}
                   onReload={onReload}
-                  reactGrabEnabled={reactGrabEnabled}
                 />
               </div>
             ) : (

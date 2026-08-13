@@ -579,12 +579,13 @@ function parseSessionActivity(
   }
 
   const hasConcreteWork =
-    value.isStreaming ||
-    value.isCompacting ||
-    value.isBashRunning === true ||
     value.hasRunningRlmChildren === true ||
-    activeAction !== undefined ||
-    (value.isSessionActive && sessionActions.queuedCount === 0);
+    (value.isSessionActive &&
+      (value.isStreaming ||
+        value.isCompacting ||
+        value.isBashRunning === true ||
+        activeAction !== undefined ||
+        sessionActions.queuedCount === 0));
   if (hasConcreteWork) return 'working';
   if (sessionActions.queuedCount > 0) return 'queued';
   if (

@@ -582,6 +582,17 @@ test('projects truthful live activity from Prime Agent summaries', () => {
         sessionActions: { queuedCount: 0 },
         taskState: 'completed',
       },
+      {
+        activeSessionId: 'stale-detail-agent',
+        activity: 'working',
+        attachedClients: 1,
+        cwd: '/workspace/ernie',
+        isCompacting: false,
+        isSessionActive: false,
+        isStreaming: true,
+        runtimeKind: 'top-level',
+        sessionActions: { queuedCount: 0 },
+      },
     ],
   });
 
@@ -599,6 +610,7 @@ test('projects truthful live activity from Prime Agent summaries', () => {
       ['empty-fallback-agent', 'idle'],
       ['idle-agent', 'settled'],
       ['classification-pending-agent', 'settled'],
+      ['stale-detail-agent', 'idle'],
     ],
   );
 });

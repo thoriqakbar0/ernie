@@ -194,7 +194,62 @@
 }
 
 .WorkspaceCanvas {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   height: 100vh;
   background-color: #272624;
+}
+
+.RawSessionPanel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.RawSessionPanel--empty {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.RawSessionEmptyTitle,
+.RawSessionTitle {
+  color: #eeece7;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.RawSessionEmptyText,
+.RawSessionSubtitle {
+  color: #85827c;
+  font-size: 11px;
+}
+
+.RawSessionHeader {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 22px 24px 16px;
+  gap: 5px;
+  border-bottom: 1px solid #3b3a37;
+}
+
+.RawSessionScroll {
+  flex: 1;
+}
+
+.RawSessionCode {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 32px;
+}
+
+.RawSessionLine {
+  color: #c9c6bf;
+  font-family: Menlo;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: normal;
 }

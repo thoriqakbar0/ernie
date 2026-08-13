@@ -11,8 +11,15 @@ export type ActiveAgent = Readonly<{
   activeSessionId: string
   activity: AgentActivity
   cwd: string
+  model: Readonly<{
+    id: string
+    key: string
+    name: string
+    provider: string
+  }> | null
   modifiedAt: string | null
   name: string
+  sessionPath: string | null
 }>
 
 /** One complete daemon roster update received by Lynx. */
@@ -37,15 +44,37 @@ function parseActivity(value: unknown): AgentActivity | null {
     : null
 }
 
+function parseModel(value: unknown): ActiveAgent['model'] | undefined {
+  if (value === null) return null
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.key !== 'string' ||
+    typeof value.name !== 'string' ||
+    typeof value.provider !== 'string'
+  ) {
+    return undefined
+  }
+  return {
+    id: value.id,
+    key: value.key,
+    name: value.name,
+    provider: value.provider,
+  }
+}
+
 function parseActiveAgent(value: unknown): ActiveAgent | null {
   if (!isRecord(value)) return null
   const activity = parseActivity(value.activity)
+  const model = parseModel(value.model)
   if (
     typeof value.activeSessionId !== 'string' ||
     activity === null ||
     typeof value.cwd !== 'string' ||
+    model === undefined ||
     (value.modifiedAt !== null && typeof value.modifiedAt !== 'string') ||
-    typeof value.name !== 'string'
+    typeof value.name !== 'string' ||
+    (value.sessionPath !== null && typeof value.sessionPath !== 'string')
   ) {
     return null
   }
@@ -53,8 +82,10 @@ function parseActiveAgent(value: unknown): ActiveAgent | null {
     activeSessionId: value.activeSessionId,
     activity,
     cwd: value.cwd,
+    model,
     modifiedAt: value.modifiedAt,
     name: value.name,
+    sessionPath: value.sessionPath,
   }
 }
 

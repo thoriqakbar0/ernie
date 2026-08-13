@@ -8,18 +8,11 @@ import { Effect } from 'effect';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js';
 import type {
   PrimeAgentSession,
-  PrimeAgentSessionActivity,
 } from './packages/prime-agent-daemon/types.js';
 
 const rosterRefreshMilliseconds = 500;
 
-interface LynxActiveAgent {
-  readonly activeSessionId: string;
-  readonly activity: PrimeAgentSessionActivity;
-  readonly cwd: string;
-  readonly modifiedAt: string | null;
-  readonly name: string;
-}
+type LynxActiveAgent = PrimeAgentSession;
 
 type LynxDaemonRoster = Readonly<{
   activeAgents: readonly LynxActiveAgent[];
@@ -27,16 +20,6 @@ type LynxDaemonRoster = Readonly<{
   currentCwd: string;
   revision: number;
 }>;
-
-function projectActiveAgent(session: PrimeAgentSession): LynxActiveAgent {
-  return {
-    activeSessionId: session.activeSessionId,
-    activity: session.activity,
-    cwd: session.cwd,
-    modifiedAt: session.modifiedAt,
-    name: session.name,
-  };
-}
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise(resolve => {
@@ -90,7 +73,7 @@ async function run(): Promise<void> {
       };
     }
     return {
-      activeAgents: workspace.value.sessions.map(projectActiveAgent),
+      activeAgents: workspace.value.sessions,
       connection: 'ready',
       currentCwd: workspace.value.currentCwd,
       revision,

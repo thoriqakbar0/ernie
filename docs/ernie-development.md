@@ -40,7 +40,14 @@ read the reply.
 
 i wondered what the usual chat box was teaching us about agents.
 
-## the interface gave me a new job
+## maybe the interface should not know what it is yet
+
+one task might need a graph. another might need a diff. eventually i will ask
+for “the thing with the thingy,” because the work will have invented a
+requirement faster than i invented a noun.
+
+this is still a better product specification than making every kind of work
+look like a chat.
 
 a chat interface makes artificial intelligence easy to understand. there is a
 conversation, the model answers, and the answer is the visible result. that

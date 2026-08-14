@@ -1,12 +1,17 @@
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+/* Hallmark · genre: editorial note · macrostructure: Long Document · theme: studied-DNA (source: selected Ernie note) · tone: intimate · anchor hue: blue-pencil
+ * contrast: pass (40–41) · nav: n/a · footer: Ft1 · slop: pass (42–45)
+ * honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30)
+ * mobile: pass (34, 49, 50–57)
+ */
+@import "../tokens.css";
+
 :root {
-  color: #181715;
-  background: #fbf9f3;
-  font-family: Georgia, "Times New Roman", serif;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --canvas: #fbf9f3;
-  --ink: #181715;
-  --blue-pencil: #2f8bd6;
 }
 
 * {
@@ -14,6 +19,7 @@
 }
 
 html {
+  overflow-x: clip;
   scroll-behavior: smooth;
 }
 
@@ -21,8 +27,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--canvas);
-  color: var(--ink);
+  overflow-x: clip;
+  background: var(--color-paper);
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -33,33 +40,48 @@ a {
 }
 
 a:hover {
-  color: #285f94;
+  color: var(--color-link-hover);
+}
+
+a:active {
+  color: var(--color-accent);
 }
 
 a:focus-visible {
   border-radius: 2px;
-  outline: 2px solid var(--blue-pencil);
+  outline: 2px solid var(--color-accent);
   outline-offset: 4px;
+}
+
+a[aria-disabled="true"],
+a:not([href]) {
+  cursor: not-allowed;
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .note {
   width: min(100% - 112px, 1328px);
   margin: 0 auto;
-  padding: 58px 14px 52px;
-  font-family: "Patrick Hand", "Bradley Hand", cursive;
+  padding: 56px var(--space-md) var(--space-4xl);
+  font-family: var(--font-display);
   font-size: clamp(1.55rem, 2.1vw, 2rem);
   line-height: 1.45;
   letter-spacing: 0.015em;
 }
 
 .note h1 {
-  margin: 0 0 18px;
+  min-width: 0;
+  margin: 0 0 20px;
+  overflow-wrap: anywhere;
   font-size: 1em;
   font-weight: 580;
 }
 
 .note-lede {
+  min-width: 0;
   margin: 0 0 16px;
+  overflow-wrap: anywhere;
   font-size: clamp(2rem, 3.3vw, 3.2rem);
   font-weight: 520;
   letter-spacing: 0;
@@ -67,7 +89,7 @@ a:focus-visible {
 }
 
 .note-story {
-  max-width: 680px;
+  max-width: 46ch;
   margin: 0;
   font-weight: 490;
 }
@@ -80,6 +102,14 @@ a:focus-visible {
   object-fit: contain;
 }
 
+.note-link {
+  display: inline-block;
+  margin-top: 24px;
+  font-size: 0.72em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .product-shot {
   width: min(100% - 112px, 1328px);
   margin: 0 auto;
@@ -89,71 +119,89 @@ a:focus-visible {
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
-  border-radius: 13px;
+  border: var(--rule-hairline) solid
+    color-mix(in oklab, var(--color-ink) 14%, transparent);
+  border-radius: var(--radius-frame);
 }
 
 .article {
-  width: min(100% - 48px, 690px);
+  width: min(100% - 48px, 68ch);
   margin: 120px auto 0;
-  font-family: "Source Serif 4 Variable", Georgia, serif;
+  font-family: var(--font-body);
   font-size: clamp(1.12rem, 1.45vw, 1.28rem);
   line-height: 1.72;
 }
 
-.article h1,
-.article h2 {
-  font-family: "Source Serif 4 Variable", Georgia, serif;
+.article h2,
+.article h3 {
+  min-width: 0;
+  font-family: var(--font-body);
   font-weight: 590;
   letter-spacing: -0.018em;
+  overflow-wrap: anywhere;
 }
 
-.article h1 {
-  margin: 0 0 1.8em;
+.article h2 {
+  margin: 0 0 var(--space-xl);
   font-size: clamp(2.3rem, 4vw, 3.55rem);
   line-height: 1.08;
 }
 
-.article h2 {
-  margin: 2.35em 0 0.85em;
+.article h3 {
+  margin: var(--space-2xl) 0 var(--space-md);
   font-size: clamp(1.65rem, 2.5vw, 2.15rem);
   line-height: 1.18;
 }
 
 .article p {
-  margin: 0 0 1.35em;
+  margin: 0 0 var(--space-lg);
 }
 
 .article a {
-  text-decoration-color: color-mix(in srgb, var(--ink) 45%, transparent);
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--color-ink) 45%,
+    transparent
+  );
 }
 
 .article pre {
-  margin: 2em 0;
-  padding: 20px 22px;
+  margin: var(--space-xl) 0;
+  padding: 20px var(--space-lg);
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--ink) 3%, var(--canvas));
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: var(--rule-hairline) solid
+    color-mix(in oklab, var(--color-ink) 12%, transparent);
+  border-radius: var(--radius-code);
+  background: color-mix(
+    in oklch,
+    var(--color-ink) 3%,
+    var(--color-paper)
+  );
+  font-family: var(--font-mono);
   font-size: 0.78em;
   line-height: 1.55;
 }
 
 .footer-links {
   display: flex;
-  gap: 30px;
+  align-items: center;
+  gap: var(--space-xl);
   width: min(100% - 48px, 690px);
   margin: 92px auto 0;
   padding-bottom: 88px;
-  font-family: "Source Serif 4 Variable", Georgia, serif;
+  font-family: var(--font-body);
   font-size: 1rem;
+}
+
+.footer-links a {
+  line-height: 1;
+  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
   .note {
     width: min(100% - 40px, 1328px);
-    padding: 46px 4px 42px;
+    padding: var(--space-2xl) var(--space-xs) var(--space-3xl);
   }
 
   .note-lede {
@@ -176,7 +224,7 @@ a:focus-visible {
     margin-top: 80px;
   }
 
-  .article h1 {
+  .article h2 {
     font-size: 2.25rem;
   }
 }

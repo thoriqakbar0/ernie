@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "scanned_at": "2026-08-14",
+  "sources": {
+    "package_json_mtime": 1786718824,
+    "styles_css_mtime": 1786722344
+  },
+  "findings": {
+    "font_stack": "Patrick Hand with Source Serif 4 Variable",
+    "palette": "warm ivory paper, near-black ink, blue-pencil accent",
+    "motion": "motion-cut",
+    "spacing": "existing restrained editorial rhythm",
+    "framework": "Vite 6, React 19, TanStack Router"
+  },
+  "preserve": [
+    "font pairing",
+    "warm paper palette",
+    "blue-pencil accent",
+    "note and long-document structure"
+  ]
+}

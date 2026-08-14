@@ -1,0 +1,26 @@
+/* Hallmark · tokens: Ernie note · paper: warm ivory · accent: blue-pencil */
+:root {
+  --color-paper: oklch(98.2% 0.0082 91.48);
+  --color-ink: oklch(20.5% 0.0052 84.59);
+  --color-accent: oklch(61.92% 0.1416 247.58);
+  --color-link-hover: oklch(47.52% 0.1036 250.23);
+
+  --font-display: "Patrick Hand", "Bradley Hand", cursive;
+  --font-body: "Source Serif 4 Variable", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+  --space-4xl: 80px;
+  --space-5xl: 96px;
+  --space-6xl: 120px;
+
+  --radius-code: 6px;
+  --radius-frame: 12px;
+  --rule-hairline: 1px;
+}

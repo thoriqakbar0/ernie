@@ -45,16 +45,26 @@ function ArticleLink({ href = "", children, ...props }) {
   );
 }
 
+function ArticleTitle({ children }) {
+  return <h2>{children}</h2>;
+}
+
+function ArticleSectionHeading({ children }) {
+  return <h3>{children}</h3>;
+}
+
 function HomePage() {
   return (
     <main>
       <header className="note" aria-labelledby="page-title">
         <h1 id="page-title">ernie</h1>
-        <p className="note-lede">interface that follows your work.</p>
+        <p className="note-lede">interface that adapts to your work.</p>
         <p className="note-story">
-          i wanted my agents to keep working
+          i wanted one task to leave my laptop,
           <br />
-          when i close the window.
+          work inside a sandbox,
+          <br />
+          and come back without forgetting.
           <br />
           <br />
           so i made this.
@@ -66,6 +76,9 @@ function HomePage() {
           height="37"
           alt="a small crooked blue smile"
         />
+        <a className="note-link" href="#article">
+          read the note
+        </a>
       </header>
 
       <figure className="product-shot">
@@ -73,6 +86,7 @@ function HomePage() {
           src="/assets/ernie-app.webp"
           width="2720"
           height="1800"
+          fetchPriority="high"
           alt="the Ernie desktop app showing repositories, a task, and its composer"
         />
       </figure>
@@ -82,6 +96,8 @@ function HomePage() {
           remarkPlugins={[remarkGfm]}
           components={{
             a: ArticleLink,
+            h1: ArticleTitle,
+            h2: ArticleSectionHeading,
           }}
         >
           {article}

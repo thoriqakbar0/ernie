@@ -47,7 +47,7 @@ export function TaskSurface({
                 Ernie
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                An attempt at recursive interface
+                An attempt at an RLM interface
               </p>
             </header>
             <CurrentWorkspace

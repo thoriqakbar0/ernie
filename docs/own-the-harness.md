@@ -130,6 +130,10 @@ The resulting path is short enough to inspect:
 renderer -> Electron IPC -> Ernie daemon -> Prime Agent adapter -> daemon socket
 ```
 
+The selected sidebar Agent is also authoritative. Each Ernie window replaces
+its previous selected-session feed when navigation changes. A late cleanup or
+event from the old selection cannot detach or update the new one.
+
 This is the part of bb worth carrying over: one stable application boundary,
 one provider-owned adapter, and provider-specific transport kept on the far
 side of that adapter. If Ernie later connects to an SDK-only harness, that

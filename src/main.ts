@@ -26,6 +26,11 @@ import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js'
 import { createErnieDaemon } from './packages/ernie-daemon/index.js';
 import { createSelectedFeedRegistry } from './packages/ernie-daemon/selected-feed.js';
 import {
+  startErnieUiControlServer,
+  type ErnieUiControlCommand,
+  type ErnieUiControlResult,
+} from './packages/ernie-ui-control/index.js';
+import {
   coalescePrimeAgentSessionFeedItems,
   parsePrimeAgentSessionFeedRequest,
   parsePrimeAgentSessionFeedStop,
@@ -569,6 +574,26 @@ function reportStartupFailure(cause: unknown): void {
   app.quit();
 }
 
+function handleUiControl(command: ErnieUiControlCommand): ErnieUiControlResult {
+  switch (command.type) {
+    case 'focus': {
+      const window = mainWindow;
+      if (window === null || window.isDestroyed()) {
+        return {
+          error: { code: 'ui_unavailable', message: 'Ernie has no open window.' },
+          ok: false,
+          version: 1,
+        };
+      }
+      if (window.isMinimized()) window.restore();
+      window.show();
+      if (process.platform === 'darwin') app.focus({ steal: true });
+      window.focus();
+      return { ok: true, version: 1 };
+    }
+  }
+}
+
 const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   yield* Effect.tryPromise(() => app.whenReady());
   registerErnieDaemonHandlers();
@@ -583,6 +608,20 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   }
 
   yield* createWindow(browserPlugin);
+  const uiControl = yield* Effect.promise(() =>
+    startErnieUiControlServer(
+      path.join(app.getPath('userData'), 'ui-control.sock'),
+      handleUiControl,
+      (message) => console.error(message),
+    ),
+  );
+  if (!uiControl.ok) {
+    console.error(uiControl.error.message);
+  } else {
+    app.once('will-quit', () => {
+      Effect.runFork(Effect.promise(() => uiControl.value.close()));
+    });
+  }
 
   app.on('activate', () => {
     if (mainWindow === null || mainWindow.isDestroyed()) {

@@ -5,9 +5,13 @@
   "description": "A desktop client for Prime Agent.",
   "type": "module",
   "main": ".build/main/main.js",
+  "bin": {
+    "ernie": ".build/main/cli.js"
+  },
   "private": true,
   "scripts": {
     "start": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js .",
+    "cli": "nub run build:main && nub --node .build/main/cli.js",
     "dev": "nub run build:main && nub --node scripts/development.mjs",
     "dev:lynx": "nub run build:lynx-natural-scroll && nub run build:main && nub --cwd lynx run build && nub --node .build/main/lynx-host.js",
     "build:lynx-natural-scroll": "nub --node scripts/build-lynx-natural-scroll.mjs",

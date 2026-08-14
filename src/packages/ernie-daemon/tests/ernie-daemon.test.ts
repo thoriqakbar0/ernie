@@ -4,10 +4,10 @@ import { Effect, Stream } from 'effect';
 
 import {
   createErnieDaemon,
-  type AgentHarness,
+  type AgentHarnessAdapter,
 } from '../index';
 
-function fakeHarness(): AgentHarness {
+function fakeHarness(): AgentHarnessAdapter {
   const unsupported = () =>
     Effect.succeed({
       ok: false as const,
@@ -19,6 +19,11 @@ function fakeHarness(): AgentHarness {
   return {
     close: () => undefined,
     createSession: unsupported,
+    descriptor: {
+      capabilities: ['live-sessions'],
+      id: 'test',
+      name: 'Test harness',
+    },
     getRlmDepth: unsupported,
     importSession: unsupported,
     listModels: unsupported,
@@ -41,11 +46,6 @@ function fakeHarness(): AgentHarness {
 
 test('installs one immutable harness behind the Ernie daemon API', async () => {
   const daemon = createErnieDaemon({
-    descriptor: {
-      capabilities: ['live-sessions'],
-      id: 'test',
-      name: 'Test harness',
-    },
     harness: fakeHarness(),
   });
 
@@ -62,20 +62,24 @@ test('rejects invalid harness descriptors', () => {
   assert.throws(
     () =>
       createErnieDaemon({
-        descriptor: { capabilities: [], id: ' ', name: 'Test harness' },
-        harness: fakeHarness(),
+        harness: {
+          ...fakeHarness(),
+          descriptor: { capabilities: [], id: ' ', name: 'Test harness' },
+        },
       }),
     /must not be empty/u,
   );
   assert.throws(
     () =>
       createErnieDaemon({
-        descriptor: {
-          capabilities: ['models', 'models'],
-          id: 'test',
-          name: 'Test harness',
+        harness: {
+          ...fakeHarness(),
+          descriptor: {
+            capabilities: ['models', 'models'],
+            id: 'test',
+            name: 'Test harness',
+          },
         },
-        harness: fakeHarness(),
       }),
     /duplicate capabilities/u,
   );

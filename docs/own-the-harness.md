@@ -104,6 +104,37 @@ Training a model teaches data, optimization, evaluation, and inference.
 Building a harness teaches runtime state, context, tools, permissions,
 feedback, interfaces, and failure recovery. I want the second education first.
 
+## bb makes the provider seam executable
+
+[bb's agent runtime](https://github.com/get-bb/bb/tree/75c3ea0311601d8e41d6e523d8e4848526e272d5/packages/agent-runtime)
+uses three distinct layers. Its runtime owns process lifecycle, request routing,
+and crash handling. A provider adapter translates shared commands and events.
+A bridge process hosts a provider SDK when that SDK does not offer a stable
+wire protocol of its own.
+
+That last condition matters. bb does not put every provider behind another
+process. Codex already exposes a long-running JSON-RPC server, so bb connects
+to it directly. Claude Code and Pi expose SDKs, so bb gives each one a small
+Node bridge that turns its SDK behavior into JSON-RPC. The common runtime never
+needs to interpret provider-specific wire content.
+
+Ernie now follows the same ownership rule at its smaller scale. The Ernie
+daemon exposes harness-neutral operations to Electron. The Prime Agent adapter
+owns its own identity, capabilities, process connection, protocol parsing, and
+failure translation. Prime Agent already exposes a daemon socket protocol, so
+Ernie uses the direct-adapter shape instead of adding a redundant stdio bridge.
+
+The resulting path is short enough to inspect:
+
+```text
+renderer -> Electron IPC -> Ernie daemon -> Prime Agent adapter -> daemon socket
+```
+
+This is the part of bb worth carrying over: one stable application boundary,
+one provider-owned adapter, and provider-specific transport kept on the far
+side of that adapter. If Ernie later connects to an SDK-only harness, that
+adapter can own a bridge process without changing the renderer contract.
+
 ## Why Ernie should remain small
 
 Ernie is a desktop client for Prime Agent. Prime Agent owns execution,

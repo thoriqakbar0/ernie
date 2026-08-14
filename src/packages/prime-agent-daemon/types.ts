@@ -246,6 +246,22 @@ export interface PrimeAgentDaemonConfiguration {
   readonly socketPath?: string;
 }
 
+/** Capabilities implemented by Ernie's Prime Agent harness adapter. */
+export type PrimeAgentHarnessCapability =
+  | 'live-sessions'
+  | 'saved-sessions'
+  | 'models'
+  | 'skills'
+  | 'rlm-depth'
+  | 'refinement';
+
+/** Provider-owned identity for Ernie's Prime Agent harness adapter. */
+export interface PrimeAgentHarnessDescriptor {
+  readonly capabilities: readonly PrimeAgentHarnessCapability[];
+  readonly id: 'prime-agent';
+  readonly name: 'Prime Agent';
+}
+
 /** The model change requested for one live Prime Agent session. */
 export interface PrimeAgentModelSelection {
   readonly activeSessionId: string;
@@ -316,6 +332,7 @@ export interface PrimeAgentSessionRenameReceipt {
 
 /** The daemon operations owned by Ernie's Electron main process. */
 export interface PrimeAgentDaemon {
+  readonly descriptor: PrimeAgentHarnessDescriptor;
   readonly listWorkspace: () => Effect.Effect<
     PrimeAgentResult<PrimeAgentWorkspace>
   >;

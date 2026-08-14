@@ -32,7 +32,7 @@ export interface AgentHarnessDescriptor {
 }
 
 /** Harness-neutral operations consumed by Ernie's Electron process. */
-export interface AgentHarness {
+export interface AgentHarnessOperations {
   readonly listWorkspace: () => Effect.Effect<AgentResult<AgentWorkspace>>;
   readonly listModels: (
     activeSessionId: JsonValue,
@@ -74,15 +74,19 @@ export interface AgentHarness {
   readonly close: () => void;
 }
 
+/** One provider-owned adapter installed behind Ernie's stable daemon boundary. */
+export interface AgentHarnessAdapter extends AgentHarnessOperations {
+  readonly descriptor: AgentHarnessDescriptor;
+}
+
 /** Ernie's immutable daemon API with one selected harness adapter. */
-export interface ErnieDaemon extends AgentHarness {
+export interface ErnieDaemon extends AgentHarnessOperations {
   readonly harness: AgentHarnessDescriptor;
 }
 
 /** Configuration that installs one harness behind Ernie's daemon API. */
 export interface ErnieDaemonConfiguration {
-  readonly harness: AgentHarness;
-  readonly descriptor: AgentHarnessDescriptor;
+  readonly harness: AgentHarnessAdapter;
 }
 
 function normalizedDescriptor(
@@ -108,8 +112,8 @@ function normalizedDescriptor(
 export function createErnieDaemon(
   configuration: ErnieDaemonConfiguration,
 ): ErnieDaemon {
-  const harness = normalizedDescriptor(configuration.descriptor);
   const adapter = configuration.harness;
+  const harness = normalizedDescriptor(adapter.descriptor);
   return Object.freeze({
     harness,
     close: adapter.close,

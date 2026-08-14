@@ -168,18 +168,6 @@ function readDevelopmentRendererUrl(): URL | null {
 
 function registerErnieDaemonHandlers(): void {
   const daemon = createErnieDaemon({
-    descriptor: {
-      capabilities: [
-        'live-sessions',
-        'saved-sessions',
-        'models',
-        'skills',
-        'rlm-depth',
-        'refinement',
-      ],
-      id: 'prime-agent',
-      name: 'Prime Agent',
-    },
     harness: createPrimeAgentDaemon({
       currentCwd: process.cwd(),
       daemonEntrypointPath: path.join(

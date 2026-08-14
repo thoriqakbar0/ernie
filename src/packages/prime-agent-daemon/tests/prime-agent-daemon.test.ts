@@ -254,6 +254,34 @@ function testEffect(name: string, effect: Effect.Effect<void, unknown>): void {
   test(name, () => Effect.runPromise(effect));
 }
 
+test('owns the Prime Agent harness identity and capabilities', () => {
+  const daemon = createPrimeAgentDaemon({
+    currentCwd: process.cwd(),
+    daemonEntrypointPath: primeAgentCliPath,
+    executablePath: process.execPath,
+    sessionNameExtensionPath: join(
+      process.cwd(),
+      'src/packages/session-name-hook/index.ts',
+    ),
+  });
+
+  assert.deepEqual(daemon.descriptor, {
+    capabilities: [
+      'live-sessions',
+      'saved-sessions',
+      'models',
+      'skills',
+      'rlm-depth',
+      'refinement',
+    ],
+    id: 'prime-agent',
+    name: 'Prime Agent',
+  });
+  assert.equal(Object.isFrozen(daemon.descriptor), true);
+  assert.equal(Object.isFrozen(daemon.descriptor.capabilities), true);
+  daemon.close();
+});
+
 testInTempDirectory(
   'starts Prime Agent and searches its real skill catalog',
   'ernie-prime-agent-',

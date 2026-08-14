@@ -12,6 +12,7 @@ import type {
   PrimeAgentDaemon,
   PrimeAgentDaemonConfiguration,
   PrimeAgentFailureCode,
+  PrimeAgentHarnessDescriptor,
   PrimeAgentResult,
   PrimeAgentSession,
   PrimeAgentSessionRenameReceipt,
@@ -122,6 +123,18 @@ export function createPrimeAgentDaemon(
   ) {
     throw new Error('Prime Agent process and extension paths must not be empty.');
   }
+  const descriptor: PrimeAgentHarnessDescriptor = Object.freeze({
+    capabilities: Object.freeze([
+      'live-sessions',
+      'saved-sessions',
+      'models',
+      'skills',
+      'rlm-depth',
+      'refinement',
+    ] as const),
+    id: 'prime-agent',
+    name: 'Prime Agent',
+  });
   const loadRuntime = Effect.tryPromise(() => import('prime-agent')).pipe(
     Effect.map(
       ({
@@ -693,6 +706,7 @@ export function createPrimeAgentDaemon(
   );
 
   return {
+    descriptor,
     listWorkspace,
     listModels,
     listSkills,

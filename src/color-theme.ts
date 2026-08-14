@@ -1,9 +1,14 @@
+import type { JsonValue } from '@/packages/json-value';
+
 const colorThemeStorageKey = 'ernie.color-theme';
 
 /** The two color appearances supported by Ernie. */
 export type ColorTheme = 'dark' | 'light';
 
-function parseColorTheme(value: string | null): ColorTheme | null {
+/** Parse one renderer-boundary value into a supported color appearance. */
+export function parseColorTheme(
+  value: JsonValue | undefined,
+): ColorTheme | null {
   if (value === 'dark' || value === 'light') return value;
   return null;
 }

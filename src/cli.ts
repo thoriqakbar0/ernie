@@ -22,7 +22,14 @@ if (!parsed.ok) {
   );
   const result = await requestErnieUiControl(socketPath, parsed.command);
   if (result.ok) {
-    console.log('Ernie focused.');
+    switch (parsed.command.type) {
+      case 'focus':
+        console.log('Ernie focused.');
+        break;
+      case 'set-theme':
+        console.log(`Ernie theme set to ${parsed.command.theme}.`);
+        break;
+    }
   } else {
     console.error(result.error.message);
     process.exitCode = 1;

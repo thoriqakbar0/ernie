@@ -60,6 +60,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   const user = userEvent.setup();
   const rendererApi: ErnieRendererApi = {
     signalReady: () => undefined,
+    onColorThemeRequest: () => () => undefined,
     describeAgentHarness: async () => ({
       capabilities: ['live-sessions'],
       id: 'prime-agent',

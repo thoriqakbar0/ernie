@@ -1,4 +1,4 @@
-import { chmod } from 'node:fs/promises';
+import { chmod, lstat, unlink } from 'node:fs/promises';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 
 import {
@@ -14,8 +14,13 @@ export const ernieUiControlProtocolVersion = 1;
 const maximumMessageBytes = 4_096;
 const requestTimeoutMs = 1_000;
 
+/** One color appearance accepted by Ernie's UI-control protocol. */
+export type ErnieUiColorTheme = 'dark' | 'light';
+
 /** One UI-only command accepted by a running Ernie application. */
-export type ErnieUiControlCommand = Readonly<{ type: 'focus' }>;
+export type ErnieUiControlCommand =
+  | Readonly<{ type: 'focus' }>
+  | Readonly<{ theme: ErnieUiColorTheme; type: 'set-theme' }>;
 
 /** Stable failure codes returned by Ernie UI control. */
 export type ErnieUiControlFailureCode =
@@ -57,6 +62,17 @@ export type ErnieUiControlCliArgumentsResult =
   | Readonly<{ command: ErnieUiControlCommand; ok: true }>
   | Readonly<{ message: string; ok: false }>;
 
+type SocketPathPreparationFailure = Readonly<{
+  error: Readonly<{ code: 'socket_unavailable'; message: string }>;
+  ok: false;
+}>;
+type SocketPathPreparationResult =
+  | Readonly<{ ok: true }>
+  | SocketPathPreparationFailure;
+
+type SocketPathIdentity = Readonly<{ device: number; inode: number }>;
+type ExistingSocketPath = SocketPathIdentity | 'missing' | 'not-socket';
+
 function failure(
   code: ErnieUiControlFailureCode,
   message: string,
@@ -68,12 +84,89 @@ function failure(
   };
 }
 
+function socketUnavailable(message: string): SocketPathPreparationFailure {
+  return {
+    error: { code: 'socket_unavailable', message },
+    ok: false,
+  };
+}
+
+async function readExistingSocketPath(
+  socketPath: string,
+): Promise<ExistingSocketPath> {
+  return lstat(socketPath).then(
+    (metadata) =>
+      metadata.isSocket()
+        ? { device: metadata.dev, inode: metadata.ino }
+        : 'not-socket',
+    () => 'missing',
+  );
+}
+
+function socketAcceptsConnections(socketPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection(socketPath);
+    let settled = false;
+
+    const finish = (active: boolean): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      socket.destroy();
+      resolve(active);
+    };
+
+    const timeoutId = setTimeout(() => finish(true), requestTimeoutMs);
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+  });
+}
+
+async function prepareSocketPath(
+  socketPath: string,
+): Promise<SocketPathPreparationResult> {
+  const initialPath = await readExistingSocketPath(socketPath);
+  if (initialPath === 'missing') return { ok: true };
+  if (initialPath === 'not-socket') {
+    return socketUnavailable('Ernie UI control path is not a socket.');
+  }
+  if (await socketAcceptsConnections(socketPath)) {
+    return socketUnavailable('Another Ernie UI control socket is active.');
+  }
+
+  const currentPath = await readExistingSocketPath(socketPath);
+  if (currentPath === 'missing') return { ok: true };
+  if (
+    currentPath === 'not-socket' ||
+    currentPath.device !== initialPath.device ||
+    currentPath.inode !== initialPath.inode
+  ) {
+    return socketUnavailable('Ernie UI control socket changed during startup.');
+  }
+
+  return unlink(socketPath).then(
+    () => ({ ok: true }),
+    () => socketUnavailable('Ernie could not remove its stale UI control socket.'),
+  );
+}
+
 function parseCommand(value: JsonValue | undefined): ErnieUiControlCommand | null {
-  return isJsonRecord(value) &&
+  if (
+    isJsonRecord(value) &&
     Object.keys(value).length === 1 &&
     value.type === 'focus'
-    ? { type: 'focus' }
-    : null;
+  ) {
+    return { type: 'focus' };
+  }
+  if (
+    isJsonRecord(value) &&
+    Object.keys(value).length === 2 &&
+    value.type === 'set-theme' &&
+    (value.theme === 'dark' || value.theme === 'light')
+  ) {
+    return { theme: value.theme, type: 'set-theme' };
+  }
+  return null;
 }
 
 /** Parse one untrusted local socket value into a UI-control command. */
@@ -136,11 +229,28 @@ export function parseErnieUiControlCliArguments(
 ): ErnieUiControlCliArgumentsResult {
   const commandArguments =
     arguments_[0] === '--' ? arguments_.slice(1) : arguments_;
-  return commandArguments.length === 2 &&
+  if (
+    commandArguments.length === 2 &&
     commandArguments[0] === 'ui' &&
     commandArguments[1] === 'focus'
-    ? { command: { type: 'focus' }, ok: true }
-    : { message: 'Usage: ernie ui focus', ok: false };
+  ) {
+    return { command: { type: 'focus' }, ok: true };
+  }
+  if (
+    commandArguments.length === 3 &&
+    commandArguments[0] === 'ui' &&
+    commandArguments[1] === 'theme' &&
+    (commandArguments[2] === 'dark' || commandArguments[2] === 'light')
+  ) {
+    return {
+      command: { theme: commandArguments[2], type: 'set-theme' },
+      ok: true,
+    };
+  }
+  return {
+    message: 'Usage: ernie ui focus | ernie ui theme <dark|light>',
+    ok: false,
+  };
 }
 
 function serializeRequest(command: ErnieUiControlCommand): string {
@@ -213,21 +323,24 @@ function closeServer(server: Server): Promise<void> {
 }
 
 /** Bind an owner-only local socket that accepts UI-control commands. */
-export function startErnieUiControlServer(
+export async function startErnieUiControlServer(
   socketPath: string,
   handleCommand: (command: ErnieUiControlCommand) => ErnieUiControlResult,
   reportFailure: (message: string) => void,
 ): Promise<ErnieUiControlServerStartResult> {
   const normalizedPath = socketPath.trim();
   if (normalizedPath.length === 0) {
-    return Promise.resolve({
+    return {
       error: {
         code: 'socket_unavailable',
         message: 'Ernie UI control socket path must not be empty.',
       },
       ok: false,
-    });
+    };
   }
+
+  const preparation = await prepareSocketPath(normalizedPath);
+  if (!preparation.ok) return preparation;
 
   return new Promise((resolve) => {
     const server = createServer((socket) => handleSocket(socket, handleCommand));

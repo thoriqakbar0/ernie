@@ -39,6 +39,7 @@ import type { PrimeAgentSessionFeedEnvelope } from './packages/prime-agent-daemo
 import {
   agentHarnessChannel,
   chooseWorkspaceDirectoryChannel,
+  colorThemeRequestChannel,
   primeAgentCreateSessionChannel,
   primeAgentCreateGitWorktreeChannel,
   primeAgentGitBranchesChannel,
@@ -575,22 +576,26 @@ function reportStartupFailure(cause: unknown): void {
 }
 
 function handleUiControl(command: ErnieUiControlCommand): ErnieUiControlResult {
+  const window = mainWindow;
+  if (window === null || window.isDestroyed()) {
+    return {
+      error: { code: 'ui_unavailable', message: 'Ernie has no open window.' },
+      ok: false,
+      version: 1,
+    };
+  }
+
   switch (command.type) {
     case 'focus': {
-      const window = mainWindow;
-      if (window === null || window.isDestroyed()) {
-        return {
-          error: { code: 'ui_unavailable', message: 'Ernie has no open window.' },
-          ok: false,
-          version: 1,
-        };
-      }
       if (window.isMinimized()) window.restore();
       window.show();
       if (process.platform === 'darwin') app.focus({ steal: true });
       window.focus();
       return { ok: true, version: 1 };
     }
+    case 'set-theme':
+      window.webContents.send(colorThemeRequestChannel, command.theme);
+      return { ok: true, version: 1 };
   }
 }
 

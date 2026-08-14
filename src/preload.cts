@@ -8,9 +8,10 @@ import type { JsonValue } from './packages/json-value/index.js' with {
   'resolution-mode': 'import',
 };
 
-// Sandboxed preloads cannot load local runtime modules. Keep this literal in
-// sync with rendererReadyChannel in renderer-api.ts.
+// Sandboxed preloads cannot load local runtime modules. Keep these channel
+// literals in sync with renderer-api.ts.
 const rendererReadyChannel = 'ernie:renderer-ready';
+const colorThemeRequestChannel = 'ernie:color-theme:request';
 const agentHarnessChannel = 'ernie:daemon:harness';
 const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 const primeAgentWorkspaceFeedStartChannel =
@@ -105,6 +106,16 @@ window.addEventListener('unload', () => {
 const rendererApi: ErnieRendererApi = Object.freeze({
   signalReady(): void {
     ipcRenderer.send(rendererReadyChannel);
+  },
+  onColorThemeRequest(listener) {
+    const handleThemeRequest = (
+      _event: IpcRendererEvent,
+      value: JsonValue,
+    ): void => {
+      listener(value);
+    };
+    ipcRenderer.on(colorThemeRequestChannel, handleThemeRequest);
+    return () => ipcRenderer.off(colorThemeRequestChannel, handleThemeRequest);
   },
   describeAgentHarness() {
     return ipcRenderer.invoke(agentHarnessChannel);

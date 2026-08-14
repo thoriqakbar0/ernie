@@ -15,6 +15,9 @@ import type { JsonValue } from './packages/json-value/index.js';
 /** IPC channel emitted after the renderer has painted its required surface. */
 export const rendererReadyChannel = 'ernie:renderer-ready';
 
+/** IPC channel carrying a requested Ernie color appearance. */
+export const colorThemeRequestChannel = 'ernie:color-theme:request';
+
 /** IPC channel that describes the harness behind Ernie's daemon API. */
 export const agentHarnessChannel = 'ernie:daemon:harness';
 
@@ -118,6 +121,7 @@ export const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
 /** Minimal preload API exposed to the isolated renderer context. */
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
+  onColorThemeRequest: (listener: (value: JsonValue) => void) => () => void;
   describeAgentHarness: () => Promise<JsonValue>;
   listAgentWorkspace: () => Promise<JsonValue>;
   watchAgentWorkspace: (listener: (value: JsonValue) => void) => string;

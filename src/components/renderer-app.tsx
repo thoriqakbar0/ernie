@@ -1,9 +1,10 @@
 import { Agentation } from 'agentation';
-import { useLayoutEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 
 import { ErnieShell } from '@/components/ernie-shell';
 import {
   applyColorTheme,
+  parseColorTheme,
   storeColorTheme,
   type ColorTheme,
 } from '@/color-theme';
@@ -12,6 +13,7 @@ import {
   isJsonRecord,
   parseJsonValue,
 } from '@/packages/json-value';
+import type { ErnieRendererApi } from '@/renderer-api';
 
 interface RendererAppProps {
   readonly initialColorTheme: ColorTheme;
@@ -72,6 +74,17 @@ export function repairUnsafeAgentationPosition(): void {
   }
 }
 
+/** Subscribe to valid CLI-driven color appearance requests. */
+export function watchColorThemeRequests(
+  api: Pick<ErnieRendererApi, 'onColorThemeRequest'>,
+  selectTheme: (theme: ColorTheme) => void,
+): () => void {
+  return api.onColorThemeRequest((value) => {
+    const theme = parseColorTheme(value);
+    if (theme !== null) selectTheme(theme);
+  });
+}
+
 /** Own the renderer's interactive application state. */
 export function RendererApp({
   initialColorTheme,
@@ -79,6 +92,17 @@ export function RendererApp({
   const [debugHudEnabled, setDebugHudEnabled] = useState(false);
   const [agentationReady, setAgentationReady] = useState(false);
   const [colorTheme, setColorTheme] = useState(initialColorTheme);
+
+  const selectColorTheme = useCallback((theme: ColorTheme): void => {
+    applyColorTheme(theme);
+    storeColorTheme(theme);
+    setColorTheme(theme);
+  }, []);
+
+  useLayoutEffect(
+    () => watchColorThemeRequests(window.ernie, selectColorTheme),
+    [selectColorTheme],
+  );
 
   useLayoutEffect(() => {
     if (!debugHudEnabled) {
@@ -90,10 +114,7 @@ export function RendererApp({
   }, [debugHudEnabled]);
 
   const changeDarkMode = (enabled: boolean): void => {
-    const nextTheme = enabled ? 'dark' : 'light';
-    applyColorTheme(nextTheme);
-    storeColorTheme(nextTheme);
-    setColorTheme(nextTheme);
+    selectColorTheme(enabled ? 'dark' : 'light');
   };
 
   const reloadRenderer = (): void => {

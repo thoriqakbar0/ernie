@@ -119,9 +119,12 @@ export function createPrimeAgentDaemon(
     configuration.daemonEntrypointPath.trim().length === 0 ||
     configuration.executablePath.trim().length === 0 ||
     configuration.sessionNameExtensionPath.trim().length === 0 ||
-    configuration.sessionDirectoryPath?.trim().length === 0
+    configuration.sessionDirectoryPath?.trim().length === 0 ||
+    configuration.socketPath.trim().length === 0
   ) {
-    throw new Error('Prime Agent process and extension paths must not be empty.');
+    throw new Error(
+      'Prime Agent process, extension, and socket paths must not be empty.',
+    );
   }
   const descriptor: PrimeAgentHarnessDescriptor = Object.freeze({
     capabilities: Object.freeze([
@@ -140,10 +143,8 @@ export function createPrimeAgentDaemon(
       ({
         DaemonAgentConnection: DaemonAgentConnectionConstructor,
         DaemonClient: DaemonClientConstructor,
-        defaultDaemonSocketPath,
       }) => {
-        const socketPath =
-          configuration.socketPath ?? defaultDaemonSocketPath();
+        const socketPath = configuration.socketPath;
         return {
           attachSession: (client, activeSessionId, recoverDaemon) =>
             DaemonAgentConnectionConstructor.attach(client, activeSessionId, {

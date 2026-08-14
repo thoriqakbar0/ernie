@@ -243,7 +243,7 @@ export interface PrimeAgentDaemonConfiguration {
   readonly executablePath: string;
   readonly sessionNameExtensionPath: string;
   readonly sessionDirectoryPath?: string;
-  readonly socketPath?: string;
+  readonly socketPath: string;
 }
 
 /** Capabilities implemented by Ernie's Prime Agent harness adapter. */

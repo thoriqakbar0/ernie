@@ -179,6 +179,7 @@ function registerErnieDaemonHandlers(): void {
         import.meta.dirname,
         'packages/session-name-hook/index.js',
       ),
+      socketPath: path.join(app.getPath('userData'), 'prime-agent.sock'),
     }),
   });
   interface OwnedSessionFeed {

@@ -83,6 +83,7 @@ async function run(): Promise<void> {
       import.meta.dirname,
       'packages/session-name-hook/index.js',
     ),
+    socketPath: path.join(repositoryRoot, '.build/prime-agent.sock'),
   });
   const view = new WindowedLynxView({
     devicePixelRatio: 1,

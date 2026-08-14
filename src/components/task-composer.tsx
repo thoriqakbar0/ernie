@@ -340,7 +340,14 @@ export const TaskComposer = memo(function TaskComposer({
         )}
       </form>
 
-      <p className="sr-only" role="status">
+      <p
+        className={
+          selectedSessionId === null && task.status.length > 0
+            ? 'mt-1 px-3 text-center text-xs text-muted-foreground'
+            : 'sr-only'
+        }
+        role="status"
+      >
         {task.status}
       </p>
     </>

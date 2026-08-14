@@ -263,6 +263,7 @@ test('owns the Prime Agent harness identity and capabilities', () => {
       process.cwd(),
       'src/packages/session-name-hook/index.ts',
     ),
+    socketPath: join(tmpdir(), 'ernie-harness-descriptor-test.sock'),
   });
 
   assert.deepEqual(daemon.descriptor, {
@@ -280,6 +281,23 @@ test('owns the Prime Agent harness identity and capabilities', () => {
   assert.equal(Object.isFrozen(daemon.descriptor), true);
   assert.equal(Object.isFrozen(daemon.descriptor.capabilities), true);
   daemon.close();
+});
+
+test('requires an explicit Ernie-owned daemon socket', () => {
+  assert.throws(
+    () =>
+      createPrimeAgentDaemon({
+        currentCwd: process.cwd(),
+        daemonEntrypointPath: primeAgentCliPath,
+        executablePath: process.execPath,
+        sessionNameExtensionPath: join(
+          process.cwd(),
+          'src/packages/session-name-hook/index.ts',
+        ),
+        socketPath: ' ',
+      }),
+    /socket paths must not be empty/u,
+  );
 });
 
 testInTempDirectory(

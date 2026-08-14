@@ -472,6 +472,10 @@ test('a failed Agent start keeps the first task draft', async () => {
       'Prime Agent is unavailable.',
     ),
   );
+  assert.equal(
+    within(document.body).getByRole('status').classList.contains('sr-only'),
+    false,
+  );
   assert.equal((composer as HTMLTextAreaElement).value, 'Keep this draft');
 });
 

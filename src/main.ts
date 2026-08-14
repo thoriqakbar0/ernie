@@ -24,6 +24,7 @@ import {
 } from './packages/prime-agent-daemon/git-server.js';
 import { createPrimeAgentDaemon } from './packages/prime-agent-daemon/server.js';
 import { createErnieDaemon } from './packages/ernie-daemon/index.js';
+import { createSelectedFeedRegistry } from './packages/ernie-daemon/selected-feed.js';
 import {
   coalescePrimeAgentSessionFeedItems,
   parsePrimeAgentSessionFeedRequest,
@@ -182,31 +183,24 @@ function registerErnieDaemonHandlers(): void {
       socketPath: path.join(app.getPath('userData'), 'prime-agent.sock'),
     }),
   });
-  interface OwnedSessionFeed {
+  interface OwnedFeed {
     fiber: Fiber.Fiber<void> | null;
     readonly senderId: number;
   }
-  const sessionFeeds = new Map<string, OwnedSessionFeed>();
-  const workspaceFeeds = new Map<string, OwnedSessionFeed>();
+  const selectedSessionFeeds = createSelectedFeedRegistry<Fiber.Fiber<void>>();
+  const workspaceFeeds = new Map<string, OwnedFeed>();
   const observedSenders = new Set<number>();
   const feedKey = (senderId: number, subscriptionId: string): string =>
     `${senderId}:${subscriptionId}`;
-  const stopFeed = (key: string): void => {
-    const owned = sessionFeeds.get(key);
-    if (owned === undefined) return;
-    sessionFeeds.delete(key);
-    if (owned.fiber !== null) {
-      Effect.runFork(Fiber.interrupt(owned.fiber));
-    }
+  const interruptFeed = (fiber: Fiber.Fiber<void> | null): void => {
+    if (fiber !== null) Effect.runFork(Fiber.interrupt(fiber));
   };
   const stopSenderFeeds = (senderId: number): void => {
-    for (const [key, owned] of sessionFeeds) {
-      if (owned.senderId === senderId) stopFeed(key);
-    }
+    interruptFeed(selectedSessionFeeds.stopSender(senderId));
     for (const [key, owned] of workspaceFeeds) {
       if (owned.senderId !== senderId) continue;
       workspaceFeeds.delete(key);
-      if (owned.fiber !== null) Effect.runFork(Fiber.interrupt(owned.fiber));
+      interruptFeed(owned.fiber);
     }
     observedSenders.delete(senderId);
   };
@@ -229,7 +223,7 @@ function registerErnieDaemonHandlers(): void {
         Effect.runFork(Fiber.interrupt(previous.fiber));
       }
       observeSender(senderId, event);
-      const owned: OwnedSessionFeed = { fiber: null, senderId };
+      const owned: OwnedFeed = { fiber: null, senderId };
       workspaceFeeds.set(key, owned);
       owned.fiber = Effect.runFork(
         daemon.workspaceFeed().pipe(
@@ -279,13 +273,14 @@ function registerErnieDaemonHandlers(): void {
 
       const senderId = event.sender.id;
       const { activeSessionId, subscriptionId } = parsed.value;
-      const key = feedKey(senderId, subscriptionId);
-      stopFeed(key);
       observeSender(senderId, event);
+      const { owner, replaced } = selectedSessionFeeds.replace(
+        senderId,
+        subscriptionId,
+      );
+      interruptFeed(replaced);
 
       let revision = 0;
-      const owned: OwnedSessionFeed = { fiber: null, senderId };
-      sessionFeeds.set(key, owned);
       const run = daemon.sessionFeed(activeSessionId).pipe(
         Stream.groupedWithin(64, '16 millis'),
         Stream.flatMap((items) =>
@@ -294,7 +289,7 @@ function registerErnieDaemonHandlers(): void {
         Stream.runForEach((item) =>
           Effect.sync(() => {
             if (
-              sessionFeeds.get(key) !== owned ||
+              !selectedSessionFeeds.isCurrent(owner) ||
               event.sender.isDestroyed()
             ) {
               return;
@@ -315,11 +310,12 @@ function registerErnieDaemonHandlers(): void {
         ),
         Effect.ensuring(
           Effect.sync(() => {
-            if (sessionFeeds.get(key) === owned) sessionFeeds.delete(key);
+            selectedSessionFeeds.stop(senderId, subscriptionId);
           }),
         ),
       );
-      owned.fiber = Effect.runFork(run);
+      const fiber = Effect.runFork(run);
+      if (!selectedSessionFeeds.attach(owner, fiber)) interruptFeed(fiber);
     },
   );
   ipcMain.on(
@@ -327,7 +323,9 @@ function registerErnieDaemonHandlers(): void {
     (event, subscriptionId: JsonValue) => {
       const parsed = parsePrimeAgentSessionFeedStop(subscriptionId);
       if (!parsed.ok) return;
-      stopFeed(feedKey(event.sender.id, parsed.value));
+      interruptFeed(
+        selectedSessionFeeds.stop(event.sender.id, parsed.value),
+      );
     },
   );
 
@@ -431,11 +429,7 @@ function registerErnieDaemonHandlers(): void {
     return true;
   });
   app.once('will-quit', () => {
-    for (const key of sessionFeeds.keys()) stopFeed(key);
-    for (const owned of workspaceFeeds.values()) {
-      if (owned.fiber !== null) Effect.runFork(Fiber.interrupt(owned.fiber));
-    }
-    workspaceFeeds.clear();
+    for (const senderId of observedSenders) stopSenderFeeds(senderId);
     daemon.close();
   });
 }

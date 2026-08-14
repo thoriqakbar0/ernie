@@ -67,6 +67,7 @@ const sessionFeedListeners = new Map<
   string,
   Parameters<ErnieRendererApi['watchAgentSession']>[1]
 >();
+let selectedSessionFeedSubscriptionId: string | null = null;
 
 ipcRenderer.on(
   primeAgentSessionFeedEventChannel,
@@ -91,10 +92,14 @@ window.addEventListener('unload', () => {
     ipcRenderer.send(primeAgentWorkspaceFeedStopChannel, subscriptionId);
   }
   workspaceFeedListeners.clear();
-  for (const subscriptionId of sessionFeedListeners.keys()) {
-    ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
+  if (selectedSessionFeedSubscriptionId !== null) {
+    ipcRenderer.send(
+      primeAgentSessionFeedStopChannel,
+      selectedSessionFeedSubscriptionId,
+    );
   }
   sessionFeedListeners.clear();
+  selectedSessionFeedSubscriptionId = null;
 });
 
 const rendererApi: ErnieRendererApi = Object.freeze({
@@ -138,8 +143,16 @@ const rendererApi: ErnieRendererApi = Object.freeze({
     return ipcRenderer.invoke(primeAgentSkillsChannel, activeSessionId);
   },
   watchAgentSession(activeSessionId, listener) {
+    if (selectedSessionFeedSubscriptionId !== null) {
+      sessionFeedListeners.delete(selectedSessionFeedSubscriptionId);
+      ipcRenderer.send(
+        primeAgentSessionFeedStopChannel,
+        selectedSessionFeedSubscriptionId,
+      );
+    }
     nextSessionFeedSubscription += 1;
     const subscriptionId = `${Date.now()}-${nextSessionFeedSubscription}`;
+    selectedSessionFeedSubscriptionId = subscriptionId;
     sessionFeedListeners.set(subscriptionId, listener);
     ipcRenderer.send(primeAgentSessionFeedStartChannel, {
       activeSessionId,
@@ -148,6 +161,8 @@ const rendererApi: ErnieRendererApi = Object.freeze({
     return subscriptionId;
   },
   unwatchAgentSession(subscriptionId) {
+    if (selectedSessionFeedSubscriptionId !== subscriptionId) return;
+    selectedSessionFeedSubscriptionId = null;
     sessionFeedListeners.delete(subscriptionId);
     ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
   },

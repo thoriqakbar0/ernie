@@ -61,6 +61,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   const rendererApi: ErnieRendererApi = {
     signalReady: () => undefined,
     onColorThemeRequest: () => () => undefined,
+    onSidebarControlRequest: () => () => undefined,
     describeAgentHarness: async () => ({
       capabilities: ['live-sessions'],
       id: 'prime-agent',
@@ -286,6 +287,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       onDarkModeEnabledChange={() => undefined}
       onDebugHudEnabledChange={() => undefined}
       onReload={() => undefined}
+      sidebarControlRequest={null}
     />,
   );
 

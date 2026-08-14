@@ -19,5 +19,18 @@ nub run cli -- ui theme dark
 nub run cli -- ui theme light
 ```
 
+Show or hide the repository sidebar:
+
+```sh
+nub run cli -- ui sidebar show
+nub run cli -- ui sidebar hide
+```
+
+Set and save the desktop sidebar width from 192 through 384 pixels:
+
+```sh
+nub run cli -- ui sidebar width 320
+```
+
 The socket lives at `~/Library/Application Support/Ernie/ui-control.sock` on
 macOS and is readable and writable only by its owner.

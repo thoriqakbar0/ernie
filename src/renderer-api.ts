@@ -18,6 +18,9 @@ export const rendererReadyChannel = 'ernie:renderer-ready';
 /** IPC channel carrying a requested Ernie color appearance. */
 export const colorThemeRequestChannel = 'ernie:color-theme:request';
 
+/** IPC channel carrying a requested Ernie sidebar presentation change. */
+export const sidebarControlRequestChannel = 'ernie:sidebar:control-request';
+
 /** IPC channel that describes the harness behind Ernie's daemon API. */
 export const agentHarnessChannel = 'ernie:daemon:harness';
 
@@ -122,6 +125,9 @@ export const revealWorkspacePathChannel = 'ernie:workspace:reveal-path';
 export type ErnieRendererApi = Readonly<{
   signalReady: () => void;
   onColorThemeRequest: (listener: (value: JsonValue) => void) => () => void;
+  onSidebarControlRequest: (
+    listener: (value: JsonValue) => void,
+  ) => () => void;
   describeAgentHarness: () => Promise<JsonValue>;
   listAgentWorkspace: () => Promise<JsonValue>;
   watchAgentWorkspace: (listener: (value: JsonValue) => void) => string;

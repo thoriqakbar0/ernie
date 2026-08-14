@@ -29,6 +29,12 @@ if (!parsed.ok) {
       case 'set-theme':
         console.log(`Ernie theme set to ${parsed.command.theme}.`);
         break;
+      case 'set-sidebar-open':
+        console.log(`Ernie sidebar ${parsed.command.open ? 'shown' : 'hidden'}.`);
+        break;
+      case 'set-sidebar-width':
+        console.log(`Ernie sidebar width set to ${parsed.command.width}px.`);
+        break;
     }
   } else {
     console.error(result.error.message);

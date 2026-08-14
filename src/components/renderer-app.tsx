@@ -13,6 +13,13 @@ import {
   isJsonRecord,
   parseJsonValue,
 } from '@/packages/json-value';
+import {
+  ernieUiSidebarDefaultWidth,
+  ernieUiSidebarMaximumWidth,
+  ernieUiSidebarMinimumWidth,
+  parseErnieUiSidebarRequest,
+  type ErnieUiSidebarRequest,
+} from '@/packages/ernie-ui-control/sidebar-control';
 import type { ErnieRendererApi } from '@/renderer-api';
 
 interface RendererAppProps {
@@ -22,15 +29,15 @@ interface RendererAppProps {
 const agentationPositionStorageKey = 'feedback-toolbar-position';
 const agentationToolbarWidth = 337;
 const desktopSidebarBreakpoint = 768;
-const sidebarDefaultWidth = 280;
-const sidebarMaximumWidth = 384;
 const sidebarWidthStorageKey = 'ernie:sidebar-width:v1';
 
 function storedSidebarWidth(): number {
   const value = Number(window.localStorage.getItem(sidebarWidthStorageKey));
-  return Number.isFinite(value) && value >= 192 && value <= sidebarMaximumWidth
+  return Number.isFinite(value) &&
+    value >= ernieUiSidebarMinimumWidth &&
+    value <= ernieUiSidebarMaximumWidth
     ? value
-    : sidebarDefaultWidth;
+    : ernieUiSidebarDefaultWidth;
 }
 
 function storeSafeAgentationPosition(): void {
@@ -85,6 +92,17 @@ export function watchColorThemeRequests(
   });
 }
 
+/** Subscribe to valid CLI-driven sidebar presentation requests. */
+export function watchSidebarControlRequests(
+  api: Pick<ErnieRendererApi, 'onSidebarControlRequest'>,
+  selectRequest: (request: ErnieUiSidebarRequest) => void,
+): () => void {
+  return api.onSidebarControlRequest((value) => {
+    const request = parseErnieUiSidebarRequest(value);
+    if (request !== null) selectRequest(request);
+  });
+}
+
 /** Own the renderer's interactive application state. */
 export function RendererApp({
   initialColorTheme,
@@ -92,6 +110,8 @@ export function RendererApp({
   const [debugHudEnabled, setDebugHudEnabled] = useState(false);
   const [agentationReady, setAgentationReady] = useState(false);
   const [colorTheme, setColorTheme] = useState(initialColorTheme);
+  const [sidebarControlRequest, setSidebarControlRequest] =
+    useState<ErnieUiSidebarRequest | null>(null);
 
   const selectColorTheme = useCallback((theme: ColorTheme): void => {
     applyColorTheme(theme);
@@ -102,6 +122,12 @@ export function RendererApp({
   useLayoutEffect(
     () => watchColorThemeRequests(window.ernie, selectColorTheme),
     [selectColorTheme],
+  );
+
+  useLayoutEffect(
+    () =>
+      watchSidebarControlRequests(window.ernie, setSidebarControlRequest),
+    [],
   );
 
   useLayoutEffect(() => {
@@ -129,6 +155,7 @@ export function RendererApp({
         onDarkModeEnabledChange={changeDarkMode}
         onDebugHudEnabledChange={setDebugHudEnabled}
         onReload={reloadRenderer}
+        sidebarControlRequest={sidebarControlRequest}
       />
       {debugHudEnabled && agentationReady ? (
         <Agentation

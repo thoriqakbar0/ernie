@@ -7,6 +7,20 @@ import {
   parseJsonValue,
   type JsonValue,
 } from '../json-value/index.js';
+import {
+  ernieUiSidebarMaximumWidth,
+  ernieUiSidebarMinimumWidth,
+  parseErnieUiSidebarRequest,
+  type ErnieUiSidebarRequest,
+} from './sidebar-control.js';
+
+export {
+  ernieUiSidebarDefaultWidth,
+  ernieUiSidebarMaximumWidth,
+  ernieUiSidebarMinimumWidth,
+  parseErnieUiSidebarRequest,
+  type ErnieUiSidebarRequest,
+} from './sidebar-control.js';
 
 /** Version of Ernie's local UI-control protocol. */
 export const ernieUiControlProtocolVersion = 1;
@@ -20,7 +34,8 @@ export type ErnieUiColorTheme = 'dark' | 'light';
 /** One UI-only command accepted by a running Ernie application. */
 export type ErnieUiControlCommand =
   | Readonly<{ type: 'focus' }>
-  | Readonly<{ theme: ErnieUiColorTheme; type: 'set-theme' }>;
+  | Readonly<{ theme: ErnieUiColorTheme; type: 'set-theme' }>
+  | ErnieUiSidebarRequest;
 
 /** Stable failure codes returned by Ernie UI control. */
 export type ErnieUiControlFailureCode =
@@ -166,7 +181,7 @@ function parseCommand(value: JsonValue | undefined): ErnieUiControlCommand | nul
   ) {
     return { theme: value.theme, type: 'set-theme' };
   }
-  return null;
+  return parseErnieUiSidebarRequest(value);
 }
 
 /** Parse one untrusted local socket value into a UI-control command. */
@@ -223,7 +238,7 @@ export function parseErnieUiControlResult(
   return message.length === 0 ? null : failure(code, message);
 }
 
-/** Parse the intentionally small `ernie ui focus` command surface. */
+/** Parse the intentionally small `ernie ui` command surface. */
 export function parseErnieUiControlCliArguments(
   arguments_: readonly string[],
 ): ErnieUiControlCliArgumentsResult {
@@ -247,8 +262,42 @@ export function parseErnieUiControlCliArguments(
       ok: true,
     };
   }
+  if (
+    commandArguments.length === 3 &&
+    commandArguments[0] === 'ui' &&
+    commandArguments[1] === 'sidebar' &&
+    (commandArguments[2] === 'show' || commandArguments[2] === 'hide')
+  ) {
+    return {
+      command: {
+        open: commandArguments[2] === 'show',
+        type: 'set-sidebar-open',
+      },
+      ok: true,
+    };
+  }
+  if (
+    commandArguments.length === 4 &&
+    commandArguments[0] === 'ui' &&
+    commandArguments[1] === 'sidebar' &&
+    commandArguments[2] === 'width' &&
+    /^\d+$/u.test(commandArguments[3] ?? '')
+  ) {
+    const width = Number(commandArguments[3]);
+    if (
+      Number.isInteger(width) &&
+      width >= ernieUiSidebarMinimumWidth &&
+      width <= ernieUiSidebarMaximumWidth
+    ) {
+      return {
+        command: { type: 'set-sidebar-width', width },
+        ok: true,
+      };
+    }
+  }
   return {
-    message: 'Usage: ernie ui focus | ernie ui theme <dark|light>',
+    message:
+      'Usage: ernie ui focus | ernie ui theme <dark|light> | ernie ui sidebar <show|hide> | ernie ui sidebar width <192..384>',
     ok: false,
   };
 }

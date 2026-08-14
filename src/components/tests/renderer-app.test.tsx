@@ -6,6 +6,7 @@ import { afterEach, test } from 'node:test';
 import {
   repairUnsafeAgentationPosition,
   watchColorThemeRequests,
+  watchSidebarControlRequests,
 } from '@/components/renderer-app';
 import type { ErnieRendererApi } from '@/renderer-api';
 
@@ -39,6 +40,39 @@ test('applies only supported UI-control color themes', () => {
   stop();
 
   assert.deepEqual(selectedThemes, ['dark', 'light']);
+  assert.equal(cleanupCount, 1);
+});
+
+test('applies only supported UI-control sidebar requests', () => {
+  let sidebarListener: Parameters<
+    ErnieRendererApi['onSidebarControlRequest']
+  >[0] = () => undefined;
+  let cleanupCount = 0;
+  const selectedRequests: unknown[] = [];
+
+  const stop = watchSidebarControlRequests(
+    {
+      onSidebarControlRequest: (listener) => {
+        sidebarListener = listener;
+        return () => {
+          cleanupCount += 1;
+        };
+      },
+    },
+    (request) => selectedRequests.push(request),
+  );
+
+  sidebarListener({ open: false, type: 'set-sidebar-open' });
+  sidebarListener({ type: 'set-sidebar-width', width: 320 });
+  sidebarListener({ type: 'set-sidebar-width', width: 191 });
+  sidebarListener({ type: 'set-sidebar-width', width: 320.5 });
+  sidebarListener({ open: 'true', type: 'set-sidebar-open' });
+  stop();
+
+  assert.deepEqual(selectedRequests, [
+    { open: false, type: 'set-sidebar-open' },
+    { type: 'set-sidebar-width', width: 320 },
+  ]);
   assert.equal(cleanupCount, 1);
 });
 

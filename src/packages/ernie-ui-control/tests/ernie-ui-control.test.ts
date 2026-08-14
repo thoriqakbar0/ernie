@@ -14,7 +14,7 @@ import {
   type ErnieUiControlCommand,
 } from '../index';
 
-test('parses only the UI focus command and version', () => {
+test('parses only supported UI commands and versions', () => {
   assert.deepEqual(
     parseErnieUiControlRequest({
       command: { type: 'focus' },
@@ -39,6 +39,34 @@ test('parses only the UI focus command and version', () => {
   assert.equal(
     parseErnieUiControlRequest({
       command: { theme: 'system', type: 'set-theme' },
+      version: 1,
+    }),
+    null,
+  );
+  assert.deepEqual(
+    parseErnieUiControlRequest({
+      command: { open: true, type: 'set-sidebar-open' },
+      version: 1,
+    }),
+    { open: true, type: 'set-sidebar-open' },
+  );
+  assert.deepEqual(
+    parseErnieUiControlRequest({
+      command: { type: 'set-sidebar-width', width: 320 },
+      version: 1,
+    }),
+    { type: 'set-sidebar-width', width: 320 },
+  );
+  assert.equal(
+    parseErnieUiControlRequest({
+      command: { type: 'set-sidebar-width', width: 191 },
+      version: 1,
+    }),
+    null,
+  );
+  assert.equal(
+    parseErnieUiControlRequest({
+      command: { type: 'set-sidebar-width', width: 320.5 },
       version: 1,
     }),
     null,
@@ -74,6 +102,35 @@ test('parses only the UI focus command and version', () => {
   );
   assert.equal(
     parseErnieUiControlCliArguments(['ui', 'theme', 'system']).ok,
+    false,
+  );
+  assert.deepEqual(
+    parseErnieUiControlCliArguments(['ui', 'sidebar', 'show']),
+    {
+      command: { open: true, type: 'set-sidebar-open' },
+      ok: true,
+    },
+  );
+  assert.deepEqual(
+    parseErnieUiControlCliArguments(['ui', 'sidebar', 'hide']),
+    {
+      command: { open: false, type: 'set-sidebar-open' },
+      ok: true,
+    },
+  );
+  assert.deepEqual(
+    parseErnieUiControlCliArguments(['--', 'ui', 'sidebar', 'width', '320']),
+    {
+      command: { type: 'set-sidebar-width', width: 320 },
+      ok: true,
+    },
+  );
+  assert.equal(
+    parseErnieUiControlCliArguments(['ui', 'sidebar', 'width', '191']).ok,
+    false,
+  );
+  assert.equal(
+    parseErnieUiControlCliArguments(['ui', 'sidebar', 'width', '320.5']).ok,
     false,
   );
   assert.equal(parseErnieUiControlCliArguments(['agent', 'list']).ok, false);
@@ -134,9 +191,25 @@ test('controls Ernie through an owner-only local socket', async () => {
       }),
       { ok: true, version: 1 },
     );
+    assert.deepEqual(
+      await requestErnieUiControl(socketPath, {
+        open: false,
+        type: 'set-sidebar-open',
+      }),
+      { ok: true, version: 1 },
+    );
+    assert.deepEqual(
+      await requestErnieUiControl(socketPath, {
+        type: 'set-sidebar-width',
+        width: 320,
+      }),
+      { ok: true, version: 1 },
+    );
     assert.deepEqual(commands, [
       { type: 'focus' },
       { theme: 'dark', type: 'set-theme' },
+      { open: false, type: 'set-sidebar-open' },
+      { type: 'set-sidebar-width', width: 320 },
     ]);
   } finally {
     await started.value.close();

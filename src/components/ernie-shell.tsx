@@ -14,12 +14,14 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
 import { createPluginHost } from '@/packages/plugin-host';
+import type { ErnieUiSidebarRequest } from '@/packages/ernie-ui-control/sidebar-control';
 
 const disabledPluginsStorageKey = 'ernie:disabled-plugins:v1';
 
@@ -55,7 +57,30 @@ type ErnieShellProps = {
   onDarkModeEnabledChange: (enabled: boolean) => void;
   onDebugHudEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
+  sidebarControlRequest: ErnieUiSidebarRequest | null;
 };
+
+function SidebarControlBridge({
+  request,
+}: {
+  readonly request: ErnieUiSidebarRequest | null;
+}): null {
+  const { setOpen, setSidebarWidth } = useSidebar();
+
+  useEffect(() => {
+    if (request === null) return;
+    switch (request.type) {
+      case 'set-sidebar-open':
+        setOpen(request.open);
+        break;
+      case 'set-sidebar-width':
+        setSidebarWidth(request.width);
+        break;
+    }
+  }, [request, setOpen, setSidebarWidth]);
+
+  return null;
+}
 
 export function ErnieShell({
   darkModeEnabled,
@@ -63,6 +88,7 @@ export function ErnieShell({
   onDarkModeEnabledChange,
   onDebugHudEnabledChange,
   onReload,
+  sidebarControlRequest,
 }: ErnieShellProps): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
   const pluginHost = useMemo(() => {
@@ -205,6 +231,7 @@ export function ErnieShell({
           onSelectView={selectView}
         />
         <SidebarProvider defaultOpen className="min-w-0 flex-1">
+          <SidebarControlBridge request={sidebarControlRequest} />
           {agentsActive ? (
             <AgentSidebar
               {...workspace}

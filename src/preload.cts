@@ -12,6 +12,7 @@ import type { JsonValue } from './packages/json-value/index.js' with {
 // literals in sync with renderer-api.ts.
 const rendererReadyChannel = 'ernie:renderer-ready';
 const colorThemeRequestChannel = 'ernie:color-theme:request';
+const sidebarControlRequestChannel = 'ernie:sidebar:control-request';
 const agentHarnessChannel = 'ernie:daemon:harness';
 const primeAgentWorkspaceChannel = 'ernie:prime-agent:workspace';
 const primeAgentWorkspaceFeedStartChannel =
@@ -116,6 +117,20 @@ const rendererApi: ErnieRendererApi = Object.freeze({
     };
     ipcRenderer.on(colorThemeRequestChannel, handleThemeRequest);
     return () => ipcRenderer.off(colorThemeRequestChannel, handleThemeRequest);
+  },
+  onSidebarControlRequest(listener) {
+    const handleSidebarControlRequest = (
+      _event: IpcRendererEvent,
+      value: JsonValue,
+    ): void => {
+      listener(value);
+    };
+    ipcRenderer.on(sidebarControlRequestChannel, handleSidebarControlRequest);
+    return () =>
+      ipcRenderer.off(
+        sidebarControlRequestChannel,
+        handleSidebarControlRequest,
+      );
   },
   describeAgentHarness() {
     return ipcRenderer.invoke(agentHarnessChannel);

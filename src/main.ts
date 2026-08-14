@@ -66,6 +66,7 @@ import {
   primeAgentWorkspaceFeedStartChannel,
   primeAgentWorkspaceFeedStopChannel,
   rendererReadyChannel,
+  sidebarControlRequestChannel,
   revealWorkspacePathChannel,
 } from './renderer-api.js';
 
@@ -595,6 +596,10 @@ function handleUiControl(command: ErnieUiControlCommand): ErnieUiControlResult {
     }
     case 'set-theme':
       window.webContents.send(colorThemeRequestChannel, command.theme);
+      return { ok: true, version: 1 };
+    case 'set-sidebar-open':
+    case 'set-sidebar-width':
+      window.webContents.send(sidebarControlRequestChannel, command);
       return { ok: true, version: 1 };
   }
 }

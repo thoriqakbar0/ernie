@@ -6,6 +6,11 @@ import { Predicate } from "effect"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import {
+  ernieUiSidebarDefaultWidth as SIDEBAR_DEFAULT_WIDTH,
+  ernieUiSidebarMaximumWidth as SIDEBAR_MAX_WIDTH,
+  ernieUiSidebarMinimumWidth as SIDEBAR_MIN_WIDTH,
+} from "@/packages/ernie-ui-control/sidebar-control"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -26,9 +31,6 @@ import { PanelLeftIcon } from "lucide-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_DEFAULT_WIDTH = 280
-const SIDEBAR_MIN_WIDTH = 192
-const SIDEBAR_MAX_WIDTH = 384
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"

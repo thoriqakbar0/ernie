@@ -172,7 +172,10 @@ export function BrowserPluginView({
             className={navigation.loading ? 'animate-spin motion-reduce:animate-none' : undefined}
           />
         </Button>
-        <form className="min-w-0 flex-1" onSubmit={navigate}>
+        <form
+          className="min-w-0 flex-1"
+          onSubmit={(event) => void navigate(event)}
+        >
           <label className="flex h-8 items-center gap-2 rounded-lg border border-border/70 bg-muted/45 px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
             <Globe2Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="sr-only">Browser address</span>

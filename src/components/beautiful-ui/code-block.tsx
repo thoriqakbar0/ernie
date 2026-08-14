@@ -50,10 +50,13 @@ export default function CodeBlock() {
   }, [count, done]);
 
   const copy = useCallback(() => {
-    navigator.clipboard.writeText(RAW).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(RAW)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => undefined);
   }, []);
 
   return (

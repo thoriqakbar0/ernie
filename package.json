@@ -14,12 +14,12 @@
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
     "build": "nub run build:main && nub run build:renderer",
-    "typecheck": "tsc --noEmit",
-    "lint:anti-slop": "oxlint --config .oxlintrc.json src scripts tools/oxlint/anti-slop vite.config.mts",
+    "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.main.json",
+    "lint": "oxlint --config .oxlintrc.json src scripts tools/oxlint/anti-slop vite.config.mts",
     "lint:boundaries": "depcruise src",
     "test": "nub --test \"src/packages/**/tests/*.test.ts\" \"src/components/tests/*.test.tsx\"",
     "check:agentation": "nub run build:main && nub run build:renderer && env -u ELECTRON_RUN_AS_NODE nub --node node_modules/electron/cli.js scripts/agentation-check",
-    "check": "nub run typecheck && nub run lint:anti-slop && nub run lint:boundaries && nub run test"
+    "check": "nub run typecheck && nub run lint && nub run lint:boundaries && nub run test"
   },
   "keywords": [],
   "author": {
@@ -67,6 +67,7 @@
     "dependency-cruiser": "^18.1.1",
     "electron": "43.3.0",
     "oxlint": "1.78.0",
+    "oxlint-tsgolint": "7.0.2001",
     "run-local-ci": "0.18.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",

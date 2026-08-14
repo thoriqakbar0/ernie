@@ -19,23 +19,23 @@ export class PluginViewBoundary extends Component<
   PluginViewBoundaryProps,
   PluginViewBoundaryState
 > {
-  state: PluginViewBoundaryState = { failed: false };
+  override state: PluginViewBoundaryState = { failed: false };
 
   static getDerivedStateFromError(): PluginViewBoundaryState {
     return { failed: true };
   }
 
-  componentDidCatch(_error: Error, _info: ErrorInfo): void {
+  override componentDidCatch(_error: Error, _info: ErrorInfo): void {
     // The host intentionally avoids logging arbitrary plugin values.
   }
 
-  componentDidUpdate(previous: PluginViewBoundaryProps): void {
+  override componentDidUpdate(previous: PluginViewBoundaryProps): void {
     if (previous.viewId !== this.props.viewId && this.state.failed) {
       this.setState({ failed: false });
     }
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
 
     return (

@@ -318,7 +318,7 @@ export function ErnieShell({
       </div>
       <PluginManagerDialog
         busyPluginIds={busyPluginIds}
-        isPluginEnabled={pluginHost.isPluginEnabled}
+        isPluginEnabled={(pluginId) => pluginHost.isPluginEnabled(pluginId)}
         manifests={pluginManifests}
         onPluginEnabledChange={changePluginEnabled}
         open={pluginManagerOpen}

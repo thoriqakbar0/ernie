@@ -86,10 +86,6 @@ class PrimeAgentControlClosedError extends Error {
 
 class PrimeAgentControlUnavailableError extends Error {
   readonly _tag = 'PrimeAgentControlUnavailableError';
-
-  constructor(message: string) {
-    super(message);
-  }
 }
 
 /** Create one lazy shared client that delegates recovery to Prime Agent. */

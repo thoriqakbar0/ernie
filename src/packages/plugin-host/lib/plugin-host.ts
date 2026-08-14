@@ -552,7 +552,10 @@ export function createPluginHost<RenderedView>(
     }
     manifests.push(manifest);
     records.set(manifest.id, {
-      module: { manifest, activate: module.activate },
+      module: {
+        manifest,
+        activate: (context) => module.activate(context),
+      },
       enabled: !initiallyDisabledPluginIds.has(manifest.id),
       state: { status: 'inactive' },
     });

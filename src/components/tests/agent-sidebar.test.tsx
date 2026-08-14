@@ -1074,6 +1074,11 @@ test('archived threads remain recoverable from undo and the archive', async () =
     }),
     null,
   );
+  const archiveStatus = within(document.body).getByRole('status');
+  assert.match(archiveStatus.className, /\babsolute\b/u);
+  assert.match(archiveStatus.className, /\binset-x-3\b/u);
+  assert.doesNotMatch(archiveStatus.className, /\bfixed\b/u);
+  assert.doesNotMatch(archiveStatus.className, /\bw-64\b/u);
   const archive = within(document.body).getByRole('region', {
     name: 'Archived sidebar items',
   });

@@ -1640,7 +1640,7 @@ export function AgentSidebar({
 
       {archiveUndo === null ? null : (
         <div
-          className="fixed bottom-16 left-3 z-50 flex w-64 items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-xs shadow-lg"
+          className="absolute inset-x-3 bottom-16 z-50 flex items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-xs shadow-lg"
           role="status"
           aria-live="polite"
         >

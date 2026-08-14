@@ -1,305 +1,178 @@
-# I built Ernie because I wanted to look cool
+# i wanted a cooler agent harness and accidentally built two (and forked one)
 
-I started building Ernie for two reasons.
+ernie began with a screenshot i wanted to exist.
 
-The first reason was that I wanted to look cool.
+i wanted a desktop app where agents could keep working after i closed the
+window. their sessions would stay attached to repositories, their work would
+branch, and the evidence would still be there when i came back. ideally, the
+whole thing would look cool enough that i could point at it and say “agent
+harness” without having to explain what i had been doing all week.
 
-I wanted the kind of desktop application that makes a screenshot look like
-work is happening in the future. Agents would continue running after I closed
-the window. Their work would branch, persist, and return with evidence. I would
-point at the interface and say something modest like, “this is my agent
-harness,” as if I had not spent the previous hour moving one button four
-pixels.
+wanting to look cool is not the official reason people give for starting
+software projects. it is, however, the reason i actually had.
 
-The second reason was an idea I could not leave alone: we shape our tools, then
-our tools shape us.
+there was another idea underneath it. tools do not remain passive for long.
+people build a tool around one set of habits, then the tool makes those habits
+easier, and eventually the surrounding environment assumes everyone has
+adopted them.
 
-These reasons were less separate than I expected.
+cars are the obvious example. a car lets one person travel farther, but a city
+full of cars needs roads, parking, traffic lights, petrol stations, wider
+intersections, and buildings separated by car-sized distances. once that
+environment exists, owning a car becomes less optional. the machine changed
+the city, and the changed city made the machine necessary.
 
-That idea became both a reason and an alibi. If interfaces help shape our
-habits, then the best UI has probably not happened yet. Every awkward button
-can therefore look like a moral demand to start over.
+software works on a smaller scale, which makes it easier to miss. an unread
+badge turns messages into obligations. infinite scroll removes the point where
+you would have stopped. a chat box teaches you to type something, wait, and
+read the reply.
 
-Rebuilding feels decisive. It also ensures that no design remains in place
-long enough to teach me what it does.
+i wondered what the usual chat box was teaching us about agents.
 
-## A car eventually becomes a road
+## the interface gave me a new job
 
-A car begins as a machine that lets a person travel farther. Then enough cars
-exist, and the environment starts changing around them.
+a chat interface makes artificial intelligence easy to understand. there is a
+conversation, the model answers, and the answer is the visible result. that
+shape works well until the system can keep an objective, modify files, use
+tools, spawn more work, and continue after the window disappears.
 
-We build roads, parking spaces, traffic lights, petrol stations, wider
-intersections, and suburbs separated by distances that assume a car will be
-available. The tool changes the landscape. The new landscape makes the tool
-more necessary. In many places, not having a car stops being a preference and
-becomes a practical disadvantage.
+at that point, the transcript is only one view of what happened. the durable
+object might be a repository change, a running process, or a task waiting for
+approval. if the interface still puts the transcript at the center, the person
+learns to watch the transcript.
 
-The car did not merely extend movement. It helped decide what the environment
-would expect from the people inside it.
+my first ernie was an electron client for prime agent. prime agent already
+owned durable sessions, workspaces, queued work, and child agents. ernie tried
+to expose all of it.
 
-The car is impressive. The sea of parking is the sequel.
+i added a worktree workbench, project controls, session tabs, subagent trees,
+tool output, and branch controls. each addition answered a real question. the
+combined interface answered a different question: what if the user became air
+traffic control?
 
-Software does this quietly.
+i spent more time supervising the agent system i had built to reduce
+supervision. this seemed inefficient, even by the generous standards of a
+personal research project.
 
-A feed says that newness deserves attention. An unread badge converts
-communication into debt. Infinite scroll removes the natural moment to stop.
-Autosave makes revision cheap. Version control makes divergence recoverable.
-A blank document permits wandering. A command field asks for a decision.
-
-None of these interfaces needs to announce its philosophy. The behavior
-repeats until it feels natural.
-
-Once I noticed this, every interface started to look less like a neutral
-surface and more like a tiny zoning committee.
-
-This is why I became interested in the shape of AI tools. The shape is not
-decoration around the intelligence. It teaches us what the intelligence is
-for.
-
-## The chat box is already an opinion
-
-The chat box has become the familiar shape of artificial intelligence. It
-makes AI feel like an unusually patient person living inside a rectangle.
-Write a message, receive a reply, continue the exchange.
-
-For many tasks, this is useful. It also establishes a particular relationship.
-The important unit is the current conversation. The model waits for the
-person. Progress appears as language. The reply feels like the product.
-
-Agents complicate that model.
-
-An agent can retain an objective, use tools, modify files, delegate work, wait
-for external events, and continue after its interface disconnects. Its useful
-life may exceed one conversation and one window. The real result may be a
-changed repository, a deployed system, or a decision supported by evidence.
-
-If that system appears only through chat, we learn to understand durable work
-as a sequence of replies. Delegation becomes transcript material. Execution
-becomes a loading state. The person remains a conversational partner even when
-the system has started behaving more like a working environment.
-
-This is not necessarily wrong. It may simply be an early UI for agents, in the
-same way an early road is a useful place to begin before someone invents the
-roundabout and starts an argument.
-
-I wanted to know what another environment would teach.
-
-That became Ernie.
-
-## Ernie accidentally became a control room
-
-Ernie began as an Electron client for Prime Agent. Prime Agent owns durable
-sessions, workspaces, execution state, queued work, and child agents. It can
-continue after its visual client closes.
-
-The first Ernie tried to make all of that machinery legible.
-
-It gained a worktree workbench, then multiple projects. Sessions gained tabs.
-Subagents gained hierarchies. Tool calls gained increasingly precise output.
-Branches gained controls. Every addition solved a real problem.
-
-Together, they taught me to supervise the system.
-
-Watch the sessions. Inspect the tree. Follow the output. Manage the branches.
-An application intended to extend human agency had assigned the human a new
-job as its operator. I had invented a coworker and then accidentally applied
-for the position of its air traffic controller.
-
-On August 10, I used the standard interface-design technique of deleting the
-interface.
-
-One commit reported
+on august 10, i removed the interface. the first commit reported
 [10,338 deletions](https://github.com/thoriqakbar0/ernie/commit/dabf6d974129ade57ee3633f266b562047d0c9ba).
-Two minutes later, another reported
-[12,824](https://github.com/thoriqakbar0/ernie/commit/63a757b7c2b93e32fe0342f4d65226772cb4399d).
-Git therefore recorded 23,162 deleted lines across two commits.
+two minutes later, the second reported
+[12,824 deletions](https://github.com/thoriqakbar0/ernie/commit/63a757b7c2b93e32fe0342f4d65226772cb4399d).
+git recorded 23,162 deleted lines across the two commits.
 
-That number does not prove the new design was better. It proves I had built
-enough software to remove it in installments.
+all 23,162 deletions established was that i had built enough interface to
+require two trips to remove it. whether the replacement was better remained
+unknown.
 
-The deletion was useful. It returned the project to a boundary I could
-understand. It also taught me a dangerous lesson: a clean slate feels unusually
-intelligent because it contains no accumulated compromises. Unfortunately, it
-also contains very little accumulated evidence.
+the smaller version drew a clearer boundary. prime agent would continue to own
+execution and durable state. ernie would decide how a person encountered that
+work. a conversation could live inside an agent without becoming the agent’s
+identity, and evidence could remain available without covering the screen at
+all times.
 
-The second Ernie began with a stricter boundary. Prime Agent would own the
-durable work. Ernie would decide how a person encountered it. A conversation
-could belong inside an Agent without becoming the Agent’s identity. Evidence
-could remain available without competing with the result. The runtime could be
-complex without requiring the interface to reproduce the complexity all at
-once.
+the result was calmer and easier for me to explain. i responded to this
+progress by replacing it with a much larger repository.
 
-This version was smaller, calmer, and much easier to explain.
+## the repository already knew how to be a company
 
-It was perhaps even becoming good.
+on august 13, i forked [bb](https://github.com/get-bb/bb). bb is an agent ide
+with a server, a host daemon, web and desktop applications, plugins, deployment
+workflows, nightly releases, signing, and apple notarization.
 
-Naturally, I replaced it with a much larger project.
+my ernie had open questions. bb had departments.
 
-## I forked the functioning adult
+for a short time, the bb fork took the ernie name and the smaller app became
+ernie legacy. this gave me a serious codebase with working answers to problems
+i had not reached yet. it also gave me responsibility for those answers.
 
-On August 13, I forked [bb](https://github.com/get-bb/bb), an agent IDE with a
-server, host daemon, web application, desktop application, plugins, deployment
-workflows, nightly releases, signing, and Apple notarization.
+then apple sent me a notarization notification.
 
-My smaller Ernie had questions. bb had packages.
+the workflow had submitted a desktop build, apple had processed it, and the
+system had reported the result. nothing was broken. this was worse, because i
+could not blame a bug. the repository was behaving correctly while i slowly
+realized that “help me build this app” had expanded into nightly publishing,
+release channels, signing, deployment, and the administrative life of a
+software company.
 
-I thought the larger project would make me look more serious and give me more
-to learn. Both predictions were correct. I looked at an enormous amount of
-serious software, looked extremely serious beside it, and learned that I could
-not explain most of the decisions that now belonged to me.
+i wanted to learn how an agent harness worked. i was learning how to operate
+somebody else’s product.
 
-For a short period, the bb fork carried the Ernie name. My standalone project
-became Ernie Legacy. The new repository knew how to build itself, publish
-itself, sign itself, and report what it had done.
+so the names changed again. the bb fork became
+[`ernie-bb-archive`](https://github.com/thoriqakbar0/ernie-bb-archive), and the
+standalone app became [`ernie`](https://github.com/thoriqakbar0/ernie) again.
 
-Then Apple sent me a notarization notification.
+github records one literal fork here. i count the earlier rebuild and the later
+repository reversal as two attempts to replace the foundation. github’s
+version is better for network graphs. mine explains the week.
 
-Nothing had failed. A workflow had submitted a desktop build. Apple had
-processed it. The system was doing exactly what it had been designed to do.
+## i did want something from the larger harnesses
 
-I still did not want the notification.
+the fork was not wasted. it showed me which parts of a mature harness were
+worth understanding separately from its product machinery.
 
-I had asked an AI to help build Ernie. Somewhere along the way, “build itself”
-had expanded to include nightly publishing, release channels, signing,
-deployment, and the administrative residue of operating a software product.
-
-I was learning how to keep somebody else’s machine running.
-
-This was valuable. It was also not the cool part I had imagined.
-
-So I reversed the repositories again. The bb fork became
-[`ernie-bb-archive`](https://github.com/thoriqakbar0/ernie-bb-archive). The
-standalone project became [`ernie`](https://github.com/thoriqakbar0/ernie)
-again.
-
-GitHub records only one literal fork in this story. The first reversal happened
-inside the product; the second happened between repositories. I still count
-both. GitHub is technically correct and emotionally unhelpful.
-
-By then, the pattern was becoming difficult to blame on GitHub. When a design
-resisted me, I reached for a new foundation. I was studying how tools shape
-behavior while quietly training myself to respond to friction by replacing the
-tool.
-
-## The harness is the part that shapes the work
-
-A language model can produce text and request tools. It does not, by itself,
-own a workspace, retain a loop, execute a command, remember a durable session,
-ask for approval, reconnect after failure, or decide what evidence makes work
-complete.
-
-The software around the model gives those actions their shape. That surrounding
-system is commonly called the harness.
-
-The harness decides what the model can see, which tools it can use, how state
-survives, when a person must intervene, and what appears in the interface. Two
-products can use the same model and still create very different agents because
-their harnesses teach different forms of work.
-
-This was the layer I actually wanted to understand.
-
-The larger projects remained useful once I stopped trying to become them.
+a model can produce text and request tools, but it does not own a workspace,
+retain a loop, reconnect after failure, ask for approval, or decide what
+evidence makes a task complete. the harness supplies those rules. it determines
+what the model can see, how actions run, where state survives, and when a person
+has to intervene.
 
 [bb’s agent runtime](https://github.com/get-bb/bb/tree/75c3ea0311601d8e41d6e523d8e4848526e272d5/packages/agent-runtime)
-showed me a practical provider boundary: the shared runtime owns lifecycle and
-routing, while each provider adapter owns its specific protocol. A bridge
-process is useful when a provider exposes an SDK but no stable wire protocol.
-It is not architecture seasoning applied to every connection.
+gave me a useful example of provider ownership. its shared runtime manages
+lifecycle and routing, while each provider adapter handles the provider’s
+protocol. a separate bridge process appears when a provider offers an sdk but
+not a stable wire protocol. it is there to solve a specific transport problem,
+not because every architecture diagram needs another box.
 
-[DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness/tree/47f943859bef60e4160492346772ded9b24f765a)
-made another decision unusually visible: everything is a plugin. Tools,
-interfaces, and capabilities enter through extension points instead of
-becoming permanent branches inside one central loop. The project is a
-developer preview and explicitly warns that compatibility will break. For a
-learner, those moving boundaries expose decisions that a mature product may
-have already hidden.
+[deepseek harness](https://github.com/deepseek-ai/DeepSeek-Harness/tree/47f943859bef60e4160492346772ded9b24f765a)
+made a different boundary visible. tools, interfaces, and capabilities enter
+through plugins instead of accumulating as permanent branches in one central
+loop. the project calls itself a developer preview and warns that compatibility
+will break. that warning is inconvenient if you need a stable dependency. it
+is useful if you are trying to see which decisions are still moving.
 
-The lesson was not to copy either architecture. I had already tested that
-method.
+i did not need to become bb or deepseek harness. i needed to understand why
+they put certain responsibilities on opposite sides of a boundary.
 
-The lesson was to inspect the boundaries they chose to own.
-
-A fork can be a destination. It can also be a very elaborate way to borrow a
-question.
-
-## A tool should remain available for argument
-
-Ernie now keeps its load-bearing path short enough for me to follow:
+ernie now has a short path from the interface to prime agent:
 
 ```text
-renderer -> Electron IPC -> Ernie daemon -> Prime Agent adapter -> daemon socket
+renderer -> electron ipc -> ernie daemon -> prime agent adapter -> daemon socket
 ```
 
-Prime Agent owns execution and durable state. Ernie owns the encounter.
+the ernie daemon presents one application boundary to electron. the prime
+agent adapter owns prime agent’s identity, protocol, connection, and failure
+translation. because prime agent already provides a daemon socket, adding a
+stdio bridge would only create another process for me to misunderstand.
 
-That still leaves a dangerous amount of influence inside the interface. A calm
-view can hide evidence. A detailed view can train constant supervision. A
-compact composer can encourage quick iteration. A large writing surface can
-permit hesitation. None of these choices is neutral, and none should become
-permanent merely because I implemented it first.
+## rebuilding may be the feature
 
-This is why programmability cannot stop at colors and spacing. People need to
-change what the tool considers primary: views, commands, workflows, attention
-rules, and the boundary between conversation and evidence.
+the best interface for agents probably has not happened yet. current products
+borrow familiar shapes from chat, editors, terminals, inboxes, and dashboards
+because people already know how to use them. agents can behave differently from
+all five, so some of those borrowed shapes will eventually look strange.
 
-Ernie’s current plugin host is deliberately incomplete. It supports trusted
-built-in commands and primary views. Its Browser plugin owns a native Electron
-lifecycle and can be disabled without leaving its interface or acquired
-resources behind. Arbitrary third-party plugins still require real isolation,
-permissions, signing, updates, and safe removal.
+experimentation makes sense here, although i can use that uncertainty to
+justify restarting forever.
 
-I can name that missing work. This is one advantage of keeping the project
-small.
+a clean project feels clear because it has no accumulated compromises. it also
+has no accumulated evidence. if i replace the interface as soon as it resists
+me, i never learn whether the problem appears during real work or only while i
+am staring at the design.
 
-The other advantage is that I can still change my mind without convening a
-transport ministry.
+cars changed cities because people kept driving them. they did not achieve
+urban influence by remaining in a garage while their owner renamed the project
+twice.
 
-A programmable tool does not free us from being shaped by tools. It makes the
-shaping contestable. It gives us somewhere to disagree with a default, replace
-an interface, or restore an earlier relationship with the system.
+the next experiment is less dramatic. i need to keep the current runtime in
+place, use ernie for actual work, and wait for the same friction to appear more
+than once before replacing the surrounding surface. a button that becomes
+annoying across a hundred tasks is evidence. a button i suspect might annoy me
+later is an interesting way to lose an afternoon.
 
-That possibility matters because the best UI has probably not happened yet.
-We are still borrowing the shapes of chat, editors, terminals, dashboards, and
-inboxes to meet systems that can act in unfamiliar ways. Some borrowed shapes
-will survive. Some will become the AI equivalent of building a six-lane road
-through the living room.
+i still want ernie to look cool. that motive survived all the architecture.
+appearance affects whether a tool feels inviting, whether i want to return to
+it, and whether the work feels like mine. the difference is that i no longer
+want a screenshot to be the only test.
 
-But an unfinished future does not automatically vote for another rewrite.
-
-Cars did not shape cities because someone repeatedly prototyped one in a
-garage. They shaped cities through use, repetition, infrastructure, and
-lock-in. If I want to learn how Ernie shapes work, I have to use it long enough
-for its defaults to become visible.
-
-This is considerably less cinematic than deleting 23,162 lines.
-
-I began Ernie because I wanted to look cool.
-
-I still do. The screenshot matters. The object should feel inviting, strange,
-and slightly ahead of me.
-
-But now I know that the screenshot is also an argument about how work should
-feel. Every control asks for a behavior. Every default repeats a value. Every
-piece of hidden machinery teaches the person when to trust, watch, wait, or
-intervene.
-
-We shape the tool. The tool changes the environment. The environment shapes
-us.
-
-Ernie is my attempt to stay inside that loop deliberately, with enough access
-to change the road while I am still learning where it leads.
-
-Maybe the final Ernie will look nothing like the current one. Given the
-evidence, it would be reckless to rule that out.
-
-For now, the experiment may be to stop rebuilding it.
-
-Keep the harness. Change one surface at a time. Use it for real work. Let a
-choice become slightly annoying. Write down what the annoyance teaches. A
-button that feels wrong after one hundred tasks is evidence. A button I imagine
-might become wrong is mostly a hobby.
-
-The best UI has probably not happened yet. Reaching it may require less
-architecture and more patience.
-
-It should still look cool, obviously.
+if ernie needs another foundation after enough use, git will be available. it
+has been extremely available so far.

@@ -168,6 +168,10 @@ body,
     outline: 2px solid var(--ring) !important;
     outline-offset: 2px !important;
   }
+  :is(input:not([type='checkbox']):not([type='radio']), textarea):focus-visible {
+    outline: none !important;
+    outline-offset: 0 !important;
+  }
 }
 
 @media (forced-colors: active) {

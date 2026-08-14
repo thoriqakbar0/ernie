@@ -232,6 +232,7 @@ export const TaskComposer = memo(function TaskComposer({
           <InputGroupTextarea
             ref={textareaRef}
             id="task"
+            data-focus-outline="none"
             autoFocus={selectedSessionId === null && selectedCwd !== null}
             rows={1}
             value={task.draft}

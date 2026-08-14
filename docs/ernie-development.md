@@ -99,15 +99,16 @@ workflows, nightly releases, and signing.
 my ernie had open questions. bb had departments.
 
 for a short time, the bb fork took the ernie name and the smaller app became
-ernie legacy. this gave me a serious codebase with working answers to problems
-i had not reached yet. it also made those answers my responsibility.
+ernie legacy. i opened the larger codebase looking for durable sessions and
+host execution. both were there, already connected to web and desktop apps,
+plugins, deployment, and releases.
 
-none of this was broken. that was the problem. “help me build this app” had
-expanded into nightly publishing, release channels, signing, deployment, and
-the administrative life of a software company.
+the fork answered my questions, but it also changed the experiment. modifying
+the harness meant learning which surrounding systems depended on it. i was no
+longer testing one boundary in a small app. i was learning an entire product
+before i could safely change it.
 
-i wanted to learn how an agent harness worked. i was learning how to operate
-somebody else’s product.
+i wanted to understand the harness by building that boundary myself.
 
 so the names changed again. the bb fork became
 [ernie-bb-archive](https://github.com/thoriqakbar0/ernie-bb-archive), and the

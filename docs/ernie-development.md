@@ -3,13 +3,15 @@
 ernie began with a screenshot i wanted to exist.
 
 before the screenshot, i wanted one task to keep its context while i passed it
-from one model to another and back again. changing the model should not have
-meant starting the work’s story over. the repository, the decisions, and the
-unfinished parts should still belong to the same task.
+from my laptop into a sandbox and back again. changing the execution environment
+should not have meant starting the work’s story over. the repository, the
+decisions, and the unfinished parts should still belong to the same task.
 
 that was why i kept reaching for the words “server” and “daemon” before i could
-properly explain the rest of the system. the context needed to live somewhere
-that neither the current model nor the current window owned.
+properly explain the rest of the system. the server could own the durable task,
+while a daemon translated that task into work inside each environment. the
+context needed to live somewhere that neither my laptop nor a temporary sandbox
+owned.
 
 i wanted a desktop app where agents could keep working after i closed the
 window. their sessions would stay attached to repositories, their work would
@@ -142,10 +144,11 @@ is useful if you are trying to see which decisions are still moving.
 i did not need to become bb or deepseek harness. i needed to understand why
 they put certain responsibilities on opposite sides of a boundary.
 
-ernie still does not make the model handoff seamless. the server-and-thingy
-language came before the implementation. but the instinct behind it survived:
-durable task context belongs below any one model adapter, so an interface can
-leave and another model can arrive without either one becoming the work itself.
+ernie still does not make the environment handoff seamless. the
+server-and-thingy language came before the implementation. but the instinct
+behind it survived: durable task context should not belong to any one host
+daemon, so work can leave my laptop, run inside a sandbox, and return without
+either environment becoming the work itself.
 
 ernie now has a short path from the interface to prime agent:
 

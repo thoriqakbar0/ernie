@@ -31,6 +31,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     creatingAgent: false,
     loadingWorkspace: false,
     loadingSavedSessions: false,
+    loadingEarlierHistory: false,
     importingSessionPath: null,
     renamingSession: false,
     modelBusy: false,
@@ -54,6 +55,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     startAgentDraft: () => undefined,
     createAgentWithTask: async () => ({ ok: false, message: 'Unavailable' }),
     loadSavedSessions: () => undefined,
+    loadEarlierSessionHistory: () => undefined,
     importSession: () => undefined,
     renameSession: () => undefined,
     selectSession: () => undefined,
@@ -116,6 +118,7 @@ test('working Agent shows its hydrated conversation before a response', () => {
         selectedSessionId: 'active-agent',
         selectedSessionView: {
           activeSessionId: 'active-agent',
+          historyStart: 0,
           isStreaming: true,
           messages: [
             {
@@ -169,6 +172,7 @@ test('settled Agent keeps its AI response visible', () => {
         selectedSessionId: 'settled-agent',
         selectedSessionView: {
           activeSessionId: 'settled-agent',
+          historyStart: 0,
           isStreaming: false,
           messages: [
             {

@@ -6,6 +6,7 @@ import type {
   AgentRlmDepthSelection,
   AgentRefinementRequest,
   AgentSessionCreation,
+  AgentSessionHistoryRequest,
   AgentSessionRename,
   AgentTaskSubmission,
 } from './packages/ernie-daemon/client.js';
@@ -71,6 +72,10 @@ export const primeAgentSessionFeedStopChannel =
 /** IPC channel carrying normalized focused Agent events. */
 export const primeAgentSessionFeedEventChannel =
   'ernie:prime-agent:session-feed:event';
+
+/** IPC channel that reads one bounded page of earlier Agent history. */
+export const primeAgentSessionHistoryChannel =
+  'ernie:prime-agent:session-history';
 
 /** IPC channel that changes the model for one Prime Agent session. */
 export const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
@@ -145,6 +150,9 @@ export type ErnieRendererApi = Readonly<{
     listener: (value: JsonValue) => void,
   ) => string;
   unwatchAgentSession: (subscriptionId: string) => void;
+  loadAgentSessionHistory: (
+    request: AgentSessionHistoryRequest,
+  ) => Promise<JsonValue>;
   setAgentModel: (selection: AgentModelSelection) => Promise<JsonValue>;
   getAgentRlmDepth: (activeSessionId: string) => Promise<JsonValue>;
   setAgentRlmDepth: (

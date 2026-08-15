@@ -5,13 +5,15 @@ import {
   parseRlmDepthResult,
   parseSavedSessionsResult,
   parseSessionRenameResult,
+  parseSessionHistoryPageResult,
+  parseSessionHistoryRequest,
   parseSessionResult,
   parseSessionViewResult,
   parseSkillsResult,
   parseTaskReceiptResult,
   parseWorkspaceResult,
-} from './lib/protocol';
-import type { JsonValue } from '../json-value';
+} from './lib/protocol.js';
+import type { JsonValue } from '../json-value/index.js';
 
 import type {
   PrimeAgentModel,
@@ -27,6 +29,8 @@ import type {
   PrimeAgentSession,
   PrimeAgentSessionActivity,
   PrimeAgentSessionCreation,
+  PrimeAgentSessionHistoryPage,
+  PrimeAgentSessionHistoryRequest,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
   PrimeAgentSessionView,
@@ -36,7 +40,7 @@ import type {
   PrimeAgentTaskSubmission,
   PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
-} from './types';
+} from './types.js';
 
 const modelNameCollator = new Intl.Collator('en', {
   numeric: true,
@@ -73,6 +77,8 @@ export type {
   PrimeAgentSession,
   PrimeAgentSessionActivity,
   PrimeAgentSessionCreation,
+  PrimeAgentSessionHistoryPage,
+  PrimeAgentSessionHistoryRequest,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
   PrimeAgentSessionView,
@@ -89,6 +95,20 @@ export function parsePrimeAgentSessionViewResult(
   value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionView> {
   return parseSessionViewResult(value);
+}
+
+/** Parse one earlier transcript page received from Electron's main process. */
+export function parsePrimeAgentSessionHistoryPageResult(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentSessionHistoryPage> {
+  return parseSessionHistoryPageResult(value);
+}
+
+/** Parse one bounded transcript-history request at the Electron boundary. */
+export function parsePrimeAgentSessionHistoryRequest(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentSessionHistoryRequest> {
+  return parseSessionHistoryRequest(value);
 }
 
 /** Parse a workspace response received from Electron's main process. */

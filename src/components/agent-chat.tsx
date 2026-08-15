@@ -16,6 +16,8 @@ import type {
 } from '@/packages/prime-agent-daemon/client';
 
 interface AgentChatProps {
+  readonly loadingEarlierHistory?: boolean;
+  readonly onLoadEarlierHistory?: () => void;
   readonly onOpenSpawnedSession?: (activeSessionId: string) => void;
   readonly sessionView: PrimeAgentSessionView;
 }
@@ -428,12 +430,16 @@ function SpawnedSessionBranch({
 
 /** Focused Prime Agent transcript with IPython cells and recursive agent work. */
 export function AgentChat({
+  loadingEarlierHistory = false,
+  onLoadEarlierHistory,
   onOpenSpawnedSession,
   sessionView,
 }: AgentChatProps): React.JSX.Element {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeSessionIdRef = useRef(sessionView.activeSessionId);
   const followsLatestRef = useRef(true);
+  const previousHistoryStartRef = useRef(sessionView.historyStart);
+  const previousScrollHeightRef = useRef(0);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const childrenByParent = useMemo(() => {
     const sessionIds = new Set(
@@ -473,12 +479,26 @@ export function AgentChat({
     if (activeSessionIdRef.current !== sessionView.activeSessionId) {
       activeSessionIdRef.current = sessionView.activeSessionId;
       followsLatestRef.current = true;
+      previousHistoryStartRef.current = sessionView.historyStart;
+      previousScrollHeightRef.current = 0;
     }
-    if (followsLatestRef.current) {
+    if (
+      sessionView.historyStart < previousHistoryStartRef.current &&
+      previousScrollHeightRef.current > 0
+    ) {
+      scrollArea.scrollTop +=
+        scrollArea.scrollHeight - previousScrollHeightRef.current;
+    } else if (followsLatestRef.current) {
       scrollArea.scrollTop = scrollArea.scrollHeight;
     }
+    previousHistoryStartRef.current = sessionView.historyStart;
+    previousScrollHeightRef.current = scrollArea.scrollHeight;
     updateScrollState(scrollArea);
-  }, [sessionView.activeSessionId, sessionView.transcript]);
+  }, [
+    sessionView.activeSessionId,
+    sessionView.historyStart,
+    sessionView.transcript,
+  ]);
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current;
@@ -519,6 +539,20 @@ export function AgentChat({
           aria-label="Conversation"
           className="mx-auto w-full max-w-[44rem] select-text pb-16"
         >
+          {sessionView.historyStart === 0 ||
+          onLoadEarlierHistory === undefined ? null : (
+            <div className="flex justify-center pb-6">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={loadingEarlierHistory}
+                onClick={onLoadEarlierHistory}
+              >
+                {loadingEarlierHistory ? 'Loading earlier…' : 'Load earlier'}
+              </Button>
+            </div>
+          )}
           <div className="flex flex-col gap-6">
             {blocks.map((block, index) => {
               if (block.kind === 'execution') {

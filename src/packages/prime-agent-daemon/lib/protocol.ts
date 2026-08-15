@@ -19,6 +19,8 @@ import type {
   PrimeAgentSession,
   PrimeAgentSessionActivity,
   PrimeAgentSessionCreation,
+  PrimeAgentSessionHistoryPage,
+  PrimeAgentSessionHistoryRequest,
   PrimeAgentSessionRename,
   PrimeAgentSessionRenameReceipt,
   PrimeAgentChatMessage,
@@ -311,6 +313,7 @@ export function parseSessionViewData(
     ok: true,
     value: {
       activeSessionId,
+      historyStart: 0,
       isStreaming,
       messages,
       rlmMaxDepth: rlmDepth.value.maxDepth,
@@ -333,9 +336,13 @@ function parseSessionViewDto(
     return null;
   }
   const activeSessionId = nonEmptyString(value.activeSessionId);
+  const historyStart = value.historyStart;
   const rlmMaxDepth = value.rlmMaxDepth;
   if (
     activeSessionId === null ||
+    !isJsonNumber(historyStart) ||
+    !Number.isSafeInteger(historyStart) ||
+    historyStart < 0 ||
     !isJsonBoolean(value.isStreaming) ||
     !isJsonNumber(rlmMaxDepth) ||
     !Number.isSafeInteger(rlmMaxDepth) ||
@@ -468,6 +475,7 @@ function parseSessionViewDto(
 
   return {
     activeSessionId,
+    historyStart,
     isStreaming: value.isStreaming,
     messages,
     rlmMaxDepth,
@@ -962,6 +970,26 @@ export function parseActiveSessionId(
     : { ok: true, value: activeSessionId };
 }
 
+/** Parse a bounded history request received from the isolated renderer. */
+export function parseSessionHistoryRequest(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentSessionHistoryRequest> {
+  if (!isJsonRecord(value)) {
+    return failure('invalid_request', 'The session history request is invalid.');
+  }
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  const before = value.before;
+  if (
+    activeSessionId === null ||
+    !isJsonNumber(before) ||
+    !Number.isSafeInteger(before) ||
+    before < 1
+  ) {
+    return failure('invalid_request', 'The session history request is invalid.');
+  }
+  return { ok: true, value: { activeSessionId, before } };
+}
+
 /** Parse a saved session path received from the isolated renderer. */
 export function parseSavedSessionPath(value: JsonValue): PrimeAgentResult<string> {
   const sessionPath = nonEmptyString(value);
@@ -1269,6 +1297,42 @@ export function parseSessionViewResult(
   value: JsonValue,
 ): PrimeAgentResult<PrimeAgentSessionView> {
   return parseResult(value, parseSessionViewDto);
+}
+
+function parseSessionHistoryPage(
+  value: JsonValue | undefined,
+): PrimeAgentSessionHistoryPage | null {
+  if (!isJsonRecord(value) || !Array.isArray(value.transcript)) return null;
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  const start = value.start;
+  if (
+    activeSessionId === null ||
+    !isJsonNumber(start) ||
+    !Number.isSafeInteger(start) ||
+    start < 0
+  ) {
+    return null;
+  }
+  const parsedView = parseSessionViewDto({
+    activeSessionId,
+    historyStart: start,
+    isStreaming: false,
+    messages: [],
+    rlmMaxDepth: 0,
+    sessionName: null,
+    spawnedSessions: [],
+    transcript: value.transcript,
+  });
+  return parsedView === null
+    ? null
+    : { activeSessionId, start, transcript: parsedView.transcript };
+}
+
+/** Parse an earlier-history page after it crosses the Electron IPC boundary. */
+export function parseSessionHistoryPageResult(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentSessionHistoryPage> {
+  return parseResult(value, parseSessionHistoryPage);
 }
 
 /** Parse saved sessions after they cross the Electron IPC boundary. */

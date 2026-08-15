@@ -13,6 +13,7 @@ import {
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
+  parsePrimeAgentSessionHistoryPageResult,
   parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
@@ -30,6 +31,7 @@ import {
   parsePrimeAgentSessionFeedEnvelope,
   parsePrimeAgentWorkspaceFeedItem,
   primeAgentSessionFeedView,
+  prependPrimeAgentSessionHistory,
   reducePrimeAgentSessionFeed,
   replacePrimeAgentSessionFeedRlmDepth,
   type PrimeAgentSessionFeedState,
@@ -61,6 +63,7 @@ export interface PrimeAgentWorkspaceController {
   readonly creatingAgent: boolean;
   readonly loadingWorkspace: boolean;
   readonly loadingSavedSessions: boolean;
+  readonly loadingEarlierHistory: boolean;
   readonly importingSessionPath: string | null;
   readonly renamingSession: boolean;
   readonly modelBusy: boolean;
@@ -87,6 +90,7 @@ export interface PrimeAgentWorkspaceController {
     message: string,
   ) => Promise<CreateAgentWithTaskResult>;
   readonly loadSavedSessions: () => void;
+  readonly loadEarlierSessionHistory: () => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
@@ -194,6 +198,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [primeAgentConnection, setPrimeAgentConnection] =
     useState<PrimeAgentWorkspaceConnection>('connecting');
   const [loadingSavedSessions, setLoadingSavedSessions] = useState(false);
+  const [loadingEarlierHistory, setLoadingEarlierHistory] = useState(false);
   const [importingSessionPath, setImportingSessionPath] = useState<
     string | null
   >(null);
@@ -461,6 +466,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   useEffect(() => {
     if (selectedSessionId === null) {
       setSelectedSessionFeed(null);
+      setLoadingEarlierHistory(false);
       return;
     }
 
@@ -484,7 +490,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
         const messages = item.kind === 'snapshot'
           ? item.view.messages
-          : item.kind === 'conversation-replaced'
+          : item.kind === 'conversation-replaced' ||
+              item.kind === 'conversation-patched'
             ? item.messages
             : null;
         const preview = messages === null ? null : latestUserMessage(messages);
@@ -769,6 +776,53 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           ),
         ),
         Effect.ensuring(Effect.sync(() => setLoadingSavedSessions(false))),
+      ),
+    );
+  }
+
+  function loadEarlierSessionHistory(): void {
+    if (
+      loadingEarlierHistory ||
+      selectedSessionView === null ||
+      selectedSessionView.historyStart === 0
+    ) {
+      return;
+    }
+    const activeSessionId = selectedSessionView.activeSessionId;
+    const before = selectedSessionView.historyStart;
+    const load = Effect.fn('Workspace.loadEarlierSessionHistory')(function* () {
+      yield* Effect.sync(() => {
+        setLoadingEarlierHistory(true);
+        setStatus('Loading earlier Agent history…');
+      });
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.loadAgentSessionHistory({ activeSessionId, before }),
+      );
+      const result = parsePrimeAgentSessionHistoryPageResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+      yield* Effect.sync(() => {
+        setSelectedSessionFeed((current) => {
+          if (current === null) return null;
+          const next = prependPrimeAgentSessionHistory(current, result.value);
+          const nextView = primeAgentSessionFeedView(next);
+          if (nextView !== null) sessionViewCache.put(nextView);
+          return next;
+        });
+        setStatus('Loaded earlier Agent history.');
+      });
+    });
+
+    Effect.runFork(
+      load().pipe(
+        Effect.catch(() =>
+          Effect.sync(() =>
+            setStatus('Ernie could not load earlier Agent history.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setLoadingEarlierHistory(false))),
       ),
     );
   }
@@ -1307,6 +1361,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     gitWorktreeError,
     loadingWorkspace,
     loadingSavedSessions,
+    loadingEarlierHistory,
     importingSessionPath,
     renamingSession,
     modelBusy,
@@ -1331,6 +1386,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     startAgentDraft,
     createAgentWithTask,
     loadSavedSessions,
+    loadEarlierSessionHistory,
     importSession,
     renameSession,
     selectSession,

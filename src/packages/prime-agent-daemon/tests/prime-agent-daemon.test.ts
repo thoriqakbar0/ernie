@@ -114,6 +114,7 @@ test('projects focused chat messages and named spawned sessions', () => {
     ok: true,
     value: {
       activeSessionId: 'root-agent',
+      historyStart: 0,
       isStreaming: false,
       messages: [
         { id: 'root-agent:0', role: 'user', text: 'Build the chat' },

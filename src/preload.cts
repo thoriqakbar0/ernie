@@ -33,6 +33,8 @@ const primeAgentSessionFeedStopChannel =
   'ernie:prime-agent:session-feed:stop';
 const primeAgentSessionFeedEventChannel =
   'ernie:prime-agent:session-feed:event';
+const primeAgentSessionHistoryChannel =
+  'ernie:prime-agent:session-history';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
@@ -191,6 +193,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
     selectedSessionFeedSubscriptionId = null;
     sessionFeedListeners.delete(subscriptionId);
     ipcRenderer.send(primeAgentSessionFeedStopChannel, subscriptionId);
+  },
+  loadAgentSessionHistory(request) {
+    return ipcRenderer.invoke(primeAgentSessionHistoryChannel, request);
   },
   setAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);

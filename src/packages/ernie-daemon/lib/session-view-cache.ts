@@ -52,9 +52,44 @@ function updatedView(
   if (item.kind === 'conversation-replaced') {
     return {
       ...current,
+      historyStart: 0,
       isStreaming: item.isStreaming,
       messages: item.messages,
       transcript: item.transcript,
+    };
+  }
+  if (item.kind === 'conversation-patched') {
+    const preservesLoadedHistory = current.historyStart <
+      item.previousHistoryStart;
+    const historyStart = preservesLoadedHistory
+      ? current.historyStart
+      : item.historyStart;
+    const transcript = preservesLoadedHistory
+      ? current.transcript
+      : current.transcript.slice(
+          Math.max(0, item.historyStart - current.historyStart),
+        );
+    if (
+      item.from < historyStart ||
+      item.from > historyStart + transcript.length
+    ) {
+      return {
+        ...current,
+        historyStart: item.from,
+        isStreaming: item.isStreaming,
+        messages: item.messages,
+        transcript: item.transcript,
+      };
+    }
+    return {
+      ...current,
+      historyStart,
+      isStreaming: item.isStreaming,
+      messages: item.messages,
+      transcript: [
+        ...transcript.slice(0, item.from - historyStart),
+        ...item.transcript,
+      ],
     };
   }
   if (item.kind === 'spawned-sessions-replaced') {
@@ -86,12 +121,19 @@ export function createAgentSessionViewCache(
   const entries = new Map<string, AgentSessionView>();
 
   const put = (view: AgentSessionView): void => {
-    if (view.transcript.length > maximumCacheableTranscriptItems) {
-      entries.delete(view.activeSessionId);
-      return;
-    }
+    const overflow = Math.max(
+      0,
+      view.transcript.length - maximumCacheableTranscriptItems,
+    );
+    const retained = overflow === 0
+      ? view
+      : {
+          ...view,
+          historyStart: view.historyStart + overflow,
+          transcript: view.transcript.slice(overflow),
+        };
     entries.delete(view.activeSessionId);
-    entries.set(view.activeSessionId, view);
+    entries.set(view.activeSessionId, retained);
     while (entries.size > maximumEntries) {
       const oldestSessionId = entries.keys().next().value;
       if (oldestSessionId === undefined) return;

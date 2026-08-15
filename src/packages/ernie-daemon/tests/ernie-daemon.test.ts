@@ -61,6 +61,7 @@ test('installs one immutable harness behind the Ernie daemon API', async () => {
 test('replays a cached session view before refreshing its harness feed', async () => {
   const firstView = {
     activeSessionId: 'agent-one',
+    historyStart: 0,
     isStreaming: false,
     messages: [{ id: 'first', role: 'user' as const, text: 'First view' }],
     rlmMaxDepth: 1,
@@ -122,6 +123,7 @@ test('prewarms visible Agent sessions before their first selection', () =>
       let openedConnections = 0;
       const view = {
         activeSessionId: 'agent-one',
+        historyStart: 0,
         isStreaming: false,
         messages: [{ id: 'first', role: 'user' as const, text: 'Ready' }],
         rlmMaxDepth: 1,
@@ -190,6 +192,84 @@ test('prewarms visible Agent sessions before their first selection', () =>
       daemon.close();
     }),
   ));
+
+test('windows session feeds and pages earlier transcript history', async () => {
+  const transcript = Array.from({ length: 170 }, (_, index) => ({
+    id: `item-${index}`,
+    kind: 'message' as const,
+    role: index % 2 === 0 ? 'user' as const : 'assistant' as const,
+    text: `Item ${index}`,
+  }));
+  const messages = transcript.map(({ id, role, text }) => ({ id, role, text }));
+  const latestTranscript = [
+    ...transcript,
+    {
+      id: 'item-170',
+      kind: 'message' as const,
+      role: 'user' as const,
+      text: 'Final item',
+    },
+  ];
+  const latestMessages = latestTranscript.map(({ id, role, text }) => ({
+    id,
+    role,
+    text,
+  }));
+  const view = {
+    activeSessionId: 'agent-one',
+    historyStart: 0,
+    isStreaming: true,
+    messages,
+    rlmMaxDepth: 2,
+    sessionName: 'Long session',
+    spawnedSessions: [],
+    transcript,
+  };
+  const daemon = createErnieDaemon({
+    harness: {
+      ...fakeHarness(),
+      sessionFeed: () =>
+        Stream.fromArray([
+          { kind: 'snapshot' as const, view },
+          {
+            kind: 'conversation-replaced' as const,
+            isStreaming: false,
+            messages: latestMessages,
+            transcript: latestTranscript,
+          },
+        ]),
+    },
+  });
+
+  const items = Array.from(await Effect.runPromise(
+    daemon.sessionFeed('agent-one').pipe(Stream.runCollect),
+  ));
+  assert.equal(items[0]?.kind, 'snapshot');
+  if (items[0]?.kind !== 'snapshot') return;
+  assert.equal(items[0].view.historyStart, 90);
+  assert.equal(items[0].view.transcript.length, 80);
+  assert.equal(items[0].view.transcript[0]?.id, 'item-90');
+  assert.deepEqual(items[1], {
+    from: 170,
+    historyStart: 91,
+    kind: 'conversation-patched',
+    isStreaming: false,
+    messages: latestMessages.slice(-80),
+    previousHistoryStart: 90,
+    transcript: [latestTranscript[170]],
+  });
+
+  const page = await Effect.runPromise(
+    daemon.loadSessionHistory({ activeSessionId: 'agent-one', before: 90 }),
+  );
+  assert.equal(page.ok, true);
+  if (!page.ok) return;
+  assert.equal(page.value.start, 10);
+  assert.equal(page.value.transcript.length, 80);
+  assert.equal(page.value.transcript[0]?.id, 'item-10');
+  assert.equal(page.value.transcript.at(-1)?.id, 'item-89');
+  daemon.close();
+});
 
 test('rejects invalid harness descriptors', () => {
   assert.throws(

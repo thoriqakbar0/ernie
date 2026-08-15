@@ -47,7 +47,7 @@ export type PluginActivationEvent =
       viewId: string;
     }>;
 
-/** Serializable metadata and contributions for one Ernie plugin. */
+/** Serializable metadata and service dependencies for one Ernie plugin. */
 export interface PluginManifest {
   readonly apiVersion: typeof currentPluginApiVersion;
   readonly id: string;
@@ -55,7 +55,23 @@ export interface PluginManifest {
   readonly version: string;
   readonly description: string;
   readonly activationEvents: readonly PluginActivationEvent[];
+  readonly provides: readonly string[];
+  readonly requires: readonly string[];
   readonly contributes: PluginContributions;
+}
+
+const pluginServiceKeyBrand: unique symbol = Symbol('PluginServiceKey');
+
+/** An opaque runtime token that preserves one service value's TypeScript type. */
+export interface PluginServiceKey<Value> {
+  readonly id: string;
+  readonly [pluginServiceKeyBrand]: (value: Value) => Value;
+}
+
+class DefinedPluginServiceKey<Value> implements PluginServiceKey<Value> {
+  declare readonly [pluginServiceKeyBrand]: (value: Value) => Value;
+
+  constructor(readonly id: string) {}
 }
 
 /** Cleanup owned by an activated plugin. */
@@ -104,6 +120,12 @@ export interface PluginActivationContext<RenderedView> {
       | Promise<PluginEffectAcquisition<Value>>,
   ): Promise<Value>;
 
+  /** Publish one runtime service declared by this plugin. */
+  provideService<Value>(key: PluginServiceKey<Value>, value: Value): void;
+
+  /** Read one required runtime service while this activation remains alive. */
+  getService<Value>(key: PluginServiceKey<Value>): Value;
+
   /** Attach a handler to a command declared by this plugin. */
   registerCommand(commandId: string, handler: PluginCommandHandler): void;
 
@@ -129,6 +151,21 @@ export interface PluginModule<RenderedView> {
 export type PluginResult<Value, Failure extends Error = PluginHostError> =
   | Readonly<{ ok: true; value: Value }>
   | Readonly<{ ok: false; error: Failure }>;
+
+const retainedPluginErrorCauses = new WeakMap<Error, unknown>();
+
+function retainPluginErrorCause(error: Error, cause: unknown): void {
+  retainedPluginErrorCauses.set(error, cause);
+}
+
+/** A service key identifier is not safe for the stable plugin contract. */
+export class InvalidPluginServiceKeyError extends Error {
+  readonly _tag = 'InvalidPluginServiceKeyError';
+
+  constructor(readonly serviceId: string) {
+    super(`Plugin service key ${serviceId} is not a stable dotted identifier.`);
+  }
+}
 
 /** A manifest failed the stable plugin contract. */
 export class InvalidPluginManifestError extends Error {
@@ -160,6 +197,45 @@ export class DuplicatePluginContributionError extends Error {
     readonly contributionKind: 'command' | 'view',
   ) {
     super(`Plugin ${contributionKind} ${contributionId} is registered more than once.`);
+  }
+}
+
+/** Two plugins attempted to provide the same runtime service. */
+export class DuplicatePluginServiceProviderError extends Error {
+  readonly _tag = 'DuplicatePluginServiceProviderError';
+  readonly providerPluginIds: readonly string[];
+
+  constructor(
+    readonly serviceId: string,
+    providerPluginIds: readonly string[],
+  ) {
+    const stableProviderPluginIds = Object.freeze([...providerPluginIds]);
+    super(`Plugin service ${serviceId} has more than one provider.`);
+    this.providerPluginIds = stableProviderPluginIds;
+  }
+}
+
+/** A required runtime service has no registered provider. */
+export class MissingPluginServiceProviderError extends Error {
+  readonly _tag = 'MissingPluginServiceProviderError';
+
+  constructor(
+    readonly consumerPluginId: string,
+    readonly serviceId: string,
+  ) {
+    super(`Plugin ${consumerPluginId} requires service ${serviceId}, but no provider is registered.`);
+  }
+}
+
+/** Required plugin services form a dependency cycle. */
+export class PluginDependencyCycleError extends Error {
+  readonly _tag = 'PluginDependencyCycleError';
+  readonly pluginIds: readonly string[];
+
+  constructor(pluginIds: readonly string[]) {
+    const stablePluginIds = Object.freeze([...pluginIds]);
+    super(`Plugin service dependencies contain a cycle: ${stablePluginIds.join(' -> ')}.`);
+    this.pluginIds = stablePluginIds;
   }
 }
 
@@ -199,15 +275,73 @@ export class PluginCommandNotFoundError extends Error {
   }
 }
 
-/** Plugin activation failed without exposing the thrown value to callers. */
+/** Plugin code attempted undeclared or mismatched runtime service access. */
+export class PluginServiceAccessError extends Error {
+  readonly _tag = 'PluginServiceAccessError';
+
+  constructor(
+    readonly pluginId: string,
+    readonly serviceId: string,
+    readonly operation: 'consume' | 'provide',
+    readonly reason: 'duplicate' | 'key-mismatch' | 'undeclared' | 'unavailable',
+  ) {
+    super(`Plugin ${pluginId} cannot ${operation} service ${serviceId}: ${reason}.`);
+  }
+}
+
+type PluginProviderFailureTag =
+  | 'PluginActivationError'
+  | 'PluginDeactivationError'
+  | 'PluginDependencyUnavailableError'
+  | 'PluginDisabledError'
+  | 'PluginHostDisposedError'
+  | 'PluginNotFoundError';
+
+/** A required provider is disabled, failed, or could not activate. */
+export class PluginDependencyUnavailableError extends Error {
+  readonly _tag = 'PluginDependencyUnavailableError';
+
+  constructor(
+    readonly consumerPluginId: string,
+    readonly serviceId: string,
+    readonly providerPluginId: string,
+    readonly providerFailureTag: PluginProviderFailureTag | null = null,
+  ) {
+    super(`Plugin ${consumerPluginId} cannot use unavailable service ${serviceId} from ${providerPluginId}.`);
+  }
+}
+
+type PluginActivationFailureTag =
+  | 'PluginActivationContextClosedError'
+  | 'PluginServiceAccessError'
+  | 'UnknownPluginActivationFailure';
+
+function pluginActivationFailureTag(cause: unknown): PluginActivationFailureTag {
+  if (cause instanceof PluginServiceAccessError) {
+    return 'PluginServiceAccessError';
+  }
+  if (
+    cause instanceof Error &&
+    '_tag' in cause &&
+    cause._tag === 'PluginActivationContextClosedError'
+  ) {
+    return 'PluginActivationContextClosedError';
+  }
+  return 'UnknownPluginActivationFailure';
+}
+
+/** Plugin activation failed without exposing the thrown value in its message. */
 export class PluginActivationError extends Error {
   readonly _tag = 'PluginActivationError';
+  readonly failureTag: PluginActivationFailureTag;
 
   constructor(
     readonly pluginId: string,
     cause: unknown,
   ) {
-    super(`Plugin ${pluginId} could not activate.`, { cause });
+    super(`Plugin ${pluginId} could not activate.`);
+    this.failureTag = pluginActivationFailureTag(cause);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -219,14 +353,12 @@ export class PluginActivationContextClosedError extends Error {
     readonly pluginId: string,
     cause?: unknown,
   ) {
-    super(
-      `Plugin ${pluginId} used a closed activation context.`,
-      cause === undefined ? undefined : { cause },
-    );
+    super(`Plugin ${pluginId} used a closed activation context.`);
+    if (cause !== undefined) retainPluginErrorCause(this, cause);
   }
 }
 
-/** A plugin command failed without exposing the thrown value to callers. */
+/** A plugin command failed without exposing the thrown value in its message. */
 export class PluginCommandExecutionError extends Error {
   readonly _tag = 'PluginCommandExecutionError';
 
@@ -234,11 +366,12 @@ export class PluginCommandExecutionError extends Error {
     readonly commandId: string,
     cause: unknown,
   ) {
-    super(`Plugin command ${commandId} failed.`, { cause });
+    super(`Plugin command ${commandId} failed.`);
+    retainPluginErrorCause(this, cause);
   }
 }
 
-/** A plugin view factory failed without exposing the thrown value to callers. */
+/** A plugin view factory failed without exposing the thrown value in its message. */
 export class PluginViewRenderError extends Error {
   readonly _tag = 'PluginViewRenderError';
 
@@ -246,7 +379,8 @@ export class PluginViewRenderError extends Error {
     readonly viewId: string,
     cause: unknown,
   ) {
-    super(`Plugin view ${viewId} could not render.`, { cause });
+    super(`Plugin view ${viewId} could not render.`);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -259,7 +393,8 @@ export class PluginEffectCleanupError extends Error {
     readonly sequence: number,
     cause: unknown,
   ) {
-    super(`Plugin ${pluginId} cleanup ${sequence} failed.`, { cause });
+    super(`Plugin ${pluginId} cleanup ${sequence} failed.`);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -273,9 +408,22 @@ export class PluginDeactivationError extends Error {
     failures: readonly PluginEffectCleanupError[],
   ) {
     const stableFailures = Object.freeze([...failures]);
-    super(`Plugin ${pluginId} could not deactivate cleanly.`, {
-      cause: new AggregateError(stableFailures),
-    });
+    super(`Plugin ${pluginId} could not deactivate cleanly.`);
+    this.failures = stableFailures;
+  }
+}
+
+/** A dependency cascade completed with one or more isolated cleanup failures. */
+export class PluginCascadeDeactivationError extends Error {
+  readonly _tag = 'PluginCascadeDeactivationError';
+  readonly failures: readonly PluginDeactivationError[];
+
+  constructor(
+    readonly pluginId: string,
+    failures: readonly PluginDeactivationError[],
+  ) {
+    const stableFailures = Object.freeze([...failures]);
+    super(`Plugin ${pluginId} dependency cleanup completed with failures.`);
     this.failures = stableFailures;
   }
 }
@@ -294,22 +442,35 @@ export type PluginHostError =
   | InvalidPluginManifestError
   | DuplicatePluginIdError
   | DuplicatePluginContributionError
+  | DuplicatePluginServiceProviderError
+  | MissingPluginServiceProviderError
+  | PluginDependencyCycleError
   | PluginNotFoundError
   | PluginViewNotFoundError
   | PluginDisabledError
   | PluginCommandNotFoundError
+  | PluginDependencyUnavailableError
   | PluginActivationError
   | PluginCommandExecutionError
   | PluginViewRenderError
   | PluginDeactivationError
+  | PluginCascadeDeactivationError
   | PluginHostDisposedError;
+
+type PluginActivationAttemptError =
+  | PluginActivationError
+  | PluginDeactivationError
+  | PluginDependencyUnavailableError
+  | PluginDisabledError
+  | PluginHostDisposedError
+  | PluginNotFoundError;
 
 /** Runtime access to validated plugin metadata, activation, and commands. */
 export interface PluginHost<RenderedView> {
   /** List immutable manifests in deterministic registration order. */
   listPlugins(): readonly PluginManifest[];
 
-  /** List primary workbench views contributed by enabled plugins. */
+  /** List primary workbench views whose required providers are available. */
   listViews(): readonly PluginViewContribution[];
 
   /** Report whether the user currently permits one plugin to contribute behavior. */
@@ -318,49 +479,100 @@ export interface PluginHost<RenderedView> {
   /** Activate enabled plugins that own application-wide startup behavior. */
   activateStartupPlugins(): Promise<readonly PluginHostError[]>;
 
-  /** Permit a disabled plugin to activate again after cleanup completes. */
+  /** Permit a disabled plugin and demanded dependents to activate again. */
   enablePlugin(pluginId: string): Promise<PluginResult<void>>;
 
-  /** Remove one plugin's runtime contributions and release its resources. */
+  /** Remove one plugin and active dependents in dependency-safe order. */
   disablePlugin(pluginId: string): Promise<PluginResult<void>>;
 
-  /** Lazily activate and render the plugin that owns a selected view. */
+  /** Lazily activate required providers, then render the selected plugin view. */
   renderView(viewId: string): Promise<PluginResult<RenderedView>>;
 
-  /** Lazily activate a command owner and execute the command. */
+  /** Lazily activate required providers, then execute the selected command. */
   executeCommand(commandId: string): Promise<PluginResult<void>>;
 
-  /** Deactivate every active plugin and report isolated cleanup failures. */
+  /** Deactivate every active plugin in reverse dependency order. */
   dispose(): Promise<readonly PluginDeactivationError[]>;
 }
 
+interface PluginRuntimeResources {
+  readonly scope: EffectScope;
+  readonly closeServiceAccess: () => void;
+}
+
 type PluginRuntimeState =
+  | Readonly<{ status: 'disabled' }>
   | Readonly<{ status: 'inactive' }>
   | Readonly<{
       status: 'activating';
-      activation: Promise<PluginResult<void>>;
+      activation: Promise<PluginResult<void, PluginActivationAttemptError>>;
     }>
-  | Readonly<{ status: 'active'; scope: EffectScope }>
+  | Readonly<{
+      status: 'disabling-activation';
+      activation: Promise<PluginResult<void, PluginActivationAttemptError>>;
+    }>
+  | Readonly<{
+      status: 'active';
+      resources: PluginRuntimeResources;
+    }>
+  | Readonly<{
+      status: 'deactivation-requested';
+      resources: PluginRuntimeResources;
+    }>
   | Readonly<{
       status: 'deactivating';
-      deactivation: Promise<PluginResult<void>>;
+      deactivation: Promise<PluginDeactivationError | null>;
+      disableWhenComplete: boolean;
     }>
   | Readonly<{ status: 'failed'; error: PluginActivationError }>;
 
 interface PluginRecord<RenderedView> {
   readonly module: PluginModule<RenderedView>;
-  enabled: boolean;
+  demanded: boolean;
   state: PluginRuntimeState;
+  readonly pendingDeactivationErrors: PluginDeactivationError[];
 }
+
+interface PublishedPluginService {
+  readonly key: object;
+  readonly providerPluginId: string;
+  readonly value: unknown;
+}
+
+interface RequiredPluginService {
+  readonly serviceId: string;
+  readonly providerPluginId: string;
+}
+
+type PluginHostLifecycle = 'disposed' | 'disposing' | 'open';
 
 const pluginIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/u;
 const pluginVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
+const pluginServiceIdPattern = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/u;
 
-function succeeded<Value>(value: Value): PluginResult<Value> {
+/**
+ * Create one immutable typed key for a manifest-declared runtime service.
+ *
+ * Service identifiers must contain at least two dotted namespace segments.
+ *
+ * @throws InvalidPluginServiceKeyError when plugin code defines an invalid identifier.
+ */
+export function createPluginServiceKey<Value>(
+  serviceId: string,
+): PluginServiceKey<Value> {
+  if (!pluginServiceIdPattern.test(serviceId)) {
+    throw new InvalidPluginServiceKeyError(serviceId);
+  }
+  return Object.freeze(new DefinedPluginServiceKey<Value>(serviceId));
+}
+
+function succeeded<Value>(value: Value): PluginResult<Value, never> {
   return { ok: true, value };
 }
 
-function failed<Value>(error: PluginHostError): PluginResult<Value> {
+function failed<Failure extends PluginHostError>(
+  error: Failure,
+): PluginResult<never, Failure> {
   return { ok: false, error };
 }
 
@@ -386,16 +598,6 @@ function cleanupFailure(
         pluginId,
         pluginCleanupFailures(pluginId, failures),
       );
-}
-
-async function deactivatePluginScope<RenderedView>(
-  pluginId: string,
-  record: PluginRecord<RenderedView>,
-  scope: EffectScope,
-): Promise<PluginDeactivationError | null> {
-  const cleanupError = cleanupFailure(pluginId, await scope.drain());
-  record.state = { status: 'inactive' };
-  return cleanupError;
 }
 
 function readRequiredText(record: JsonRecord, key: string): string | null {
@@ -509,6 +711,35 @@ function parseActivationEvents(
   return succeeded(events);
 }
 
+function parseServiceDeclarations(
+  pluginId: string,
+  field: 'provides' | 'requires',
+  value: JsonValue | undefined,
+): PluginResult<readonly string[]> {
+  if (!Array.isArray(value)) {
+    return failed(new InvalidPluginManifestError(pluginId, `${field} must be an array.`));
+  }
+  const serviceIds: string[] = [];
+  for (const item of value) {
+    if (!isJsonString(item) || item.trim().length === 0) {
+      return failed(
+        new InvalidPluginManifestError(pluginId, `Every ${field} entry must be a service identifier.`),
+      );
+    }
+    serviceIds.push(item);
+  }
+  return succeeded(serviceIds);
+}
+
+function duplicateValue(values: readonly string[]): string | null {
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) return value;
+    seen.add(value);
+  }
+  return null;
+}
+
 function validateManifest(manifest: PluginManifest): InvalidPluginManifestError | null {
   if (!pluginIdPattern.test(manifest.id)) {
     return new InvalidPluginManifestError(manifest.id, 'id is not a stable dotted identifier.');
@@ -521,6 +752,38 @@ function validateManifest(manifest: PluginManifest): InvalidPluginManifestError 
   }
   if (manifest.name.trim().length === 0 || manifest.description.trim().length === 0) {
     return new InvalidPluginManifestError(manifest.id, 'name and description must not be empty.');
+  }
+
+  const duplicateProvidedService = duplicateValue(manifest.provides);
+  if (duplicateProvidedService !== null) {
+    return new InvalidPluginManifestError(
+      manifest.id,
+      `provided service ${duplicateProvidedService} is declared more than once.`,
+    );
+  }
+  const duplicateRequiredService = duplicateValue(manifest.requires);
+  if (duplicateRequiredService !== null) {
+    return new InvalidPluginManifestError(
+      manifest.id,
+      `required service ${duplicateRequiredService} is declared more than once.`,
+    );
+  }
+  const servicePrefix = `${manifest.id}.`;
+  for (const serviceId of manifest.provides) {
+    if (!pluginServiceIdPattern.test(serviceId) || !serviceId.startsWith(servicePrefix)) {
+      return new InvalidPluginManifestError(
+        manifest.id,
+        `provided service ${serviceId} must use its plugin namespace.`,
+      );
+    }
+  }
+  for (const serviceId of manifest.requires) {
+    if (!pluginServiceIdPattern.test(serviceId)) {
+      return new InvalidPluginManifestError(
+        manifest.id,
+        `required service ${serviceId} is not a stable dotted identifier.`,
+      );
+    }
   }
 
   const contributionPrefix = `${manifest.id}.`;
@@ -567,6 +830,8 @@ function immutableManifest(manifest: PluginManifest): PluginManifest {
         Object.freeze({ ...activationEvent }),
       ),
     ),
+    provides: Object.freeze([...manifest.provides]),
+    requires: Object.freeze([...manifest.requires]),
     contributes: Object.freeze({
       commands: Object.freeze(
         manifest.contributes.commands.map((command) => Object.freeze({ ...command })),
@@ -602,6 +867,10 @@ export function parsePluginManifest(value: JsonValue): PluginResult<PluginManife
   }
   const activationEvents = parseActivationEvents(id, value.activationEvents);
   if (!activationEvents.ok) return activationEvents;
+  const provides = parseServiceDeclarations(id, 'provides', value.provides);
+  if (!provides.ok) return provides;
+  const requires = parseServiceDeclarations(id, 'requires', value.requires);
+  if (!requires.ok) return requires;
   if (!isJsonRecord(value.contributes)) {
     return failed(
       new InvalidPluginManifestError(id, 'contributes must be an object.'),
@@ -619,13 +888,140 @@ export function parsePluginManifest(value: JsonValue): PluginResult<PluginManife
     version,
     description,
     activationEvents: activationEvents.value,
+    provides: provides.value,
+    requires: requires.value,
     contributes: { commands: commands.value, views: views.value },
   };
   const error = validateManifest(manifest);
   return error === null ? succeeded(immutableManifest(manifest)) : failed(error);
 }
 
-/** Build one host after validating all module and contribution ownership. */
+function dependencyCycle(
+  pluginIds: readonly string[],
+  dependenciesByPluginId: ReadonlyMap<string, readonly string[]>,
+): readonly string[] | null {
+  const states = new Map<string, 'visited' | 'visiting'>();
+  const path: string[] = [];
+
+  const visit = (pluginId: string): readonly string[] | null => {
+    const state = states.get(pluginId);
+    if (state === 'visited') return null;
+    if (state === 'visiting') {
+      const cycleStart = path.indexOf(pluginId);
+      return Object.freeze([...path.slice(cycleStart), pluginId]);
+    }
+
+    states.set(pluginId, 'visiting');
+    path.push(pluginId);
+    for (const dependencyId of dependenciesByPluginId.get(pluginId) ?? []) {
+      const cycle = visit(dependencyId);
+      if (cycle !== null) return cycle;
+    }
+    path.pop();
+    states.set(pluginId, 'visited');
+    return null;
+  };
+
+  for (const pluginId of pluginIds) {
+    const cycle = visit(pluginId);
+    if (cycle !== null) return cycle;
+  }
+  return null;
+}
+
+function topologicalOrder(
+  pluginIds: readonly string[],
+  dependenciesByPluginId: ReadonlyMap<string, readonly string[]>,
+): readonly string[] {
+  const visited = new Set<string>();
+  const ordered: string[] = [];
+
+  const visit = (pluginId: string): void => {
+    if (visited.has(pluginId)) return;
+    visited.add(pluginId);
+    for (const dependencyId of dependenciesByPluginId.get(pluginId) ?? []) {
+      visit(dependencyId);
+    }
+    ordered.push(pluginId);
+  };
+
+  for (const pluginId of pluginIds) visit(pluginId);
+  return Object.freeze(ordered);
+}
+
+function providerFailureTag(
+  state: PluginRuntimeState,
+): PluginActivationError['_tag'] | null {
+  return state.status === 'failed' ? state.error._tag : null;
+}
+
+function stateIsEnabled(state: PluginRuntimeState): boolean {
+  switch (state.status) {
+    case 'active':
+    case 'activating':
+    case 'failed':
+    case 'inactive':
+      return true;
+    case 'deactivating':
+      return !state.disableWhenComplete;
+    case 'deactivation-requested':
+    case 'disabled':
+    case 'disabling-activation':
+      return false;
+  }
+}
+
+function stateRequestsDisable(state: PluginRuntimeState): boolean {
+  switch (state.status) {
+    case 'deactivation-requested':
+    case 'disabled':
+    case 'disabling-activation':
+      return true;
+    case 'deactivating':
+      return state.disableWhenComplete;
+    case 'active':
+    case 'activating':
+    case 'failed':
+    case 'inactive':
+      return false;
+  }
+}
+
+function requestPluginDisable<RenderedView>(
+  record: PluginRecord<RenderedView>,
+): void {
+  switch (record.state.status) {
+    case 'active':
+      record.state = {
+        status: 'deactivation-requested',
+        resources: record.state.resources,
+      };
+      break;
+    case 'activating':
+      record.state = {
+        status: 'disabling-activation',
+        activation: record.state.activation,
+      };
+      break;
+    case 'deactivating':
+      record.state = {
+        status: 'deactivating',
+        deactivation: record.state.deactivation,
+        disableWhenComplete: true,
+      };
+      break;
+    case 'failed':
+    case 'inactive':
+      record.state = { status: 'disabled' };
+      break;
+    case 'deactivation-requested':
+    case 'disabled':
+    case 'disabling-activation':
+      break;
+  }
+}
+
+/** Build one host after validating all modules and their complete service graph. */
 export function createPluginHost<RenderedView>(
   modules: readonly PluginModule<RenderedView>[],
   initiallyDisabledPluginIds: ReadonlySet<string> = new Set<string>(),
@@ -633,6 +1029,7 @@ export function createPluginHost<RenderedView>(
   const records = new Map<string, PluginRecord<RenderedView>>();
   const commandOwners = new Map<string, string>();
   const viewOwners = new Map<string, string>();
+  const serviceProviders = new Map<string, string>();
   const manifests: PluginManifest[] = [];
 
   for (const module of modules) {
@@ -655,50 +1052,249 @@ export function createPluginHost<RenderedView>(
       }
       viewOwners.set(view.id, manifest.id);
     }
+    for (const serviceId of manifest.provides) {
+      const existingProviderId = serviceProviders.get(serviceId);
+      if (existingProviderId !== undefined) {
+        return failed(
+          new DuplicatePluginServiceProviderError(serviceId, [
+            existingProviderId,
+            manifest.id,
+          ]),
+        );
+      }
+      serviceProviders.set(serviceId, manifest.id);
+    }
     manifests.push(manifest);
     records.set(manifest.id, {
       module: {
         manifest,
         activate: (context) => module.activate(context),
       },
-      enabled: !initiallyDisabledPluginIds.has(manifest.id),
-      state: { status: 'inactive' },
+      demanded: false,
+      state: initiallyDisabledPluginIds.has(manifest.id)
+        ? { status: 'disabled' }
+        : { status: 'inactive' },
+      pendingDeactivationErrors: [],
     });
   }
 
+  const dependenciesByPluginId = new Map<string, readonly string[]>();
+  const requiredServicesByPluginId = new Map<
+    string,
+    readonly RequiredPluginService[]
+  >();
+  const dependentsByPluginId = new Map<string, Set<string>>();
+  for (const manifest of manifests) {
+    const dependencyIds: string[] = [];
+    const requiredServices: RequiredPluginService[] = [];
+    const seenDependencyIds = new Set<string>();
+    for (const serviceId of manifest.requires) {
+      const providerPluginId = serviceProviders.get(serviceId);
+      if (providerPluginId === undefined) {
+        return failed(new MissingPluginServiceProviderError(manifest.id, serviceId));
+      }
+      requiredServices.push(Object.freeze({ serviceId, providerPluginId }));
+      if (!seenDependencyIds.has(providerPluginId)) {
+        seenDependencyIds.add(providerPluginId);
+        dependencyIds.push(providerPluginId);
+      }
+      const dependents = dependentsByPluginId.get(providerPluginId) ?? new Set<string>();
+      dependents.add(manifest.id);
+      dependentsByPluginId.set(providerPluginId, dependents);
+    }
+    dependenciesByPluginId.set(manifest.id, Object.freeze(dependencyIds));
+    requiredServicesByPluginId.set(
+      manifest.id,
+      Object.freeze(requiredServices),
+    );
+  }
+
+  const pluginIds = manifests.map((manifest) => manifest.id);
+  const cycle = dependencyCycle(pluginIds, dependenciesByPluginId);
+  if (cycle !== null) return failed(new PluginDependencyCycleError(cycle));
+  const dependencyOrder = topologicalOrder(pluginIds, dependenciesByPluginId);
+  const reverseDependencyOrder = Object.freeze([...dependencyOrder].reverse());
+
   const commandHandlers = new Map<string, PluginCommandHandler>();
   const viewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
-  let lifecycle: 'open' | 'disposing' | 'disposed' = 'open';
+  const publishedServices = new Map<string, PublishedPluginService>();
+  let lifecycle: PluginHostLifecycle = 'open';
   let disposalPromise: Promise<readonly PluginDeactivationError[]> | null = null;
+  let transitionTail: Promise<void> | null = null;
 
-  const activatePlugin = async (pluginId: string): Promise<PluginResult<void>> => {
+  const enqueueTransition = <Value>(
+    transition: () => Value | Promise<Value>,
+  ): Promise<Value> => {
+    const result =
+      transitionTail === null
+        ? Promise.resolve(transition())
+        : transitionTail.then(transition);
+    const completion = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    transitionTail = completion;
+    void completion.then(() => {
+      if (transitionTail === completion) transitionTail = null;
+    });
+    return result;
+  };
+
+  const firstUnavailableRequiredService = (
+    pluginId: string,
+    providerIsAvailable: (
+      requirement: RequiredPluginService,
+      providerRecord: PluginRecord<RenderedView>,
+    ) => boolean,
+  ): PluginDependencyUnavailableError | null => {
+    for (const requirement of requiredServicesByPluginId.get(pluginId) ?? []) {
+      const providerRecord = records.get(requirement.providerPluginId);
+      if (
+        providerRecord !== undefined &&
+        providerIsAvailable(requirement, providerRecord)
+      ) {
+        continue;
+      }
+      return new PluginDependencyUnavailableError(
+        pluginId,
+        requirement.serviceId,
+        requirement.providerPluginId,
+        providerRecord === undefined
+          ? null
+          : providerFailureTag(providerRecord.state),
+      );
+    }
+    return null;
+  };
+
+  const unavailableDependency = (
+    pluginId: string,
+  ): PluginDependencyUnavailableError | null => {
+    const directFailure = firstUnavailableRequiredService(
+      pluginId,
+      (_requirement, providerRecord) =>
+        stateIsEnabled(providerRecord.state) &&
+        providerRecord.state.status !== 'failed',
+    );
+    if (directFailure !== null) return directFailure;
+
+    for (const requirement of requiredServicesByPluginId.get(pluginId) ?? []) {
+      const transitiveFailure = unavailableDependency(
+        requirement.providerPluginId,
+      );
+      if (transitiveFailure !== null) return transitiveFailure;
+    }
+    return null;
+  };
+
+  const canAttemptActivation = (pluginId: string): boolean => {
+    const record = records.get(pluginId);
+    return (
+      record !== undefined &&
+      stateIsEnabled(record.state) &&
+      record.state.status !== 'failed' &&
+      unavailableDependency(pluginId) === null
+    );
+  };
+
+  const unpublishPlugin = (
+    pluginId: string,
+    record: PluginRecord<RenderedView>,
+  ): void => {
+    for (const command of record.module.manifest.contributes.commands) {
+      commandHandlers.delete(command.id);
+    }
+    for (const view of record.module.manifest.contributes.views) {
+      viewRenderers.delete(view.id);
+    }
+    for (const serviceId of record.module.manifest.provides) {
+      if (publishedServices.get(serviceId)?.providerPluginId === pluginId) {
+        publishedServices.delete(serviceId);
+      }
+    }
+  };
+
+  const drainResources = async (
+    pluginId: string,
+    resources: PluginRuntimeResources,
+  ): Promise<PluginDeactivationError | null> => {
+    try {
+      return cleanupFailure(pluginId, await resources.scope.drain());
+    } finally {
+      resources.closeServiceAccess();
+    }
+  };
+
+  const inactiveRequiredService = (
+    pluginId: string,
+  ): PluginDependencyUnavailableError | null =>
+    firstUnavailableRequiredService(
+      pluginId,
+      (requirement, providerRecord) =>
+        stateIsEnabled(providerRecord.state) &&
+        providerRecord.state.status === 'active' &&
+        publishedServices.has(requirement.serviceId),
+    );
+
+  const activatePlugin = async (
+    pluginId: string,
+  ): Promise<PluginResult<void, PluginActivationAttemptError>> => {
     if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
     const record = records.get(pluginId);
     if (record === undefined) return failed(new PluginNotFoundError(pluginId));
-    if (!record.enabled) return failed(new PluginDisabledError(pluginId));
+    if (!stateIsEnabled(record.state)) return failed(new PluginDisabledError(pluginId));
     if (record.state.status === 'active') return succeeded(undefined);
     if (record.state.status === 'failed') return failed(record.state.error);
-    if (record.state.status === 'activating') return record.state.activation;
+    if (
+      record.state.status === 'activating' ||
+      record.state.status === 'disabling-activation'
+    ) {
+      return record.state.activation;
+    }
+    if (record.state.status === 'deactivating') {
+      await record.state.deactivation;
+      return activatePlugin(pluginId);
+    }
+    if (record.state.status === 'deactivation-requested') {
+      return failed(new PluginDisabledError(pluginId));
+    }
 
-    const activation = Promise.resolve().then(async (): Promise<PluginResult<void>> => {
+    const activation = Promise.resolve().then(async (): Promise<
+      PluginResult<void, PluginActivationAttemptError>
+    > => {
       const localHandlers = new Map<string, PluginCommandHandler>();
       const localViewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
+      const localServices = new Map<string, PublishedPluginService>();
       const scope = createEffectScope();
       let activationOpen = true;
+      let serviceAccessOpen = true;
       const declaredCommands = new Set(
         record.module.manifest.contributes.commands.map((command) => command.id),
       );
       const declaredViews = new Set(
         record.module.manifest.contributes.views.map((view) => view.id),
       );
+      const declaredProvidedServices = new Set(record.module.manifest.provides);
+      const declaredRequiredServices = new Set(record.module.manifest.requires);
       const assertActivationOpen = (): void => {
         if (!activationOpen) {
+          throw new PluginActivationContextClosedError(pluginId);
+        }
+      };
+      const assertServiceAccessOpen = (): void => {
+        if (!serviceAccessOpen) {
           throw new PluginActivationContextClosedError(pluginId);
         }
       };
       const closeActivation = (): void => {
         activationOpen = false;
         scope.close();
+      };
+      const resources: PluginRuntimeResources = {
+        scope,
+        closeServiceAccess: () => {
+          serviceAccessOpen = false;
+        },
       };
       const context: PluginActivationContext<RenderedView> = {
         pluginId,
@@ -712,6 +1308,35 @@ export function createPluginHost<RenderedView>(
             }
             throw cause;
           }
+        },
+        provideService(key, value) {
+          assertActivationOpen();
+          if (!declaredProvidedServices.has(key.id)) {
+            throw new PluginServiceAccessError(pluginId, key.id, 'provide', 'undeclared');
+          }
+          if (localServices.has(key.id)) {
+            throw new PluginServiceAccessError(pluginId, key.id, 'provide', 'duplicate');
+          }
+          localServices.set(key.id, {
+            key,
+            providerPluginId: pluginId,
+            value,
+          });
+        },
+        getService<Value>(key: PluginServiceKey<Value>): Value {
+          assertServiceAccessOpen();
+          if (!declaredRequiredServices.has(key.id)) {
+            throw new PluginServiceAccessError(pluginId, key.id, 'consume', 'undeclared');
+          }
+          const service = publishedServices.get(key.id);
+          if (service === undefined) {
+            throw new PluginServiceAccessError(pluginId, key.id, 'consume', 'unavailable');
+          }
+          if (service.key !== key) {
+            throw new PluginServiceAccessError(pluginId, key.id, 'consume', 'key-mismatch');
+          }
+          // SAFETY: key identity couples this stored value to PluginServiceKey<Value>.
+          return service.value as Value;
         },
         registerCommand(commandId, handler) {
           assertActivationOpen();
@@ -735,6 +1360,36 @@ export function createPluginHost<RenderedView>(
         },
       };
 
+      const rollback = async (
+        resultError: PluginActivationAttemptError,
+        cacheActivationFailure: boolean,
+      ): Promise<PluginResult<void, PluginActivationAttemptError>> => {
+        closeActivation();
+        const cleanupError = await drainResources(pluginId, resources);
+        const disableRequested = stateRequestsDisable(record.state);
+        if (cleanupError !== null) {
+          record.state = { status: 'disabled' };
+          if (disableRequested || lifecycle !== 'open') {
+            record.pendingDeactivationErrors.push(cleanupError);
+          }
+          return failed(cleanupError);
+        }
+        if (lifecycle !== 'open') {
+          record.state = { status: 'disabled' };
+          return failed(new PluginHostDisposedError());
+        }
+        if (disableRequested) {
+          record.state = { status: 'disabled' };
+          return failed(new PluginDisabledError(pluginId));
+        }
+        if (cacheActivationFailure && resultError instanceof PluginActivationError) {
+          record.state = { status: 'failed', error: resultError };
+        } else {
+          record.state = { status: 'inactive' };
+        }
+        return failed(resultError);
+      };
+
       try {
         const activationResult = record.module.activate(context);
         if (!(activationResult instanceof Promise)) activationOpen = false;
@@ -756,51 +1411,207 @@ export function createPluginHost<RenderedView>(
             throw new Error(`Plugin ${pluginId} did not register view ${viewId}.`);
           }
         }
-        if (!record.enabled || lifecycle !== 'open') {
-          const cleanupError = await deactivatePluginScope(
-            pluginId,
-            record,
-            scope,
-          );
-          if (cleanupError !== null) {
-            record.enabled = false;
-            return failed(cleanupError);
+        for (const serviceId of declaredProvidedServices) {
+          if (!localServices.has(serviceId)) {
+            throw new Error(`Plugin ${pluginId} did not provide service ${serviceId}.`);
           }
-          return lifecycle === 'open'
-            ? failed(new PluginDisabledError(pluginId))
-            : failed(new PluginHostDisposedError());
         }
+
+        const dependencyFailure = inactiveRequiredService(pluginId);
+        if (dependencyFailure !== null) {
+          return await rollback(dependencyFailure, false);
+        }
+        if (stateRequestsDisable(record.state)) {
+          return await rollback(new PluginDisabledError(pluginId), false);
+        }
+        if (lifecycle !== 'open') {
+          return await rollback(new PluginHostDisposedError(), false);
+        }
+
         for (const [commandId, handler] of localHandlers) {
           commandHandlers.set(commandId, handler);
         }
         for (const [viewId, renderer] of localViewRenderers) {
           viewRenderers.set(viewId, renderer);
         }
-        record.state = { status: 'active', scope };
+        for (const [serviceId, service] of localServices) {
+          publishedServices.set(serviceId, service);
+        }
+        record.state = { status: 'active', resources };
         return succeeded(undefined);
       } catch (cause) {
-        closeActivation();
-        const cleanupError = await deactivatePluginScope(pluginId, record, scope);
-        if (cleanupError !== null) {
-          record.enabled = false;
-          return failed(cleanupError);
-        }
-        if (lifecycle !== 'open') {
-          record.state = { status: 'inactive' };
-          return failed(new PluginHostDisposedError());
-        }
-        if (!record.enabled) {
-          record.state = { status: 'inactive' };
-          return failed(new PluginDisabledError(pluginId));
-        }
-        const error = new PluginActivationError(pluginId, cause);
-        record.state = { status: 'failed', error };
-        return failed(error);
+        const activationError =
+          cause instanceof PluginActivationError
+            ? cause
+            : new PluginActivationError(pluginId, cause);
+        return rollback(activationError, true);
       }
     });
 
     record.state = { status: 'activating', activation };
     return activation;
+  };
+
+  const activatePluginGraph = async (
+    pluginId: string,
+  ): Promise<PluginResult<void, PluginActivationAttemptError>> => {
+    if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+    const record = records.get(pluginId);
+    if (record === undefined) return failed(new PluginNotFoundError(pluginId));
+    if (!stateIsEnabled(record.state)) return failed(new PluginDisabledError(pluginId));
+
+    for (const requirement of requiredServicesByPluginId.get(pluginId) ?? []) {
+      const providerRecord = records.get(requirement.providerPluginId);
+      if (
+        providerRecord === undefined ||
+        !stateIsEnabled(providerRecord.state) ||
+        providerRecord.state.status === 'failed'
+      ) {
+        return failed(
+          new PluginDependencyUnavailableError(
+            pluginId,
+            requirement.serviceId,
+            requirement.providerPluginId,
+            providerRecord === undefined ? null : providerFailureTag(providerRecord.state),
+          ),
+        );
+      }
+      const providerActivation = await activatePluginGraph(
+        requirement.providerPluginId,
+      );
+      if (!providerActivation.ok) {
+        return failed(
+          new PluginDependencyUnavailableError(
+            pluginId,
+            requirement.serviceId,
+            requirement.providerPluginId,
+            providerActivation.error._tag,
+          ),
+        );
+      }
+      if (!publishedServices.has(requirement.serviceId)) {
+        return failed(
+          new PluginDependencyUnavailableError(
+            pluginId,
+            requirement.serviceId,
+            requirement.providerPluginId,
+          ),
+        );
+      }
+    }
+
+    return activatePlugin(pluginId);
+  };
+
+  const deactivatePlugin = async (
+    pluginId: string,
+    disableWhenComplete: boolean,
+  ): Promise<PluginDeactivationError | null> => {
+    const record = records.get(pluginId);
+    if (record === undefined) return null;
+
+    if (record.pendingDeactivationErrors.length > 0) {
+      const pendingError = record.pendingDeactivationErrors.shift() ?? null;
+      record.state = disableWhenComplete
+        ? { status: 'disabled' }
+        : { status: 'inactive' };
+      return pendingError;
+    }
+    if (
+      record.state.status === 'activating' ||
+      record.state.status === 'disabling-activation'
+    ) {
+      await record.state.activation;
+      return deactivatePlugin(pluginId, disableWhenComplete);
+    }
+    if (record.state.status === 'deactivating') {
+      if (disableWhenComplete && !record.state.disableWhenComplete) {
+        record.state = {
+          status: 'deactivating',
+          deactivation: record.state.deactivation,
+          disableWhenComplete: true,
+        };
+      }
+      return record.state.deactivation;
+    }
+    if (record.state.status === 'disabled') return null;
+    if (record.state.status === 'failed' || record.state.status === 'inactive') {
+      record.state = disableWhenComplete
+        ? { status: 'disabled' }
+        : { status: 'inactive' };
+      return null;
+    }
+
+    const resources = record.state.resources;
+    unpublishPlugin(pluginId, record);
+    const deactivation = Promise.resolve().then(async () => {
+      const cleanupError = await drainResources(pluginId, resources);
+      const currentState = record.state;
+      const shouldDisable =
+        disableWhenComplete ||
+        (currentState.status === 'deactivating' && currentState.disableWhenComplete);
+      record.state = shouldDisable
+        ? { status: 'disabled' }
+        : { status: 'inactive' };
+      return cleanupError;
+    });
+    record.state = {
+      status: 'deactivating',
+      deactivation,
+      disableWhenComplete,
+    };
+    return deactivation;
+  };
+
+  const affectedPluginIds = (pluginId: string): ReadonlySet<string> => {
+    const affected = new Set<string>();
+    const visit = (currentPluginId: string): void => {
+      if (affected.has(currentPluginId)) return;
+      affected.add(currentPluginId);
+      for (const dependentId of dependentsByPluginId.get(currentPluginId) ?? []) {
+        visit(dependentId);
+      }
+    };
+    visit(pluginId);
+    return affected;
+  };
+
+  const deactivateCascade = async (
+    pluginId: string,
+  ): Promise<readonly PluginDeactivationError[]> => {
+    const affected = affectedPluginIds(pluginId);
+    const failures: PluginDeactivationError[] = [];
+    for (const affectedPluginId of reverseDependencyOrder) {
+      if (!affected.has(affectedPluginId)) continue;
+      const record = records.get(affectedPluginId);
+      if (record === undefined) continue;
+      const cleanupError = await deactivatePlugin(
+        affectedPluginId,
+        affectedPluginId === pluginId || stateRequestsDisable(record.state),
+      );
+      if (cleanupError !== null) failures.push(cleanupError);
+    }
+    return Object.freeze(failures);
+  };
+
+  const reconcileDemandedPlugins = async (): Promise<PluginResult<void>> => {
+    let firstFailure: PluginHostError | null = null;
+    for (const pluginId of dependencyOrder) {
+      const record = records.get(pluginId);
+      if (
+        record === undefined ||
+        !record.demanded ||
+        record.state.status === 'active' ||
+        !canAttemptActivation(pluginId)
+      ) {
+        continue;
+      }
+      const activation = await activatePluginGraph(pluginId);
+      if (!activation.ok && firstFailure === null) {
+        firstFailure = activation.error;
+      }
+    }
+    return firstFailure === null ? succeeded(undefined) : failed(firstFailure);
   };
 
   const executeCommand = async (commandId: string): Promise<PluginResult<void>> => {
@@ -809,8 +1620,19 @@ export function createPluginHost<RenderedView>(
     if (pluginId === undefined) {
       return failed(new PluginCommandNotFoundError(commandId));
     }
-    const activation = await activatePlugin(pluginId);
+    const record = records.get(pluginId);
+    if (record !== undefined && stateIsEnabled(record.state)) {
+      record.demanded = true;
+    }
+    const activation = await enqueueTransition(() => activatePluginGraph(pluginId));
     if (!activation.ok) return activation;
+    if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+    const dependencyFailure = unavailableDependency(pluginId);
+    if (dependencyFailure !== null) return failed(dependencyFailure);
+    const currentRecord = records.get(pluginId);
+    if (currentRecord === undefined || !stateIsEnabled(currentRecord.state)) {
+      return failed(new PluginDisabledError(pluginId));
+    }
     const handler = commandHandlers.get(commandId);
     if (handler === undefined) {
       return failed(new PluginCommandNotFoundError(commandId));
@@ -828,117 +1650,117 @@ export function createPluginHost<RenderedView>(
       return manifests;
     },
     listViews() {
-      return manifests.flatMap((manifest) =>
-        records.get(manifest.id)?.enabled === true
+      return manifests.flatMap((manifest) => {
+        const record = records.get(manifest.id);
+        return record !== undefined &&
+          stateIsEnabled(record.state) &&
+          unavailableDependency(manifest.id) === null
           ? manifest.contributes.views
-          : [],
-      );
+          : [];
+      });
     },
     isPluginEnabled(pluginId) {
-      return records.get(pluginId)?.enabled === true;
+      const record = records.get(pluginId);
+      return record !== undefined && stateIsEnabled(record.state);
     },
-    async activateStartupPlugins() {
+    activateStartupPlugins() {
       if (lifecycle !== 'open') {
-        return Object.freeze([new PluginHostDisposedError()]);
+        return Promise.resolve(
+          Object.freeze<PluginHostError[]>([new PluginHostDisposedError()]),
+        );
       }
-      const results = await Promise.all(
-        manifests
-          .filter(
-            (manifest) =>
-              records.get(manifest.id)?.enabled === true &&
-              manifest.activationEvents.some(
-                (activationEvent) => activationEvent.event === 'startup',
-              ),
+      const startupManifests = manifests.filter((manifest) =>
+        manifest.activationEvents.some(
+          (activationEvent) => activationEvent.event === 'startup',
+        ),
+      );
+      for (const manifest of startupManifests) {
+        const record = records.get(manifest.id);
+        if (record !== undefined) record.demanded = true;
+      }
+      return enqueueTransition(async () => {
+        if (lifecycle !== 'open') {
+          return Object.freeze<PluginHostError[]>([
+            new PluginHostDisposedError(),
+          ]);
+        }
+        const errors: PluginHostError[] = [];
+        for (const manifest of startupManifests) {
+          const record = records.get(manifest.id);
+          if (record === undefined || !stateIsEnabled(record.state)) continue;
+          const activation = await activatePluginGraph(manifest.id);
+          if (!activation.ok) errors.push(activation.error);
+        }
+        return Object.freeze(errors);
+      });
+    },
+    enablePlugin(pluginId) {
+      if (lifecycle !== 'open') {
+        return Promise.resolve(failed(new PluginHostDisposedError()));
+      }
+      if (!records.has(pluginId)) {
+        return Promise.resolve(failed(new PluginNotFoundError(pluginId)));
+      }
+      return enqueueTransition(async () => {
+        if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+        const record = records.get(pluginId);
+        if (record === undefined) return failed(new PluginNotFoundError(pluginId));
+        if (record.state.status === 'deactivating') {
+          await record.state.deactivation;
+        }
+        if (
+          record.state.status === 'disabled' ||
+          record.state.status === 'failed'
+        ) {
+          record.state = { status: 'inactive' };
+        }
+        if (
+          record.module.manifest.activationEvents.some(
+            (activationEvent) => activationEvent.event === 'startup',
           )
-          .map((manifest) => activatePlugin(manifest.id)),
-      );
-      return Object.freeze(
-        results.flatMap((result) => (result.ok ? [] : [result.error])),
-      );
-    },
-    async enablePlugin(pluginId) {
-      if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
-      const record = records.get(pluginId);
-      if (record === undefined) return failed(new PluginNotFoundError(pluginId));
-      if (!record.enabled && record.state.status === 'activating') {
-        const activation = await record.state.activation;
-        if (
-          !activation.ok &&
-          activation.error instanceof PluginDeactivationError
         ) {
-          return activation;
+          record.demanded = true;
         }
-        if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
-      }
-      if (record.state.status === 'deactivating') {
-        const deactivation = await record.state.deactivation;
-        if (!deactivation.ok) return deactivation;
-        if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
-      }
-      record.enabled = true;
-      if (record.state.status === 'failed') {
-        record.state = { status: 'inactive' };
-      }
-      return record.module.manifest.activationEvents.some(
-        (activationEvent) => activationEvent.event === 'startup',
-      )
-        ? activatePlugin(pluginId)
-        : succeeded(undefined);
+        return reconcileDemandedPlugins();
+      });
     },
-    async disablePlugin(pluginId) {
-      if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+    disablePlugin(pluginId) {
+      if (lifecycle !== 'open') {
+        return Promise.resolve(failed(new PluginHostDisposedError()));
+      }
       const record = records.get(pluginId);
-      if (record === undefined) return failed(new PluginNotFoundError(pluginId));
-      if (record.state.status === 'deactivating') {
-        return record.state.deactivation;
+      if (record === undefined) {
+        return Promise.resolve(failed(new PluginNotFoundError(pluginId)));
       }
-
-      const wasEnabled = record.enabled;
-      record.enabled = false;
-      if (record.state.status === 'activating') {
-        const activation = await record.state.activation;
-        if (
-          !activation.ok &&
-          activation.error instanceof PluginDeactivationError
-        ) {
-          return activation;
+      record.demanded = false;
+      requestPluginDisable(record);
+      return enqueueTransition(async () => {
+        if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+        const failures = await deactivateCascade(pluginId);
+        if (failures.length === 0) return succeeded(undefined);
+        if (failures.length === 1 && failures[0]?.pluginId === pluginId) {
+          return failed(failures[0]);
         }
-      }
-      if (!wasEnabled) {
-        return succeeded(undefined);
-      }
-      for (const command of record.module.manifest.contributes.commands) {
-        commandHandlers.delete(command.id);
-      }
-      for (const view of record.module.manifest.contributes.views) {
-        viewRenderers.delete(view.id);
-      }
-      const scope = record.state.status === 'active' ? record.state.scope : null;
-      if (scope === null) {
-        record.state = { status: 'inactive' };
-        return succeeded(undefined);
-      }
-      const deactivation = Promise.resolve().then(
-        async (): Promise<PluginResult<void>> => {
-          const cleanupError = await deactivatePluginScope(
-            pluginId,
-            record,
-            scope,
-          );
-          return cleanupError === null
-            ? succeeded(undefined)
-            : failed(cleanupError);
-        },
-      );
-      record.state = { status: 'deactivating', deactivation };
-      return deactivation;
+        return failed(new PluginCascadeDeactivationError(pluginId, failures));
+      });
     },
     async renderView(viewId) {
       if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
       const pluginId = viewOwners.get(viewId);
       if (pluginId === undefined) return failed(new PluginViewNotFoundError(viewId));
-      const activation = await activatePlugin(pluginId);
+      const record = records.get(pluginId);
+      if (record !== undefined && stateIsEnabled(record.state)) {
+        record.demanded = true;
+      }
+      const activation = await enqueueTransition(() => activatePluginGraph(pluginId));
       if (!activation.ok) return activation;
+      if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
+      const dependencyFailure = unavailableDependency(pluginId);
+      if (dependencyFailure !== null) return failed(dependencyFailure);
+      const currentRecord = records.get(pluginId);
+      if (currentRecord === undefined || !stateIsEnabled(currentRecord.state)) {
+        return failed(new PluginDisabledError(pluginId));
+      }
       const renderer = viewRenderers.get(viewId);
       if (renderer === undefined) return failed(new PluginViewNotFoundError(viewId));
       try {
@@ -958,43 +1780,16 @@ export function createPluginHost<RenderedView>(
     dispose() {
       if (disposalPromise !== null) return disposalPromise;
       lifecycle = 'disposing';
-      disposalPromise = Promise.resolve().then(async () => {
+      for (const record of records.values()) requestPluginDisable(record);
+      disposalPromise = enqueueTransition(async () => {
         const errors: PluginDeactivationError[] = [];
-        for (const record of records.values()) record.enabled = false;
-        await Promise.all(
-          [...records.entries()].map(async ([pluginId, record]) => {
-            if (record.state.status === 'activating') {
-              const activation = await record.state.activation;
-              if (
-                !activation.ok &&
-                activation.error instanceof PluginDeactivationError
-              ) {
-                errors.push(activation.error);
-              }
-            }
-            if (record.state.status === 'deactivating') {
-              const deactivation = await record.state.deactivation;
-              if (
-                !deactivation.ok &&
-                deactivation.error instanceof PluginDeactivationError
-              ) {
-                errors.push(deactivation.error);
-              }
-            }
-            if (record.state.status !== 'active') {
-              record.state = { status: 'inactive' };
-              return;
-            }
-            const cleanupError = await deactivatePluginScope(
-              pluginId,
-              record,
-              record.state.scope,
-            );
-            if (cleanupError !== null) errors.push(cleanupError);
-          }),
-        );
+        for (const pluginId of reverseDependencyOrder) {
+          const cleanupError = await deactivatePlugin(pluginId, true);
+          if (cleanupError !== null) errors.push(cleanupError);
+        }
         commandHandlers.clear();
         viewRenderers.clear();
+        publishedServices.clear();
         lifecycle = 'disposed';
         return Object.freeze(errors);
       });

@@ -37,6 +37,8 @@ export const reactGrabPluginManifest: PluginManifest = Object.freeze({
   name: 'React Grab',
   version: '0.1.50',
   description: 'Select Ernie interface elements with their React source context.',
+  provides: Object.freeze([]),
+  requires: Object.freeze([]),
   activationEvents: Object.freeze([Object.freeze({ event: 'startup' })]),
   contributes: Object.freeze({
     commands: Object.freeze([]),

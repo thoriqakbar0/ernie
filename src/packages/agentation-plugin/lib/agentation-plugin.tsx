@@ -124,6 +124,8 @@ export const agentationPluginManifest: PluginManifest = Object.freeze({
   name: 'Agentation',
   version: '3.0.2',
   description: 'Annotate Ernie and sync visual feedback to coding agents.',
+  provides: Object.freeze([]),
+  requires: Object.freeze([]),
   activationEvents: Object.freeze([Object.freeze({ event: 'startup' })]),
   contributes: Object.freeze({
     commands: Object.freeze([]),

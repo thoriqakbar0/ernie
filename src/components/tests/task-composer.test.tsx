@@ -134,6 +134,7 @@ test('connected Agent uses the compact quick composer', () => {
       'has-[[data-slot=input-group-control]:focus-visible]:ring-0',
     ),
   );
+  assert.ok(inputGroup?.className.includes('focus-within:opacity-100'));
   assert.ok(composer.className.includes('focus-visible:border-0'));
   assert.ok(composer.className.includes('focus-visible:outline-none'));
 });

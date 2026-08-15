@@ -45,12 +45,13 @@ export function TaskSurface({
 
         {workspace.selectedSessionId === null ? (
           <div className="flex flex-col gap-6">
-            <header className="border-b border-border/70 pb-6">
+            <header className="relative pb-6 after:absolute after:bottom-0 after:left-0 after:h-px after:w-32 after:rounded-full after:bg-gradient-to-r after:from-primary/60 after:via-primary/20 after:to-transparent">
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">
                 Ernie
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                An attempt at an RLM interface
+                An experiment in jellyware: an RLM-able interface that follows
+                the work
               </p>
             </header>
             <CurrentWorkspace

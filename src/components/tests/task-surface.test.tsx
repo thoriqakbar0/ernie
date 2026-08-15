@@ -175,10 +175,11 @@ test('working Agent shows its hydrated conversation before a response', () => {
   assert.ok(
     within(document.body).getByRole('textbox', { name: 'Give Ernie a task' }),
   );
-  assert.ok(
-    within(document.body).getByRole('status', {
+  assert.equal(
+    within(document.body).queryByRole('status', {
       name: 'Current agent: Agent 2 · Research interaction patterns',
     }),
+    null,
   );
 });
 

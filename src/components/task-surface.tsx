@@ -1,4 +1,4 @@
-import { MessageSquareTextIcon, RefreshCwIcon } from 'lucide-react';
+import { RefreshCwIcon } from 'lucide-react';
 
 import { AgentChat } from '@/components/agent-chat';
 import { CurrentWorkspace } from '@/components/current-workspace';
@@ -91,25 +91,6 @@ export function TaskSurface({
               : undefined
           }
         >
-          {workspace.selectedAgentIdentity === null ? null : (
-            <div
-              aria-label={`Current agent: ${
-                workspace.selectedAgentIdentity.kind === 'spawned'
-                  ? `Agent ${workspace.selectedAgentIdentity.number}`
-                  : 'Prime Agent'
-              } · ${workspace.selectedAgentIdentity.name}`}
-              className="mb-2 flex min-w-0 items-center justify-center gap-1.5 px-2 text-xs text-muted-foreground"
-              role="status"
-            >
-              <MessageSquareTextIcon aria-hidden="true" className="size-3.5" />
-              <span className="min-w-0 truncate font-medium text-foreground/80">
-                {workspace.selectedAgentIdentity.kind === 'spawned'
-                  ? `Agent ${workspace.selectedAgentIdentity.number}`
-                  : 'Prime Agent'}{' '}
-                · {workspace.selectedAgentIdentity.name}
-              </span>
-            </div>
-          )}
           <TaskComposer
             key={`${workspace.selectedCwd ?? 'no-workspace'}:${
               workspace.selectedSessionId ?? 'new'

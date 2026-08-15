@@ -780,10 +780,11 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       name: 'Open Agent 1 input and output: Research interaction patterns',
     }),
   );
-  assert.ok(
-    await within(document.body).findByRole('status', {
-      name: 'Current agent: Agent 1 · Research interaction patterns',
-    }),
+  await waitFor(() =>
+    assert.notEqual(
+      sessionFeedListeners.get('test-feed:research-agent'),
+      undefined,
+    ),
   );
   const researchFeed = sessionFeedListeners.get('test-feed:research-agent');
   assert.notEqual(researchFeed, undefined);

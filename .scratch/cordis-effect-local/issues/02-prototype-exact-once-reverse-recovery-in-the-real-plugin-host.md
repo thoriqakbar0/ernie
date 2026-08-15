@@ -1,10 +1,10 @@
-# Prototype exact-once reverse recovery in the real plugin host
+# Prototype EffectScope through Ernie's production extension host
 
 Parent: [Bring effect-local lifecycle cleanup to Ernie](../map.md)
 
 Label: `wayfinder:prototype`
 
-Assignee: unassigned
+Assignee: codex
 
 Status: open
 
@@ -12,4 +12,4 @@ Blocked by: none
 
 ## Question
 
-Which smallest production-path prototype proves that partial asynchronous activation recovers every acquired effect exactly once in reverse order while preserving transactional command and view publication?
+Which smallest production-path prototype proves that an `EffectScope` can replace the built-in extension host's lifecycle core, recover partial asynchronous activation exactly once in reverse order, and preserve transactional command and view publication?

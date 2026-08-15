@@ -8,7 +8,7 @@ Assignee: unassigned
 
 Status: open
 
-Blocked by: [Prototype exact-once reverse recovery in the real plugin host](./02-prototype-exact-once-reverse-recovery-in-the-real-plugin-host.md)
+Blocked by: [Prototype EffectScope through Ernie's production extension host](./02-prototype-exact-once-reverse-recovery-in-the-real-plugin-host.md)
 
 ## Question
 

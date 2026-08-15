@@ -103,14 +103,14 @@ export function ThreadRow({
       <span
         aria-label="Queued"
         title="Queued"
-        className="size-2 shrink-0 rounded-full border border-muted-foreground/70"
+        className="size-2 shrink-0 rounded-full border border-warning/70"
       />
     ),
     needs_input: (
       <span
         aria-label="Needs input"
         title="Needs input"
-        className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground"
+        className="flex size-3.5 shrink-0 items-center justify-center text-warning"
       >
         <MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
       </span>

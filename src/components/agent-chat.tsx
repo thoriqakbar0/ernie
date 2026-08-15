@@ -195,7 +195,7 @@ function IpythonCell({
     cell.status === 'error'
       ? 'text-destructive'
       : cell.status === 'ok'
-        ? 'text-emerald-600 dark:text-emerald-400'
+        ? 'text-success'
         : 'text-muted-foreground';
 
   return (
@@ -332,7 +332,7 @@ function ExecutionRun({
       ? 'text-muted-foreground'
       : containsRunning
         ? 'text-foreground'
-        : 'text-emerald-700 dark:text-emerald-400';
+        : 'text-success';
 
   return (
     <section
@@ -461,7 +461,7 @@ function SpawnedSessionBranch({
     session.status === 'error'
       ? 'text-destructive'
       : session.status === 'done'
-        ? 'text-emerald-600 dark:text-emerald-400'
+        ? 'text-success'
         : 'text-muted-foreground';
 
   return (
@@ -787,7 +787,7 @@ export function AgentChat({
                 ) : (
                   <CheckIcon
                     aria-hidden="true"
-                    className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                    className="size-3.5 shrink-0 text-success"
                   />
                 )}
               </header>

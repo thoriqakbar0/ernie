@@ -544,7 +544,7 @@ const createWindow = Effect.fn('Ernie.createWindow')(function* (
     height: 900,
     minWidth: 820,
     minHeight: 520,
-    backgroundColor: '#fbf8f2',
+    backgroundColor: '#fcf9f3',
     icon: iconPath,
     show: false,
     title: '+ electron',

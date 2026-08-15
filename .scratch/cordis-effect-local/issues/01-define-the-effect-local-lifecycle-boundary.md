@@ -4,7 +4,7 @@ Parent: [Bring effect-local lifecycle cleanup to Ernie](../map.md)
 
 Label: `wayfinder:grilling`
 
-Assignee: unassigned
+Assignee: codex
 
 Status: open
 

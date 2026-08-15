@@ -142,6 +142,8 @@ export const browserPluginManifest: PluginManifest = Object.freeze({
   name: 'Browser',
   version: '0.1.0',
   description: 'Browse and inspect the web without leaving Ernie.',
+  provides: Object.freeze([]),
+  requires: Object.freeze([]),
   activationEvents: Object.freeze([
     Object.freeze({ event: 'view', viewId: browserPluginViewId }),
   ]),

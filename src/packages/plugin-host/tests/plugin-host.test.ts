@@ -2,18 +2,26 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  createPluginServiceKey,
   createPluginHost,
   currentPluginApiVersion,
+  DuplicatePluginServiceProviderError,
   DuplicatePluginIdError,
   InvalidPluginManifestError,
+  MissingPluginServiceProviderError,
   parsePluginManifest,
   PluginActivationContextClosedError,
   PluginActivationError,
+  PluginCascadeDeactivationError,
   PluginCommandExecutionError,
+  PluginDependencyCycleError,
+  PluginDependencyUnavailableError,
   PluginDeactivationError,
   PluginDisabledError,
   PluginHostDisposedError,
+  PluginServiceAccessError,
   type PluginActivationContext,
+  type PluginHost,
   type PluginManifest,
   type PluginModule,
   type PluginResult,
@@ -22,6 +30,53 @@ import type { JsonValue } from '@/packages/json-value';
 
 const viewId = 'acme.browser.main';
 const commandId = 'acme.browser.reload';
+
+interface ServiceManifestOptions {
+  readonly command?: boolean;
+  readonly provides?: readonly string[];
+  readonly requires?: readonly string[];
+  readonly startup?: boolean;
+  readonly view?: boolean;
+}
+
+function serviceManifest(
+  id: string,
+  options: ServiceManifestOptions = {},
+): PluginManifest {
+  const contributedViewId = `${id}.main`;
+  return {
+    apiVersion: currentPluginApiVersion,
+    id,
+    name: id,
+    version: '1.0.0',
+    description: `${id} test fixture.`,
+    provides: options.provides ?? [],
+    requires: options.requires ?? [],
+    activationEvents: options.startup === true
+      ? [{ event: 'startup' }]
+      : options.view === true
+        ? [{ event: 'view', viewId: contributedViewId }]
+        : [],
+    contributes: {
+      commands:
+        options.command === true
+          ? [{ id: `${id}.run`, title: `Run ${id}` }]
+          : [],
+      views:
+        options.view === true
+          ? [
+              {
+                id: contributedViewId,
+                title: id,
+                description: `${id} test view.`,
+                icon: 'puzzle',
+                location: 'primary',
+              },
+            ]
+          : [],
+    },
+  };
+}
 
 function testManifest(
   id = 'acme.browser',
@@ -34,6 +89,8 @@ function testManifest(
     name: 'Browser',
     version: '1.0.0',
     description: 'Browse the web.',
+    provides: [],
+    requires: [],
     activationEvents: [{ event: 'view', viewId: contributedViewId }],
     contributes: {
       commands: [{ id: contributedCommandId, title: 'Reload browser' }],
@@ -57,6 +114,8 @@ function startupManifest(id = 'acme.startup'): PluginManifest {
     name: 'Startup tool',
     version: '1.0.0',
     description: 'Run an application-wide tool.',
+    provides: [],
+    requires: [],
     activationEvents: [{ event: 'startup' }],
     contributes: { commands: [], views: [] },
   };
@@ -75,6 +134,8 @@ function serializedTestManifest(
     name: 'Browser',
     version: '1.0.0',
     description: 'Browse the web.',
+    provides: [],
+    requires: [],
     activationEvents: [{ event: 'view', viewId }],
     contributes: {
       commands: [{ id: commandId, title: 'Reload browser' }],
@@ -98,10 +159,12 @@ test('parses a serialized plugin manifest into immutable metadata', () => {
   if (!result.ok) return;
   assert.equal(result.value.id, 'acme.browser');
   assert.equal(Object.isFrozen(result.value), true);
+  assert.equal(Object.isFrozen(result.value.provides), true);
+  assert.equal(Object.isFrozen(result.value.requires), true);
   assert.equal(Object.isFrozen(result.value.contributes.views), true);
 });
 
-test('rejects version two plugins after startup activation is added', () => {
+test('rejects version two plugins after startup and spatial composition changes', () => {
   const result = parsePluginManifest(serializedTestManifest(2));
 
   assert.equal(result.ok, false);
@@ -116,6 +179,8 @@ test('parses startup activation without a contributed view', () => {
     name: 'Startup tool',
     version: '1.0.0',
     description: 'Run an application-wide tool.',
+    provides: [],
+    requires: [],
     activationEvents: [{ event: 'startup' }],
     contributes: { commands: [], views: [] },
   });
@@ -176,6 +241,47 @@ test('skips disabled startup plugins until the user enables them', async () => {
   assert.equal(activationCount, 0);
   assert.equal((await created.value.enablePlugin('acme.startup')).ok, true);
   assert.equal(activationCount, 1);
+});
+
+test('activates providers before startup consumers and restores demand', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const events: string[] = [];
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [serviceKey.id],
+        startup: true,
+      }),
+      activate(context) {
+        const service = context.getService(serviceKey);
+        events.push(`consumer: ${service.value}`);
+      },
+    },
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      activate(context) {
+        events.push('provider');
+        context.provideService(serviceKey, { value: 'ready' });
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  assert.deepEqual(await created.value.activateStartupPlugins(), []);
+  assert.deepEqual(events, ['provider', 'consumer: ready']);
+  assert.equal((await created.value.disablePlugin('acme.provider')).ok, true);
+  assert.equal((await created.value.enablePlugin('acme.provider')).ok, true);
+  assert.deepEqual(events, [
+    'provider',
+    'consumer: ready',
+    'provider',
+    'consumer: ready',
+  ]);
 });
 
 test('rejects duplicate plugin ids before activation', () => {
@@ -811,4 +917,698 @@ test('waits for activation cleanup before restoring a plugin', async () => {
   assert.equal((await created.value.renderView(viewId)).ok, true);
   assert.equal(activationCount, 2);
   assert.equal(disposalCount, 1);
+});
+
+test('rejects invalid service graphs before activation', () => {
+  const missingProvider = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: ['acme.provider.value'],
+      }),
+      activate: () => undefined,
+    },
+  ]);
+  assert.equal(missingProvider.ok, false);
+  if (!missingProvider.ok) {
+    assert.ok(missingProvider.error instanceof MissingPluginServiceProviderError);
+  }
+
+  const duplicateProvider = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme', {
+        provides: ['acme.provider.value'],
+      }),
+      activate: () => undefined,
+    },
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: ['acme.provider.value'],
+      }),
+      activate: () => undefined,
+    },
+  ]);
+  assert.equal(duplicateProvider.ok, false);
+  if (!duplicateProvider.ok) {
+    assert.ok(
+      duplicateProvider.error instanceof DuplicatePluginServiceProviderError,
+    );
+  }
+
+  const cycle = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.alpha', {
+        provides: ['acme.alpha.value'],
+        requires: ['acme.beta.value'],
+      }),
+      activate: () => undefined,
+    },
+    {
+      manifest: serviceManifest('acme.beta', {
+        provides: ['acme.beta.value'],
+        requires: ['acme.alpha.value'],
+      }),
+      activate: () => undefined,
+    },
+  ]);
+  assert.equal(cycle.ok, false);
+  if (!cycle.ok) {
+    assert.ok(cycle.error instanceof PluginDependencyCycleError);
+    if (cycle.error instanceof PluginDependencyCycleError) {
+      assert.deepEqual(cycle.error.pluginIds, [
+        'acme.alpha',
+        'acme.beta',
+        'acme.alpha',
+      ]);
+    }
+  }
+});
+
+test('activates complete provider chains for views and commands', async () => {
+  const sourceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.source.value',
+  );
+  const formatterKey = createPluginServiceKey<
+    Readonly<{ format(): string }>
+  >('acme.formatter.value');
+
+  const createFixture = (
+    events: string[],
+  ): PluginResult<PluginHost<string>> =>
+    createPluginHost<string>([
+      {
+        manifest: serviceManifest('acme.consumer', {
+          command: true,
+          requires: [formatterKey.id],
+          view: true,
+        }),
+        activate(context) {
+          const formatter = context.getService(formatterKey);
+          events.push('consumer');
+          context.registerCommand('acme.consumer.run', () => {
+            events.push(formatter.format());
+          });
+          context.registerView('acme.consumer.main', () => formatter.format());
+        },
+      },
+      {
+        manifest: serviceManifest('acme.formatter', {
+          provides: [formatterKey.id],
+          requires: [sourceKey.id],
+        }),
+        activate(context) {
+          const source = context.getService(sourceKey);
+          events.push('formatter');
+          context.provideService(formatterKey, {
+            format: () => `formatted ${source.value}`,
+          });
+        },
+      },
+      {
+        manifest: serviceManifest('acme.source', {
+          provides: [sourceKey.id],
+        }),
+        activate(context) {
+          events.push('source');
+          context.provideService(sourceKey, { value: 'evidence' });
+        },
+      },
+    ]);
+
+  const viewEvents: string[] = [];
+  const viewHost = createFixture(viewEvents);
+  assert.equal(viewHost.ok, true);
+  if (!viewHost.ok) return;
+  assert.deepEqual(await viewHost.value.renderView('acme.consumer.main'), {
+    ok: true,
+    value: 'formatted evidence',
+  });
+  assert.deepEqual(viewEvents, ['source', 'formatter', 'consumer']);
+
+  const commandEvents: string[] = [];
+  const commandHost = createFixture(commandEvents);
+  assert.equal(commandHost.ok, true);
+  if (!commandHost.ok) return;
+  assert.equal(
+    (await commandHost.value.executeCommand('acme.consumer.run')).ok,
+    true,
+  );
+  assert.deepEqual(commandEvents, [
+    'source',
+    'formatter',
+    'consumer',
+    'formatted evidence',
+  ]);
+});
+
+test('rejects undeclared service publication and consumption transactionally', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const publicationHost = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.consumer', { command: true, view: true }),
+      activate(context) {
+        context.provideService(serviceKey, { value: 'ambient' });
+        context.registerCommand('acme.consumer.run', () => undefined);
+        context.registerView('acme.consumer.main', () => 'unreachable');
+      },
+    },
+  ]);
+  assert.equal(publicationHost.ok, true);
+  if (!publicationHost.ok) return;
+  const publication = await publicationHost.value.renderView(
+    'acme.consumer.main',
+  );
+  assert.equal(publication.ok, false);
+  if (!publication.ok) {
+    assert.ok(publication.error instanceof PluginActivationError);
+    assert.ok(publication.error.cause instanceof PluginServiceAccessError);
+  }
+  const unpublishedCommand = await publicationHost.value.executeCommand(
+    'acme.consumer.run',
+  );
+  assert.equal(unpublishedCommand.ok, false);
+  if (!unpublishedCommand.ok) {
+    assert.ok(unpublishedCommand.error instanceof PluginActivationError);
+  }
+
+  const consumptionHost = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.consumer', { view: true }),
+      activate(context) {
+        context.getService(serviceKey);
+        context.registerView('acme.consumer.main', () => 'unreachable');
+      },
+    },
+  ]);
+  assert.equal(consumptionHost.ok, true);
+  if (!consumptionHost.ok) return;
+  const consumption = await consumptionHost.value.renderView(
+    'acme.consumer.main',
+  );
+  assert.equal(consumption.ok, false);
+  if (!consumption.ok) {
+    assert.ok(consumption.error instanceof PluginActivationError);
+    assert.ok(consumption.error.cause instanceof PluginServiceAccessError);
+  }
+});
+
+test('removes staged services after consumer activation failure', async () => {
+  const inputKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.input',
+  );
+  const outputKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.bridge.output',
+  );
+  let bridgeActivationCount = 0;
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [inputKey.id],
+      }),
+      activate(context) {
+        context.provideService(inputKey, { value: 'fresh' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.bridge', {
+        provides: [outputKey.id],
+        requires: [inputKey.id],
+      }),
+      activate(context) {
+        bridgeActivationCount += 1;
+        const input = context.getService(inputKey);
+        context.provideService(outputKey, { value: input.value });
+        if (bridgeActivationCount === 1) {
+          throw new Error('bridge activation failed');
+        }
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [outputKey.id],
+        view: true,
+      }),
+      activate(context) {
+        const output = context.getService(outputKey);
+        context.registerView('acme.consumer.main', () => output.value);
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const failedRender = await created.value.renderView('acme.consumer.main');
+  assert.equal(failedRender.ok, false);
+  if (!failedRender.ok) {
+    assert.ok(failedRender.error instanceof PluginDependencyUnavailableError);
+  }
+  assert.equal((await created.value.enablePlugin('acme.bridge')).ok, true);
+  assert.deepEqual(await created.value.renderView('acme.consumer.main'), {
+    ok: true,
+    value: 'fresh',
+  });
+  assert.equal(bridgeActivationCount, 2);
+});
+
+test('contains provider activation failure to its dependent plugins', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      activate() {
+        throw new Error('private provider failure');
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      activate(context) {
+        context.getService(serviceKey);
+        context.registerView('acme.consumer.main', () => 'consumer');
+      },
+    },
+    {
+      manifest: serviceManifest('acme.unrelated', { view: true }),
+      activate(context) {
+        context.registerView('acme.unrelated.main', () => 'unrelated');
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  assert.deepEqual(await created.value.renderView('acme.unrelated.main'), {
+    ok: true,
+    value: 'unrelated',
+  });
+  const consumer = await created.value.renderView('acme.consumer.main');
+  assert.equal(consumer.ok, false);
+  if (!consumer.ok) {
+    assert.ok(consumer.error instanceof PluginDependencyUnavailableError);
+    if (consumer.error instanceof PluginDependencyUnavailableError) {
+      assert.equal(consumer.error.providerFailureTag, 'PluginActivationError');
+    }
+  }
+  assert.deepEqual(
+    created.value.listViews().map((view) => view.id),
+    ['acme.unrelated.main'],
+  );
+});
+
+test('keeps provider services readable through dependent cleanup', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ read(): string }>>(
+    'acme.provider.value',
+  );
+  const events: string[] = [];
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      async activate(context) {
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            events.push('provider cleanup');
+          },
+        }));
+        context.provideService(serviceKey, { read: () => 'available' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      async activate(context) {
+        context.getService(serviceKey);
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            events.push(`consumer cleanup: ${context.getService(serviceKey).read()}`);
+          },
+        }));
+        context.registerView('acme.consumer.main', () => 'consumer');
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal((await created.value.renderView('acme.consumer.main')).ok, true);
+
+  const disabling = created.value.disablePlugin('acme.provider');
+  assert.deepEqual(created.value.listViews(), []);
+  assert.equal((await disabling).ok, true);
+  assert.deepEqual(events, [
+    'consumer cleanup: available',
+    'provider cleanup',
+  ]);
+  assert.equal(created.value.isPluginEnabled('acme.provider'), false);
+  assert.equal(created.value.isPluginEnabled('acme.consumer'), true);
+  const blockedRender = await created.value.renderView('acme.consumer.main');
+  assert.equal(blockedRender.ok, false);
+  if (!blockedRender.ok) {
+    assert.ok(blockedRender.error instanceof PluginDependencyUnavailableError);
+  }
+});
+
+test('restores demanded dependents without activating idle consumers', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  let providerActivations = 0;
+  let demandedActivations = 0;
+  let idleActivations = 0;
+  let unrelatedActivations = 0;
+  let unrelatedCleanups = 0;
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      activate(context) {
+        providerActivations += 1;
+        context.provideService(serviceKey, { value: 'ready' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.demanded', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      activate(context) {
+        demandedActivations += 1;
+        const service = context.getService(serviceKey);
+        context.registerView('acme.demanded.main', () => service.value);
+      },
+    },
+    {
+      manifest: serviceManifest('acme.idle', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      activate(context) {
+        idleActivations += 1;
+        const service = context.getService(serviceKey);
+        context.registerView('acme.idle.main', () => service.value);
+      },
+    },
+    {
+      manifest: serviceManifest('acme.unrelated', { view: true }),
+      activate(context) {
+        unrelatedActivations += 1;
+        context.registerView('acme.unrelated.main', () => 'unrelated');
+        return {
+          dispose: () => {
+            unrelatedCleanups += 1;
+          },
+        };
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  assert.equal((await created.value.renderView('acme.demanded.main')).ok, true);
+  assert.equal((await created.value.renderView('acme.unrelated.main')).ok, true);
+  assert.equal((await created.value.disablePlugin('acme.provider')).ok, true);
+  assert.deepEqual(
+    created.value.listViews().map((view) => view.id),
+    ['acme.unrelated.main'],
+  );
+  assert.equal((await created.value.enablePlugin('acme.provider')).ok, true);
+  assert.deepEqual(
+    created.value.listViews().map((view) => view.id),
+    ['acme.demanded.main', 'acme.idle.main', 'acme.unrelated.main'],
+  );
+  assert.equal(providerActivations, 2);
+  assert.equal(demandedActivations, 2);
+  assert.equal(idleActivations, 0);
+  assert.equal(unrelatedActivations, 1);
+  assert.equal(unrelatedCleanups, 0);
+
+  assert.equal((await created.value.renderView('acme.idle.main')).ok, true);
+  const firstDisable = created.value.disablePlugin('acme.provider');
+  const repeatedDisable = created.value.disablePlugin('acme.provider');
+  assert.equal((await firstDisable).ok, true);
+  assert.equal((await repeatedDisable).ok, true);
+  assert.equal((await created.value.enablePlugin('acme.provider')).ok, true);
+  assert.equal((await created.value.enablePlugin('acme.provider')).ok, true);
+  assert.equal(providerActivations, 3);
+  assert.equal(demandedActivations, 3);
+  assert.equal(idleActivations, 2);
+  assert.equal(unrelatedActivations, 1);
+  assert.equal(unrelatedCleanups, 0);
+
+  const firstDisposal = created.value.dispose();
+  assert.equal(created.value.dispose(), firstDisposal);
+  assert.deepEqual(await firstDisposal, []);
+  assert.equal(unrelatedCleanups, 1);
+});
+
+test('deduplicates concurrent activation across a dependency graph', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  let providerActivations = 0;
+  let consumerActivations = 0;
+  let commandExecutions = 0;
+  let releaseProvider = (): void => undefined;
+  const providerGate = new Promise<void>((resolve) => {
+    releaseProvider = resolve;
+  });
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      async activate(context) {
+        providerActivations += 1;
+        await providerGate;
+        context.provideService(serviceKey, { value: 'ready' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer', {
+        command: true,
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      activate(context) {
+        consumerActivations += 1;
+        const service = context.getService(serviceKey);
+        context.registerCommand('acme.consumer.run', () => {
+          commandExecutions += 1;
+        });
+        context.registerView('acme.consumer.main', () => service.value);
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const rendering = created.value.renderView('acme.consumer.main');
+  const executing = created.value.executeCommand('acme.consumer.run');
+  releaseProvider();
+  const [renderResult, commandResult] = await Promise.all([
+    rendering,
+    executing,
+  ]);
+  assert.equal(renderResult.ok, true);
+  assert.equal(commandResult.ok, true);
+  assert.equal(providerActivations, 1);
+  assert.equal(consumerActivations, 1);
+  assert.equal(commandExecutions, 1);
+});
+
+test('converges when a provider is disabled during activation', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  let providerActivations = 0;
+  let consumerActivations = 0;
+  let providerCleanups = 0;
+  let releaseProvider = (): void => undefined;
+  const providerGate = new Promise<void>((resolve) => {
+    releaseProvider = resolve;
+  });
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      async activate(context) {
+        providerActivations += 1;
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            providerCleanups += 1;
+          },
+        }));
+        if (providerActivations === 1) await providerGate;
+        context.provideService(serviceKey, { value: 'ready' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      activate(context) {
+        consumerActivations += 1;
+        const service = context.getService(serviceKey);
+        context.registerView('acme.consumer.main', () => service.value);
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const rendering = created.value.renderView('acme.consumer.main');
+  const disabling = created.value.disablePlugin('acme.provider');
+  releaseProvider();
+  const renderResult = await rendering;
+  assert.equal(renderResult.ok, false);
+  if (!renderResult.ok) {
+    assert.ok(renderResult.error instanceof PluginDependencyUnavailableError);
+  }
+  assert.equal((await disabling).ok, true);
+  assert.equal(providerCleanups, 1);
+  assert.equal(consumerActivations, 0);
+  assert.deepEqual(created.value.listViews(), []);
+
+  assert.equal((await created.value.enablePlugin('acme.provider')).ok, true);
+  assert.deepEqual(await created.value.renderView('acme.consumer.main'), {
+    ok: true,
+    value: 'ready',
+  });
+  assert.equal(providerActivations, 2);
+  assert.equal(consumerActivations, 1);
+});
+
+test('continues dependency cleanup after an isolated failure', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const events: string[] = [];
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.consumer-a', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      async activate(context) {
+        context.getService(serviceKey);
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            events.push('consumer a cleanup');
+            throw new Error('consumer a cleanup failed');
+          },
+        }));
+        context.registerView('acme.consumer-a.main', () => 'consumer a');
+      },
+    },
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      async activate(context) {
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            events.push('provider cleanup');
+          },
+        }));
+        context.provideService(serviceKey, { value: 'ready' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer-b', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      async activate(context) {
+        context.getService(serviceKey);
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            events.push('consumer b cleanup');
+          },
+        }));
+        context.registerView('acme.consumer-b.main', () => 'consumer b');
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal((await created.value.renderView('acme.consumer-a.main')).ok, true);
+  assert.equal((await created.value.renderView('acme.consumer-b.main')).ok, true);
+
+  const result = await created.value.disablePlugin('acme.provider');
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.ok(result.error instanceof PluginCascadeDeactivationError);
+    if (result.error instanceof PluginCascadeDeactivationError) {
+      assert.deepEqual(
+        result.error.failures.map((failure) => failure.pluginId),
+        ['acme.consumer-a'],
+      );
+    }
+  }
+  assert.deepEqual(events, [
+    'consumer b cleanup',
+    'consumer a cleanup',
+    'provider cleanup',
+  ]);
+});
+
+test('disposes consumers before providers regardless of registration order', async () => {
+  const serviceKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const events: string[] = [];
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [serviceKey.id],
+        view: true,
+      }),
+      activate(context) {
+        context.getService(serviceKey);
+        context.registerView('acme.consumer.main', () => 'consumer');
+        return {
+          dispose: () => {
+            events.push('consumer cleanup');
+          },
+        };
+      },
+    },
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [serviceKey.id],
+      }),
+      activate(context) {
+        context.provideService(serviceKey, { value: 'ready' });
+        return {
+          dispose: () => {
+            events.push('provider cleanup');
+          },
+        };
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal((await created.value.renderView('acme.consumer.main')).ok, true);
+
+  assert.deepEqual(await created.value.dispose(), []);
+  assert.deepEqual(events, ['consumer cleanup', 'provider cleanup']);
 });

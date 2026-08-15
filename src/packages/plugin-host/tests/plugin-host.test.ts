@@ -50,6 +50,18 @@ function testManifest(
   };
 }
 
+function startupManifest(id = 'acme.startup'): PluginManifest {
+  return {
+    apiVersion: currentPluginApiVersion,
+    id,
+    name: 'Startup tool',
+    version: '1.0.0',
+    description: 'Run an application-wide tool.',
+    activationEvents: [{ event: 'startup' }],
+    contributes: { commands: [], views: [] },
+  };
+}
+
 function registerTestView(context: PluginActivationContext<string>): void {
   context.registerView(viewId, () => 'Browser view');
 }
@@ -89,12 +101,81 @@ test('parses a serialized plugin manifest into immutable metadata', () => {
   assert.equal(Object.isFrozen(result.value.contributes.views), true);
 });
 
-test('rejects version one plugins after cleanup semantics change', () => {
-  const result = parsePluginManifest(serializedTestManifest(1));
+test('rejects version two plugins after startup activation is added', () => {
+  const result = parsePluginManifest(serializedTestManifest(2));
 
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.ok(result.error instanceof InvalidPluginManifestError);
+});
+
+test('parses startup activation without a contributed view', () => {
+  const result = parsePluginManifest({
+    apiVersion: currentPluginApiVersion,
+    id: 'acme.startup',
+    name: 'Startup tool',
+    version: '1.0.0',
+    description: 'Run an application-wide tool.',
+    activationEvents: [{ event: 'startup' }],
+    contributes: { commands: [], views: [] },
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.value.activationEvents, [{ event: 'startup' }]);
+  assert.deepEqual(result.value.contributes, { commands: [], views: [] });
+});
+
+test('starts enabled plugins once and restarts them after enable', async () => {
+  let activationCount = 0;
+  let cleanupCount = 0;
+  const created = createPluginHost([
+    {
+      manifest: startupManifest(),
+      async activate(context) {
+        activationCount += 1;
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            cleanupCount += 1;
+          },
+        }));
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  assert.deepEqual(await created.value.activateStartupPlugins(), []);
+  assert.deepEqual(await created.value.activateStartupPlugins(), []);
+  assert.equal(activationCount, 1);
+
+  assert.equal((await created.value.disablePlugin('acme.startup')).ok, true);
+  assert.equal(cleanupCount, 1);
+  assert.equal((await created.value.enablePlugin('acme.startup')).ok, true);
+  assert.equal(activationCount, 2);
+});
+
+test('skips disabled startup plugins until the user enables them', async () => {
+  let activationCount = 0;
+  const created = createPluginHost(
+    [
+      {
+        manifest: startupManifest(),
+        activate: () => {
+          activationCount += 1;
+        },
+      },
+    ],
+    new Set(['acme.startup']),
+  );
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  assert.deepEqual(await created.value.activateStartupPlugins(), []);
+  assert.equal(activationCount, 0);
+  assert.equal((await created.value.enablePlugin('acme.startup')).ok, true);
+  assert.equal(activationCount, 1);
 });
 
 test('rejects duplicate plugin ids before activation', () => {
@@ -562,7 +643,7 @@ test('consumes failing cleanup once and permits a fresh activation', async () =>
   assert.equal(activationCount, 2);
 });
 
-test('does not retry version two plugin disposable cleanup', async () => {
+test('does not retry plugin disposable cleanup', async () => {
   let disposalCount = 0;
   const created = createPluginHost<string>([
     {

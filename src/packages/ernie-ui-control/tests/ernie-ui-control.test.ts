@@ -228,6 +228,7 @@ test('controls Ernie through an owner-only local socket', async () => {
     ]);
   } finally {
     await started.value.close();
+    await assert.rejects(stat(socketPath));
     await rm(directory, { force: true, recursive: true });
   }
 });

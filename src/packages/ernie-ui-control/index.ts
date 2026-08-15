@@ -1,5 +1,7 @@
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
+import { homedir } from 'node:os';
+import path from 'node:path';
 
 import {
   isJsonRecord,
@@ -28,6 +30,17 @@ export const ernieUiControlProtocolVersion = 1;
 
 const maximumMessageBytes = 4_096;
 const requestTimeoutMs = 1_000;
+
+/** Resolve the conventional owner-only UI-control socket for Ernie. */
+export function defaultErnieUiControlSocketPath(): string {
+  return path.join(
+    homedir(),
+    'Library',
+    'Application Support',
+    'Ernie',
+    'ui-control.sock',
+  );
+}
 
 /** Stable failure codes returned by Ernie UI control. */
 export type ErnieUiControlFailureCode =
@@ -361,6 +374,12 @@ function serializeRequest(command: ErnieUiControlCommand): string {
   })}\n`;
 }
 
+function abortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error('Ernie UI interaction was cancelled.');
+}
+
 function parseLine(line: string): JsonValue | undefined {
   try {
     return parseJsonValue(JSON.parse(line));
@@ -423,6 +442,26 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
+async function closeServerAndSocket(
+  server: Server,
+  socketPath: string,
+): Promise<void> {
+  const initialPath = await readExistingSocketPath(socketPath);
+  await closeServer(server);
+  if (initialPath === 'missing' || initialPath === 'not-socket') return;
+
+  const currentPath = await readExistingSocketPath(socketPath);
+  if (
+    currentPath === 'missing' ||
+    currentPath === 'not-socket' ||
+    currentPath.device !== initialPath.device ||
+    currentPath.inode !== initialPath.inode
+  ) {
+    return;
+  }
+  await unlink(socketPath).catch(() => undefined);
+}
+
 /** Bind an owner-only local socket that accepts UI-control commands. */
 export async function startErnieUiControlServer(
   socketPath: string,
@@ -468,7 +507,7 @@ export async function startErnieUiControlServer(
           resolve({
             ok: true,
             value: {
-              close: () => closeServer(server),
+              close: () => closeServerAndSocket(server, normalizedPath),
               socketPath: normalizedPath,
             },
           });
@@ -500,28 +539,55 @@ export async function startErnieUiControlServer(
   });
 }
 
-/** Send one UI-only command to the running Ernie application. */
+/**
+ * Send one UI-only command to the running Ernie application.
+ *
+ * Availability and protocol failures are returned as values. Cancellation
+ * closes the socket and rejects with the signal's Error reason. Other reasons
+ * become a safe cancellation Error.
+ */
 export function requestErnieUiControl(
   socketPath: string,
   command: ErnieUiControlCommand,
+  signal?: AbortSignal,
 ): Promise<ErnieUiControlResult> {
-  return new Promise((resolve) => {
+  if (signal?.aborted) return Promise.reject(abortReason(signal));
+  return new Promise((resolve, reject) => {
     const socket = createConnection(socketPath);
     let received = '';
     let settled = false;
 
+    const cleanUp = (): void => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', abort);
+      socket.destroy();
+    };
     const finish = (result: ErnieUiControlResult): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeoutId);
-      socket.destroy();
+      cleanUp();
       resolve(result);
+    };
+    const abort = (): void => {
+      if (settled) return;
+      settled = true;
+      cleanUp();
+      reject(
+        signal === undefined
+          ? new Error('Ernie UI interaction was cancelled.')
+          : abortReason(signal),
+      );
     };
 
     const timeoutId = setTimeout(
       () => finish(failure('app_unavailable', 'Ernie is not responding.')),
       requestTimeoutMs,
     );
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
     socket.once('connect', () => socket.write(serializeRequest(command)));
     socket.once('error', () =>
       finish(failure('app_unavailable', 'Ernie is not running.')),

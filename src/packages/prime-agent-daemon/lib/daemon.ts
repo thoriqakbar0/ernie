@@ -120,14 +120,24 @@ export function createPrimeAgentDaemon(
   if (
     configuration.daemonEntrypointPath.trim().length === 0 ||
     configuration.executablePath.trim().length === 0 ||
-    configuration.sessionNameExtensionPath.trim().length === 0 ||
+    Object.entries(configuration.extensionFlagValues ?? {}).some(
+      ([name, value]) =>
+        name.trim().length === 0 ||
+        (value !== true && value !== false && value.trim().length === 0),
+    ) ||
+    configuration.extensionPaths.length === 0 ||
+    configuration.extensionPaths.some((path) => path.trim().length === 0) ||
     configuration.sessionDirectoryPath?.trim().length === 0 ||
     configuration.socketPath.trim().length === 0
   ) {
     throw new Error(
-      'Prime Agent process, extension, and socket paths must not be empty.',
+      'Prime Agent process, extension, and socket paths must not be empty; extension flags must not be blank.',
     );
   }
+  const extensionFlagValues =
+    configuration.extensionFlagValues === undefined
+      ? undefined
+      : Object.freeze({ ...configuration.extensionFlagValues });
   const descriptor: PrimeAgentHarnessDescriptor = Object.freeze({
     capabilities: Object.freeze([
       'live-sessions',
@@ -423,8 +433,11 @@ export function createPrimeAgentDaemon(
       > = {
         appendSystemPrompt: [ernieAgentHint],
         cwd: request.cwd,
-        extensions: [configuration.sessionNameExtensionPath],
+        extensions: [...configuration.extensionPaths],
       };
+      if (extensionFlagValues !== undefined) {
+        newSessionConfig.extensionFlagValues = extensionFlagValues;
+      }
       if (configuration.sessionDirectoryPath !== undefined) {
         newSessionConfig.sessionDir = configuration.sessionDirectoryPath;
       }
@@ -434,13 +447,19 @@ export function createPrimeAgentDaemon(
         lifecycle: 'resident',
       };
     } else {
+      const savedSessionConfig: NonNullable<
+        Extract<DaemonCommand, { type: 'create' }>['config']
+      > = {
+        appendSystemPrompt: [ernieAgentHint],
+        extensions: [...configuration.extensionPaths],
+      };
+      if (extensionFlagValues !== undefined) {
+        savedSessionConfig.extensionFlagValues = extensionFlagValues;
+      }
       command = {
         type: 'create',
         sessionPath: request.sessionPath,
-        config: {
-          appendSystemPrompt: [ernieAgentHint],
-          extensions: [configuration.sessionNameExtensionPath],
-        },
+        config: savedSessionConfig,
         lifecycle: 'resident',
       };
     }

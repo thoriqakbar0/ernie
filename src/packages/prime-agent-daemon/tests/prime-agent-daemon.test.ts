@@ -260,10 +260,9 @@ test('owns the Prime Agent harness identity and capabilities', () => {
     currentCwd: process.cwd(),
     daemonEntrypointPath: primeAgentCliPath,
     executablePath: process.execPath,
-    sessionNameExtensionPath: join(
-      process.cwd(),
-      'src/packages/session-name-hook/index.ts',
-    ),
+    extensionPaths: [
+      join(process.cwd(), 'src/packages/session-name-hook/index.ts'),
+    ],
     socketPath: join(tmpdir(), 'ernie-harness-descriptor-test.sock'),
   });
 
@@ -291,10 +290,9 @@ test('requires an explicit Ernie-owned daemon socket', () => {
         currentCwd: process.cwd(),
         daemonEntrypointPath: primeAgentCliPath,
         executablePath: process.execPath,
-        sessionNameExtensionPath: join(
-          process.cwd(),
-          'src/packages/session-name-hook/index.ts',
-        ),
+        extensionPaths: [
+          join(process.cwd(), 'src/packages/session-name-hook/index.ts'),
+        ],
         socketPath: ' ',
       }),
     /socket paths must not be empty/u,
@@ -311,10 +309,13 @@ testInTempDirectory(
       currentCwd: cwd,
       daemonEntrypointPath: primeAgentCliPath,
       executablePath: process.execPath,
-      sessionNameExtensionPath: join(
-        process.cwd(),
-        'src/packages/session-name-hook/index.ts',
-      ),
+      extensionFlagValues: {
+        'ernie-ui-control-socket': join(cwd, 'ui-agent-control.sock'),
+      },
+      extensionPaths: [
+        join(process.cwd(), 'src/packages/session-name-hook/index.ts'),
+        join(process.cwd(), 'src/packages/ernie-agent-interaction/index.ts'),
+      ],
       sessionDirectoryPath,
       socketPath,
     });
@@ -391,7 +392,7 @@ testInTempDirectory(
       assert.equal(created.ok, true);
       if (!created.ok) return;
 
-      const systemPrompt = yield* Effect.tryPromise(async () => {
+      const agentRuntime = yield* Effect.tryPromise(async () => {
         const { DaemonAgentConnection, DaemonClient } = await import(
           'prime-agent'
         );
@@ -403,15 +404,24 @@ testInTempDirectory(
           { closeClientOnDispose: true, supportsExtensionUi: false },
         );
         try {
-          return await connection.getSystemPrompt();
+          return {
+            systemPrompt: await connection.getSystemPrompt(),
+            tool: await connection.getToolDefinition('ernie_ui'),
+          };
         } finally {
           await connection.dispose();
         }
       });
       assert.match(
-        systemPrompt,
+        agentRuntime.systemPrompt,
         /You are running inside Ernie, a desktop client for Prime Agent\./u,
       );
+      assert.match(
+        agentRuntime.systemPrompt,
+        /Use ernie_ui only when the user asks/u,
+      );
+      assert.equal(agentRuntime.tool?.name, 'ernie_ui');
+      assert.equal(agentRuntime.tool?.label, 'Ernie UI');
       yield* Effect.tryPromise(() => rm(missingSkillPath));
 
       const initialFeedItem = yield* Deferred.make<void>();

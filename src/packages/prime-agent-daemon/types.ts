@@ -266,7 +266,8 @@ export interface PrimeAgentDaemonConfiguration {
   readonly currentCwd: string;
   readonly daemonEntrypointPath: string;
   readonly executablePath: string;
-  readonly sessionNameExtensionPath: string;
+  readonly extensionFlagValues?: Readonly<Record<string, boolean | string>>;
+  readonly extensionPaths: readonly [string, ...string[]];
   readonly sessionDirectoryPath?: string;
   readonly socketPath: string;
 }

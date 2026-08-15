@@ -30,6 +30,7 @@ import {
   type ErnieUiControlCommand,
   type ErnieUiControlResult,
 } from './packages/ernie-ui-control/index.js';
+import { ernieUiControlSocketFlagName } from './packages/ernie-agent-interaction/index.js';
 import {
   coalescePrimeAgentSessionFeedItems,
   parsePrimeAgentSessionFeedRequest,
@@ -175,7 +176,7 @@ function readDevelopmentRendererUrl(): URL | null {
   }
 }
 
-function registerErnieDaemonHandlers(): void {
+function registerErnieDaemonHandlers(agentUiControlSocketPath: string): void {
   const daemon = createErnieDaemon({
     harness: createPrimeAgentDaemon({
       currentCwd: process.cwd(),
@@ -184,10 +185,19 @@ function registerErnieDaemonHandlers(): void {
         'packages/prime-agent-daemon/daemon-runner.js',
       ),
       executablePath: process.execPath,
-      sessionNameExtensionPath: path.join(
-        import.meta.dirname,
-        'packages/session-name-hook/index.js',
-      ),
+      extensionFlagValues: {
+        [ernieUiControlSocketFlagName]: agentUiControlSocketPath,
+      },
+      extensionPaths: [
+        path.join(
+          import.meta.dirname,
+          'packages/session-name-hook/index.js',
+        ),
+        path.join(
+          import.meta.dirname,
+          'packages/ernie-agent-interaction/index.js',
+        ),
+      ],
       socketPath: path.join(app.getPath('userData'), 'prime-agent.sock'),
     }),
   });
@@ -612,7 +622,11 @@ function handleUiControl(command: ErnieUiControlCommand): ErnieUiControlResult {
 
 const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   yield* Effect.tryPromise(() => app.whenReady());
-  registerErnieDaemonHandlers();
+  const agentUiControlSocketPath = path.join(
+    app.getPath('userData'),
+    `ui-agent-control-${process.pid}.sock`,
+  );
+  registerErnieDaemonHandlers(agentUiControlSocketPath);
   const browserPlugin = registerBrowserPluginMain();
   app.once('will-quit', () => browserPlugin.dispose());
 
@@ -624,16 +638,25 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
   }
 
   yield* createWindow(browserPlugin);
-  const uiControl = yield* Effect.promise(() =>
+  const agentUiControl = yield* Effect.promise(() =>
+    startErnieUiControlServer(
+      agentUiControlSocketPath,
+      handleUiControl,
+      (message) => console.error(message),
+    ),
+  );
+  const cliUiControl = yield* Effect.promise(() =>
     startErnieUiControlServer(
       path.join(app.getPath('userData'), 'ui-control.sock'),
       handleUiControl,
       (message) => console.error(message),
     ),
   );
-  if (!uiControl.ok) {
-    console.error(uiControl.error.message);
-  } else {
+  for (const uiControl of [agentUiControl, cliUiControl]) {
+    if (!uiControl.ok) {
+      console.error(uiControl.error.message);
+      continue;
+    }
     app.once('will-quit', () => {
       Effect.runFork(Effect.promise(() => uiControl.value.close()));
     });

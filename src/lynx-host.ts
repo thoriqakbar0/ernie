@@ -79,10 +79,12 @@ async function run(): Promise<void> {
       'packages/prime-agent-daemon/daemon-runner.js',
     ),
     executablePath: process.execPath,
-    sessionNameExtensionPath: path.join(
-      import.meta.dirname,
-      'packages/session-name-hook/index.js',
-    ),
+    extensionPaths: [
+      path.join(
+        import.meta.dirname,
+        'packages/session-name-hook/index.js',
+      ),
+    ],
     socketPath: path.join(repositoryRoot, '.build/prime-agent.sock'),
   });
   const view = new WindowedLynxView({

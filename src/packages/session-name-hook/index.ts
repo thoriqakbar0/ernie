@@ -1,6 +1,9 @@
-import type { ExtensionAPI } from 'prime-agent' with {
-  'resolution-mode': 'import',
-};
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+  ToolDefinition,
+} from 'prime-agent' with { 'resolution-mode': 'import' };
+import { Type } from 'typebox';
 
 const maximumSessionNameLength = 48;
 const maximumSessionNameWords = 7;
@@ -10,6 +13,21 @@ function sentenceCase(value: string): string {
   return value.length === 0
     ? value
     : `${value[0]?.toLocaleUpperCase() ?? ''}${value.slice(1)}`;
+}
+
+/** Normalize one agent-proposed display name to Ernie's session-name limits. */
+export function sessionNameFromAgentSuggestion(
+  suggestion: string,
+): string | null {
+  const normalized = suggestion.replace(/\s+/gu, ' ').trim();
+  if (normalized.length === 0) return null;
+  if (normalized.length <= maximumSessionNameLength) {
+    return sentenceCase(normalized);
+  }
+
+  const availableLength = maximumSessionNameLength - ellipsis.length;
+  const clipped = normalized.slice(0, availableLength).trimEnd();
+  return sentenceCase(`${clipped}${ellipsis}`);
 }
 
 /** Derive a compact session name from the first non-empty user message. */
@@ -37,10 +55,74 @@ export function sessionNameFromFirstMessage(message: string): string | null {
   return sentenceCase(`${clipped}${ellipsis}`);
 }
 
-/** Install Ernie's first-message session naming hook into Prime Agent. */
-export default function installFirstMessageSessionNameHook(
+const renameSessionParameters = Type.Object(
+  {
+    name: Type.String({
+      description: 'A concise name that describes the current work.',
+      maxLength: 160,
+      minLength: 1,
+      pattern: '\\S',
+    }),
+  },
+  { additionalProperties: false },
+);
+
+type RenameSessionDetails =
+  | Readonly<{ name: null; renamed: false }>
+  | Readonly<{ name: string; renamed: true }>;
+
+/** Normalize and persist one session name proposed by the current agent. */
+export async function renameSessionFromAgentSuggestion(
+  setSessionName: ExtensionAPI['setSessionName'],
+  suggestion: string,
+): Promise<AgentToolResult<RenameSessionDetails>> {
+  const name = sessionNameFromAgentSuggestion(suggestion);
+  if (name === null) {
+    return {
+      content: [
+        {
+          text: 'The session name must contain a visible character.',
+          type: 'text',
+        },
+      ],
+      details: { name: null, renamed: false },
+    };
+  }
+
+  await setSessionName(name);
+  return {
+    content: [{ text: `Session renamed to "${name}".`, type: 'text' }],
+    details: { name, renamed: true },
+  };
+}
+
+/** Create the session-scoped tool that lets an agent rename itself. */
+export function createRenameSessionTool(
+  setSessionName: ExtensionAPI['setSessionName'],
+): ToolDefinition<typeof renameSessionParameters, RenameSessionDetails> {
+  return {
+    description:
+      'Rename the current Ernie session to a concise name that reflects the work.',
+    executionMode: 'sequential',
+    label: 'Rename session',
+    name: 'rename_session',
+    parameters: renameSessionParameters,
+    promptGuidelines: [
+      'Use rename_session when the current Ernie session name is missing, vague, or no longer describes the work.',
+    ],
+    execute(_toolCallId, parameters) {
+      return renameSessionFromAgentSuggestion(setSessionName, parameters.name);
+    },
+  };
+}
+
+/** Install Ernie's session naming capabilities into Prime Agent. */
+export default function installSessionNameExtension(
   primeAgent: ExtensionAPI,
 ): void {
+  primeAgent.registerTool(
+    createRenameSessionTool((name) => primeAgent.setSessionName(name)),
+  );
   primeAgent.on('input', async (event) => {
     if (primeAgent.getSessionName() !== undefined) {
       return { action: 'continue' };

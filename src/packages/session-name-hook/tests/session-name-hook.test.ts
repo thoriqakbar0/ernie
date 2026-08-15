@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { sessionNameFromFirstMessage } from '../index';
+import {
+  createRenameSessionTool,
+  renameSessionFromAgentSuggestion,
+  sessionNameFromAgentSuggestion,
+  sessionNameFromFirstMessage,
+} from '../index';
 
 test('uses the normalized first message as the session name', () => {
   assert.equal(
@@ -32,4 +37,66 @@ test('keeps generated session names compact', () => {
 
   assert.equal(name, `${'A'}${'a'.repeat(46)}…`);
   assert.equal(name?.length, 48);
+});
+
+test('normalizes agent-proposed session names', () => {
+  assert.equal(
+    sessionNameFromAgentSuggestion('  investigate   cache\ninvalidation  '),
+    'Investigate cache invalidation',
+  );
+
+  const name = sessionNameFromAgentSuggestion('a'.repeat(100));
+  assert.equal(name, `${'A'}${'a'.repeat(46)}…`);
+  assert.equal(name?.length, 48);
+  assert.equal(sessionNameFromAgentSuggestion(' \n\t '), null);
+});
+
+test('lets the agent rename its current session through a scoped tool', async () => {
+  const renamedSessions: string[] = [];
+  const tool = createRenameSessionTool((name) => {
+    renamedSessions.push(name);
+  });
+
+  const result = await renameSessionFromAgentSuggestion(
+    (name) => {
+      renamedSessions.push(name);
+    },
+    '  investigate   cache invalidation  ',
+  );
+
+  assert.equal(tool.name, 'rename_session');
+  assert.deepEqual(tool.promptGuidelines, [
+    'Use rename_session when the current Ernie session name is missing, vague, or no longer describes the work.',
+  ]);
+  assert.deepEqual(renamedSessions, ['Investigate cache invalidation']);
+  assert.deepEqual(result, {
+    content: [
+      {
+        text: 'Session renamed to "Investigate cache invalidation".',
+        type: 'text',
+      },
+    ],
+    details: { name: 'Investigate cache invalidation', renamed: true },
+  });
+});
+
+test('does not persist an empty agent-proposed session name', async () => {
+  const renamedSessions: string[] = [];
+  const result = await renameSessionFromAgentSuggestion(
+    (name) => {
+      renamedSessions.push(name);
+    },
+    ' \n\t ',
+  );
+
+  assert.deepEqual(renamedSessions, []);
+  assert.deepEqual(result, {
+    content: [
+      {
+        text: 'The session name must contain a visible character.',
+        type: 'text',
+      },
+    ],
+    details: { name: null, renamed: false },
+  });
 });

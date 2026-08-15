@@ -1617,7 +1617,7 @@ export function AgentSidebar({
             <SidebarMenuButton
               size="default"
               tooltip="Settings"
-              className="h-9"
+              className="h-9 bg-sidebar-settings"
               aria-label={
                 primeAgentConnection === 'ready'
                   ? 'Settings'

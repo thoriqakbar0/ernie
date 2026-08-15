@@ -821,6 +821,10 @@ test('ready footer stays quiet while unavailable state reveals recovery details'
 
   assert.equal(within(document.body).queryByText('Prime Agent ready'), null);
   assert.ok(within(document.body).getByText('Ernie'));
+  assert.match(
+    within(document.body).getByRole('button', { name: 'Settings' }).className,
+    /\bbg-sidebar-settings\b/u,
+  );
 
   cleanup();
   renderSidebar(

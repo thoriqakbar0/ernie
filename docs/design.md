@@ -44,7 +44,6 @@ The interface uses flat color, precise one-pixel dividers, and modest radii. It 
 - Filters project Agents by attention state.
 - Attention actions return the user to the related Agent.
 - New Agent creates a local roster item and selects it.
-- Agentation runs only while the Debug interface setting is enabled.
 
 ## Responsive behavior
 

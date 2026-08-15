@@ -20,9 +20,6 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.3.0
         version: 5.3.0
-      agentation:
-        specifier: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz
-        version: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1151,10 +1148,6 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
-
-  agentation@https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz:
-    resolution: {integrity: sha512-c8BsgsdjoS1u3l93lxzor9BWa/WiGKfCeFBH/OVsEgUBpuDiO2mJnSeYlV+2CJkLqZy6cxz+uw1uFTg1eYw8Tg==, tarball: https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz}
-    version: 3.0.2
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -4578,8 +4571,6 @@ snapshots:
   acorn@8.18.0: {}
 
   agent-base@7.1.4: {}
-
-  agentation@https://github.com/thoriqakbar0/agentation/releases/download/layout-mode-search-7aa6a86/agentation-layout-search-7aa6a86.tgz: {}
 
   ajv-formats@2.1.1(ajv@8.20.0):
     dependencies:

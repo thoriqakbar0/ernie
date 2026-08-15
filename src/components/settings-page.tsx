@@ -8,7 +8,6 @@ import {
 import { ThinkingOrb } from 'thinking-orbs';
 
 import { Button } from '@/components/trovecn/ui/button';
-import { Switch } from '@/components/trovecn/ui/switch';
 import {
   Select,
   SelectContent,
@@ -25,11 +24,9 @@ import {
 interface SettingsPageProps {
   readonly backLabel: string;
   readonly darkModeEnabled: boolean;
-  readonly debugHudEnabled: boolean;
   readonly thinkingOrbState: ThinkingOrbState;
   readonly onClose: () => void;
   readonly onDarkModeEnabledChange: (enabled: boolean) => void;
-  readonly onDebugHudEnabledChange: (enabled: boolean) => void;
   readonly onOpenPlugins: () => void;
   readonly onReload: () => void;
   readonly onThinkingOrbStateChange: (state: ThinkingOrbState) => void;
@@ -39,11 +36,9 @@ interface SettingsPageProps {
 export function SettingsPage({
   backLabel,
   darkModeEnabled,
-  debugHudEnabled,
   thinkingOrbState,
   onClose,
   onDarkModeEnabledChange,
-  onDebugHudEnabledChange,
   onOpenPlugins,
   onReload,
   onThinkingOrbStateChange,
@@ -186,21 +181,7 @@ export function SettingsPage({
           <h3 id="tools-settings-title" className="mb-3 text-sm font-medium">
             Tools
           </h3>
-          <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-card shadow-sm">
-            <div className="flex items-center justify-between gap-6 px-4 py-4">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">Debug interface</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Show Agentation, the last clicked element, and current loading
-                  states until Ernie reloads.
-                </p>
-              </div>
-              <Switch
-                aria-label="Debug interface"
-                checked={debugHudEnabled}
-                onCheckedChange={onDebugHudEnabledChange}
-              />
-            </div>
+          <div className="rounded-xl border border-border/70 bg-card shadow-sm">
             <div className="flex items-center justify-between gap-6 px-4 py-4">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Reload renderer</p>

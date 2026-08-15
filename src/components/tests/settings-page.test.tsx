@@ -12,7 +12,6 @@ afterEach(cleanup);
 
 test('settings apply appearance and tool actions immediately', async () => {
   const themeChanges: boolean[] = [];
-  const debugHudChanges: boolean[] = [];
   const thinkingOrbChanges: string[] = [];
   let closeCount = 0;
   let openPluginsCount = 0;
@@ -23,13 +22,11 @@ test('settings apply appearance and tool actions immediately', async () => {
     <SettingsPage
       backLabel="Back to Agent"
       darkModeEnabled
-      debugHudEnabled={false}
       thinkingOrbState="solving"
       onClose={() => {
         closeCount += 1;
       }}
       onDarkModeEnabledChange={(enabled) => themeChanges.push(enabled)}
-      onDebugHudEnabledChange={(enabled) => debugHudChanges.push(enabled)}
       onOpenPlugins={() => {
         openPluginsCount += 1;
       }}
@@ -44,6 +41,10 @@ test('settings apply appearance and tool actions immediately', async () => {
     name: 'Settings',
   });
   assert.equal(
+    within(settings).queryByRole('switch', { name: 'Debug interface' }),
+    null,
+  );
+  assert.equal(
     within(settings).getByRole('button', { name: 'Dark' }).getAttribute(
       'aria-pressed',
     ),
@@ -51,9 +52,6 @@ test('settings apply appearance and tool actions immediately', async () => {
   );
 
   await user.click(within(settings).getByRole('button', { name: 'Light' }));
-  await user.click(
-    within(settings).getByRole('switch', { name: 'Debug interface' }),
-  );
   assert.ok(
     within(settings).getByRole('img', {
       name: 'Solving thinking animation preview',
@@ -105,7 +103,6 @@ test('settings apply appearance and tool actions immediately', async () => {
   );
 
   assert.deepEqual(themeChanges, [false]);
-  assert.deepEqual(debugHudChanges, [true]);
   assert.deepEqual(thinkingOrbChanges, ['searching']);
   assert.equal(reloadCount, 1);
   assert.equal(openPluginsCount, 1);

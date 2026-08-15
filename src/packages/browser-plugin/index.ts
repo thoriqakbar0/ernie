@@ -31,6 +31,12 @@ export const browserPluginReloadChannel = 'ernie:plugin:browser:reload';
 /** IPC channel that streams Browser plugin navigation state to the renderer. */
 export const browserPluginStateChannel = 'ernie:plugin:browser:state';
 
+/** IPC channel that acquires one main-process Browser activation lease. */
+export const browserPluginAcquireChannel = 'ernie:plugin:browser:acquire';
+
+/** IPC channel that releases one main-process Browser activation lease. */
+export const browserPluginReleaseChannel = 'ernie:plugin:browser:release';
+
 /** Stable identifier for Ernie's first built-in plugin. */
 export const browserPluginId = 'ernie.browser';
 
@@ -66,6 +72,11 @@ export interface BrowserPluginState {
   readonly canGoForward: boolean;
 }
 
+/** Opaque main-issued identity for one Browser plugin activation. */
+export interface BrowserPluginLease {
+  readonly id: string;
+}
+
 /** Safe error codes returned across the Browser plugin IPC boundary. */
 export type BrowserPluginErrorCode =
   | 'invalid-address'
@@ -91,8 +102,26 @@ export type BrowserPluginResult = PluginResult<
   BrowserPluginOperationError
 >;
 
+/** A successful Browser activation lease or a typed operation failure. */
+export type BrowserPluginLeaseResult = PluginResult<
+  BrowserPluginLease,
+  BrowserPluginOperationError
+>;
+
+/** A successful Browser lifecycle acknowledgement or typed operation failure. */
+export type BrowserPluginAcknowledgement = PluginResult<
+  void,
+  BrowserPluginOperationError
+>;
+
 /** Renderer methods supplied to the Browser plugin through Ernie's preload. */
 export interface BrowserPluginRendererApi {
+  /** Acquire the main-process lease for this Browser activation. */
+  acquireBrowserPlugin(): Promise<JsonValue>;
+
+  /** Release one previously acquired Browser activation lease. */
+  releaseBrowserPlugin(lease: BrowserPluginLease): Promise<JsonValue>;
+
   showBrowserPlugin(bounds: BrowserPluginBounds): Promise<JsonValue>;
   hideBrowserPlugin(): Promise<JsonValue>;
   navigateBrowserPlugin(address: string): Promise<JsonValue>;
@@ -219,6 +248,27 @@ export function parseBrowserPluginState(
   };
 }
 
+function parseBrowserPluginFailure(
+  value: Readonly<Record<string, JsonValue>>,
+): BrowserPluginOperationError {
+  const failure = value.error;
+  if (!isJsonRecord(failure)) {
+    return new BrowserPluginOperationError('unavailable', 'Browser is unavailable.');
+  }
+  const code = failure.code;
+  const message = failure.message;
+  if (
+    (code !== 'invalid-address' &&
+      code !== 'invalid-bounds' &&
+      code !== 'unavailable' &&
+      code !== 'navigation-failed') ||
+    !isJsonString(message)
+  ) {
+    return new BrowserPluginOperationError('unavailable', 'Browser is unavailable.');
+  }
+  return new BrowserPluginOperationError(code, message);
+}
+
 /** Parse one serialized Browser plugin operation result. */
 export function parseBrowserPluginResult(value: JsonValue): BrowserPluginResult {
   if (!isJsonRecord(value) || !isJsonBoolean(value.ok)) {
@@ -231,27 +281,57 @@ export function parseBrowserPluginResult(value: JsonValue): BrowserPluginResult 
     };
   }
   if (value.ok) return parseBrowserPluginState(value.state);
-
-  const failure = value.error;
-  if (!isJsonRecord(failure)) {
-    return {
-      ok: false,
-      error: new BrowserPluginOperationError('unavailable', 'Browser is unavailable.'),
-    };
-  }
-  const code = failure.code;
-  const message = failure.message;
-  if (
-    (code !== 'invalid-address' &&
-      code !== 'invalid-bounds' &&
-      code !== 'unavailable' &&
-      code !== 'navigation-failed') ||
-    !isJsonString(message)
-  ) {
-    return {
-      ok: false,
-      error: new BrowserPluginOperationError('unavailable', 'Browser is unavailable.'),
-    };
-  }
-  return { ok: false, error: new BrowserPluginOperationError(code, message) };
+  return { ok: false, error: parseBrowserPluginFailure(value) };
 }
+
+/** Parse one serialized Browser activation-lease result. */
+export function parseBrowserPluginLeaseResult(
+  value: JsonValue,
+): BrowserPluginLeaseResult {
+  if (!isJsonRecord(value) || !isJsonBoolean(value.ok)) {
+    return {
+      ok: false,
+      error: new BrowserPluginOperationError(
+        'unavailable',
+        'Browser did not return a valid lease.',
+      ),
+    };
+  }
+  if (!value.ok) {
+    return { ok: false, error: parseBrowserPluginFailure(value) };
+  }
+
+  const lease = value.lease;
+  if (!isJsonRecord(lease) || !isJsonString(lease.id) || lease.id.length === 0) {
+    return {
+      ok: false,
+      error: new BrowserPluginOperationError(
+        'unavailable',
+        'Browser did not return a valid lease.',
+      ),
+    };
+  }
+  return { ok: true, value: Object.freeze({ id: lease.id }) };
+}
+
+/** Parse one serialized Browser lifecycle acknowledgement. */
+export function parseBrowserPluginAcknowledgement(
+  value: JsonValue,
+): BrowserPluginAcknowledgement {
+  if (!isJsonRecord(value) || !isJsonBoolean(value.ok)) {
+    return {
+      ok: false,
+      error: new BrowserPluginOperationError(
+        'unavailable',
+        'Browser did not acknowledge its lifecycle change.',
+      ),
+    };
+  }
+  if (value.ok) return { ok: true, value: undefined };
+  return { ok: false, error: parseBrowserPluginFailure(value) };
+}
+
+export {
+  createBrowserPluginLeaseRegistry,
+  type BrowserPluginLeaseRegistry,
+} from './lib/browser-plugin-lease-registry.js';

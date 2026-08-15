@@ -60,6 +60,8 @@ const browserPluginBackChannel = 'ernie:plugin:browser:back';
 const browserPluginForwardChannel = 'ernie:plugin:browser:forward';
 const browserPluginReloadChannel = 'ernie:plugin:browser:reload';
 const browserPluginStateChannel = 'ernie:plugin:browser:state';
+const browserPluginAcquireChannel = 'ernie:plugin:browser:acquire';
+const browserPluginReleaseChannel = 'ernie:plugin:browser:release';
 
 let nextSessionFeedSubscription = 0;
 let nextWorkspaceFeedSubscription = 0;
@@ -238,6 +240,12 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   revealWorkspacePath(workspacePath) {
     return ipcRenderer.invoke(revealWorkspacePathChannel, workspacePath);
+  },
+  acquireBrowserPlugin() {
+    return ipcRenderer.invoke(browserPluginAcquireChannel);
+  },
+  releaseBrowserPlugin(lease) {
+    return ipcRenderer.invoke(browserPluginReleaseChannel, lease);
   },
   showBrowserPlugin(bounds) {
     return ipcRenderer.invoke(browserPluginShowChannel, bounds);

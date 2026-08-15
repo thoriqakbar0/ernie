@@ -279,6 +279,11 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     createGitWorktree: async () => ({ ok: false }),
     chooseWorkspaceDirectory: async () => null,
     revealWorkspacePath: async () => true,
+    acquireBrowserPlugin: async () => ({
+      ok: true,
+      lease: { id: 'test-browser-lease' },
+    }),
+    releaseBrowserPlugin: async () => ({ ok: true }),
     showBrowserPlugin: async () => ({ ok: false }),
     hideBrowserPlugin: async () => ({ ok: false }),
     navigateBrowserPlugin: async () => ({ ok: false }),

@@ -182,6 +182,8 @@ export type ErnieRendererApi = Readonly<{
   ) => Promise<JsonValue>;
   chooseWorkspaceDirectory: () => Promise<JsonValue>;
   revealWorkspacePath: (workspacePath: string) => Promise<JsonValue>;
+  acquireBrowserPlugin: BrowserPluginRendererApi['acquireBrowserPlugin'];
+  releaseBrowserPlugin: BrowserPluginRendererApi['releaseBrowserPlugin'];
   showBrowserPlugin: BrowserPluginRendererApi['showBrowserPlugin'];
   hideBrowserPlugin: BrowserPluginRendererApi['hideBrowserPlugin'];
   navigateBrowserPlugin: BrowserPluginRendererApi['navigateBrowserPlugin'];

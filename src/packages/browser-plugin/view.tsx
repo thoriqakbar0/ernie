@@ -18,6 +18,8 @@ import {
   browserPluginManifest,
   browserPluginReloadCommand,
   browserPluginViewId,
+  parseBrowserPluginAcknowledgement,
+  parseBrowserPluginLeaseResult,
   parseBrowserPluginResult,
   parseBrowserPluginState,
   resolveBrowserAddress,
@@ -223,6 +225,25 @@ async function requireSuccessfulOperation(
   if (!result.ok) throw result.error;
 }
 
+async function acquireBrowserPluginLease(
+  renderer: BrowserPluginRendererApi,
+) {
+  const acquired = parseBrowserPluginLeaseResult(
+    await renderer.acquireBrowserPlugin(),
+  );
+  if (!acquired.ok) throw acquired.error;
+
+  return {
+    value: acquired.value,
+    cleanup: async (): Promise<void> => {
+      const released = parseBrowserPluginAcknowledgement(
+        await renderer.releaseBrowserPlugin(acquired.value),
+      );
+      if (!released.ok) throw released.error;
+    },
+  };
+}
+
 function registerBrowserCommands(
   context: PluginActivationContext<React.JSX.Element>,
   renderer: BrowserPluginRendererApi,
@@ -244,7 +265,8 @@ export function createBrowserPluginModule(
 ): PluginModule<React.JSX.Element> {
   return {
     manifest: browserPluginManifest,
-    activate(context) {
+    async activate(context) {
+      await context.acquire(() => acquireBrowserPluginLease(renderer));
       registerBrowserCommands(context, renderer);
       context.registerView(browserPluginViewId, ({ executeCommand }) => (
         <BrowserPluginView

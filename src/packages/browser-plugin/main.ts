@@ -3,20 +3,25 @@ import {
   ipcMain,
   WebContentsView,
   type IpcMainInvokeEvent,
+  type Session,
 } from 'electron';
 
 import {
+  browserPluginAcquireChannel,
   browserPluginBackChannel,
   browserPluginForwardChannel,
   browserPluginHideChannel,
   browserPluginHomeUrl,
   browserPluginNavigateChannel,
   browserPluginReloadChannel,
+  browserPluginReleaseChannel,
   browserPluginShowChannel,
   browserPluginStateChannel,
+  createBrowserPluginLeaseRegistry,
   resolveBrowserAddress,
   type BrowserPluginBounds,
   type BrowserPluginErrorCode,
+  type BrowserPluginLease,
   type BrowserPluginState,
 } from './index.js';
 import {
@@ -41,6 +46,21 @@ function successfulResponse(state: BrowserPluginState): JsonValue {
 
 function failedResponse(code: BrowserPluginErrorCode, message: string): JsonValue {
   return { ok: false, error: { code, message } };
+}
+
+function successfulLeaseResponse(lease: BrowserPluginLease): JsonValue {
+  return { ok: true, lease: { ...lease } };
+}
+
+function successfulAcknowledgement(): JsonValue {
+  return { ok: true };
+}
+
+function parseLease(value: JsonValue): BrowserPluginLease | null {
+  if (!isJsonRecord(value) || !isJsonString(value.id) || value.id.length === 0) {
+    return null;
+  }
+  return Object.freeze({ id: value.id });
 }
 
 function parseBounds(value: JsonValue): BrowserPluginBounds | null {
@@ -74,6 +94,7 @@ function parseBounds(value: JsonValue): BrowserPluginBounds | null {
 export function registerBrowserPluginMain(): BrowserPluginMainController {
   let activeWindow: BrowserWindow | null = null;
   let browserView: WebContentsView | null = null;
+  let browserSession: Session | null = null;
   let initialNavigation: Promise<void> | null = null;
   let disposed = false;
 
@@ -103,15 +124,35 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
   };
 
   const releaseView = (): void => {
-    if (browserView === null) return;
-    browserView.setVisible(false);
-    if (activeWindow !== null && !activeWindow.isDestroyed()) {
-      activeWindow.contentView.removeChildView(browserView);
-    }
-    if (!browserView.webContents.isDestroyed()) browserView.webContents.close();
+    const view = browserView;
+    const session = browserSession;
+    if (view === null) return;
     browserView = null;
+    browserSession = null;
     initialNavigation = null;
+
+    const failures: unknown[] = [];
+    const attempt = (cleanup: () => void): void => {
+      try {
+        cleanup();
+      } catch (cause) {
+        failures.push(cause);
+      }
+    };
+    attempt(() => view.setVisible(false));
+    if (activeWindow !== null && !activeWindow.isDestroyed()) {
+      attempt(() => activeWindow?.contentView.removeChildView(view));
+    }
+    attempt(() => session?.setPermissionRequestHandler(null));
+    if (!view.webContents.isDestroyed()) {
+      attempt(() => view.webContents.close());
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Browser native cleanup failed.');
+    }
   };
+
+  const leases = createBrowserPluginLeaseRegistry(() => releaseView());
 
   const navigate = async (address: string): Promise<JsonValue> => {
     const destination = resolveBrowserAddress(address);
@@ -129,11 +170,19 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
     }
   };
 
-  const ensureView = (): WebContentsView | null => {
-    if (disposed || activeWindow === null || activeWindow.isDestroyed()) return null;
+  const ensureView = (ownerId: number): WebContentsView | null => {
+    if (
+      disposed ||
+      !leases.isOwnedBy(ownerId) ||
+      activeWindow === null ||
+      activeWindow.isDestroyed()
+    ) {
+      return null;
+    }
     if (browserView !== null && !browserView.webContents.isDestroyed()) {
       return browserView;
     }
+    if (browserView !== null) releaseView();
 
     const view = new WebContentsView({
       webPreferences: {
@@ -143,24 +192,32 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
         sandbox: true,
       },
     });
-    view.setBackgroundColor('#ffffff');
-    view.webContents.session.setPermissionRequestHandler(
-      (_webContents, _permission, callback) => callback(false),
-    );
-    view.webContents.setWindowOpenHandler((details) => {
-      void navigate(details.url);
-      return { action: 'deny' };
-    });
-    view.webContents.on('will-navigate', (event) => {
-      if (!resolveBrowserAddress(event.url).ok) event.preventDefault();
-    });
-    view.webContents.on('did-start-loading', publishState);
-    view.webContents.on('did-stop-loading', publishState);
-    view.webContents.on('did-navigate', publishState);
-    view.webContents.on('did-navigate-in-page', publishState);
-    view.webContents.on('page-title-updated', publishState);
-    activeWindow.contentView.addChildView(view);
+    const session = view.webContents.session;
+    try {
+      view.setBackgroundColor('#ffffff');
+      session.setPermissionRequestHandler(
+        (_webContents, _permission, callback) => callback(false),
+      );
+      view.webContents.setWindowOpenHandler((details) => {
+        void navigate(details.url);
+        return { action: 'deny' };
+      });
+      view.webContents.on('will-navigate', (event) => {
+        if (!resolveBrowserAddress(event.url).ok) event.preventDefault();
+      });
+      view.webContents.on('did-start-loading', publishState);
+      view.webContents.on('did-stop-loading', publishState);
+      view.webContents.on('did-navigate', publishState);
+      view.webContents.on('did-navigate-in-page', publishState);
+      view.webContents.on('page-title-updated', publishState);
+      activeWindow.contentView.addChildView(view);
+    } catch (cause) {
+      session.setPermissionRequestHandler(null);
+      if (!view.webContents.isDestroyed()) view.webContents.close();
+      throw cause;
+    }
     browserView = view;
+    browserSession = session;
     return view;
   };
 
@@ -169,17 +226,38 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
     !activeWindow.isDestroyed() &&
     event.sender === activeWindow.webContents;
 
+  const senderHasActiveLease = (event: IpcMainInvokeEvent): boolean =>
+    senderIsActiveWindow(event) && leases.isOwnedBy(event.sender.id);
+
+  ipcMain.handle(browserPluginAcquireChannel, (event): JsonValue => {
+    if (!senderIsActiveWindow(event)) {
+      return failedResponse('unavailable', 'Browser is unavailable.');
+    }
+    return successfulLeaseResponse(leases.acquire(event.sender.id));
+  });
+  ipcMain.handle(
+    browserPluginReleaseChannel,
+    (event, rawLease: JsonValue): JsonValue => {
+      const lease = parseLease(rawLease);
+      if (!senderIsActiveWindow(event) || lease === null) {
+        return failedResponse('unavailable', 'Browser lease is unavailable.');
+      }
+      leases.release(event.sender.id, lease);
+      return successfulAcknowledgement();
+    },
+  );
+
   ipcMain.handle(
     browserPluginShowChannel,
     async (event, rawBounds: JsonValue): Promise<JsonValue> => {
-      if (!senderIsActiveWindow(event)) {
+      if (!senderHasActiveLease(event)) {
         return failedResponse('unavailable', 'Browser is unavailable.');
       }
       const bounds = parseBounds(rawBounds);
       if (bounds === null) {
         return failedResponse('invalid-bounds', 'Browser page bounds are invalid.');
       }
-      const view = ensureView();
+      const view = ensureView(event.sender.id);
       if (view === null) {
         return failedResponse('unavailable', 'Browser is unavailable.');
       }
@@ -198,7 +276,7 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
     },
   );
   ipcMain.handle(browserPluginHideChannel, (event): JsonValue => {
-    if (!senderIsActiveWindow(event)) {
+    if (!senderHasActiveLease(event)) {
       return failedResponse('unavailable', 'Browser is unavailable.');
     }
     browserView?.setVisible(false);
@@ -207,14 +285,14 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
   ipcMain.handle(
     browserPluginNavigateChannel,
     async (event, rawAddress: JsonValue): Promise<JsonValue> => {
-      if (!senderIsActiveWindow(event) || !isJsonString(rawAddress)) {
+      if (!senderHasActiveLease(event) || !isJsonString(rawAddress)) {
         return failedResponse('invalid-address', 'Enter a valid web address or search term.');
       }
       return navigate(rawAddress);
     },
   );
   ipcMain.handle(browserPluginBackChannel, (event): JsonValue => {
-    if (!senderIsActiveWindow(event) || browserView === null) {
+    if (!senderHasActiveLease(event) || browserView === null) {
       return failedResponse('unavailable', 'Browser is unavailable.');
     }
     if (browserView.webContents.navigationHistory.canGoBack()) {
@@ -223,7 +301,7 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
     return successfulResponse(navigationState());
   });
   ipcMain.handle(browserPluginForwardChannel, (event): JsonValue => {
-    if (!senderIsActiveWindow(event) || browserView === null) {
+    if (!senderHasActiveLease(event) || browserView === null) {
       return failedResponse('unavailable', 'Browser is unavailable.');
     }
     if (browserView.webContents.navigationHistory.canGoForward()) {
@@ -232,7 +310,7 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
     return successfulResponse(navigationState());
   });
   ipcMain.handle(browserPluginReloadChannel, (event): JsonValue => {
-    if (!senderIsActiveWindow(event) || browserView === null) {
+    if (!senderHasActiveLease(event) || browserView === null) {
       return failedResponse('unavailable', 'Browser is unavailable.');
     }
     browserView.webContents.reload();
@@ -241,25 +319,34 @@ export function registerBrowserPluginMain(): BrowserPluginMainController {
 
   return {
     attachWindow(window) {
-      releaseView();
+      leases.releaseAll();
       activeWindow = window;
+      window.webContents.on('render-process-gone', () => {
+        if (activeWindow !== window) return;
+        leases.releaseOwner(window.webContents.id);
+      });
       window.once('closed', () => {
         if (activeWindow !== window) return;
-        releaseView();
+        leases.releaseOwner(window.webContents.id);
         activeWindow = null;
       });
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      releaseView();
-      activeWindow = null;
-      ipcMain.removeHandler(browserPluginShowChannel);
-      ipcMain.removeHandler(browserPluginHideChannel);
-      ipcMain.removeHandler(browserPluginNavigateChannel);
-      ipcMain.removeHandler(browserPluginBackChannel);
-      ipcMain.removeHandler(browserPluginForwardChannel);
-      ipcMain.removeHandler(browserPluginReloadChannel);
+      try {
+        leases.releaseAll();
+      } finally {
+        activeWindow = null;
+        ipcMain.removeHandler(browserPluginAcquireChannel);
+        ipcMain.removeHandler(browserPluginReleaseChannel);
+        ipcMain.removeHandler(browserPluginShowChannel);
+        ipcMain.removeHandler(browserPluginHideChannel);
+        ipcMain.removeHandler(browserPluginNavigateChannel);
+        ipcMain.removeHandler(browserPluginBackChannel);
+        ipcMain.removeHandler(browserPluginForwardChannel);
+        ipcMain.removeHandler(browserPluginReloadChannel);
+      }
     },
   };
 }

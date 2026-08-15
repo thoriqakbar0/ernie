@@ -69,14 +69,9 @@ shell-automation behavior.
 
 ## Read the documentation
 
-- [Ernie design](docs/design.md) explains the product and interaction model.
-- [Own the harness](docs/own-the-harness.md) explains the runtime boundary.
 - [Ernie plugins](docs/plugins.md) documents the built-in plugin contract.
 - [Use the Ernie CLI](docs/ui-control.md) shows how to inspect and control the app.
 - [Lynx experiment](lynx/README.md) covers the separate native-renderer study.
-
-The longer [Ernie development essay](docs/ernie-development.md) records why the
-project returned to a smaller learning-lab scope.
 
 ## Project status
 

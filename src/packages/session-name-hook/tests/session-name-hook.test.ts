@@ -62,7 +62,9 @@ test('lets the agent rename its current session through a scoped tool', async ()
   });
 
   assert.equal(tool.name, 'rename_session');
-  assert.equal(Object.hasOwn(tool, 'promptGuidelines'), false);
+  assert.deepEqual(tool.promptGuidelines, [
+    'Use rename_session after understanding the first user request in every Ernie session. Give the session a concise, specific work name, and rename it again when the work changes materially.',
+  ]);
   assert.deepEqual(renamedSessions, ['Investigate cache invalidation']);
   assert.deepEqual(result, {
     content: [

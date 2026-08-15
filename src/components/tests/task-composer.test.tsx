@@ -8,7 +8,6 @@ import userEvent from '@testing-library/user-event';
 
 import { TaskComposer } from '@/components/task-composer';
 import type {
-  PrimeAgentRefinementRequest,
   PrimeAgentTaskSubmission,
 } from '@/packages/prime-agent-daemon/types';
 
@@ -156,8 +155,42 @@ test('working Agent keeps an editable follow-up queue', async () => {
     (composer as HTMLTextAreaElement).value,
     'Review the tests next',
   );
-  assert.equal(composer.getAttribute('aria-keyshortcuts'), 'Alt+Enter');
-  assert.equal(composer.getAttribute('title'), 'Option+Enter to queue');
+  assert.equal(
+    composer.getAttribute('aria-keyshortcuts'),
+    'Alt+Enter Shift+Enter',
+  );
+  assert.equal(
+    composer.getAttribute('title'),
+    'Option+Enter to queue · Shift+Enter for newline',
+  );
+});
+
+test('Enter sends a connected Agent task', async () => {
+  const submittedTasks: PrimeAgentTaskSubmission[] = [];
+  Object.defineProperty(window, 'ernie', {
+    configurable: true,
+    value: {
+      submitAgentTask: async (submission: PrimeAgentTaskSubmission) => {
+        submittedTasks.push(submission);
+        return { ok: true, value: { accepted: true } };
+      },
+    },
+  });
+  const user = userEvent.setup();
+  renderTaskComposer();
+
+  const composer = within(document.body).getByRole('textbox');
+  await user.type(composer, 'Send this task');
+  await user.keyboard('{Enter}');
+
+  await waitFor(() =>
+    assert.deepEqual(submittedTasks, [
+      {
+        activeSessionId: 'active-agent',
+        message: 'Send this task',
+      },
+    ]),
+  );
 });
 
 test('Option+Enter queues a working Agent follow-up', async () => {
@@ -201,48 +234,23 @@ test('Option+Enter queues a working Agent follow-up', async () => {
   );
 });
 
-test('Shift+Enter refines a connected Agent with the current draft', async () => {
-  const refinementRequests: PrimeAgentRefinementRequest[] = [];
-  let completeRefinement = (): void => undefined;
-  Object.defineProperty(window, 'ernie', {
-    configurable: true,
-    value: {
-      refineAgentSession: (request: PrimeAgentRefinementRequest) => {
-        refinementRequests.push(request);
-        return new Promise((resolve) => {
-          completeRefinement = () =>
-            resolve({ ok: true, value: { refined: true } });
-        });
-      },
-    },
-  });
+test('Shift+Enter inserts a newline for a connected Agent', async () => {
   const user = userEvent.setup();
   renderTaskComposer();
 
   const composer = within(document.body).getByRole('textbox');
-  await user.type(composer, 'Keep the useful layout lesson');
+  await user.type(composer, 'First line');
   await user.keyboard('{Shift>}{Enter}{/Shift}');
+  await user.type(composer, 'Second line');
 
-  await waitFor(() =>
-    assert.deepEqual(refinementRequests, [
-      {
-        activeSessionId: 'active-agent',
-        instructions: 'Keep the useful layout lesson',
-      },
-    ]),
-  );
   assert.equal(
-    within(document.body).getAllByText('Refining this Prime Agent session…')
-      .length,
-    2,
+    (composer as HTMLTextAreaElement).value,
+    'First line\nSecond line',
   );
-  completeRefinement();
-  await waitFor(() =>
-    assert.equal((composer as HTMLTextAreaElement).value, ''),
-  );
+  assert.equal(composer.getAttribute('aria-keyshortcuts'), 'Enter Shift+Enter');
   assert.equal(
-    within(document.body).getByRole('status').textContent,
-    'Prime Agent refined this session.',
+    composer.getAttribute('title'),
+    'Enter to send · Shift+Enter for newline',
   );
 });
 

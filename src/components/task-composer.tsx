@@ -157,12 +157,7 @@ export const TaskComposer = memo(function TaskComposer({
       return;
     }
 
-    if (event.key === 'Enter' && event.shiftKey) {
-      if (selectedSessionId === null || isGenerating) return;
-      event.preventDefault();
-      task.refine();
-      return;
-    }
+    if (event.key === 'Enter' && event.shiftKey) return;
 
     if (event.key !== 'Enter') return;
     if (isGenerating && selectedSessionId !== null) return;
@@ -242,18 +237,12 @@ export const TaskComposer = memo(function TaskComposer({
             aria-controls={skillsOpen ? skillsListId : undefined}
             aria-expanded={skillsOpen}
             aria-keyshortcuts={
-              selectedSessionId === null
-                ? undefined
-                : isGenerating
-                  ? 'Alt+Enter'
-                  : 'Shift+Enter'
+              isGenerating ? 'Alt+Enter Shift+Enter' : 'Enter Shift+Enter'
             }
             title={
-              selectedSessionId === null
-                ? undefined
-                : isGenerating
-                  ? 'Option+Enter to queue'
-                  : 'Enter to send · Shift+Enter to refine'
+              isGenerating
+                ? 'Option+Enter to queue · Shift+Enter for newline'
+                : 'Enter to send · Shift+Enter for newline'
             }
             disabled={disabled}
             aria-activedescendant={

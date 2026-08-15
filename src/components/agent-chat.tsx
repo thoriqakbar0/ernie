@@ -581,7 +581,7 @@ export function AgentChat({
                   }
                 >
                   {item.role === 'user' ? (
-                    <div className="min-w-0 max-w-[min(88%,32rem)] overflow-hidden rounded-2xl bg-muted px-3.5 py-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                    <div className="max-h-[min(40vh,24rem)] min-w-0 max-w-[min(88%,32rem)] overflow-y-auto overscroll-contain rounded-2xl bg-muted px-3.5 py-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                       {item.text}
                     </div>
                   ) : (

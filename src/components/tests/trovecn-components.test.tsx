@@ -368,6 +368,9 @@ test('focused chat keeps user messages free of a divider', () => {
   const ask = within(message).getByText('hello');
   assert.match(ask.className, /overflow-wrap:anywhere/u);
   assert.match(ask.className, /whitespace-pre-wrap/u);
+  assert.match(ask.className, /max-h-\[min\(40vh,24rem\)\]/u);
+  assert.match(ask.className, /overflow-y-auto/u);
+  assert.match(ask.className, /overscroll-contain/u);
 });
 
 test('focused chat renders Prime Agent markdown as document structure', () => {

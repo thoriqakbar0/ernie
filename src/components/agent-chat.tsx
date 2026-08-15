@@ -255,7 +255,7 @@ function ExecutionRun({
         ? 'working'
         : 'complete';
   const statusTone = containsError
-    ? 'text-destructive'
+    ? 'text-muted-foreground'
     : containsAborted
       ? 'text-muted-foreground'
       : containsRunning
@@ -287,6 +287,11 @@ function ExecutionRun({
         <span className={`flex min-w-0 items-center gap-1 font-medium ${statusTone}`}>
           {status === 'complete' ? (
             <CheckIcon aria-hidden="true" className="size-3.5" />
+          ) : containsError ? (
+            <span
+              aria-hidden="true"
+              className="size-1.5 rounded-full border border-current"
+            />
           ) : (
             <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
           )}

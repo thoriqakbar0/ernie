@@ -163,6 +163,14 @@ export function SettingsPage({
                     <SelectGroup>
                       {thinkingOrbOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
+                          <ThinkingOrb
+                            aria-hidden="true"
+                            className="shrink-0"
+                            data-thinking-orb-state={option.value}
+                            size={20}
+                            state={option.value}
+                            theme="auto"
+                          />
                           {option.label}
                         </SelectItem>
                       ))}

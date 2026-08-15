@@ -62,10 +62,9 @@ test('settings apply appearance and tool actions immediately', async () => {
   await user.click(
     within(settings).getByRole('combobox', { name: 'Thinking animation' }),
   );
+  const thinkingOrbOptionElements = within(document.body).getAllByRole('option');
   assert.deepEqual(
-    within(document.body)
-      .getAllByRole('option')
-      .map((option) => option.textContent),
+    thinkingOrbOptionElements.map((option) => option.textContent),
     [
       'Working',
       'Searching',
@@ -76,6 +75,24 @@ test('settings apply appearance and tool actions immediately', async () => {
       'Composing',
       'Breathing',
       'Shaping',
+    ],
+  );
+  assert.deepEqual(
+    thinkingOrbOptionElements.map((option) =>
+      option
+        .querySelector('canvas')
+        ?.getAttribute('data-thinking-orb-state'),
+    ),
+    [
+      'working',
+      'searching',
+      'solving',
+      'listening',
+      'connecting',
+      'weaving',
+      'composing',
+      'breathing',
+      'shaping',
     ],
   );
   await user.click(

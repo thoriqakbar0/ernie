@@ -541,6 +541,47 @@ test('focused chat expands only the newest work while streaming', () => {
   );
 });
 
+test('focused chat presents failed work with a subdued summary', () => {
+  render(
+    <AgentChat
+      sessionView={{
+        activeSessionId: 'root',
+        historyStart: 0,
+        isStreaming: false,
+        messages: [],
+        rlmMaxDepth: 2,
+        sessionName: 'Check',
+        spawnedSessions: [],
+        transcript: [
+          {
+            attachments: [],
+            code: 'verify_repository()',
+            durationMs: 18,
+            id: 'cell-1',
+            kind: 'ipython',
+            result: null,
+            status: 'error',
+            stderr: 'verification failed',
+            stdout: null,
+            traceback: [],
+          },
+        ],
+      }}
+    />,
+  );
+
+  const work = within(document.body).getByRole('region', {
+    name: 'Work: 1 step, needs attention',
+  });
+  const status = within(work).getByText('needs attention');
+  const marker = status.parentElement?.querySelector('[aria-hidden="true"]');
+  assert.match(status.parentElement?.className ?? '', /text-muted-foreground/u);
+  assert.doesNotMatch(status.parentElement?.className ?? '', /text-destructive/u);
+  assert.match(marker?.className ?? '', /border-current/u);
+  assert.doesNotMatch(marker?.className ?? '', /bg-current/u);
+  assert.match(within(work).getByText('verification failed').className, /text-destructive/u);
+});
+
 test('sending a follow-up keeps completed work collapsed', () => {
   const completedCell = {
     attachments: [],

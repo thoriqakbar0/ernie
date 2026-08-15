@@ -79,6 +79,7 @@ export interface BrowserPluginLease {
 
 /** Safe error codes returned across the Browser plugin IPC boundary. */
 export type BrowserPluginErrorCode =
+  | 'cleanup-failed'
   | 'invalid-address'
   | 'invalid-bounds'
   | 'unavailable'
@@ -258,7 +259,8 @@ function parseBrowserPluginFailure(
   const code = failure.code;
   const message = failure.message;
   if (
-    (code !== 'invalid-address' &&
+    (code !== 'cleanup-failed' &&
+      code !== 'invalid-address' &&
       code !== 'invalid-bounds' &&
       code !== 'unavailable' &&
       code !== 'navigation-failed') ||

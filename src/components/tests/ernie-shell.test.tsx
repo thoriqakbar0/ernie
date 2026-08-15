@@ -191,6 +191,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
             activeSessionId,
             item: {
               kind: 'snapshot',
+              previousHistoryStart: null,
               view: {
                 activeSessionId,
                 historyStart: 0,

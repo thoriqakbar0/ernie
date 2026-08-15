@@ -193,8 +193,10 @@ export function createErnieDaemon(
   const sessionFeed = (activeSessionId: JsonValue) => {
     const sessionId = normalizedSessionId(activeSessionId);
     if (sessionId !== null) pendingSessionWarmups.delete(sessionId);
+    const cachedView = sessionId === null ? null : sessionViews.read(sessionId);
     const liveFeed = windowAgentSessionFeed(
       adapter.sessionFeed(activeSessionId),
+      cachedView,
     ).pipe(
       Stream.mapEffect((item) =>
         Effect.sync(() => {
@@ -205,10 +207,13 @@ export function createErnieDaemon(
     );
     if (sessionId === null) return liveFeed;
 
-    const cachedView = sessionViews.read(sessionId);
     return cachedView === null
       ? liveFeed
-      : Stream.succeed({ kind: 'snapshot' as const, view: cachedView }).pipe(
+      : Stream.succeed({
+          kind: 'snapshot' as const,
+          previousHistoryStart: null,
+          view: cachedView,
+        }).pipe(
           Stream.concat(liveFeed),
         );
   };

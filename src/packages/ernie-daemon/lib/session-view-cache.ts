@@ -31,6 +31,36 @@ export interface AgentSessionViewCache {
   readonly size: number;
 }
 
+function mergeSnapshotHistory(
+  current: AgentSessionView | null,
+  incoming: AgentSessionView,
+  previousHistoryStart: number | null,
+): AgentSessionView {
+  if (current === null || previousHistoryStart === null) {
+    return incoming;
+  }
+  const currentEnd = current.historyStart + current.transcript.length;
+  if (
+    current.historyStart >= previousHistoryStart ||
+    previousHistoryStart > currentEnd ||
+    incoming.historyStart < current.historyStart ||
+    incoming.historyStart > currentEnd
+  ) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    historyStart: current.historyStart,
+    transcript: [
+      ...current.transcript.slice(
+        0,
+        incoming.historyStart - current.historyStart,
+      ),
+      ...incoming.transcript,
+    ],
+  };
+}
+
 function updatedView(
   current: AgentSessionView | null,
   activeSessionId: string,
@@ -40,7 +70,11 @@ function updatedView(
     if (item.view.activeSessionId !== activeSessionId) {
       throw new Error('An Agent session snapshot must match its cache key.');
     }
-    return item.view;
+    return mergeSnapshotHistory(
+      current,
+      item.view,
+      item.previousHistoryStart,
+    );
   }
   if (
     item.kind === 'closed' ||
@@ -69,6 +103,9 @@ function updatedView(
       : current.transcript.slice(
           Math.max(0, item.historyStart - current.historyStart),
         );
+    const messages = item.messagesFrom <= current.messages.length
+      ? [...current.messages.slice(0, item.messagesFrom), ...item.messages]
+      : item.messages;
     if (
       item.from < historyStart ||
       item.from > historyStart + transcript.length
@@ -77,7 +114,7 @@ function updatedView(
         ...current,
         historyStart: item.from,
         isStreaming: item.isStreaming,
-        messages: item.messages,
+        messages,
         transcript: item.transcript,
       };
     }
@@ -85,7 +122,7 @@ function updatedView(
       ...current,
       historyStart,
       isStreaming: item.isStreaming,
-      messages: item.messages,
+      messages,
       transcript: [
         ...transcript.slice(0, item.from - historyStart),
         ...item.transcript,

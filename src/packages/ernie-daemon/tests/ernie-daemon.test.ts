@@ -94,7 +94,11 @@ test('replays a cached session view before refreshing its harness feed', async (
     harness: {
       ...fakeHarness(),
       sessionFeed: () =>
-        Stream.succeed({ kind: 'snapshot' as const, view: nextView }),
+        Stream.succeed({
+          kind: 'snapshot' as const,
+          previousHistoryStart: null,
+          view: nextView,
+        }),
     },
   });
 
@@ -107,11 +111,11 @@ test('replays a cached session view before refreshing its harness feed', async (
   );
 
   assert.deepEqual(Array.from(firstItems), [
-    { kind: 'snapshot', view: firstView },
+    { kind: 'snapshot', previousHistoryStart: null, view: firstView },
   ]);
   assert.deepEqual(Array.from(warmItems), [
-    { kind: 'snapshot', view: firstView },
-    { kind: 'snapshot', view: refreshedView },
+    { kind: 'snapshot', previousHistoryStart: null, view: firstView },
+    { kind: 'snapshot', previousHistoryStart: 0, view: refreshedView },
   ]);
   daemon.close();
 });
@@ -153,7 +157,11 @@ test('prewarms visible Agent sessions before their first selection', () =>
                     kind: 'connection-changed' as const,
                     status: 'reconnecting' as const,
                   },
-                  { kind: 'snapshot' as const, view },
+                  {
+                    kind: 'snapshot' as const,
+                    previousHistoryStart: null,
+                    view,
+                  },
                 ]),
               ),
               Stream.ensuring(Deferred.succeed(warmupFinished, undefined)),
@@ -187,7 +195,7 @@ test('prewarms visible Agent sessions before their first selection', () =>
 
       assert.equal(openedConnections, 1);
       assert.deepEqual(Array.from(selectedItems), [
-        { kind: 'snapshot', view },
+        { kind: 'snapshot', previousHistoryStart: null, view },
       ]);
       daemon.close();
     }),
@@ -215,6 +223,20 @@ test('windows session feeds and pages earlier transcript history', async () => {
     role,
     text,
   }));
+  const updatedTranscript = [
+    ...latestTranscript.slice(0, -1),
+    {
+      id: 'item-170',
+      kind: 'message' as const,
+      role: 'user' as const,
+      text: 'Final item updated',
+    },
+  ];
+  const updatedMessages = updatedTranscript.map(({ id, role, text }) => ({
+    id,
+    role,
+    text,
+  }));
   const view = {
     activeSessionId: 'agent-one',
     historyStart: 0,
@@ -230,12 +252,22 @@ test('windows session feeds and pages earlier transcript history', async () => {
       ...fakeHarness(),
       sessionFeed: () =>
         Stream.fromArray([
-          { kind: 'snapshot' as const, view },
+          {
+            kind: 'snapshot' as const,
+            previousHistoryStart: null,
+            view,
+          },
           {
             kind: 'conversation-replaced' as const,
             isStreaming: false,
             messages: latestMessages,
             transcript: latestTranscript,
+          },
+          {
+            kind: 'conversation-replaced' as const,
+            isStreaming: false,
+            messages: updatedMessages,
+            transcript: updatedTranscript,
           },
         ]),
     },
@@ -249,14 +281,26 @@ test('windows session feeds and pages earlier transcript history', async () => {
   assert.equal(items[0].view.historyStart, 90);
   assert.equal(items[0].view.transcript.length, 80);
   assert.equal(items[0].view.transcript[0]?.id, 'item-90');
+  assert.equal(items[0].previousHistoryStart, null);
   assert.deepEqual(items[1], {
     from: 170,
     historyStart: 91,
     kind: 'conversation-patched',
     isStreaming: false,
     messages: latestMessages.slice(-80),
+    messagesFrom: 0,
     previousHistoryStart: 90,
     transcript: [latestTranscript[170]],
+  });
+  assert.deepEqual(items[2], {
+    from: 170,
+    historyStart: 91,
+    kind: 'conversation-patched',
+    isStreaming: false,
+    messages: [updatedMessages[170]],
+    messagesFrom: 79,
+    previousHistoryStart: 91,
+    transcript: [updatedTranscript[170]],
   });
 
   const page = await Effect.runPromise(

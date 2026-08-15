@@ -64,7 +64,11 @@ test('hydrates one session feed and applies ordered conversation changes', () =>
   let state = createPrimeAgentSessionFeedState('subscription-one', 'agent-one');
   const snapshot = parsePrimeAgentSessionFeedEnvelope({
     activeSessionId: 'agent-one',
-    item: { kind: 'snapshot', view: initialView },
+    item: {
+      kind: 'snapshot',
+      previousHistoryStart: null,
+      view: initialView,
+    },
     revision: 0,
     subscriptionId: 'subscription-one',
   });
@@ -121,7 +125,11 @@ test('ignores stale revisions and events from replaced subscriptions', () => {
   );
   const current = parsePrimeAgentSessionFeedEnvelope({
     activeSessionId: 'agent-one',
-    item: { kind: 'snapshot', view: initialView },
+    item: {
+      kind: 'snapshot',
+      previousHistoryStart: null,
+      view: initialView,
+    },
     revision: 3,
     subscriptionId: 'subscription-current',
   });
@@ -156,7 +164,11 @@ test('retains the last view while reconnecting and replaces it after resync', ()
   const events = [
     {
       activeSessionId: 'agent-one',
-      item: { kind: 'snapshot', view: initialView },
+      item: {
+        kind: 'snapshot',
+        previousHistoryStart: null,
+        view: initialView,
+      },
       revision: 0,
       subscriptionId: 'subscription-one',
     },
@@ -170,6 +182,7 @@ test('retains the last view while reconnecting and replaces it after resync', ()
       activeSessionId: 'agent-one',
       item: {
         kind: 'snapshot',
+        previousHistoryStart: 0,
         view: { ...initialView, sessionName: 'Resynchronized Agent' },
       },
       revision: 2,
@@ -251,7 +264,11 @@ test('applies absolute suffix patches without dropping loaded history', () => {
   let state = createPrimeAgentSessionFeedState('subscription-one', 'agent-one');
   const snapshot = parsePrimeAgentSessionFeedEnvelope({
     activeSessionId: 'agent-one',
-    item: { kind: 'snapshot', view: historicalView },
+    item: {
+      kind: 'snapshot',
+      previousHistoryStart: null,
+      view: historicalView,
+    },
     revision: 0,
     subscriptionId: 'subscription-one',
   });
@@ -263,6 +280,7 @@ test('applies absolute suffix patches without dropping loaded history', () => {
       kind: 'conversation-patched',
       isStreaming: true,
       messages: [{ id: 'agent-one:81', role: 'assistant', text: 'New output' }],
+      messagesFrom: 0,
       previousHistoryStart: 80,
       transcript: [
         {
@@ -320,6 +338,7 @@ test('applies absolute suffix patches without dropping loaded history', () => {
       kind: 'conversation-patched',
       isStreaming: false,
       messages: [{ id: 'agent-one:82', role: 'assistant', text: 'Settled' }],
+      messagesFrom: 1,
       previousHistoryStart: 80,
       transcript: [
         {
@@ -344,6 +363,55 @@ test('applies absolute suffix patches without dropping loaded history', () => {
   const preserved = reducePrimeAgentSessionFeed(prepended, appended.value);
   assert.equal(primeAgentSessionFeedView(preserved)?.historyStart, 79);
   assert.equal(primeAgentSessionFeedView(preserved)?.transcript.length, 4);
+
+  const resynchronized = parsePrimeAgentSessionFeedEnvelope({
+    activeSessionId: 'agent-one',
+    item: {
+      kind: 'snapshot',
+      previousHistoryStart: 81,
+      view: {
+        ...historicalView,
+        historyStart: 82,
+        isStreaming: false,
+        messages: [
+          { id: 'agent-one:83', role: 'assistant', text: 'Resynchronized' },
+        ],
+        transcript: [
+          {
+            id: 'agent-one:82',
+            kind: 'message',
+            role: 'assistant',
+            text: 'Settled',
+          },
+          {
+            id: 'agent-one:83',
+            kind: 'message',
+            role: 'assistant',
+            text: 'Resynchronized',
+          },
+        ],
+      },
+    },
+    revision: 3,
+    subscriptionId: 'subscription-one',
+  });
+  assert.equal(resynchronized.ok, true);
+  if (!resynchronized.ok) return;
+  const afterResync = reducePrimeAgentSessionFeed(
+    preserved,
+    resynchronized.value,
+  );
+  assert.equal(primeAgentSessionFeedView(afterResync)?.historyStart, 79);
+  assert.deepEqual(
+    primeAgentSessionFeedView(afterResync)?.transcript.map((item) => item.id),
+    [
+      'agent-one:79',
+      'agent-one:80',
+      'agent-one:81',
+      'agent-one:82',
+      'agent-one:83',
+    ],
+  );
 });
 
 test('coalesces overlapping suffix patches without losing their prefix', () => {
@@ -353,6 +421,7 @@ test('coalesces overlapping suffix patches without losing their prefix', () => {
     kind: 'conversation-patched' as const,
     isStreaming: true,
     messages: [{ id: 'latest', role: 'assistant' as const, text: 'latest' }],
+    messagesFrom: 0,
     previousHistoryStart: 80,
     transcript: [
       { id: '80', kind: 'message' as const, role: 'user' as const, text: 'ask' },

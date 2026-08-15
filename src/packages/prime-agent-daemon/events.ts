@@ -6,6 +6,7 @@ import {
 } from '../json-value/index.js';
 import { parseSessionViewResult, parseWorkspaceResult } from './lib/protocol.js';
 import type {
+  PrimeAgentChatMessage,
   PrimeAgentFailure,
   PrimeAgentResult,
   PrimeAgentSessionFeedEnvelope,
@@ -81,7 +82,24 @@ function parseFeedItem(
 
   if (value.kind === 'snapshot') {
     const view = parseView(value.view);
-    return view === null ? null : { kind: 'snapshot', view };
+    const previousHistoryStart = value.previousHistoryStart;
+    if (
+      previousHistoryStart !== null &&
+      (
+        !isJsonNumber(previousHistoryStart) ||
+        !Number.isSafeInteger(previousHistoryStart) ||
+        previousHistoryStart < 0
+      )
+    ) {
+      return null;
+    }
+    return view === null
+      ? null
+      : {
+          kind: 'snapshot',
+          previousHistoryStart,
+          view,
+        };
   }
 
   if (value.kind === 'conversation-replaced') {
@@ -118,6 +136,7 @@ function parseFeedItem(
       value.historyStart === undefined ||
       value.isStreaming === undefined ||
       value.messages === undefined ||
+      value.messagesFrom === undefined ||
       value.previousHistoryStart === undefined ||
       value.transcript === undefined ||
       !isJsonNumber(value.from) ||
@@ -127,6 +146,9 @@ function parseFeedItem(
       !Number.isSafeInteger(value.historyStart) ||
       value.historyStart < 0 ||
       value.historyStart > value.from ||
+      !isJsonNumber(value.messagesFrom) ||
+      !Number.isSafeInteger(value.messagesFrom) ||
+      value.messagesFrom < 0 ||
       !isJsonNumber(value.previousHistoryStart) ||
       !Number.isSafeInteger(value.previousHistoryStart) ||
       value.previousHistoryStart < 0
@@ -151,6 +173,7 @@ function parseFeedItem(
           kind: 'conversation-patched',
           isStreaming: view.isStreaming,
           messages: view.messages,
+          messagesFrom: value.messagesFrom,
           previousHistoryStart: value.previousHistoryStart,
           transcript: view.transcript,
         };
@@ -319,11 +342,33 @@ export function coalescePrimeAgentSessionFeedItems(
       if (pendingConversation?.kind === 'conversation-patched') {
         const pendingEnd = pendingConversation.from +
           pendingConversation.transcript.length;
-        if (item.from >= pendingConversation.from && item.from <= pendingEnd) {
+        const pendingMessagesEnd = pendingConversation.messagesFrom +
+          pendingConversation.messages.length;
+        if (
+          item.from >= pendingConversation.from &&
+          item.from <= pendingEnd &&
+          item.messagesFrom <= pendingMessagesEnd
+        ) {
           const prefixLength = item.from - pendingConversation.from;
+          const messagesFrom = Math.min(
+            pendingConversation.messagesFrom,
+            item.messagesFrom,
+          );
+          const messages: readonly PrimeAgentChatMessage[] =
+            item.messagesFrom < pendingConversation.messagesFrom
+            ? item.messages
+            : [
+                ...pendingConversation.messages.slice(
+                  0,
+                  item.messagesFrom - pendingConversation.messagesFrom,
+                ),
+                ...item.messages,
+              ];
           pendingConversation = {
             ...item,
             from: pendingConversation.from,
+            messages,
+            messagesFrom,
             previousHistoryStart: pendingConversation.previousHistoryStart,
             transcript: [
               ...pendingConversation.transcript.slice(0, prefixLength),
@@ -380,6 +425,36 @@ function protocolClosedState(
   };
 }
 
+function mergeSnapshotHistory(
+  current: PrimeAgentSessionView | null,
+  incoming: PrimeAgentSessionView,
+  previousHistoryStart: number | null,
+): PrimeAgentSessionView {
+  if (current === null || previousHistoryStart === null) {
+    return incoming;
+  }
+  const currentEnd = current.historyStart + current.transcript.length;
+  if (
+    current.historyStart >= previousHistoryStart ||
+    previousHistoryStart > currentEnd ||
+    incoming.historyStart < current.historyStart ||
+    incoming.historyStart > currentEnd
+  ) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    historyStart: current.historyStart,
+    transcript: [
+      ...current.transcript.slice(
+        0,
+        incoming.historyStart - current.historyStart,
+      ),
+      ...incoming.transcript,
+    ],
+  };
+}
+
 /** Apply one ordered session-feed event without allowing stale state mutation. */
 export function reducePrimeAgentSessionFeed(
   state: PrimeAgentSessionFeedState,
@@ -414,7 +489,11 @@ export function reducePrimeAgentSessionFeed(
       activeSessionId: state.activeSessionId,
       revision: envelope.revision,
       subscriptionId: state.subscriptionId,
-      view: item.view,
+      view: mergeSnapshotHistory(
+        stateView(state),
+        item.view,
+        item.previousHistoryStart,
+      ),
     };
   }
   if (item.kind === 'connection-changed') {
@@ -460,6 +539,12 @@ export function reducePrimeAgentSessionFeed(
         );
     const viewEnd = historyStart + transcript.length;
     const canPatch = item.from >= historyStart && item.from <= viewEnd;
+    const messages = item.messagesFrom <= view.messages.length
+      ? [
+          ...view.messages.slice(0, item.messagesFrom),
+          ...item.messages,
+        ]
+      : item.messages;
     return {
       ...state,
       revision: envelope.revision,
@@ -467,7 +552,7 @@ export function reducePrimeAgentSessionFeed(
         ...view,
         historyStart: canPatch ? historyStart : item.from,
         isStreaming: item.isStreaming,
-        messages: item.messages,
+        messages,
         transcript: canPatch
           ? [
               ...transcript.slice(0, item.from - historyStart),

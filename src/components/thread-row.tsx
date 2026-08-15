@@ -155,17 +155,10 @@ export function ThreadRow({
             <span>{label}</span>
           </span>
         </Button>
-        {importing ? (
-          <span
-            aria-label="Opening saved session"
-            className="absolute end-8 size-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none"
-          />
-        ) : (
-          <>
-            <span className="pointer-events-none absolute end-8 flex w-5 items-center justify-center text-[10px] tabular-nums text-muted-foreground">
-              {activityMark ?? detail}
-            </span>
-          </>
+        {importing ? null : (
+          <span className="pointer-events-none absolute end-8 flex w-5 items-center justify-center text-[10px] tabular-nums text-muted-foreground">
+            {activityMark ?? detail}
+          </span>
         )}
         <Menu>
           <MenuTrigger

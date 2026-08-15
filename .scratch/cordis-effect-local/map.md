@@ -26,6 +26,8 @@ The retained implementation passes repository checks, lands on `main`, and has v
 
 <!-- Closed ticket decisions belong here as one linked gist each. -->
 
+- [Effect-local lifecycle boundary](./issues/01-define-the-effect-local-lifecycle-boundary.md): one activation attempt owns every context-mediated plugin effect in a reverse-order ledger, drained exactly once on activation failure, disable, or host disposal.
+
 ## Not yet specified
 
 - Additional plugin-owned resource families may become visible after the production-path prototype traces real acquisitions.

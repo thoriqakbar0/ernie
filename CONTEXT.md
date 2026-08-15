@@ -19,3 +19,15 @@ _Avoid_: Help text, plugin command list
 **UI control result**:
 The stable response envelope for a UI control command, carrying typed capability data or a structured error.
 _Avoid_: Output text, message
+
+**Effect-local lifecycle**:
+The ownership boundary that ties context-mediated plugin effects to one activation attempt and its recovery.
+_Avoid_: Cordis compatibility, plugin lifetime
+
+**Plugin effect**:
+A reversible change made through `PluginActivationContext` during one activation attempt. Later handler work is separate unless it creates another context-mediated effect.
+_Avoid_: Side effect, plugin resource
+
+**Effect ledger**:
+The activation attempt's ordered record of armed plugin-effect cleanups. Recovery consumes each entry before invoking it once in reverse order.
+_Avoid_: Root disposable, cleanup bag

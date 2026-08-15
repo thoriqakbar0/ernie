@@ -8,7 +8,7 @@ Assignee: unassigned
 
 Status: open
 
-Blocked by: [Define the effect-local lifecycle boundary](./01-define-the-effect-local-lifecycle-boundary.md)
+Blocked by: none
 
 ## Question
 

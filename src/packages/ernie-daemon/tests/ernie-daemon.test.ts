@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Effect, Stream } from 'effect';
+import { Deferred, Effect, Stream } from 'effect';
 
 import {
   createErnieDaemon,
@@ -114,6 +114,82 @@ test('replays a cached session view before refreshing its harness feed', async (
   ]);
   daemon.close();
 });
+
+test('prewarms visible Agent sessions before their first selection', () =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const warmupFinished = yield* Deferred.make<void>();
+      let openedConnections = 0;
+      const view = {
+        activeSessionId: 'agent-one',
+        isStreaming: false,
+        messages: [{ id: 'first', role: 'user' as const, text: 'Ready' }],
+        rlmMaxDepth: 1,
+        sessionName: 'Ready',
+        spawnedSessions: [],
+        transcript: [
+          {
+            id: 'first',
+            kind: 'message' as const,
+            role: 'user' as const,
+            text: 'Ready',
+          },
+        ],
+      };
+      const daemon = createErnieDaemon({
+        harness: {
+          ...fakeHarness(),
+          sessionFeed: () =>
+            Stream.fromEffect(
+              Effect.sync(() => {
+                openedConnections += 1;
+              }),
+            ).pipe(
+              Stream.flatMap(() =>
+                Stream.fromArray([
+                  {
+                    kind: 'connection-changed' as const,
+                    status: 'reconnecting' as const,
+                  },
+                  { kind: 'snapshot' as const, view },
+                ]),
+              ),
+              Stream.ensuring(Deferred.succeed(warmupFinished, undefined)),
+            ),
+          workspaceFeed: () =>
+            Stream.succeed({
+              kind: 'workspace-replaced' as const,
+              workspace: {
+                currentCwd: '/workspace',
+                sessions: [
+                  {
+                    activeSessionId: 'agent-one',
+                    activity: 'idle' as const,
+                    cwd: '/workspace',
+                    model: null,
+                    modifiedAt: null,
+                    name: 'Ready',
+                    sessionPath: null,
+                  },
+                ],
+              },
+            }),
+        },
+      });
+
+      yield* daemon.workspaceFeed().pipe(Stream.runDrain);
+      yield* Deferred.await(warmupFinished).pipe(Effect.timeout('1 second'));
+      const selectedItems = yield* daemon
+        .sessionFeed('agent-one')
+        .pipe(Stream.take(1), Stream.runCollect);
+
+      assert.equal(openedConnections, 1);
+      assert.deepEqual(Array.from(selectedItems), [
+        { kind: 'snapshot', view },
+      ]);
+      daemon.close();
+    }),
+  ));
 
 test('rejects invalid harness descriptors', () => {
   assert.throws(

@@ -83,3 +83,16 @@ test('evicts the least recently used view and rejects crossed identities', () =>
     /must match its cache key/u,
   );
 });
+
+test('does not retain an oversized transcript', () => {
+  const cache = createAgentSessionViewCache({
+    maximumCacheableTranscriptItems: 1,
+  });
+  const view = sessionView('large', 'Large');
+  cache.put({
+    ...view,
+    transcript: [...view.transcript, ...view.transcript],
+  });
+
+  assert.equal(cache.peek('large'), null);
+});

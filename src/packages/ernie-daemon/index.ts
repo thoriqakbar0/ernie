@@ -1,4 +1,4 @@
-import { Effect, Stream } from 'effect';
+import { Effect, Fiber, Stream } from 'effect';
 import { isJsonString, type JsonValue } from '../json-value/index.js';
 import { createAgentSessionViewCache } from './lib/session-view-cache.js';
 import type {
@@ -90,6 +90,13 @@ export interface ErnieDaemonConfiguration {
   readonly harness: AgentHarnessAdapter;
 }
 
+interface OwnedSessionWarmup {
+  fiber: Fiber.Fiber<void> | null;
+}
+
+const maximumPrewarmedSessions = 24;
+const maximumConcurrentWarmups = 4;
+
 function normalizedDescriptor(
   descriptor: AgentHarnessDescriptor,
 ): AgentHarnessDescriptor {
@@ -122,8 +129,61 @@ export function createErnieDaemon(
   const adapter = configuration.harness;
   const harness = normalizedDescriptor(adapter.descriptor);
   const sessionViews = createAgentSessionViewCache();
+  const pendingSessionWarmups = new Set<string>();
+  let activeSessionWarmup: OwnedSessionWarmup | null = null;
+  let closed = false;
+
+  const warmSession = (activeSessionId: string) =>
+    adapter.sessionFeed(activeSessionId).pipe(
+      Stream.takeUntil(
+        (item) => item.kind === 'snapshot' || item.kind === 'closed',
+      ),
+      Stream.runForEach((item) =>
+        Effect.sync(() => sessionViews.apply(activeSessionId, item)),
+      ),
+    );
+
+  const startPendingSessionWarmups = (): void => {
+    if (closed || activeSessionWarmup !== null) return;
+    const activeSessionIds = [...pendingSessionWarmups].slice(
+      0,
+      maximumConcurrentWarmups,
+    );
+    if (activeSessionIds.length === 0) return;
+    for (const activeSessionId of activeSessionIds) {
+      pendingSessionWarmups.delete(activeSessionId);
+    }
+
+    const owner: OwnedSessionWarmup = { fiber: null };
+    activeSessionWarmup = owner;
+    owner.fiber = Effect.runFork(
+      Effect.forEach(activeSessionIds, warmSession, {
+        concurrency: maximumConcurrentWarmups,
+        discard: true,
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (activeSessionWarmup !== owner) return;
+            activeSessionWarmup = null;
+            startPendingSessionWarmups();
+          }),
+        ),
+      ),
+    );
+  };
+
+  const prewarmSessionViews = (workspace: AgentWorkspace): void => {
+    for (const session of workspace.sessions.slice(0, maximumPrewarmedSessions)) {
+      if (sessionViews.peek(session.activeSessionId) === null) {
+        pendingSessionWarmups.add(session.activeSessionId);
+      }
+    }
+    startPendingSessionWarmups();
+  };
+
   const sessionFeed = (activeSessionId: JsonValue) => {
     const sessionId = normalizedSessionId(activeSessionId);
+    if (sessionId !== null) pendingSessionWarmups.delete(sessionId);
     const liveFeed = adapter.sessionFeed(activeSessionId).pipe(
       Stream.mapEffect((item) =>
         Effect.sync(() => {
@@ -141,9 +201,27 @@ export function createErnieDaemon(
           Stream.concat(liveFeed),
         );
   };
+  const workspaceFeed = () =>
+    adapter.workspaceFeed().pipe(
+      Stream.mapEffect((item) =>
+        Effect.sync(() => {
+          if (item.kind === 'workspace-replaced') {
+            prewarmSessionViews(item.workspace);
+          }
+          return item;
+        }),
+      ),
+    );
   return Object.freeze({
     harness,
     close(): void {
+      closed = true;
+      pendingSessionWarmups.clear();
+      const warmup = activeSessionWarmup;
+      activeSessionWarmup = null;
+      if (warmup?.fiber !== null && warmup?.fiber !== undefined) {
+        Effect.runFork(Fiber.interrupt(warmup.fiber));
+      }
       sessionViews.clear();
       adapter.close();
     },
@@ -160,6 +238,6 @@ export function createErnieDaemon(
     setModel: adapter.setModel,
     setRlmDepth: adapter.setRlmDepth,
     submitTask: adapter.submitTask,
-    workspaceFeed: adapter.workspaceFeed,
+    workspaceFeed,
   });
 }

@@ -4,9 +4,11 @@ import type {
 } from '../client.js';
 
 const defaultMaximumEntries = 24;
+const defaultMaximumCacheableTranscriptItems = 200;
 
 /** Capacity controls for the bounded Agent session-view cache. */
 export interface AgentSessionViewCacheOptions {
+  readonly maximumCacheableTranscriptItems?: number;
   readonly maximumEntries?: number;
 }
 
@@ -70,12 +72,24 @@ export function createAgentSessionViewCache(
   options: AgentSessionViewCacheOptions = {},
 ): AgentSessionViewCache {
   const maximumEntries = options.maximumEntries ?? defaultMaximumEntries;
-  if (!Number.isSafeInteger(maximumEntries) || maximumEntries < 1) {
-    throw new Error('The Agent session cache capacity must be positive.');
+  const maximumCacheableTranscriptItems =
+    options.maximumCacheableTranscriptItems ??
+    defaultMaximumCacheableTranscriptItems;
+  if (
+    !Number.isSafeInteger(maximumEntries) ||
+    maximumEntries < 1 ||
+    !Number.isSafeInteger(maximumCacheableTranscriptItems) ||
+    maximumCacheableTranscriptItems < 1
+  ) {
+    throw new Error('Agent session cache limits must be positive.');
   }
   const entries = new Map<string, AgentSessionView>();
 
   const put = (view: AgentSessionView): void => {
+    if (view.transcript.length > maximumCacheableTranscriptItems) {
+      entries.delete(view.activeSessionId);
+      return;
+    }
     entries.delete(view.activeSessionId);
     entries.set(view.activeSessionId, view);
     while (entries.size > maximumEntries) {

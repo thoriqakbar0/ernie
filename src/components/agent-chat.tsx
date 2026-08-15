@@ -3,6 +3,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  ChevronUpIcon,
   ExternalLinkIcon,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -16,6 +17,67 @@ import type {
   PrimeAgentTranscriptItem,
 } from '@/packages/prime-agent-daemon/client';
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
+
+const collapsedMessageMaxHeight = 288;
+
+function CollapsibleUserMessage({
+  text,
+}: Readonly<{ text: string }>): React.JSX.Element {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [collapsible, setCollapsible] = useState(false);
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (content === null) return;
+    const measure = (): void => {
+      setCollapsible(content.scrollHeight > collapsedMessageMaxHeight + 1);
+    };
+    measure();
+    const observer =
+      'ResizeObserver' in window ? new ResizeObserver(measure) : null;
+    observer?.observe(content);
+    return () => observer?.disconnect();
+  }, [text]);
+
+  return (
+    <div className="min-w-0 max-w-[min(88%,32rem)] overflow-hidden rounded-2xl bg-muted">
+      <div className="relative">
+        <div
+          ref={contentRef}
+          className={`select-text px-3.5 pt-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${expanded ? 'pb-2.5' : 'max-h-72 overflow-hidden pb-3'}`}
+        >
+          {text}
+        </div>
+        {!collapsible || expanded ? null : (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-muted via-muted/85 to-transparent backdrop-blur-[2px] [mask-image:linear-gradient(to_top,black,black_45%,transparent)]"
+          />
+        )}
+      </div>
+      {!collapsible ? null : (
+        <div className="relative flex justify-center px-2 pb-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 rounded-full bg-background/70 px-2.5 text-xs shadow-sm backdrop-blur-sm hover:bg-background"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? (
+              <ChevronUpIcon aria-hidden="true" />
+            ) : (
+              <ChevronDownIcon aria-hidden="true" />
+            )}
+            {expanded ? 'Show less' : 'Show more'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface AgentChatProps {
   readonly loadingEarlierHistory?: boolean;
@@ -602,9 +664,7 @@ export function AgentChat({
                   }
                 >
                   {item.role === 'user' ? (
-                    <div className="max-h-[min(40vh,24rem)] min-w-0 max-w-[min(88%,32rem)] overflow-y-auto overscroll-contain rounded-2xl bg-muted px-3.5 py-2.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                      {item.text}
-                    </div>
+                    <CollapsibleUserMessage text={item.text} />
                   ) : (
                     <ChatMarkdown text={item.text} />
                   )}

@@ -1,5 +1,5 @@
-import { ArrowUpIcon } from 'lucide-react';
-import { memo, useId, useMemo, useRef, useState } from 'react';
+import { ArrowUpIcon, SearchIcon } from 'lucide-react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import {
@@ -64,6 +64,8 @@ export const TaskComposer = memo(function TaskComposer({
     createAgentWithTask,
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const skillSearchRef = useRef<HTMLInputElement>(null);
+  const skillsPopupId = useId();
   const skillsListId = useId();
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
   const [skillsDismissed, setSkillsDismissed] = useState(false);
@@ -72,11 +74,15 @@ export const TaskComposer = memo(function TaskComposer({
   const skillQueryKind = skillQuery?.kind ?? null;
   const skillQueryTerm = skillQuery?.term ?? '';
   const matchingSkills = useMemo(
-    () => (skillQuery === null ? [] : searchSkills(skillQueryTerm, 6)),
+    () => (skillQuery === null ? [] : searchSkills(skillQueryTerm, 12)),
     [searchSkills, skillQueryKind, skillQueryTerm],
   );
-  const skillsOpen =
-    !skillsDismissed && skillQuery !== null && matchingSkills.length > 0;
+  const skillsOpen = !skillsDismissed && skillQuery !== null;
+
+  useEffect(() => {
+    if (!skillsOpen) return;
+    skillSearchRef.current?.focus();
+  }, [skillsOpen]);
 
   function insertSkill(command: string): void {
     if (skillQuery === null) return;
@@ -89,6 +95,43 @@ export const TaskComposer = memo(function TaskComposer({
     task.changeDraft(message);
     setActiveSkillIndex(0);
     setSkillsDismissed(false);
+  }
+
+  function changeSkillSearch(term: string): void {
+    if (skillQuery === null) return;
+    const prefix = task.draft.slice(0, skillQuery.start);
+    task.changeDraft(`${prefix}// ${term}`);
+    setActiveSkillIndex(0);
+  }
+
+  function handleSkillSearchKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ): void {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'ArrowDown' && matchingSkills.length > 0) {
+      event.preventDefault();
+      setActiveSkillIndex((current) => (current + 1) % matchingSkills.length);
+      return;
+    }
+    if (event.key === 'ArrowUp' && matchingSkills.length > 0) {
+      event.preventDefault();
+      setActiveSkillIndex(
+        (current) =>
+          (current - 1 + matchingSkills.length) % matchingSkills.length,
+      );
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setSkillsDismissed(true);
+      textareaRef.current?.focus();
+      return;
+    }
+    if (event.key === 'Enter' && matchingSkills.length > 0) {
+      event.preventDefault();
+      const selectedSkill = matchingSkills[activeSkillIndex];
+      if (selectedSkill !== undefined) insertSkill(selectedSkill.command);
+    }
   }
 
   function handleComposerKeyDown(
@@ -179,24 +222,52 @@ export const TaskComposer = memo(function TaskComposer({
         >
           {skillsOpen ? (
             <div
-              id={skillsListId}
-              role="listbox"
-              aria-label="Available skills"
+              id={skillsPopupId}
+              role="dialog"
+              aria-label="Search skills"
               className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
             >
-              <div className="flex items-center justify-between gap-3 px-3 py-1.5">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Skills
-                </p>
-                {skillQueryKind === 'deep-full-text' ? (
-                  <span className="text-[10px] text-muted-foreground/70">
-                    Full skill search · //
+              <div className="border-b p-2">
+                <label className="flex items-center gap-2 rounded-lg border bg-background px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+                  <SearchIcon
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <span className="sr-only">Search skills</span>
+                  <input
+                    ref={skillSearchRef}
+                    type="search"
+                    value={skillQueryTerm}
+                    className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                    placeholder="Search names, descriptions, and skill contents…"
+                    aria-controls={skillsListId}
+                    aria-activedescendant={
+                      matchingSkills.length > 0
+                        ? `${skillsListId}-${activeSkillIndex}`
+                        : undefined
+                    }
+                    onChange={(event) => changeSkillSearch(event.target.value)}
+                    onKeyDown={handleSkillSearchKeyDown}
+                  />
+                  <kbd className="hidden text-[10px] text-muted-foreground sm:inline">
+                    esc
+                  </kbd>
+                </label>
+                <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+                  <span>
+                    {matchingSkills.length === 0
+                      ? 'No matching skills'
+                      : `${matchingSkills.length} ${matchingSkills.length === 1 ? 'result' : 'results'}`}
                   </span>
-                ) : null}
+                  <span>Searches complete skill files</span>
+                </div>
               </div>
               <div
+                id={skillsListId}
+                role="listbox"
+                aria-label="Available skills"
                 data-slot="skill-results"
-                className="max-h-56 overflow-y-auto overscroll-contain"
+                className="max-h-64 overflow-y-auto overscroll-contain p-1"
               >
                 {matchingSkills.map((skill, index) => (
                   <button
@@ -234,7 +305,7 @@ export const TaskComposer = memo(function TaskComposer({
             className="max-h-28 min-h-9 select-text px-3 py-2 text-base focus-visible:border-0 focus-visible:outline-none [field-sizing:content]"
             placeholder={isGenerating ? 'Add a follow-up…' : 'Ask Prime Agent…'}
             aria-autocomplete="list"
-            aria-controls={skillsOpen ? skillsListId : undefined}
+            aria-controls={skillsOpen ? skillsPopupId : undefined}
             aria-expanded={skillsOpen}
             aria-keyshortcuts={
               isGenerating ? 'Alt+Enter Shift+Enter' : 'Enter Shift+Enter'

@@ -694,17 +694,14 @@ test('projects truthful live activity from Prime Agent summaries', () => {
   );
 });
 
-test('keeps models from configured daemon providers without a scope', () => {
-  const result = parsePrimeAgentDaemonModels(
-    {
-      configuredProviders: ['openai-codex'],
-      models: [
-        { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'openai-codex' },
-        { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' },
-      ],
-    },
-    { scopedModels: [] },
-  );
+test('keeps every model Prime Agent reports as available', () => {
+  const result = parsePrimeAgentDaemonModels({
+    models: [
+      { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'openai-codex' },
+      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', provider: 'openai-codex' },
+      { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' },
+    ],
+  });
 
   assert.deepEqual(result, {
     ok: true,
@@ -715,44 +712,33 @@ test('keeps models from configured daemon providers without a scope', () => {
         name: 'GPT-5.6 Sol',
         provider: 'openai-codex',
       },
+      {
+        key: '["openai-codex","gpt-5.6-terra"]',
+        id: 'gpt-5.6-terra',
+        name: 'GPT-5.6 Terra',
+        provider: 'openai-codex',
+      },
+      {
+        key: '["anthropic","claude-opus"]',
+        id: 'claude-opus',
+        name: 'Claude Opus',
+        provider: 'anthropic',
+      },
     ],
   });
 });
 
-test('keeps only Prime Agent scoped models in the model picker', () => {
-  const result = parsePrimeAgentDaemonModels(
-    {
-      configuredProviders: ['openai-codex', 'anthropic'],
-      models: [
-        { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'openai-codex' },
-        { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai-codex' },
-        { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' },
-      ],
-    },
-    {
-      scopedModels: [
-        {
-          model: {
-            id: 'gpt-5.4-mini',
-            name: 'Stale model label',
-            provider: 'openai-codex',
-          },
-          thinkingLevel: 'medium',
-        },
-      ],
-    },
-  );
+test('rejects malformed available-model data', () => {
+  const result = parsePrimeAgentDaemonModels({
+    models: [{ id: 'gpt-5.6-sol', provider: 'openai-codex' }],
+  });
 
   assert.deepEqual(result, {
-    ok: true,
-    value: [
-      {
-        key: '["openai-codex","gpt-5.4-mini"]',
-        id: 'gpt-5.4-mini',
-        name: 'GPT-5.4 Mini',
-        provider: 'openai-codex',
-      },
-    ],
+    ok: false,
+    error: {
+      code: 'protocol_error',
+      message: 'Prime Agent returned invalid model data.',
+    },
   });
 });
 

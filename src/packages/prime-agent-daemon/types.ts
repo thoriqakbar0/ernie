@@ -78,6 +78,7 @@ export interface PrimeAgentSpawnedSession {
 /** Focused chat data loaded from one Prime Agent attach snapshot. */
 export interface PrimeAgentSessionView {
   readonly activeSessionId: string;
+  readonly historyStart: number;
   readonly isStreaming: boolean;
   readonly messages: readonly PrimeAgentChatMessage[];
   readonly rlmMaxDepth: number;
@@ -96,6 +97,15 @@ export type PrimeAgentSessionFeedItem =
       kind: 'conversation-replaced';
       isStreaming: boolean;
       messages: readonly PrimeAgentChatMessage[];
+      transcript: readonly PrimeAgentTranscriptItem[];
+    }>
+  | Readonly<{
+      from: number;
+      historyStart: number;
+      kind: 'conversation-patched';
+      isStreaming: boolean;
+      messages: readonly PrimeAgentChatMessage[];
+      previousHistoryStart: number;
       transcript: readonly PrimeAgentTranscriptItem[];
     }>
   | Readonly<{
@@ -127,6 +137,19 @@ export interface PrimeAgentSessionFeedEnvelope {
 export interface PrimeAgentSessionFeedRequest {
   readonly activeSessionId: string;
   readonly subscriptionId: string;
+}
+
+/** One bounded request for transcript items before the visible history window. */
+export interface PrimeAgentSessionHistoryRequest {
+  readonly activeSessionId: string;
+  readonly before: number;
+}
+
+/** One contiguous page of earlier transcript items. */
+export interface PrimeAgentSessionHistoryPage {
+  readonly activeSessionId: string;
+  readonly start: number;
+  readonly transcript: readonly PrimeAgentTranscriptItem[];
 }
 
 /** A durable Prime Agent session that can be reopened in Ernie. */

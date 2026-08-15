@@ -193,6 +193,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
               kind: 'snapshot',
               view: {
                 activeSessionId,
+                historyStart: 0,
                 isStreaming: false,
                 messages: [
                   { id: 'task', role: 'user', text: 'Polish the sidebar' },
@@ -231,6 +232,13 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     unwatchAgentSession: (subscriptionId) => {
       sessionFeedListeners.delete(subscriptionId);
     },
+    loadAgentSessionHistory: async () => ({
+      ok: false,
+      error: {
+        code: 'unsupported_operation',
+        message: 'History loading is not used by this test.',
+      },
+    }),
     setAgentModel: async () => ({ ok: false }),
     getAgentRlmDepth: async () => ({
       ok: true,

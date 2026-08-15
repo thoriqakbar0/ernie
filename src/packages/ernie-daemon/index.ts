@@ -1,6 +1,11 @@
 import { Effect, Fiber, Stream } from 'effect';
 import { isJsonString, type JsonValue } from '../json-value/index.js';
+import { parsePrimeAgentSessionHistoryRequest } from '../prime-agent-daemon/client.js';
 import { createAgentSessionViewCache } from './lib/session-view-cache.js';
+import {
+  agentSessionHistoryPage,
+  windowAgentSessionFeed,
+} from './lib/session-window.js';
 import type {
   AgentModel,
   AgentRefinementReceipt,
@@ -9,6 +14,7 @@ import type {
   AgentSavedSession,
   AgentSession,
   AgentSessionFeedItem,
+  AgentSessionHistoryPage,
   AgentSessionRenameReceipt,
   AgentSkill,
   AgentTaskReceipt,
@@ -83,6 +89,9 @@ export interface AgentHarnessAdapter extends AgentHarnessOperations {
 /** Ernie's immutable daemon API with one selected harness adapter. */
 export interface ErnieDaemon extends AgentHarnessOperations {
   readonly harness: AgentHarnessDescriptor;
+  readonly loadSessionHistory: (
+    request: JsonValue,
+  ) => Effect.Effect<AgentResult<AgentSessionHistoryPage>>;
 }
 
 /** Configuration that installs one harness behind Ernie's daemon API. */
@@ -134,7 +143,7 @@ export function createErnieDaemon(
   let closed = false;
 
   const warmSession = (activeSessionId: string) =>
-    adapter.sessionFeed(activeSessionId).pipe(
+    windowAgentSessionFeed(adapter.sessionFeed(activeSessionId)).pipe(
       Stream.takeUntil(
         (item) => item.kind === 'snapshot' || item.kind === 'closed',
       ),
@@ -184,7 +193,9 @@ export function createErnieDaemon(
   const sessionFeed = (activeSessionId: JsonValue) => {
     const sessionId = normalizedSessionId(activeSessionId);
     if (sessionId !== null) pendingSessionWarmups.delete(sessionId);
-    const liveFeed = adapter.sessionFeed(activeSessionId).pipe(
+    const liveFeed = windowAgentSessionFeed(
+      adapter.sessionFeed(activeSessionId),
+    ).pipe(
       Stream.mapEffect((item) =>
         Effect.sync(() => {
           if (sessionId !== null) sessionViews.apply(sessionId, item);
@@ -212,6 +223,41 @@ export function createErnieDaemon(
         }),
       ),
     );
+
+  const loadSessionHistory = Effect.fn('ErnieDaemon.loadSessionHistory')(
+    (request: JsonValue): Effect.Effect<AgentResult<AgentSessionHistoryPage>> => {
+      const parsed = parsePrimeAgentSessionHistoryRequest(request);
+      if (!parsed.ok) return Effect.succeed(parsed);
+
+      return adapter.sessionFeed(parsed.value.activeSessionId).pipe(
+        Stream.filter(
+          (item): item is Extract<AgentSessionFeedItem, { kind: 'snapshot' }> =>
+            item.kind === 'snapshot',
+        ),
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.map((items) => {
+          const snapshot = Array.from(items)[0];
+          if (snapshot === undefined) {
+            return {
+              ok: false as const,
+              error: {
+                code: 'daemon_unavailable' as const,
+                message: 'Ernie could not load earlier Agent history.',
+              },
+            };
+          }
+          return {
+            ok: true as const,
+            value: agentSessionHistoryPage(
+              snapshot.view,
+              parsed.value.before,
+            ),
+          };
+        }),
+      );
+    },
+  );
   return Object.freeze({
     harness,
     close(): void {
@@ -229,6 +275,7 @@ export function createErnieDaemon(
     getRlmDepth: adapter.getRlmDepth,
     importSession: adapter.importSession,
     listModels: adapter.listModels,
+    loadSessionHistory,
     listSavedSessions: adapter.listSavedSessions,
     listSkills: adapter.listSkills,
     listWorkspace: adapter.listWorkspace,

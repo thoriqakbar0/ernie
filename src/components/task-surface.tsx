@@ -74,6 +74,8 @@ export function TaskSurface({
         ) : selectedSessionView !== null ? (
           <div className="min-h-0 w-full flex-1 overflow-hidden">
             <AgentChat
+              loadingEarlierHistory={workspace.loadingEarlierHistory}
+              onLoadEarlierHistory={workspace.loadEarlierSessionHistory}
               onOpenSpawnedSession={workspace.openSpawnedSession}
               sessionView={selectedSessionView}
             />

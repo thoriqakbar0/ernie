@@ -11,6 +11,7 @@ import type {
   PrimeAgentSessionFeedEnvelope,
   PrimeAgentSessionFeedItem,
   PrimeAgentSessionFeedRequest,
+  PrimeAgentSessionHistoryPage,
   PrimeAgentSessionView,
   PrimeAgentWorkspaceFeedItem,
 } from './types.js';
@@ -93,6 +94,7 @@ function parseFeedItem(
     }
     const view = parseView({
       activeSessionId: 'feed-validation',
+      historyStart: 0,
       isStreaming: value.isStreaming,
       messages: value.messages,
       rlmMaxDepth: 0,
@@ -110,10 +112,55 @@ function parseFeedItem(
         };
   }
 
+  if (value.kind === 'conversation-patched') {
+    if (
+      value.from === undefined ||
+      value.historyStart === undefined ||
+      value.isStreaming === undefined ||
+      value.messages === undefined ||
+      value.previousHistoryStart === undefined ||
+      value.transcript === undefined ||
+      !isJsonNumber(value.from) ||
+      !Number.isSafeInteger(value.from) ||
+      value.from < 0 ||
+      !isJsonNumber(value.historyStart) ||
+      !Number.isSafeInteger(value.historyStart) ||
+      value.historyStart < 0 ||
+      value.historyStart > value.from ||
+      !isJsonNumber(value.previousHistoryStart) ||
+      !Number.isSafeInteger(value.previousHistoryStart) ||
+      value.previousHistoryStart < 0
+    ) {
+      return null;
+    }
+    const view = parseView({
+      activeSessionId: 'feed-validation',
+      historyStart: value.from,
+      isStreaming: value.isStreaming,
+      messages: value.messages,
+      rlmMaxDepth: 0,
+      sessionName: null,
+      spawnedSessions: [],
+      transcript: value.transcript,
+    });
+    return view === null
+      ? null
+      : {
+          from: value.from,
+          historyStart: value.historyStart,
+          kind: 'conversation-patched',
+          isStreaming: view.isStreaming,
+          messages: view.messages,
+          previousHistoryStart: value.previousHistoryStart,
+          transcript: view.transcript,
+        };
+  }
+
   if (value.kind === 'spawned-sessions-replaced') {
     if (value.sessions === undefined) return null;
     const view = parseView({
       activeSessionId: 'feed-validation',
+      historyStart: 0,
       isStreaming: false,
       messages: [],
       rlmMaxDepth: 0,
@@ -258,10 +305,37 @@ export function coalescePrimeAgentSessionFeedItems(
   const result: PrimeAgentSessionFeedItem[] = [];
   let pendingConversation: Extract<
     PrimeAgentSessionFeedItem,
-    { kind: 'conversation-replaced' }
+    { kind: 'conversation-patched' | 'conversation-replaced' }
   > | null = null;
   for (const item of items) {
     if (item.kind === 'conversation-replaced') {
+      if (pendingConversation?.kind === 'conversation-patched') {
+        result.push(pendingConversation);
+      }
+      pendingConversation = item;
+      continue;
+    }
+    if (item.kind === 'conversation-patched') {
+      if (pendingConversation?.kind === 'conversation-patched') {
+        const pendingEnd = pendingConversation.from +
+          pendingConversation.transcript.length;
+        if (item.from >= pendingConversation.from && item.from <= pendingEnd) {
+          const prefixLength = item.from - pendingConversation.from;
+          pendingConversation = {
+            ...item,
+            from: pendingConversation.from,
+            previousHistoryStart: pendingConversation.previousHistoryStart,
+            transcript: [
+              ...pendingConversation.transcript.slice(0, prefixLength),
+              ...item.transcript,
+            ],
+          };
+          continue;
+        }
+        result.push(pendingConversation);
+      } else if (pendingConversation !== null) {
+        result.push(pendingConversation);
+      }
       pendingConversation = item;
       continue;
     }
@@ -367,9 +441,39 @@ export function reducePrimeAgentSessionFeed(
       revision: envelope.revision,
       view: {
         ...view,
+        historyStart: 0,
         isStreaming: item.isStreaming,
         messages: item.messages,
         transcript: item.transcript,
+      },
+    };
+  }
+  if (item.kind === 'conversation-patched') {
+    const preservesLoadedHistory = view.historyStart < item.previousHistoryStart;
+    const historyStart = preservesLoadedHistory
+      ? view.historyStart
+      : item.historyStart;
+    const transcript = preservesLoadedHistory
+      ? view.transcript
+      : view.transcript.slice(
+          Math.max(0, item.historyStart - view.historyStart),
+        );
+    const viewEnd = historyStart + transcript.length;
+    const canPatch = item.from >= historyStart && item.from <= viewEnd;
+    return {
+      ...state,
+      revision: envelope.revision,
+      view: {
+        ...view,
+        historyStart: canPatch ? historyStart : item.from,
+        isStreaming: item.isStreaming,
+        messages: item.messages,
+        transcript: canPatch
+          ? [
+              ...transcript.slice(0, item.from - historyStart),
+              ...item.transcript,
+            ]
+          : item.transcript,
       },
     };
   }
@@ -392,6 +496,31 @@ export function primeAgentSessionFeedView(
   state: PrimeAgentSessionFeedState,
 ): PrimeAgentSessionView | null {
   return stateView(state);
+}
+
+/** Prepend one contiguous earlier-history page to the current session view. */
+export function prependPrimeAgentSessionHistory(
+  state: PrimeAgentSessionFeedState,
+  page: PrimeAgentSessionHistoryPage,
+): PrimeAgentSessionFeedState {
+  if (state.kind === 'connecting' || page.activeSessionId !== state.activeSessionId) {
+    return state;
+  }
+  const view = state.view;
+  if (
+    view === null ||
+    page.start + page.transcript.length !== view.historyStart
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    view: {
+      ...view,
+      historyStart: page.start,
+      transcript: [...page.transcript, ...view.transcript],
+    },
+  };
 }
 
 /** Replace only the live RLM depth after a successful explicit command. */

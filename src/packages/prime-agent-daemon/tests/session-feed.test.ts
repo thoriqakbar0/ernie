@@ -7,6 +7,7 @@ import {
   createPrimeAgentSessionFeedState,
   parsePrimeAgentSessionFeedEnvelope,
   parsePrimeAgentWorkspaceFeedItem,
+  prependPrimeAgentSessionHistory,
   primeAgentSessionFeedView,
   reducePrimeAgentSessionFeed,
 } from '../events';
@@ -43,6 +44,7 @@ import {
 
 const initialView = {
   activeSessionId: 'agent-one',
+  historyStart: 0,
   isStreaming: false,
   messages: [{ id: 'agent-one:0', role: 'user', text: 'Build it' }],
   rlmMaxDepth: 2,
@@ -225,6 +227,164 @@ test('coalesces only consecutive conversation frames', () => {
     coalescePrimeAgentSessionFeedItems([first, latest, boundary, first]),
     [latest, boundary, first],
   );
+});
+
+test('applies absolute suffix patches without dropping loaded history', () => {
+  const historicalView = {
+    ...initialView,
+    historyStart: 80,
+    transcript: [
+      {
+        id: 'agent-one:80',
+        kind: 'message' as const,
+        role: 'assistant' as const,
+        text: 'Earlier retained output',
+      },
+      {
+        id: 'agent-one:81',
+        kind: 'message' as const,
+        role: 'assistant' as const,
+        text: 'Old output',
+      },
+    ],
+  };
+  let state = createPrimeAgentSessionFeedState('subscription-one', 'agent-one');
+  const snapshot = parsePrimeAgentSessionFeedEnvelope({
+    activeSessionId: 'agent-one',
+    item: { kind: 'snapshot', view: historicalView },
+    revision: 0,
+    subscriptionId: 'subscription-one',
+  });
+  const patch = parsePrimeAgentSessionFeedEnvelope({
+    activeSessionId: 'agent-one',
+    item: {
+      from: 81,
+      historyStart: 80,
+      kind: 'conversation-patched',
+      isStreaming: true,
+      messages: [{ id: 'agent-one:81', role: 'assistant', text: 'New output' }],
+      previousHistoryStart: 80,
+      transcript: [
+        {
+          id: 'agent-one:81',
+          kind: 'message',
+          role: 'assistant',
+          text: 'New output',
+        },
+      ],
+    },
+    revision: 1,
+    subscriptionId: 'subscription-one',
+  });
+  assert.equal(snapshot.ok && patch.ok, true);
+  if (!snapshot.ok || !patch.ok) return;
+
+  state = reducePrimeAgentSessionFeed(state, snapshot.value);
+  state = reducePrimeAgentSessionFeed(state, patch.value);
+
+  assert.deepEqual(primeAgentSessionFeedView(state)?.transcript, [
+    historicalView.transcript[0],
+    patch.value.item.kind === 'conversation-patched'
+      ? patch.value.item.transcript[0]
+      : undefined,
+  ]);
+
+  const prepended = prependPrimeAgentSessionHistory(state, {
+    activeSessionId: 'agent-one',
+    start: 79,
+    transcript: [
+      {
+        id: 'agent-one:79',
+        kind: 'message',
+        role: 'user',
+        text: 'Original request',
+      },
+    ],
+  });
+  assert.equal(primeAgentSessionFeedView(prepended)?.historyStart, 79);
+  assert.equal(primeAgentSessionFeedView(prepended)?.transcript.length, 3);
+  assert.equal(
+    prependPrimeAgentSessionHistory(prepended, {
+      activeSessionId: 'agent-one',
+      start: 1,
+      transcript: [],
+    }),
+    prepended,
+  );
+
+  const appended = parsePrimeAgentSessionFeedEnvelope({
+    activeSessionId: 'agent-one',
+    item: {
+      from: 82,
+      historyStart: 81,
+      kind: 'conversation-patched',
+      isStreaming: false,
+      messages: [{ id: 'agent-one:82', role: 'assistant', text: 'Settled' }],
+      previousHistoryStart: 80,
+      transcript: [
+        {
+          id: 'agent-one:82',
+          kind: 'message',
+          role: 'assistant',
+          text: 'Settled',
+        },
+      ],
+    },
+    revision: 2,
+    subscriptionId: 'subscription-one',
+  });
+  assert.equal(appended.ok, true);
+  if (!appended.ok) return;
+  const bounded = reducePrimeAgentSessionFeed(state, appended.value);
+  assert.equal(primeAgentSessionFeedView(bounded)?.historyStart, 81);
+  assert.deepEqual(
+    primeAgentSessionFeedView(bounded)?.transcript.map((item) => item.id),
+    ['agent-one:81', 'agent-one:82'],
+  );
+  const preserved = reducePrimeAgentSessionFeed(prepended, appended.value);
+  assert.equal(primeAgentSessionFeedView(preserved)?.historyStart, 79);
+  assert.equal(primeAgentSessionFeedView(preserved)?.transcript.length, 4);
+});
+
+test('coalesces overlapping suffix patches without losing their prefix', () => {
+  const first = {
+    from: 80,
+    historyStart: 80,
+    kind: 'conversation-patched' as const,
+    isStreaming: true,
+    messages: [{ id: 'latest', role: 'assistant' as const, text: 'latest' }],
+    previousHistoryStart: 80,
+    transcript: [
+      { id: '80', kind: 'message' as const, role: 'user' as const, text: 'ask' },
+      {
+        id: '81',
+        kind: 'message' as const,
+        role: 'assistant' as const,
+        text: 'draft',
+      },
+    ],
+  };
+  const latest = {
+    ...first,
+    from: 81,
+    historyStart: 81,
+    transcript: [
+      {
+        id: '81',
+        kind: 'message' as const,
+        role: 'assistant' as const,
+        text: 'final',
+      },
+    ],
+  };
+
+  assert.deepEqual(coalescePrimeAgentSessionFeedItems([first, latest]), [
+    {
+      ...latest,
+      from: 80,
+      transcript: [first.transcript[0], latest.transcript[0]],
+    },
+  ]);
 });
 
 test('projects streaming messages and releases the connection on interruption', () =>

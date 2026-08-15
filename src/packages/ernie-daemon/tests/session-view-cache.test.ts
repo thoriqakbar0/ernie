@@ -10,6 +10,7 @@ function sessionView(
 ): AgentSessionView {
   return {
     activeSessionId,
+    historyStart: 0,
     isStreaming: false,
     messages: [{ id: `${activeSessionId}:message`, role: 'user', text }],
     rlmMaxDepth: 1,
@@ -43,6 +44,22 @@ test('retains complete views and applies incremental feed changes', () => {
       },
     ],
   });
+  cache.apply('first', {
+    from: 0,
+    historyStart: 0,
+    kind: 'conversation-patched',
+    isStreaming: false,
+    messages: [{ id: 'first:reply', role: 'assistant', text: 'Done' }],
+    previousHistoryStart: 0,
+    transcript: [
+      {
+        id: 'first:reply',
+        kind: 'message',
+        role: 'assistant',
+        text: 'Done',
+      },
+    ],
+  });
   cache.apply('first', { kind: 'session-name-changed', sessionName: 'Warm' });
   cache.apply('first', {
     kind: 'connection-changed',
@@ -51,15 +68,15 @@ test('retains complete views and applies incremental feed changes', () => {
 
   assert.deepEqual(cache.peek('first'), {
     ...first,
-    isStreaming: true,
-    messages: [{ id: 'first:reply', role: 'assistant', text: 'Working' }],
+    isStreaming: false,
+    messages: [{ id: 'first:reply', role: 'assistant', text: 'Done' }],
     sessionName: 'Warm',
     transcript: [
       {
         id: 'first:reply',
         kind: 'message',
         role: 'assistant',
-        text: 'Working',
+        text: 'Done',
       },
     ],
   });
@@ -84,7 +101,7 @@ test('evicts the least recently used view and rejects crossed identities', () =>
   );
 });
 
-test('does not retain an oversized transcript', () => {
+test('retains the newest bounded window of an oversized transcript', () => {
   const cache = createAgentSessionViewCache({
     maximumCacheableTranscriptItems: 1,
   });
@@ -94,5 +111,9 @@ test('does not retain an oversized transcript', () => {
     transcript: [...view.transcript, ...view.transcript],
   });
 
-  assert.equal(cache.peek('large'), null);
+  assert.deepEqual(cache.peek('large'), {
+    ...view,
+    historyStart: 1,
+    transcript: view.transcript,
+  });
 });

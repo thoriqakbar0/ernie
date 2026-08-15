@@ -52,6 +52,7 @@ import {
   primeAgentSessionFeedEventChannel,
   primeAgentSessionFeedStartChannel,
   primeAgentSessionFeedStopChannel,
+  primeAgentSessionHistoryChannel,
   primeAgentSkillsChannel,
   primeAgentRlmDepthChannel,
   primeAgentRenameGitBranchChannel,
@@ -363,6 +364,11 @@ function registerErnieDaemonHandlers(): void {
     primeAgentSkillsChannel,
     (_event, activeSessionId: JsonValue) =>
       Effect.runPromise(daemon.listSkills(activeSessionId)),
+  );
+  ipcMain.handle(
+    primeAgentSessionHistoryChannel,
+    (_event, request: JsonValue) =>
+      Effect.runPromise(daemon.loadSessionHistory(request)),
   );
   ipcMain.handle(primeAgentSetModelChannel, (_event, selection: JsonValue) =>
     Effect.runPromise(daemon.setModel(selection)),

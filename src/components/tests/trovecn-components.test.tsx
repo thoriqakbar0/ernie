@@ -78,6 +78,7 @@ test('jump-to-latest control respects reduced motion', async () => {
       <AgentChat
         sessionView={{
           activeSessionId: 'root',
+          historyStart: 0,
           isStreaming: false,
           messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
           rlmMaxDepth: 2,
@@ -125,9 +126,44 @@ test('jump-to-latest control respects reduced motion', async () => {
   }
 });
 
+test('conversation offers earlier history when the transcript is windowed', async () => {
+  let requests = 0;
+  const user = userEvent.setup();
+  render(
+    <AgentChat
+      onLoadEarlierHistory={() => {
+        requests += 1;
+      }}
+      sessionView={{
+        activeSessionId: 'root',
+        historyStart: 80,
+        isStreaming: false,
+        messages: [{ id: 'latest', role: 'assistant', text: 'latest' }],
+        rlmMaxDepth: 2,
+        sessionName: 'Long session',
+        spawnedSessions: [],
+        transcript: [
+          {
+            id: 'latest',
+            kind: 'message',
+            role: 'assistant',
+            text: 'latest',
+          },
+        ],
+      }}
+    />,
+  );
+
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Load earlier' }),
+  );
+  assert.equal(requests, 1);
+});
+
 test('conversation follows new output to the bottom', () => {
   const initialView = {
     activeSessionId: 'root',
+    historyStart: 0,
     isStreaming: true,
     messages: [{ id: 'one', role: 'assistant' as const, text: 'working' }],
     rlmMaxDepth: 2,
@@ -174,6 +210,7 @@ test('conversation follows new output to the bottom', () => {
 test('conversation keeps the reader in place when new output arrives', () => {
   const initialView = {
     activeSessionId: 'root',
+    historyStart: 0,
     isStreaming: true,
     messages: [{ id: 'one', role: 'assistant' as const, text: 'working' }],
     rlmMaxDepth: 2,
@@ -225,6 +262,7 @@ test('conversation hides the latest-response action when all content fits', () =
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: false,
         messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
         rlmMaxDepth: 2,
@@ -285,6 +323,7 @@ test('focused chat does not duplicate composer depth', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: false,
         messages: [{ id: 'one', role: 'assistant', text: 'ready' }],
         rlmMaxDepth: 2,
@@ -309,6 +348,7 @@ test('focused chat keeps user messages free of a divider', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: false,
         messages: [{ id: 'one', role: 'user', text: 'hello' }],
         rlmMaxDepth: 2,
@@ -335,6 +375,7 @@ test('focused chat renders Prime Agent markdown as document structure', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: false,
         messages: [
           {
@@ -368,6 +409,7 @@ test('focused chat groups completed work and keeps output streams distinct', asy
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: false,
         messages: [{ id: 'one', role: 'assistant', text: 'calculated' }],
         rlmMaxDepth: 2,
@@ -442,6 +484,7 @@ test('focused chat expands only the newest work while streaming', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: true,
         messages: [{ id: 'checkpoint', role: 'assistant', text: 'checking' }],
         rlmMaxDepth: 2,
@@ -515,6 +558,7 @@ test('sending a follow-up keeps completed work collapsed', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: false,
         messages: [{ id: 'answer', role: 'assistant', text: 'ready' }],
         rlmMaxDepth: 2,
@@ -537,6 +581,7 @@ test('sending a follow-up keeps completed work collapsed', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: true,
         messages: [{ id: 'follow-up', role: 'user', text: 'Check it again' }],
         rlmMaxDepth: 2,
@@ -566,6 +611,7 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
     <AgentChat
       sessionView={{
         activeSessionId: 'root',
+        historyStart: 0,
         isStreaming: true,
         messages: [{ id: 'one', role: 'assistant', text: 'working' }],
         rlmMaxDepth: 2,

@@ -9,7 +9,7 @@ The stable automation interface through which agents start and observe RLM runs.
 _Avoid_: CLI, Prime Agent socket, UI control
 
 **Agent run**:
-One root task submitted through the Agent harness. A run can include recursive child work.
+One root task submitted through the Agent harness, including its recursive child work. It ends when the entire tree reaches terminal states.
 _Avoid_: Command, invocation, task
 
 **Agent session**:

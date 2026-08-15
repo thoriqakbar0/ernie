@@ -100,17 +100,16 @@ Ernie already has useful temporal foundations. Transactional contribution public
 
 Its disposable remains coarse-grained and author-managed. The host does not react to dependencies because it does not model services yet.
 
-## What Ernie should learn first
+## What Ernie should implement first
 
-Do not replace the current plugin host yet. Treat Cordis as a model to test through narrow experiments.
+Keep the current plugin host's outer transaction. Add Cordis-style ownership through one narrow production lifecycle boundary.
 
-1. Add a disposable stack to an isolated prototype.
-2. Register several effects and verify reverse-order cleanup.
-3. Interrupt activation and verify partial effects recover exactly once.
-4. Add one typed service key with one provider and one consumer.
-5. Remove the provider and verify the consumer finishes cleanup first.
-6. Replace the provider during asynchronous cleanup and verify lifecycle convergence.
-7. Compare the prototype's complexity with Ernie's current root disposable.
+1. Give each activation attempt one effect ledger.
+2. Acquire values and cleanup together through `PluginActivationContext.acquire`.
+3. Drain acquired effects once in reverse order on failure, disable, or disposal.
+4. Keep commands and views staged until activation validates successfully.
+5. Reject registration and acquisition after activation closes.
+6. Defer provider-consumer dependencies until a real cross-plugin service requires them.
 
 ## Success criteria
 
@@ -144,4 +143,4 @@ Do not replace the current plugin host yet. Treat Cordis as a model to test thro
 
 Cordis is most valuable to Ernie as a design lens, not an immediate dependency.
 
-The first useful experiment is effect-local cleanup. The second is provider-aware teardown. HMR and self-evolution should wait for both.
+Ernie now adopts effect-local cleanup in the production plugin host. Provider-aware teardown remains the next experiment. HMR and self-evolution should wait.

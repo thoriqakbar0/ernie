@@ -7,8 +7,10 @@ import {
   DuplicatePluginIdError,
   InvalidPluginManifestError,
   parsePluginManifest,
+  PluginActivationContextClosedError,
   PluginActivationError,
   PluginCommandExecutionError,
+  PluginDeactivationError,
   PluginDisabledError,
   PluginHostDisposedError,
   type PluginActivationContext,
@@ -180,6 +182,43 @@ test('isolates activation and command defects as typed failures', async () => {
   }
 });
 
+test('keeps command-handler effects outside activation rollback', async () => {
+  let activationCleanupCount = 0;
+  let commandEffectCount = 0;
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      async activate(context) {
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            activationCleanupCount += 1;
+          },
+        }));
+        context.registerCommand(commandId, () => {
+          commandEffectCount += 1;
+          throw new Error('command failed after its effect');
+        });
+        registerTestView(context);
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const commandResult = await created.value.executeCommand(commandId);
+  assert.equal(commandResult.ok, false);
+  if (!commandResult.ok) {
+    assert.ok(commandResult.error instanceof PluginCommandExecutionError);
+  }
+  assert.equal(commandEffectCount, 1);
+  assert.equal(activationCleanupCount, 0);
+
+  assert.equal((await created.value.disablePlugin('acme.browser')).ok, true);
+  assert.equal(activationCleanupCount, 1);
+  assert.equal(commandEffectCount, 1);
+});
+
 test('rolls back resources when activation omits a declared contribution', async () => {
   let disposalCount = 0;
   const created = createPluginHost<string>([
@@ -202,6 +241,90 @@ test('rolls back resources when activation omits a declared contribution', async
   assert.equal(result.ok, false);
   if (!result.ok) assert.ok(result.error instanceof PluginActivationError);
   assert.equal(disposalCount, 1);
+});
+
+test('rolls back acquired effects in reverse order when later setup fails', async () => {
+  const events: string[] = [];
+  let commandCount = 0;
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      async activate(context) {
+        context.registerCommand(commandId, () => {
+          commandCount += 1;
+        });
+        registerTestView(context);
+        await context.acquire(() => ({
+          value: 'first',
+          cleanup: () => {
+            events.push('cleanup first');
+          },
+        }));
+        await context.acquire(() => ({
+          value: 'second',
+          cleanup: () => {
+            events.push('cleanup second');
+          },
+        }));
+        await context.acquire(() => {
+          events.push('rollback partial third');
+          throw new Error('third setup failed');
+        });
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const viewResult = await created.value.renderView(viewId);
+  const commandResult = await created.value.executeCommand(commandId);
+
+  assert.equal(viewResult.ok, false);
+  if (!viewResult.ok) assert.ok(viewResult.error instanceof PluginActivationError);
+  assert.equal(commandResult.ok, false);
+  if (!commandResult.ok) {
+    assert.ok(commandResult.error instanceof PluginActivationError);
+  }
+  assert.equal(commandCount, 0);
+  assert.deepEqual(events, [
+    'rollback partial third',
+    'cleanup second',
+    'cleanup first',
+  ]);
+});
+
+test('rejects work through an activation context after activation closes', async () => {
+  let retainedContext: PluginActivationContext<string> | undefined;
+  let lateSetupCount = 0;
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      activate(context) {
+        retainedContext = context;
+        context.registerCommand(commandId, () => undefined);
+        registerTestView(context);
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal((await created.value.renderView(viewId)).ok, true);
+  assert.notEqual(retainedContext, undefined);
+  const context = retainedContext;
+  if (context === undefined) return;
+
+  assert.throws(
+    () => context.registerCommand(commandId, () => undefined),
+    PluginActivationContextClosedError,
+  );
+  await assert.rejects(
+    context.acquire(() => {
+      lateSetupCount += 1;
+      return { value: undefined, cleanup: () => undefined };
+    }),
+    PluginActivationContextClosedError,
+  );
+  assert.equal(lateSetupCount, 0);
 });
 
 test('disposes active plugins and closes the host', async () => {
@@ -231,6 +354,86 @@ test('disposes active plugins and closes the host', async () => {
   if (!commandResult.ok) {
     assert.ok(commandResult.error instanceof PluginHostDisposedError);
   }
+});
+
+test('drains effects when host disposal interrupts asynchronous activation', async () => {
+  let cleanupCount = 0;
+  let reportAcquired = (): void => undefined;
+  let releaseActivation = (): void => undefined;
+  const acquired = new Promise<void>((resolve) => {
+    reportAcquired = resolve;
+  });
+  const activationGate = new Promise<void>((resolve) => {
+    releaseActivation = resolve;
+  });
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      async activate(context) {
+        context.registerCommand(commandId, () => undefined);
+        registerTestView(context);
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            cleanupCount += 1;
+          },
+        }));
+        reportAcquired();
+        await activationGate;
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const rendering = created.value.renderView(viewId);
+  await acquired;
+  const disposing = created.value.dispose();
+  releaseActivation();
+
+  const renderResult = await rendering;
+  assert.equal(renderResult.ok, false);
+  if (!renderResult.ok) {
+    assert.ok(renderResult.error instanceof PluginHostDisposedError);
+  }
+  assert.deepEqual(await disposing, []);
+  assert.equal(cleanupCount, 1);
+});
+
+test('shares repeated host disposal and drains each effect once', async () => {
+  let cleanupCount = 0;
+  let releaseCleanup = (): void => undefined;
+  const cleanupGate = new Promise<void>((resolve) => {
+    releaseCleanup = resolve;
+  });
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      async activate(context) {
+        context.registerCommand(commandId, () => undefined);
+        registerTestView(context);
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: async () => {
+            cleanupCount += 1;
+            await cleanupGate;
+          },
+        }));
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal((await created.value.renderView(viewId)).ok, true);
+
+  const firstDisposal = created.value.dispose();
+  const secondDisposal = created.value.dispose();
+  assert.equal(firstDisposal, secondDisposal);
+  releaseCleanup();
+
+  assert.deepEqual(await firstDisposal, []);
+  assert.equal(cleanupCount, 1);
+  assert.equal(created.value.dispose(), firstDisposal);
 });
 
 test('removes plugin UI and commands until the user restores them', async () => {
@@ -308,19 +511,29 @@ test('limits a contributed view to its owning plugin commands', async () => {
   assert.equal(otherCommandCount, 0);
 });
 
-test('keeps a plugin disabled until failed cleanup succeeds', async () => {
-  let cleanupShouldFail = true;
+test('consumes failing cleanup once and permits a fresh activation', async () => {
+  const cleanupOrder: string[] = [];
+  let activationCount = 0;
   const created = createPluginHost<string>([
     {
       manifest: testManifest(),
-      activate: (context) => {
+      async activate(context) {
+        activationCount += 1;
         context.registerCommand(commandId, () => undefined);
         registerTestView(context);
-        return {
-          dispose: () => {
-            if (cleanupShouldFail) throw new Error('cleanup failed');
+        await context.acquire(() => ({
+          value: 'first',
+          cleanup: () => {
+            cleanupOrder.push('first');
+            if (activationCount === 1) throw new Error('cleanup failed');
           },
-        };
+        }));
+        await context.acquire(() => ({
+          value: 'second',
+          cleanup: () => {
+            cleanupOrder.push('second');
+          },
+        }));
       },
     },
   ]);
@@ -328,18 +541,27 @@ test('keeps a plugin disabled until failed cleanup succeeds', async () => {
   if (!created.ok) return;
 
   assert.equal((await created.value.renderView(viewId)).ok, true);
-  assert.equal((await created.value.disablePlugin('acme.browser')).ok, false);
+  const firstDisable = await created.value.disablePlugin('acme.browser');
+  assert.equal(firstDisable.ok, false);
+  if (!firstDisable.ok) {
+    assert.ok(firstDisable.error instanceof PluginDeactivationError);
+    if (firstDisable.error instanceof PluginDeactivationError) {
+      assert.equal(firstDisable.error.failures.length, 1);
+      assert.equal(firstDisable.error.failures[0]?.sequence, 1);
+    }
+  }
   assert.equal(created.value.isPluginEnabled('acme.browser'), false);
-  assert.equal((await created.value.enablePlugin('acme.browser')).ok, false);
+  assert.deepEqual(cleanupOrder, ['second', 'first']);
 
-  cleanupShouldFail = false;
   assert.equal((await created.value.disablePlugin('acme.browser')).ok, true);
+  assert.deepEqual(cleanupOrder, ['second', 'first']);
   assert.equal((await created.value.enablePlugin('acme.browser')).ok, true);
   assert.equal((await created.value.renderView(viewId)).ok, true);
+  assert.equal(activationCount, 2);
 });
 
-test('keeps a plugin disabled when cleanup fails during activation', async () => {
-  let cleanupShouldFail = true;
+test('reports activation cleanup failure once when disable interrupts activation', async () => {
+  let cleanupCount = 0;
   let releaseActivation = (): void => undefined;
   const activationGate = new Promise<void>((resolve) => {
     releaseActivation = resolve;
@@ -350,12 +572,14 @@ test('keeps a plugin disabled when cleanup fails during activation', async () =>
       async activate(context) {
         context.registerCommand(commandId, () => undefined);
         registerTestView(context);
-        await activationGate;
-        return {
-          dispose: () => {
-            if (cleanupShouldFail) throw new Error('cleanup failed');
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
+            cleanupCount += 1;
+            throw new Error('cleanup failed');
           },
-        };
+        }));
+        await activationGate;
       },
     },
   ]);
@@ -368,10 +592,9 @@ test('keeps a plugin disabled when cleanup fails during activation', async () =>
 
   assert.equal((await viewRendering).ok, false);
   assert.equal((await disabling).ok, false);
-  assert.equal((await created.value.enablePlugin('acme.browser')).ok, false);
-
-  cleanupShouldFail = false;
+  assert.equal(cleanupCount, 1);
   assert.equal((await created.value.disablePlugin('acme.browser')).ok, true);
+  assert.equal(cleanupCount, 1);
   assert.equal((await created.value.enablePlugin('acme.browser')).ok, true);
 });
 
@@ -419,12 +642,13 @@ test('waits for activation cleanup before restoring a plugin', async () => {
         activationCount += 1;
         context.registerCommand(commandId, () => undefined);
         registerTestView(context);
-        if (activationCount === 1) await activationGate;
-        return {
-          dispose: () => {
+        await context.acquire(() => ({
+          value: undefined,
+          cleanup: () => {
             disposalCount += 1;
           },
-        };
+        }));
+        if (activationCount === 1) await activationGate;
       },
     },
   ]);

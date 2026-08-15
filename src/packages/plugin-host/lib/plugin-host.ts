@@ -5,6 +5,12 @@ import {
   type JsonRecord,
   type JsonValue,
 } from '../../json-value/index.js';
+import {
+  createEffectScope,
+  EffectScopeClosedError,
+  type EffectCleanupError,
+  type EffectScope,
+} from '../../effect-scope/index.js';
 
 /** The Ernie plugin API understood by this host. */
 export const currentPluginApiVersion = 1 as const;
@@ -59,6 +65,15 @@ export interface PluginDisposable {
 /** Work performed by one registered plugin command. */
 export type PluginCommandHandler = () => void | Promise<void>;
 
+/** Cleanup paired with one value acquired during plugin activation. */
+export type PluginEffectCleanup = () => void | Promise<void>;
+
+/** One plugin value acquired together with the cleanup that owns it. */
+export interface PluginEffectAcquisition<Value> {
+  readonly value: Value;
+  readonly cleanup: PluginEffectCleanup;
+}
+
 /** Host capabilities available while one contributed view is rendered. */
 export interface PluginViewRenderContext {
   /** Execute one command declared by the plugin that owns this view. */
@@ -73,6 +88,17 @@ export type PluginViewRenderer<RenderedView> = (
 /** Capabilities supplied to a plugin during its isolated activation transaction. */
 export interface PluginActivationContext<RenderedView> {
   readonly pluginId: string;
+
+  /**
+   * Acquire one plugin-owned value and arm its cleanup immediately.
+   *
+   * Setup must reverse its own partial work before throwing.
+   */
+  acquire<Value>(
+    setup: () =>
+      | PluginEffectAcquisition<Value>
+      | Promise<PluginEffectAcquisition<Value>>,
+  ): Promise<Value>;
 
   /** Attach a handler to a command declared by this plugin. */
   registerCommand(commandId: string, handler: PluginCommandHandler): void;
@@ -181,6 +207,21 @@ export class PluginActivationError extends Error {
   }
 }
 
+/** Plugin code retained an activation context beyond its owning attempt. */
+export class PluginActivationContextClosedError extends Error {
+  readonly _tag = 'PluginActivationContextClosedError';
+
+  constructor(
+    readonly pluginId: string,
+    cause?: unknown,
+  ) {
+    super(
+      `Plugin ${pluginId} used a closed activation context.`,
+      cause === undefined ? undefined : { cause },
+    );
+  }
+}
+
 /** A plugin command failed without exposing the thrown value to callers. */
 export class PluginCommandExecutionError extends Error {
   readonly _tag = 'PluginCommandExecutionError';
@@ -205,15 +246,33 @@ export class PluginViewRenderError extends Error {
   }
 }
 
-/** Plugin cleanup failed without preventing cleanup of other plugins. */
-export class PluginDeactivationError extends Error {
-  readonly _tag = 'PluginDeactivationError';
+/** One plugin effect cleanup failed after its ledger entry was consumed. */
+export class PluginEffectCleanupError extends Error {
+  readonly _tag = 'PluginEffectCleanupError';
 
   constructor(
     readonly pluginId: string,
+    readonly sequence: number,
     cause: unknown,
   ) {
-    super(`Plugin ${pluginId} could not deactivate cleanly.`, { cause });
+    super(`Plugin ${pluginId} cleanup ${sequence} failed.`, { cause });
+  }
+}
+
+/** Plugin cleanup failed without preventing cleanup of older effects. */
+export class PluginDeactivationError extends Error {
+  readonly _tag = 'PluginDeactivationError';
+  readonly failures: readonly PluginEffectCleanupError[];
+
+  constructor(
+    readonly pluginId: string,
+    failures: readonly PluginEffectCleanupError[],
+  ) {
+    const stableFailures = Object.freeze([...failures]);
+    super(`Plugin ${pluginId} could not deactivate cleanly.`, {
+      cause: new AggregateError(stableFailures),
+    });
+    this.failures = stableFailures;
   }
 }
 
@@ -274,12 +333,7 @@ type PluginRuntimeState =
       status: 'activating';
       activation: Promise<PluginResult<void>>;
     }>
-  | Readonly<{ status: 'active'; disposable: PluginDisposable | null }>
-  | Readonly<{
-      status: 'deactivation-failed';
-      disposable: PluginDisposable;
-      error: PluginDeactivationError;
-    }>
+  | Readonly<{ status: 'active'; scope: EffectScope }>
   | Readonly<{
       status: 'deactivating';
       deactivation: Promise<PluginResult<void>>;
@@ -301,6 +355,30 @@ function succeeded<Value>(value: Value): PluginResult<Value> {
 
 function failed<Value>(error: PluginHostError): PluginResult<Value> {
   return { ok: false, error };
+}
+
+function pluginCleanupFailures(
+  pluginId: string,
+  failures: readonly EffectCleanupError[],
+): readonly PluginEffectCleanupError[] {
+  return Object.freeze(
+    failures.map(
+      (failure) =>
+        new PluginEffectCleanupError(pluginId, failure.sequence, failure.cause),
+    ),
+  );
+}
+
+function cleanupFailure(
+  pluginId: string,
+  failures: readonly EffectCleanupError[],
+): PluginDeactivationError | null {
+  return failures.length === 0
+    ? null
+    : new PluginDeactivationError(
+        pluginId,
+        pluginCleanupFailures(pluginId, failures),
+      );
 }
 
 function readRequiredText(record: JsonRecord, key: string): string | null {
@@ -564,6 +642,7 @@ export function createPluginHost<RenderedView>(
   const commandHandlers = new Map<string, PluginCommandHandler>();
   const viewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
   let lifecycle: 'open' | 'disposing' | 'disposed' = 'open';
+  let disposalPromise: Promise<readonly PluginDeactivationError[]> | null = null;
 
   const activatePlugin = async (pluginId: string): Promise<PluginResult<void>> => {
     if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
@@ -571,24 +650,44 @@ export function createPluginHost<RenderedView>(
     if (record === undefined) return failed(new PluginNotFoundError(pluginId));
     if (!record.enabled) return failed(new PluginDisabledError(pluginId));
     if (record.state.status === 'active') return succeeded(undefined);
-    if (record.state.status === 'deactivation-failed') {
-      return failed(record.state.error);
-    }
     if (record.state.status === 'failed') return failed(record.state.error);
     if (record.state.status === 'activating') return record.state.activation;
 
     const activation = Promise.resolve().then(async (): Promise<PluginResult<void>> => {
       const localHandlers = new Map<string, PluginCommandHandler>();
       const localViewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
+      const scope = createEffectScope();
+      let activationOpen = true;
       const declaredCommands = new Set(
         record.module.manifest.contributes.commands.map((command) => command.id),
       );
       const declaredViews = new Set(
         record.module.manifest.contributes.views.map((view) => view.id),
       );
+      const assertActivationOpen = (): void => {
+        if (!activationOpen) {
+          throw new PluginActivationContextClosedError(pluginId);
+        }
+      };
+      const closeActivation = (): void => {
+        activationOpen = false;
+        scope.close();
+      };
       const context: PluginActivationContext<RenderedView> = {
         pluginId,
+        async acquire(setup) {
+          assertActivationOpen();
+          try {
+            return await scope.acquire(setup);
+          } catch (cause) {
+            if (cause instanceof EffectScopeClosedError) {
+              throw new PluginActivationContextClosedError(pluginId, cause);
+            }
+            throw cause;
+          }
+        },
         registerCommand(commandId, handler) {
+          assertActivationOpen();
           if (!declaredCommands.has(commandId)) {
             throw new Error(`Plugin ${pluginId} did not declare command ${commandId}.`);
           }
@@ -598,6 +697,7 @@ export function createPluginHost<RenderedView>(
           localHandlers.set(commandId, handler);
         },
         registerView(viewId, renderer) {
+          assertActivationOpen();
           if (!declaredViews.has(viewId)) {
             throw new Error(`Plugin ${pluginId} did not declare view ${viewId}.`);
           }
@@ -608,9 +708,15 @@ export function createPluginHost<RenderedView>(
         },
       };
 
-      let disposable: PluginDisposable | null = null;
       try {
-        disposable = (await record.module.activate(context)) ?? null;
+        const disposable = (await record.module.activate(context)) ?? null;
+        if (disposable !== null) {
+          await scope.acquire(() => ({
+            value: undefined,
+            cleanup: () => disposable.dispose(),
+          }));
+        }
+        closeActivation();
         for (const commandId of declaredCommands) {
           if (!localHandlers.has(commandId)) {
             throw new Error(`Plugin ${pluginId} did not register command ${commandId}.`);
@@ -621,18 +727,16 @@ export function createPluginHost<RenderedView>(
             throw new Error(`Plugin ${pluginId} did not register view ${viewId}.`);
           }
         }
-        if (!record.enabled) {
-          if (disposable !== null) {
-            try {
-              await disposable.dispose();
-            } catch (cause) {
-              const error = new PluginDeactivationError(pluginId, cause);
-              record.state = { status: 'deactivation-failed', disposable, error };
-              return failed(error);
-            }
-          }
+        if (!record.enabled || lifecycle !== 'open') {
+          const recoveryError = cleanupFailure(pluginId, await scope.drain());
           record.state = { status: 'inactive' };
-          return failed(new PluginDisabledError(pluginId));
+          if (recoveryError !== null) {
+            record.enabled = false;
+            return failed(recoveryError);
+          }
+          return lifecycle === 'open'
+            ? failed(new PluginDisabledError(pluginId))
+            : failed(new PluginHostDisposedError());
         }
         for (const [commandId, handler] of localHandlers) {
           commandHandlers.set(commandId, handler);
@@ -640,18 +744,19 @@ export function createPluginHost<RenderedView>(
         for (const [viewId, renderer] of localViewRenderers) {
           viewRenderers.set(viewId, renderer);
         }
-        record.state = { status: 'active', disposable };
+        record.state = { status: 'active', scope };
         return succeeded(undefined);
       } catch (cause) {
-        if (disposable !== null) {
-          try {
-            await disposable.dispose();
-          } catch (cleanupCause) {
-            record.enabled = false;
-            const error = new PluginDeactivationError(pluginId, cleanupCause);
-            record.state = { status: 'deactivation-failed', disposable, error };
-            return failed(error);
-          }
+        closeActivation();
+        const recoveryError = cleanupFailure(pluginId, await scope.drain());
+        if (recoveryError !== null) {
+          record.enabled = false;
+          record.state = { status: 'inactive' };
+          return failed(recoveryError);
+        }
+        if (lifecycle !== 'open') {
+          record.state = { status: 'inactive' };
+          return failed(new PluginHostDisposedError());
         }
         if (!record.enabled) {
           record.state = { status: 'inactive' };
@@ -720,9 +825,6 @@ export function createPluginHost<RenderedView>(
         if (!deactivation.ok) return deactivation;
         if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
       }
-      if (record.state.status === 'deactivation-failed') {
-        return failed(record.state.error);
-      }
       record.enabled = true;
       if (record.state.status === 'failed') {
         record.state = { status: 'inactive' };
@@ -748,7 +850,7 @@ export function createPluginHost<RenderedView>(
           return activation;
         }
       }
-      if (!wasEnabled && record.state.status !== 'deactivation-failed') {
+      if (!wasEnabled) {
         return succeeded(undefined);
       }
       for (const command of record.module.manifest.contributes.commands) {
@@ -757,26 +859,18 @@ export function createPluginHost<RenderedView>(
       for (const view of record.module.manifest.contributes.views) {
         viewRenderers.delete(view.id);
       }
-      const disposable =
-        record.state.status === 'active' ||
-        record.state.status === 'deactivation-failed'
-          ? record.state.disposable
-          : null;
-      if (disposable === null) {
+      const scope = record.state.status === 'active' ? record.state.scope : null;
+      if (scope === null) {
         record.state = { status: 'inactive' };
         return succeeded(undefined);
       }
       const deactivation = Promise.resolve().then(
         async (): Promise<PluginResult<void>> => {
-          try {
-            await disposable.dispose();
-            record.state = { status: 'inactive' };
-            return succeeded(undefined);
-          } catch (cause) {
-            const error = new PluginDeactivationError(pluginId, cause);
-            record.state = { status: 'deactivation-failed', disposable, error };
-            return failed(error);
-          }
+          const recoveryError = cleanupFailure(pluginId, await scope.drain());
+          record.state = { status: 'inactive' };
+          return recoveryError === null
+            ? succeeded(undefined)
+            : failed(recoveryError);
         },
       );
       record.state = { status: 'deactivating', deactivation };
@@ -804,40 +898,50 @@ export function createPluginHost<RenderedView>(
       }
     },
     executeCommand,
-    async dispose() {
-      if (lifecycle !== 'open') return [];
+    dispose() {
+      if (disposalPromise !== null) return disposalPromise;
       lifecycle = 'disposing';
-      const errors: PluginDeactivationError[] = [];
-      for (const record of records.values()) record.enabled = false;
-      await Promise.all(
-        [...records.entries()].map(async ([pluginId, record]) => {
-          if (record.state.status === 'activating') {
-            await record.state.activation;
-          }
-          if (record.state.status === 'deactivating') {
-            await record.state.deactivation;
-          }
-          if (
-            (record.state.status !== 'active' &&
-              record.state.status !== 'deactivation-failed') ||
-            record.state.disposable === null
-          ) {
+      disposalPromise = Promise.resolve().then(async () => {
+        const errors: PluginDeactivationError[] = [];
+        for (const record of records.values()) record.enabled = false;
+        await Promise.all(
+          [...records.entries()].map(async ([pluginId, record]) => {
+            if (record.state.status === 'activating') {
+              const activation = await record.state.activation;
+              if (
+                !activation.ok &&
+                activation.error instanceof PluginDeactivationError
+              ) {
+                errors.push(activation.error);
+              }
+            }
+            if (record.state.status === 'deactivating') {
+              const deactivation = await record.state.deactivation;
+              if (
+                !deactivation.ok &&
+                deactivation.error instanceof PluginDeactivationError
+              ) {
+                errors.push(deactivation.error);
+              }
+            }
+            if (record.state.status !== 'active') {
+              record.state = { status: 'inactive' };
+              return;
+            }
+            const recoveryError = cleanupFailure(
+              pluginId,
+              await record.state.scope.drain(),
+            );
+            if (recoveryError !== null) errors.push(recoveryError);
             record.state = { status: 'inactive' };
-            return;
-          }
-          const disposable = record.state.disposable;
-          try {
-            await disposable.dispose();
-          } catch (cause) {
-            errors.push(new PluginDeactivationError(pluginId, cause));
-          }
-          record.state = { status: 'inactive' };
-        }),
-      );
-      commandHandlers.clear();
-      viewRenderers.clear();
-      lifecycle = 'disposed';
-      return errors;
+          }),
+        );
+        commandHandlers.clear();
+        viewRenderers.clear();
+        lifecycle = 'disposed';
+        return Object.freeze(errors);
+      });
+      return disposalPromise;
     },
   };
 

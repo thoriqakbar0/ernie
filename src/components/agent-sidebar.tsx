@@ -22,6 +22,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from 'react';
+import { ThinkingOrb } from 'thinking-orbs';
 
 import { RenameThreadDialog } from '@/components/rename-thread-dialog';
 import {
@@ -84,6 +85,7 @@ import {
   setWorkspaceArchived,
   type ThreadManagementState,
 } from '@/packages/thread-management';
+import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 type AgentSidebarProps = Pick<
   PrimeAgentWorkspaceController,
@@ -106,6 +108,7 @@ type AgentSidebarProps = Pick<
 > & {
   readonly onOpenSettings: () => void;
   readonly settingsOpen: boolean;
+  readonly thinkingOrbState: ThinkingOrbState;
 };
 
 interface WorkspaceGroup {
@@ -253,9 +256,11 @@ function activityOrder(activity: PrimeAgentSessionActivity): number {
 
 function ActivitySummary({
   needsInputCount,
+  thinkingOrbState,
   workingCount,
 }: {
   readonly needsInputCount: number;
+  readonly thinkingOrbState: ThinkingOrbState;
   readonly workingCount: number;
 }): React.JSX.Element | null {
   if (needsInputCount === 0 && workingCount === 0) return null;
@@ -281,9 +286,13 @@ function ActivitySummary({
           className="inline-flex items-center gap-1 tabular-nums"
           title={`${workingCount} ${workingCount === 1 ? 'Agent' : 'Agents'} working`}
         >
-          <span
+          <ThinkingOrb
             aria-hidden="true"
-            className="size-1.5 animate-pulse rounded-full bg-sky-500 motion-reduce:animate-none"
+            className="shrink-0"
+            data-thinking-orb-state={thinkingOrbState}
+            size={20}
+            state={thinkingOrbState}
+            theme="auto"
           />
           {workingCount}
           <span className="sr-only">
@@ -338,6 +347,7 @@ export function AgentSidebar({
   selectSession,
   onOpenSettings,
   settingsOpen,
+  thinkingOrbState,
 }: AgentSidebarProps): React.JSX.Element {
   const [renameTarget, setRenameTarget] = useState<ThreadConversation | null>(
     null,
@@ -828,6 +838,7 @@ export function AgentSidebar({
         label={label}
         pinned={pinned}
         selected={id === selectedThreadId}
+        thinkingOrbState={thinkingOrbState}
         thread={conversation}
         onArchiveChange={(archived) => {
           if (archived) {
@@ -1267,6 +1278,7 @@ export function AgentSidebar({
                               <span className="truncate">{folder.label}</span>
                               <ActivitySummary
                                 needsInputCount={needsInputCount}
+                                thinkingOrbState={thinkingOrbState}
                                 workingCount={workingCount}
                               />
                             </ContextMenuTrigger>
@@ -1438,6 +1450,7 @@ export function AgentSidebar({
                                         </span>
                                         <ActivitySummary
                                           needsInputCount={workspaceNeedsInputCount}
+                                          thinkingOrbState={thinkingOrbState}
                                           workingCount={workspaceWorkingCount}
                                         />
                                         <Button

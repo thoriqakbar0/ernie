@@ -291,7 +291,9 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       onDarkModeEnabledChange={() => undefined}
       onDebugHudEnabledChange={() => undefined}
       onReload={() => undefined}
+      onThinkingOrbStateChange={() => undefined}
       sidebarControlRequest={null}
+      thinkingOrbState="working"
     />,
   );
 

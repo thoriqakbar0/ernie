@@ -21,6 +21,11 @@ import {
   type ErnieUiSidebarRequest,
 } from '@/packages/ernie-ui-control/sidebar-control';
 import type { ErnieRendererApi } from '@/renderer-api';
+import {
+  readInitialThinkingOrbState,
+  storeThinkingOrbState,
+  type ThinkingOrbState,
+} from '@/thinking-orb-preference';
 
 interface RendererAppProps {
   readonly initialColorTheme: ColorTheme;
@@ -110,6 +115,9 @@ export function RendererApp({
   const [debugHudEnabled, setDebugHudEnabled] = useState(false);
   const [agentationReady, setAgentationReady] = useState(false);
   const [colorTheme, setColorTheme] = useState(initialColorTheme);
+  const [thinkingOrbState, setThinkingOrbState] = useState(
+    readInitialThinkingOrbState,
+  );
   const [sidebarControlRequest, setSidebarControlRequest] =
     useState<ErnieUiSidebarRequest | null>(null);
 
@@ -143,6 +151,11 @@ export function RendererApp({
     selectColorTheme(enabled ? 'dark' : 'light');
   };
 
+  const changeThinkingOrbState = (state: ThinkingOrbState): void => {
+    storeThinkingOrbState(state);
+    setThinkingOrbState(state);
+  };
+
   const reloadRenderer = (): void => {
     window.location.reload();
   };
@@ -156,6 +169,8 @@ export function RendererApp({
         onDebugHudEnabledChange={setDebugHudEnabled}
         onReload={reloadRenderer}
         sidebarControlRequest={sidebarControlRequest}
+        thinkingOrbState={thinkingOrbState}
+        onThinkingOrbStateChange={changeThinkingOrbState}
       />
       {debugHudEnabled && agentationReady ? (
         <Agentation

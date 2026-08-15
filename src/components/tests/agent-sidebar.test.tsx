@@ -15,6 +15,7 @@ import type {
   PrimeAgentSession,
   PrimeAgentSessionRename,
 } from '@/packages/prime-agent-daemon/client';
+import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 afterEach(() => {
   cleanup();
@@ -34,6 +35,7 @@ interface SidebarFixtureOverrides {
   readonly selectedCwd?: string;
   readonly selectedSessionId?: string | null;
   readonly sessions?: readonly PrimeAgentSession[];
+  readonly thinkingOrbState?: ThinkingOrbState;
 }
 
 function renderSidebar(actions: {
@@ -132,11 +134,31 @@ function renderSidebar(actions: {
           renameSession={actions.renameSession}
           selectSession={actions.selectSession}
           settingsOpen={false}
+          thinkingOrbState={overrides.thinkingOrbState ?? 'working'}
         />
       </SidebarProvider>
     </TooltipProvider>,
   );
 }
+
+test('working Agents use the selected thinking animation', () => {
+  renderSidebar(
+    {
+      addRepository: () => undefined,
+      startAgentDraft: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+    },
+    { thinkingOrbState: 'weaving' },
+  );
+
+  assert.ok(
+    document.querySelectorAll(
+      'canvas[data-thinking-orb-state="weaving"]',
+    ).length > 0,
+  );
+});
 
 test('live Agent rows preview the latest user message', () => {
   renderSidebar(

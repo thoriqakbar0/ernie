@@ -10,6 +10,7 @@ import {
   PinOffIcon,
 } from 'lucide-react';
 import type { DragEvent } from 'react';
+import { ThinkingOrb } from 'thinking-orbs';
 
 import type { ThreadConversation } from '@/components/thread-conversation';
 import { Button } from '@/components/trovecn/ui/button';
@@ -28,6 +29,7 @@ import {
   MenuTrigger,
 } from '@/components/trovecn/ui/menu';
 import type { PrimeAgentSessionActivity } from '@/packages/prime-agent-daemon/client';
+import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 interface ThreadRowProps {
   readonly archived: boolean;
@@ -39,6 +41,7 @@ interface ThreadRowProps {
   readonly label: string;
   readonly pinned: boolean;
   readonly selected: boolean;
+  readonly thinkingOrbState: ThinkingOrbState;
   readonly thread: ThreadConversation;
   readonly onArchiveChange: (archived: boolean) => void;
   readonly onDragEnd: () => void;
@@ -62,6 +65,7 @@ export function ThreadRow({
   label,
   pinned,
   selected,
+  thinkingOrbState,
   thread,
   onArchiveChange,
   onDragEnd,
@@ -85,10 +89,14 @@ export function ThreadRow({
 
   const activityMark = {
     working: (
-      <span
+      <ThinkingOrb
         aria-label="Working"
+        className="shrink-0"
+        data-thinking-orb-state={thinkingOrbState}
+        size={20}
+        state={thinkingOrbState}
+        theme="auto"
         title="Working"
-        className="size-2 shrink-0 animate-pulse rounded-full bg-sky-500 motion-reduce:animate-none"
       />
     ),
     queued: (

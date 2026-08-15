@@ -13,6 +13,7 @@ afterEach(cleanup);
 test('settings apply appearance and tool actions immediately', async () => {
   const themeChanges: boolean[] = [];
   const debugHudChanges: boolean[] = [];
+  const thinkingOrbChanges: string[] = [];
   let closeCount = 0;
   let openPluginsCount = 0;
   let reloadCount = 0;
@@ -23,6 +24,7 @@ test('settings apply appearance and tool actions immediately', async () => {
       backLabel="Back to Agent"
       darkModeEnabled
       debugHudEnabled={false}
+      thinkingOrbState="solving"
       onClose={() => {
         closeCount += 1;
       }}
@@ -34,6 +36,7 @@ test('settings apply appearance and tool actions immediately', async () => {
       onReload={() => {
         reloadCount += 1;
       }}
+      onThinkingOrbStateChange={(state) => thinkingOrbChanges.push(state)}
     />,
   );
 
@@ -51,6 +54,33 @@ test('settings apply appearance and tool actions immediately', async () => {
   await user.click(
     within(settings).getByRole('switch', { name: 'Debug interface' }),
   );
+  assert.ok(
+    within(settings).getByRole('img', {
+      name: 'Solving thinking animation preview',
+    }),
+  );
+  await user.click(
+    within(settings).getByRole('combobox', { name: 'Thinking animation' }),
+  );
+  assert.deepEqual(
+    within(document.body)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+    [
+      'Working',
+      'Searching',
+      'Solving',
+      'Listening',
+      'Connecting',
+      'Weaving',
+      'Composing',
+      'Breathing',
+      'Shaping',
+    ],
+  );
+  await user.click(
+    within(document.body).getByRole('option', { name: 'Searching' }),
+  );
   await user.click(within(settings).getByRole('button', { name: 'Reload' }));
   await user.click(within(settings).getByRole('button', { name: 'Manage' }));
   await user.click(
@@ -59,6 +89,7 @@ test('settings apply appearance and tool actions immediately', async () => {
 
   assert.deepEqual(themeChanges, [false]);
   assert.deepEqual(debugHudChanges, [true]);
+  assert.deepEqual(thinkingOrbChanges, ['searching']);
   assert.equal(reloadCount, 1);
   assert.equal(openPluginsCount, 1);
   assert.equal(closeCount, 1);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ThinkingOrb } from 'thinking-orbs';
 
 import { AgentSidebar } from '@/components/agent-sidebar';
 import { DebugHud } from '@/components/debug-hud';
@@ -22,6 +23,7 @@ import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
 import { createPluginHost } from '@/packages/plugin-host';
 import type { ErnieUiSidebarRequest } from '@/packages/ernie-ui-control/sidebar-control';
+import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 const disabledPluginsStorageKey = 'ernie:disabled-plugins:v1';
 
@@ -57,7 +59,9 @@ type ErnieShellProps = {
   onDarkModeEnabledChange: (enabled: boolean) => void;
   onDebugHudEnabledChange: (enabled: boolean) => void;
   onReload: () => void;
+  onThinkingOrbStateChange: (state: ThinkingOrbState) => void;
   sidebarControlRequest: ErnieUiSidebarRequest | null;
+  thinkingOrbState: ThinkingOrbState;
 };
 
 function SidebarControlBridge({
@@ -88,7 +92,9 @@ export function ErnieShell({
   onDarkModeEnabledChange,
   onDebugHudEnabledChange,
   onReload,
+  onThinkingOrbStateChange,
   sidebarControlRequest,
+  thinkingOrbState,
 }: ErnieShellProps): React.JSX.Element {
   const workspace = usePrimeAgentWorkspace();
   const pluginHost = useMemo(() => {
@@ -249,6 +255,7 @@ export function ErnieShell({
                 workspace.selectSession(activeSessionId);
               }}
               settingsOpen={settingsOpen}
+              thinkingOrbState={thinkingOrbState}
               startAgentDraft={(cwd) => {
                 setSettingsOpen(false);
                 workspace.startAgentDraft(cwd);
@@ -283,8 +290,18 @@ export function ErnieShell({
                 )}
                 {settingsOpen || !agentsActive || sessionStatus === null ? null : (
                   <span
-                    className={`text-xs font-medium ${sessionStatus === 'done' ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
+                    className={`inline-flex items-center gap-1 text-xs font-medium ${sessionStatus === 'done' ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
                   >
+                    {sessionStatus === 'done' ? null : (
+                      <ThinkingOrb
+                        aria-hidden="true"
+                        className="shrink-0"
+                        data-thinking-orb-state={thinkingOrbState}
+                        size={20}
+                        state={thinkingOrbState}
+                        theme="auto"
+                      />
+                    )}
                     {sessionStatus}
                   </span>
                 )}
@@ -306,6 +323,8 @@ export function ErnieShell({
                   onDebugHudEnabledChange={onDebugHudEnabledChange}
                   onOpenPlugins={() => setPluginManagerOpen(true)}
                   onReload={onReload}
+                  onThinkingOrbStateChange={onThinkingOrbStateChange}
+                  thinkingOrbState={thinkingOrbState}
                 />
               </div>
             ) : (

@@ -25,9 +25,10 @@ import {
 } from './control-client.js';
 import {
   parseActiveSessionId,
-  parseCreatedSessionData,
   parseAvailableModelsData,
-  parseModelData,
+  parseConfigurationData,
+  parseCreatedSessionData,
+  parseModelCatalogScope,
   parseModelSelection,
   parseRefinementRequest,
   parseRlmDepthData,
@@ -39,6 +40,7 @@ import {
   parseSessionListData,
   parseSkillResourceCatalogData,
   parseTaskSubmission,
+  parseThinkingLevelSelection,
 } from './protocol.js';
 import { createPrimeAgentSessionFeed } from './session-feed.js';
 import { createPrimeAgentWorkspaceFeed } from './workspace-feed.js';
@@ -145,6 +147,7 @@ export function createPrimeAgentDaemon(
       'live-sessions',
       'saved-sessions',
       'models',
+      'thinking-level',
       'skills',
       'rlm-depth',
       'refinement',
@@ -308,8 +311,10 @@ export function createPrimeAgentDaemon(
     });
 
   const listModels = Effect.fn('PrimeAgentDaemon.listModels')(
-    (activeSessionId: JsonValue) => {
-      if (activeSessionId === null) {
+    (rawScope: JsonValue) => {
+      const scope = parseModelCatalogScope(rawScope);
+      if (!scope.ok) return Effect.succeed(scope);
+      if (scope.value.kind === 'draft') {
         return Effect.tryPromise(() =>
           standaloneModelRegistry.refreshAvailableModels(),
         ).pipe(
@@ -319,6 +324,12 @@ export function createPrimeAgentDaemon(
                 id: model.id,
                 name: model.name,
                 provider: model.provider,
+                reasoning: model.reasoning,
+                thinkingLevelMap: Object.fromEntries(
+                  Object.entries(model.thinkingLevelMap ?? {}).filter(
+                    (entry) => entry[1] !== undefined,
+                  ),
+                ),
               })),
             }),
           ),
@@ -336,15 +347,13 @@ export function createPrimeAgentDaemon(
           ),
         );
       }
-      const parsedSessionId = parseActiveSessionId(activeSessionId);
-      if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
-
+      const activeSessionId = scope.value.activeSessionId;
       return withClient((client) =>
         Effect.tryPromise(() =>
           client.request(
             {
               type: 'get_available_models',
-              activeSessionId: parsedSessionId.value,
+              activeSessionId,
             },
             requestTimeoutMs,
           ),
@@ -354,6 +363,33 @@ export function createPrimeAgentDaemon(
             response.ok ? parseAvailableModelsData(response.value) : response,
           ),
         ),
+      );
+    },
+  );
+
+  function readConfiguration(
+    client: PrimeAgentControlTransport,
+    activeSessionId: string,
+  ) {
+    return Effect.tryPromise(() =>
+      client.request(
+        { type: 'get_connection_state', activeSessionId },
+        requestTimeoutMs,
+      ),
+    ).pipe(
+      Effect.map(responseData),
+      Effect.map((response) =>
+        response.ok ? parseConfigurationData(response.value) : response,
+      ),
+    );
+  }
+
+  const getConfiguration = Effect.fn('PrimeAgentDaemon.getConfiguration')(
+    (activeSessionId: JsonValue) => {
+      const parsedSessionId = parseActiveSessionId(activeSessionId);
+      if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
+      return withClient((client) =>
+        readConfiguration(client, parsedSessionId.value),
       );
     },
   );
@@ -629,22 +665,57 @@ export function createPrimeAgentDaemon(
       if (!parsedSelection.ok) return Effect.succeed(parsedSelection);
 
       return withClient((client) =>
-        Effect.tryPromise(() =>
-          client.request(
-            {
-              type: 'set_model',
-              activeSessionId: parsedSelection.value.activeSessionId,
-              provider: parsedSelection.value.provider,
-              modelId: parsedSelection.value.modelId,
-            },
-            requestTimeoutMs,
-          ),
-        ).pipe(
-          Effect.map(responseData),
-          Effect.map((response) =>
-            response.ok ? parseModelData(response.value) : response,
-          ),
-        ),
+        Effect.gen(function* () {
+          const response = responseData(
+            yield* Effect.tryPromise(() =>
+              client.request(
+                {
+                  type: 'set_model',
+                  activeSessionId: parsedSelection.value.activeSessionId,
+                  provider: parsedSelection.value.provider,
+                  modelId: parsedSelection.value.modelId,
+                },
+                requestTimeoutMs,
+              ),
+            ),
+          );
+          return response.ok
+            ? yield* readConfiguration(
+                client,
+                parsedSelection.value.activeSessionId,
+              )
+            : response;
+        }),
+      );
+    },
+  );
+
+  const setThinkingLevel = Effect.fn('PrimeAgentDaemon.setThinkingLevel')(
+    (selection: JsonValue) => {
+      const parsedSelection = parseThinkingLevelSelection(selection);
+      if (!parsedSelection.ok) return Effect.succeed(parsedSelection);
+
+      return withClient((client) =>
+        Effect.gen(function* () {
+          const response = responseData(
+            yield* Effect.tryPromise(() =>
+              client.request(
+                {
+                  type: 'set_thinking_level',
+                  activeSessionId: parsedSelection.value.activeSessionId,
+                  level: parsedSelection.value.thinkingLevel,
+                },
+                requestTimeoutMs,
+              ),
+            ),
+          );
+          return response.ok
+            ? yield* readConfiguration(
+                client,
+                parsedSelection.value.activeSessionId,
+              )
+            : response;
+        }),
       );
     },
   );
@@ -762,6 +833,7 @@ export function createPrimeAgentDaemon(
     descriptor,
     listWorkspace,
     listModels,
+    getConfiguration,
     listSkills,
     sessionFeed,
     listSavedSessions,
@@ -769,6 +841,7 @@ export function createPrimeAgentDaemon(
     importSession,
     renameSession,
     setModel,
+    setThinkingLevel,
     getRlmDepth,
     setRlmDepth,
     submitTask,

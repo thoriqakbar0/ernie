@@ -1,4 +1,4 @@
-import { Effect, Fiber } from 'effect';
+import { Effect, Fiber, Predicate } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createAgentSessionViewCache } from '@/packages/ernie-daemon/session-view-cache';
@@ -9,7 +9,7 @@ import {
   type PrimeAgentGitWorkspace,
 } from '@/packages/prime-agent-daemon/git-client';
 import {
-  parsePrimeAgentModelResult,
+  parsePrimeAgentConfigurationResult,
   parsePrimeAgentModelsResult,
   parsePrimeAgentRlmDepthResult,
   parsePrimeAgentSavedSessionsResult,
@@ -18,12 +18,14 @@ import {
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
+  type PrimeAgentConfiguration,
   type PrimeAgentModel,
   type PrimeAgentSavedSession,
   type PrimeAgentSession,
   type PrimeAgentSessionView,
   type PrimeAgentSessionRename,
   type PrimeAgentSkill,
+  type PrimeAgentThinkingLevel,
   type PrimeAgentWorkspace,
 } from '@/packages/prime-agent-daemon/client';
 import {
@@ -87,6 +89,7 @@ export interface PrimeAgentWorkspaceController {
   readonly rlmMaxDepthBusy: boolean;
   readonly selectedCwd: string | null;
   readonly selectedModelKey: string | null;
+  readonly selectedThinkingLevel: PrimeAgentThinkingLevel | null;
   readonly selectedAgentIdentity: PrimeAgentSelectedIdentity | null;
   readonly selectedSessionId: string | null;
   readonly selectedSessionView: PrimeAgentSessionView | null;
@@ -95,6 +98,8 @@ export interface PrimeAgentWorkspaceController {
   readonly sessions: readonly PrimeAgentSession[];
   readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
+  readonly thinkingLevelBusy: boolean;
+  readonly thinkingLevels: readonly PrimeAgentThinkingLevel[];
   readonly changeFolder: (cwd: string | null) => void;
   readonly startAgentDraft: (cwd: string) => void;
   readonly createAgentWithTask: (
@@ -119,6 +124,7 @@ export interface PrimeAgentWorkspaceController {
   readonly initializeGitRepository: () => void;
   readonly createGitWorktree: (branchName: string) => void;
   readonly changeModel: (modelKey: string | null) => void;
+  readonly changeThinkingLevel: (thinkingLevel: string | null) => void;
   readonly changeRlmMaxDepth: (maxDepth: string | null) => void;
   readonly changeSelectedSessionRlmMaxDepth: (
     maxDepth: string | null,
@@ -126,6 +132,7 @@ export interface PrimeAgentWorkspaceController {
 }
 
 const defaultRlmMaxDepth = 1;
+const defaultThinkingLevel = 'medium' satisfies PrimeAgentThinkingLevel;
 const maximumRlmMaxDepth = 20;
 const rlmMaxDepthStorageKey = 'ernie:rlm-max-depth:v1';
 
@@ -182,6 +189,32 @@ function newestSession(
   return sessions.find((session) => session.cwd === cwd) ?? null;
 }
 
+function clampThinkingLevel(
+  requested: PrimeAgentThinkingLevel,
+  available: readonly PrimeAgentThinkingLevel[],
+): PrimeAgentThinkingLevel | null {
+  if (available.includes(requested)) return requested;
+  const levels = [
+    'off',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+  ] as const satisfies readonly PrimeAgentThinkingLevel[];
+  const requestedIndex = levels.indexOf(requested);
+  for (let index = requestedIndex + 1; index < levels.length; index += 1) {
+    const candidate = levels[index];
+    if (candidate !== undefined && available.includes(candidate)) return candidate;
+  }
+  for (let index = requestedIndex - 1; index >= 0; index -= 1) {
+    const candidate = levels[index];
+    if (candidate !== undefined && available.includes(candidate)) return candidate;
+  }
+  return null;
+}
+
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
 export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
@@ -196,6 +229,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     useState<PrimeAgentSessionFeedState | null>(null);
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
   const [newAgentModelKey, setNewAgentModelKey] = useState<string | null>(null);
+  const [newAgentThinkingLevel, setNewAgentThinkingLevel] =
+    useState<PrimeAgentThinkingLevel>(defaultThinkingLevel);
+  const [sessionConfiguration, setSessionConfiguration] =
+    useState<PrimeAgentConfiguration | null>(null);
   const [skills, setSkills] = useState<readonly PrimeAgentSkill[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
   const [gitBranches, setGitBranches] = useState<readonly string[]>([]);
@@ -215,6 +252,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [loadingSession, setLoadingSession] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [savingThinkingLevel, setSavingThinkingLevel] = useState(false);
   const [savingSessionRlmMaxDepth, setSavingSessionRlmMaxDepth] =
     useState(false);
   const [gitBranchBusy, setGitBranchBusy] = useState(false);
@@ -436,35 +474,39 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     };
   }, [selectedCwd]);
 
-  const sessionControlsSessionId =
-    selectedSessionId ??
-    workspace?.sessions.find((session) => session.cwd === selectedCwd)
-      ?.activeSessionId ??
-    workspace?.sessions[0]?.activeSessionId ??
-    null;
-
   useEffect(() => {
     if (selectedSessionId === null) {
       updateSelectedSessionFeed(() => null);
     }
 
-    const activeSessionId = sessionControlsSessionId;
+    const activeSessionId = selectedSessionId;
     let active = true;
     const loadSessionControls = Effect.fn('Workspace.loadSessionControls')(
       function* () {
         yield* Effect.sync(() => setLoadingSession(true));
+        const modelScope =
+          activeSessionId === null
+            ? ({ kind: 'draft' } as const)
+            : ({ kind: 'session', activeSessionId } as const);
         const loadSkills =
           activeSessionId === null
             ? Effect.succeed({ ok: true, value: [] })
             : Effect.tryPromise(() =>
                 window.ernie.listAgentSkills(activeSessionId),
               );
-        const [rawModels, rawSkills] = yield* Effect.all(
+        const loadConfiguration =
+          activeSessionId === null
+            ? Effect.succeed(null)
+            : Effect.tryPromise(() =>
+                window.ernie.getAgentConfiguration(activeSessionId),
+              );
+        const [rawModels, rawSkills, rawConfiguration] = yield* Effect.all(
           [
             Effect.tryPromise(() =>
-              window.ernie.listAgentModels(activeSessionId),
+              window.ernie.listAgentModels(modelScope),
             ),
             loadSkills,
+            loadConfiguration,
           ],
           { concurrency: 'unbounded' },
         );
@@ -472,11 +514,28 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
         const modelResult = parsePrimeAgentModelsResult(rawModels);
         const skillsResult = parsePrimeAgentSkillsResult(rawSkills);
+        const configurationResult =
+          rawConfiguration === null
+            ? null
+            : parsePrimeAgentConfigurationResult(rawConfiguration);
         yield* Effect.sync(() => {
           setModels(modelResult.ok ? modelResult.value : []);
+          if (activeSessionId === null && modelResult.ok) {
+            setNewAgentModelKey((current) =>
+              modelResult.value.some((model) => model.key === current)
+                ? current
+                : (modelResult.value[0]?.key ?? null),
+            );
+          }
           setSkills(skillsResult.ok ? skillsResult.value : []);
+          setSessionConfiguration(
+            configurationResult?.ok ? configurationResult.value : null,
+          );
           if (!modelResult.ok) setStatus(modelResult.error.message);
           else if (!skillsResult.ok) setStatus(skillsResult.error.message);
+          else if (configurationResult !== null && !configurationResult.ok) {
+            setStatus(configurationResult.error.message);
+          }
           else setStatus('Connected to Prime Agent.');
         });
       },
@@ -488,6 +547,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             if (!active) return;
             setModels([]);
             setSkills([]);
+            setSessionConfiguration(null);
             setStatus('The Prime Agent daemon is not available.');
           }),
         ),
@@ -503,7 +563,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [selectedSessionId, sessionControlsSessionId, updateSelectedSessionFeed]);
+  }, [selectedSessionId, updateSelectedSessionFeed]);
 
   useEffect(() => {
     cancelEarlierHistoryLoad();
@@ -694,11 +754,22 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
               selectedSessionView?.sessionName ??
               'Untitled Agent',
           };
+  const newAgentModel =
+    models.find((model) => model.key === newAgentModelKey) ?? null;
   const selectedModelKey =
-    selectedSession === null
-      ? (models.find((model) => model.key === newAgentModelKey)?.key ?? null)
-      : (models.find((model) => model.key === selectedSession.model?.key)?.key ??
-        null);
+    selectedSessionId === null
+      ? newAgentModel?.key ?? null
+      : (models.find(
+          (model) => model.key === sessionConfiguration?.model.key,
+        )?.key ?? null);
+  const thinkingLevels =
+    selectedSessionId === null
+      ? (newAgentModel?.thinkingLevels ?? [])
+      : (sessionConfiguration?.availableThinkingLevels ?? []);
+  const selectedThinkingLevel =
+    selectedSessionId === null
+      ? clampThinkingLevel(newAgentThinkingLevel, thinkingLevels)
+      : (sessionConfiguration?.thinkingLevel ?? null);
 
   function requestAgentSession(cwd: string) {
     return Effect.tryPromise(() =>
@@ -711,10 +782,17 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const daemonSession = current?.sessions.find(
         (candidate) => candidate.activeSessionId === session.activeSessionId,
       );
+      const connectedSession =
+        daemonSession === undefined
+          ? session
+          : {
+              ...daemonSession,
+              model: session.model ?? daemonSession.model,
+            };
       return {
         currentCwd: current?.currentCwd ?? session.cwd,
         sessions: [
-          daemonSession ?? session,
+          connectedSession,
           ...(current?.sessions.filter(
             (candidate) =>
               candidate.activeSessionId !== session.activeSessionId,
@@ -730,6 +808,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (cwd === null) return;
     setSelectedCwd(cwd);
     setSelectedSessionId(null);
+    setSessionConfiguration(null);
     setGitWorktreeError(null);
     setStatus('New Agent workspace selected.');
   }
@@ -737,6 +816,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   function startAgentDraft(cwd: string): void {
     setSelectedCwd(cwd);
     setSelectedSessionId(null);
+    setSessionConfiguration(null);
     setGitWorktreeError(null);
     setStatus('New Agent draft ready. Send its first task to start it.');
   }
@@ -755,8 +835,21 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         message: 'A new Agent is already starting.',
       });
     }
-    const requestedModel =
-      models.find((model) => model.key === newAgentModelKey) ?? null;
+    const requestedModel = newAgentModel;
+    const requestedThinkingLevel = selectedThinkingLevel;
+    let recoverableSession: PrimeAgentSession | null = null;
+    let appliedConfiguration: PrimeAgentConfiguration | null = null;
+    let unexpectedFailureMessage = 'Ernie could not create a new Agent.';
+
+    function rejectCreatedSession(
+      session: PrimeAgentSession,
+      failureMessage: string,
+    ): CreateAgentWithTaskResult {
+      connectAgentSession(session);
+      setSessionConfiguration(appliedConfiguration);
+      setStatus(failureMessage);
+      return { ok: false, message: failureMessage };
+    }
 
     const create = Effect.fn('Workspace.createAgentWithTask')(function* () {
       yield* Effect.sync(() => {
@@ -772,7 +865,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       }
 
       let createdSession = result.value;
+      recoverableSession = createdSession;
       if (requestedModel !== null) {
+        unexpectedFailureMessage =
+          'Ernie created the Agent, but could not set its model.';
         const rawModelResult = yield* Effect.tryPromise(() =>
           window.ernie.setAgentModel({
             activeSessionId: createdSession.activeSessionId,
@@ -780,20 +876,43 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
             modelId: requestedModel.id,
           }),
         );
-        const modelResult = parsePrimeAgentModelResult(rawModelResult);
+        const modelResult = parsePrimeAgentConfigurationResult(rawModelResult);
         if (!modelResult.ok) {
-          return yield* Effect.sync(() => {
-            connectAgentSession(createdSession);
-            setStatus(modelResult.error.message);
-            return {
-              ok: false as const,
-              message: modelResult.error.message,
-            };
-          });
+          return yield* Effect.sync(() =>
+            rejectCreatedSession(createdSession, modelResult.error.message),
+          );
         }
-        createdSession = { ...createdSession, model: modelResult.value };
+        appliedConfiguration = modelResult.value;
+        createdSession = { ...createdSession, model: modelResult.value.model };
+        recoverableSession = createdSession;
       }
 
+      if (requestedThinkingLevel !== null) {
+        unexpectedFailureMessage =
+          'Ernie created the Agent, but could not set its reasoning effort.';
+        const rawThinkingResult = yield* Effect.tryPromise(() =>
+          window.ernie.setAgentThinkingLevel({
+            activeSessionId: createdSession.activeSessionId,
+            thinkingLevel: requestedThinkingLevel,
+          }),
+        );
+        const thinkingResult =
+          parsePrimeAgentConfigurationResult(rawThinkingResult);
+        if (!thinkingResult.ok) {
+          return yield* Effect.sync(() =>
+            rejectCreatedSession(createdSession, thinkingResult.error.message),
+          );
+        }
+        appliedConfiguration = thinkingResult.value;
+        createdSession = {
+          ...createdSession,
+          model: thinkingResult.value.model,
+        };
+        recoverableSession = createdSession;
+      }
+
+      unexpectedFailureMessage =
+        'Ernie created the Agent, but could not send its first task.';
       const rawTaskResult = yield* Effect.tryPromise(() =>
         window.ernie.submitAgentTask({
           activeSessionId: createdSession.activeSessionId,
@@ -803,6 +922,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       const taskResult = parsePrimeAgentTaskReceiptResult(rawTaskResult);
 
       return yield* Effect.sync(() => {
+        setSessionConfiguration(appliedConfiguration);
         connectAgentSession(
           taskResult.ok
             ? {
@@ -824,11 +944,22 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     return Effect.runPromise(
       create().pipe(
-        Effect.catch(() =>
+        Effect.catch((cause) =>
           Effect.sync(() => {
-            const message = 'Ernie could not create a new Agent.';
-            setStatus(message);
-            return { ok: false as const, message };
+            console.error('New Agent setup failed.', {
+              name: Predicate.isError(cause) ? cause.name : 'NonError',
+            });
+            if (recoverableSession !== null) {
+              return rejectCreatedSession(
+                recoverableSession,
+                unexpectedFailureMessage,
+              );
+            }
+            setStatus(unexpectedFailureMessage);
+            return {
+              ok: false as const,
+              message: unexpectedFailureMessage,
+            };
           }),
         ),
         Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
@@ -1037,6 +1168,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
     setSelectedCwd(session.cwd);
     setSelectedSessionId(session.activeSessionId);
+    setSessionConfiguration(null);
     setGitWorktreeError(null);
     setStatus('Connected to Prime Agent.');
   }
@@ -1044,6 +1176,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   function openSpawnedSession(target: PrimeAgentSpawnedSessionTarget): void {
     setSelectedSpawnedSession(target);
     setSelectedSessionId(target.activeSessionId);
+    setSessionConfiguration(null);
     setStatus('Opened spawned Agent conversation.');
   }
 
@@ -1109,13 +1242,16 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (modelKey === null) return;
     const model = models.find((candidate) => candidate.key === modelKey);
     if (model === undefined) return;
-    if (selectedSession === null) {
+    if (selectedSessionId === null) {
       setNewAgentModelKey(model.key);
+      setNewAgentThinkingLevel((current) =>
+        clampThinkingLevel(current, model.thinkingLevels) ?? defaultThinkingLevel,
+      );
       setStatus(`Model set to ${model.name} for the next Agent.`);
       return;
     }
 
-    const activeSessionId = selectedSession.activeSessionId;
+    const activeSessionId = selectedSessionId;
     const provider = model.provider;
     const modelId = model.id;
 
@@ -1128,13 +1264,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           modelId,
         }),
       );
-      const result = parsePrimeAgentModelResult(rawResult);
+      const result = parsePrimeAgentConfigurationResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
       }
 
       yield* Effect.sync(() => {
+        setSessionConfiguration(result.value);
         setWorkspace((current) =>
           current === null
             ? null
@@ -1142,12 +1279,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
                 ...current,
                 sessions: current.sessions.map((session) =>
                   session.activeSessionId === activeSessionId
-                    ? { ...session, model: result.value }
+                    ? { ...session, model: result.value.model }
                     : session,
                 ),
               },
         );
-        setStatus(`Model changed to ${result.value.name}.`);
+        setStatus(`Model changed to ${result.value.model.name}.`);
       });
     });
 
@@ -1161,7 +1298,56 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         Effect.ensuring(Effect.sync(() => setSavingModel(false))),
       ),
     );
-  }, [models, selectedSession]);
+  }, [models, selectedSessionId]);
+
+  const changeThinkingLevel = useCallback(function changeThinkingLevel(
+    value: string | null,
+  ): void {
+    const thinkingLevel = thinkingLevels.find((level) => level === value);
+    if (thinkingLevel === undefined) return;
+    if (selectedSessionId === null) {
+      setNewAgentThinkingLevel(thinkingLevel);
+      setStatus(
+        `Reasoning effort set to ${thinkingLevel} for the next Agent.`,
+      );
+      return;
+    }
+
+    const activeSessionId = selectedSessionId;
+    const updateThinkingLevel = Effect.fn(
+      'Workspace.updateThinkingLevel',
+    )(function* () {
+      yield* Effect.sync(() => setSavingThinkingLevel(true));
+      const rawResult = yield* Effect.tryPromise(() =>
+        window.ernie.setAgentThinkingLevel({
+          activeSessionId,
+          thinkingLevel,
+        }),
+      );
+      const result = parsePrimeAgentConfigurationResult(rawResult);
+      if (!result.ok) {
+        yield* Effect.sync(() => setStatus(result.error.message));
+        return;
+      }
+      yield* Effect.sync(() => {
+        setSessionConfiguration(result.value);
+        setStatus(
+          `Reasoning effort changed to ${result.value.thinkingLevel}.`,
+        );
+      });
+    });
+
+    Effect.runFork(
+      updateThinkingLevel().pipe(
+        Effect.catch(() =>
+          Effect.sync(() =>
+            setStatus('The Prime Agent daemon is not available.'),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setSavingThinkingLevel(false))),
+      ),
+    );
+  }, [selectedSessionId, thinkingLevels]);
 
   function changeGitBranch(name: string | null): void {
     if (name === null || selectedCwd === null || name === gitBranch) return;
@@ -1458,7 +1644,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     ],
   );
 
-  const modelBusy = loadingWorkspace || loadingSession || savingModel;
+  const modelBusy =
+    loadingWorkspace || loadingSession || savingModel || savingThinkingLevel;
+  const thinkingLevelBusy = modelBusy;
   const rlmMaxDepthBusy = loadingWorkspace;
   return {
     busy:
@@ -1490,6 +1678,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     rlmMaxDepthBusy,
     selectedCwd,
     selectedModelKey,
+    selectedThinkingLevel,
     selectedAgentIdentity,
     selectedSessionId,
     selectedSessionView,
@@ -1499,6 +1688,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     sessions: workspace?.sessions ?? [],
     savedSessions,
     status,
+    thinkingLevelBusy,
+    thinkingLevels,
     changeFolder,
     startAgentDraft,
     createAgentWithTask,
@@ -1515,6 +1706,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     initializeGitRepository,
     createGitWorktree,
     changeModel,
+    changeThinkingLevel,
     changeRlmMaxDepth,
     changeSelectedSessionRlmMaxDepth,
   };

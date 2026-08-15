@@ -51,25 +51,28 @@ const models = [
     key: 'openai:gpt-5.6',
     name: 'GPT-5.6',
     provider: 'openai',
+    thinkingLevels: ['off', 'low', 'medium', 'high'],
   },
 ] as const;
 
 const activeSessionDepthProps = {
-  changeRlmMaxDepth: () => undefined,
-  changeSelectedSessionRlmMaxDepth: () => undefined,
-  rlmMaxDepth: 1,
-  rlmMaxDepthBusy: false,
-  selectedSessionRlmMaxDepth: 5,
-  selectedSessionRlmMaxDepthBusy: false,
+  changeThinkingLevel: () => undefined,
+  depth: 5,
+  depthBusy: false,
+  onDepthChange: () => undefined,
+  selectedThinkingLevel: 'high',
+  thinkingLevelBusy: false,
+  thinkingLevels: ['low', 'medium', 'high'],
 } as const;
 
 const newSessionDepthProps = {
-  changeRlmMaxDepth: () => undefined,
-  changeSelectedSessionRlmMaxDepth: () => undefined,
-  rlmMaxDepth: 1,
-  rlmMaxDepthBusy: false,
-  selectedSessionRlmMaxDepth: null,
-  selectedSessionRlmMaxDepthBusy: false,
+  changeThinkingLevel: () => undefined,
+  depth: 1,
+  depthBusy: false,
+  onDepthChange: () => undefined,
+  selectedThinkingLevel: null,
+  thinkingLevelBusy: false,
+  thinkingLevels: [],
 } as const;
 
 afterEach(() => {
@@ -104,8 +107,13 @@ test('connected Agent keeps the composer free of placeholder actions', () => {
   const inputGroup = composer.closest('[data-slot="input-group"]');
   const model = within(document.body).getByRole('combobox', { name: 'Model' });
   const depth = within(document.body).getByRole('button', { name: 'Depth 5' });
+  const effort = within(document.body).getByRole('combobox', {
+    name: 'Effort',
+  });
   assert.ok(inputGroup?.contains(model));
+  assert.ok(inputGroup?.contains(effort));
   assert.ok(inputGroup?.contains(depth));
+  assert.equal(depth.textContent?.includes('Depth'), false);
 });
 
 test('connected Agent uses the compact quick composer', () => {

@@ -8,7 +8,9 @@ import type {
   PrimeAgentGitWorktree,
   PrimeAgentGitWorktreeCreation,
   PrimeAgentIpythonAttachment,
+  PrimeAgentConfiguration,
   PrimeAgentModel,
+  PrimeAgentModelCatalogScope,
   PrimeAgentModelSelection,
   PrimeAgentResult,
   PrimeAgentRefinementReceipt,
@@ -29,6 +31,8 @@ import type {
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
+  PrimeAgentThinkingLevel,
+  PrimeAgentThinkingLevelSelection,
   PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 } from '../types.js';
@@ -516,15 +520,90 @@ function modelKey(provider: string, id: string): string {
   return JSON.stringify([provider, id]);
 }
 
+const thinkingLevels = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const satisfies readonly PrimeAgentThinkingLevel[];
+
+function parseThinkingLevel(
+  value: JsonValue | undefined,
+): PrimeAgentThinkingLevel | null {
+  return thinkingLevels.find((level) => level === value) ?? null;
+}
+
+function parseThinkingLevels(
+  value: JsonValue | undefined,
+): readonly PrimeAgentThinkingLevel[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const parsed: PrimeAgentThinkingLevel[] = [];
+  for (const candidate of value) {
+    const level = parseThinkingLevel(candidate);
+    if (level === null) return null;
+    if (!parsed.includes(level)) parsed.push(level);
+  }
+  return parsed;
+}
+
+function modelThinkingLevels(
+  value: JsonRecord,
+): readonly PrimeAgentThinkingLevel[] | null {
+  if (value.thinkingLevels !== undefined) {
+    return parseThinkingLevels(value.thinkingLevels);
+  }
+  if (!isJsonBoolean(value.reasoning)) return null;
+  if (!value.reasoning) return ['off'];
+  if (
+    value.thinkingLevelMap !== undefined &&
+    !isJsonRecord(value.thinkingLevelMap)
+  ) {
+    return null;
+  }
+  const map = isJsonRecord(value.thinkingLevelMap)
+    ? value.thinkingLevelMap
+    : null;
+  if (
+    map !== null &&
+    Object.values(map).some(
+      (mapped) => mapped !== null && !isJsonString(mapped),
+    )
+  ) {
+    return null;
+  }
+  return thinkingLevels.filter((level) => {
+    const mapped = map?.[level];
+    if (mapped === null) return false;
+    return level !== 'xhigh' && level !== 'max' ? true : mapped !== undefined;
+  });
+}
+
 function parseModel(value: JsonValue | undefined): PrimeAgentModel | null {
   if (!isJsonRecord(value)) return null;
 
   const id = nonEmptyString(value.id);
   const name = nonEmptyString(value.name);
   const provider = nonEmptyString(value.provider);
-  if (id === null || name === null || provider === null) return null;
+  const availableThinkingLevels = modelThinkingLevels(value);
+  if (
+    id === null ||
+    name === null ||
+    provider === null ||
+    availableThinkingLevels === null
+  ) {
+    return null;
+  }
 
-  return { key: modelKey(provider, id), id, name, provider };
+  return {
+    key: modelKey(provider, id),
+    id,
+    name,
+    provider,
+    thinkingLevels: availableThinkingLevels,
+  };
 }
 
 function sessionName(value: JsonRecord): string {
@@ -931,6 +1010,61 @@ export function parseModelData(
     : { ok: true, value: model };
 }
 
+/** Parse the active model and reasoning effort returned by Prime Agent. */
+export function parseConfigurationData(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentConfiguration> {
+  if (!isJsonRecord(value)) {
+    return failure(
+      'protocol_error',
+      'Prime Agent returned invalid model configuration data.',
+    );
+  }
+  const thinkingLevel = parseThinkingLevel(value.thinkingLevel);
+  const availableThinkingLevels = parseThinkingLevels(
+    value.availableThinkingLevels,
+  );
+  const model =
+    availableThinkingLevels !== null && isJsonRecord(value.model)
+      ? parseModel({
+          ...value.model,
+          thinkingLevels: [...availableThinkingLevels],
+        })
+      : null;
+  if (
+    model === null ||
+    thinkingLevel === null ||
+    availableThinkingLevels === null ||
+    !availableThinkingLevels.includes(thinkingLevel)
+  ) {
+    return failure(
+      'protocol_error',
+      'Prime Agent returned invalid model configuration data.',
+    );
+  }
+  return {
+    ok: true,
+    value: { availableThinkingLevels, model, thinkingLevel },
+  };
+}
+
+/** Parse whether the renderer needs a draft or connected-session model catalog. */
+export function parseModelCatalogScope(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentModelCatalogScope> {
+  if (!isJsonRecord(value)) {
+    return failure('invalid_request', 'The model catalog scope is invalid.');
+  }
+  if (value.kind === 'draft') return { ok: true, value: { kind: 'draft' } };
+  if (value.kind !== 'session') {
+    return failure('invalid_request', 'The model catalog scope is invalid.');
+  }
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  return activeSessionId === null
+    ? failure('invalid_request', 'The model catalog scope is invalid.')
+    : { ok: true, value: { kind: 'session', activeSessionId } };
+}
+
 /** Parse a model selection received from the isolated renderer. */
 export function parseModelSelection(
   value: JsonValue,
@@ -947,6 +1081,20 @@ export function parseModelSelection(
   }
 
   return { ok: true, value: { activeSessionId, provider, modelId } };
+}
+
+/** Parse a reasoning-effort selection received from the isolated renderer. */
+export function parseThinkingLevelSelection(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentThinkingLevelSelection> {
+  if (!isJsonRecord(value)) {
+    return failure('invalid_request', 'The reasoning effort is invalid.');
+  }
+  const activeSessionId = nonEmptyString(value.activeSessionId);
+  const thinkingLevel = parseThinkingLevel(value.thinkingLevel);
+  return activeSessionId === null || thinkingLevel === null
+    ? failure('invalid_request', 'The reasoning effort is invalid.')
+    : { ok: true, value: { activeSessionId, thinkingLevel } };
 }
 
 /** Parse a session identifier received from the isolated renderer. */
@@ -1474,6 +1622,20 @@ export function parseModelResult(
   value: JsonValue,
 ): PrimeAgentResult<PrimeAgentModel> {
   return parseResult(value, parseModel);
+}
+
+function parseConfiguration(
+  value: JsonValue | undefined,
+): PrimeAgentConfiguration | null {
+  const result = parseConfigurationData(value ?? null);
+  return result.ok ? result.value : null;
+}
+
+/** Parse model configuration after it crosses the Electron IPC boundary. */
+export function parseConfigurationResult(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentConfiguration> {
+  return parseResult(value, parseConfiguration);
 }
 
 function parseRlmDepth(

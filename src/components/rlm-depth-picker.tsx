@@ -69,7 +69,6 @@ export const RlmDepthPicker = memo(function RlmDepthPicker({
           />
         }
       >
-        <span>Depth</span>
         <TextMorph
           as="span"
           ease={DEPTH_VALUE_MORPH.spring}

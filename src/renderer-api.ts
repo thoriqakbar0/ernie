@@ -2,6 +2,7 @@ import type {
   AgentGitBranchRename,
   AgentGitBranchSelection,
   AgentGitWorktreeCreation,
+  AgentModelCatalogScope,
   AgentModelSelection,
   AgentRlmDepthSelection,
   AgentRefinementRequest,
@@ -9,6 +10,7 @@ import type {
   AgentSessionHistoryRequest,
   AgentSessionRename,
   AgentTaskSubmission,
+  AgentThinkingLevelSelection,
 } from './packages/ernie-daemon/client.js';
 import type { BrowserPluginRendererApi } from './packages/browser-plugin/index.js';
 import type { JsonValue } from './packages/json-value/index.js';
@@ -55,8 +57,12 @@ export const primeAgentImportSessionChannel =
 export const primeAgentRenameSessionChannel =
   'ernie:prime-agent:rename-session';
 
-/** IPC channel that lists configured models for one Prime Agent session. */
+/** IPC channel that lists configured models for a draft or connected Agent. */
 export const primeAgentModelsChannel = 'ernie:prime-agent:models';
+
+/** IPC channel that reads one connected Agent's model and reasoning effort. */
+export const primeAgentConfigurationChannel =
+  'ernie:prime-agent:configuration';
 
 /** IPC channel that lists skills available to one Prime Agent session. */
 export const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
@@ -79,6 +85,10 @@ export const primeAgentSessionHistoryChannel =
 
 /** IPC channel that changes the model for one Prime Agent session. */
 export const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
+
+/** IPC channel that changes reasoning effort for one Prime Agent session. */
+export const primeAgentSetThinkingLevelChannel =
+  'ernie:prime-agent:set-thinking-level';
 
 /** IPC channel that reads RLM maximum depth for one Prime Agent session. */
 export const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
@@ -143,7 +153,10 @@ export type ErnieRendererApi = Readonly<{
   listAgentSavedSessions: () => Promise<JsonValue>;
   importAgentSession: (sessionPath: string) => Promise<JsonValue>;
   renameAgentSession: (rename: AgentSessionRename) => Promise<JsonValue>;
-  listAgentModels: (activeSessionId: string | null) => Promise<JsonValue>;
+  /** List usable models for a draft or connected Agent as a serialized result. */
+  listAgentModels: (scope: AgentModelCatalogScope) => Promise<JsonValue>;
+  /** Read a connected Agent's model configuration as a serialized result. */
+  getAgentConfiguration: (activeSessionId: string) => Promise<JsonValue>;
   listAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
   watchAgentSession: (
     activeSessionId: string,
@@ -154,7 +167,12 @@ export type ErnieRendererApi = Readonly<{
   loadAgentSessionHistory: (
     request: AgentSessionHistoryRequest,
   ) => Promise<JsonValue>;
+  /** Change a connected Agent's model and resolve its applied configuration. */
   setAgentModel: (selection: AgentModelSelection) => Promise<JsonValue>;
+  /** Change reasoning effort and resolve the connected Agent's applied configuration. */
+  setAgentThinkingLevel: (
+    selection: AgentThinkingLevelSelection,
+  ) => Promise<JsonValue>;
   getAgentRlmDepth: (activeSessionId: string) => Promise<JsonValue>;
   setAgentRlmDepth: (
     selection: AgentRlmDepthSelection,

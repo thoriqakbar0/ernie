@@ -7,6 +7,7 @@ import {
   windowAgentSessionFeed,
 } from './lib/session-window.js';
 import type {
+  AgentConfiguration,
   AgentModel,
   AgentRefinementReceipt,
   AgentResult,
@@ -27,6 +28,7 @@ export type AgentHarnessCapability =
   | 'live-sessions'
   | 'saved-sessions'
   | 'models'
+  | 'thinking-level'
   | 'skills'
   | 'rlm-depth'
   | 'refinement';
@@ -42,8 +44,11 @@ export interface AgentHarnessDescriptor {
 export interface AgentHarnessOperations {
   readonly listWorkspace: () => Effect.Effect<AgentResult<AgentWorkspace>>;
   readonly listModels: (
-    activeSessionId: JsonValue,
+    scope: JsonValue,
   ) => Effect.Effect<AgentResult<readonly AgentModel[]>>;
+  readonly getConfiguration: (
+    activeSessionId: JsonValue,
+  ) => Effect.Effect<AgentResult<AgentConfiguration>>;
   readonly listSkills: (
     activeSessionId: JsonValue,
   ) => Effect.Effect<AgentResult<readonly AgentSkill[]>>;
@@ -65,7 +70,10 @@ export interface AgentHarnessOperations {
   ) => Effect.Effect<AgentResult<AgentSessionRenameReceipt>>;
   readonly setModel: (
     selection: JsonValue,
-  ) => Effect.Effect<AgentResult<AgentModel>>;
+  ) => Effect.Effect<AgentResult<AgentConfiguration>>;
+  readonly setThinkingLevel: (
+    selection: JsonValue,
+  ) => Effect.Effect<AgentResult<AgentConfiguration>>;
   readonly getRlmDepth: (
     activeSessionId: JsonValue,
   ) => Effect.Effect<AgentResult<AgentRlmDepth>>;
@@ -299,6 +307,7 @@ export function createErnieDaemon(
       );
     },
     createSession: adapter.createSession,
+    getConfiguration: adapter.getConfiguration,
     getRlmDepth: adapter.getRlmDepth,
     importSession: adapter.importSession,
     listModels: adapter.listModels,
@@ -310,6 +319,7 @@ export function createErnieDaemon(
     renameSession: adapter.renameSession,
     sessionFeed,
     setModel: adapter.setModel,
+    setThinkingLevel: adapter.setThinkingLevel,
     setRlmDepth: adapter.setRlmDepth,
     submitTask: adapter.submitTask,
     workspaceFeed,

@@ -1,6 +1,7 @@
 import { ArrowUpIcon, SearchIcon } from 'lucide-react';
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { EffortPicker } from '@/components/effort-picker';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import {
   InputGroup,
@@ -28,41 +29,43 @@ type TaskComposerProps = Pick<
   PrimeAgentWorkspaceController,
   | 'modelBusy'
   | 'models'
-  | 'rlmMaxDepth'
-  | 'rlmMaxDepthBusy'
   | 'skills'
   | 'selectedCwd'
   | 'selectedModelKey'
   | 'selectedSessionId'
-  | 'selectedSessionRlmMaxDepth'
-  | 'selectedSessionRlmMaxDepthBusy'
+  | 'selectedThinkingLevel'
+  | 'thinkingLevelBusy'
+  | 'thinkingLevels'
   | 'changeModel'
-  | 'changeRlmMaxDepth'
-  | 'changeSelectedSessionRlmMaxDepth'
+  | 'changeThinkingLevel'
   | 'createAgentWithTask'
 > & {
+  readonly depth: number | null;
+  readonly depthBusy: boolean;
   readonly disabled?: boolean;
   readonly isGenerating?: boolean;
+  readonly onDepthChange: (depth: string | null) => void;
 };
 
 /** Compose and submit one task without rerendering workspace controls. */
 export const TaskComposer = memo(function TaskComposer({
   disabled = false,
+  depth,
+  depthBusy,
   isGenerating = false,
   modelBusy,
   models,
-  rlmMaxDepth,
-  rlmMaxDepthBusy,
   skills,
   selectedCwd,
   selectedModelKey,
   selectedSessionId,
-  selectedSessionRlmMaxDepth,
-  selectedSessionRlmMaxDepthBusy,
+  selectedThinkingLevel,
+  thinkingLevelBusy,
+  thinkingLevels,
   changeModel,
-  changeRlmMaxDepth,
-  changeSelectedSessionRlmMaxDepth,
+  changeThinkingLevel,
   createAgentWithTask,
+  onDepthChange,
 }: TaskComposerProps): React.JSX.Element {
   const task = usePrimeAgentTask(
     selectedSessionId,
@@ -84,17 +87,6 @@ export const TaskComposer = memo(function TaskComposer({
     [searchSkills, skillQueryKind, skillQueryTerm],
   );
   const skillsOpen = !skillsDismissed && skillQuery !== null;
-  const depth =
-    selectedSessionId === null ? rlmMaxDepth : selectedSessionRlmMaxDepth;
-  const depthBusy =
-    selectedSessionId === null
-      ? rlmMaxDepthBusy
-      : selectedSessionRlmMaxDepthBusy;
-  const changeDepth =
-    selectedSessionId === null
-      ? changeRlmMaxDepth
-      : changeSelectedSessionRlmMaxDepth;
-
   useEffect(() => {
     if (!skillsOpen || skillQueryKind !== 'deep-full-text') return;
     skillSearchRef.current?.focus();
@@ -383,11 +375,17 @@ export const TaskComposer = memo(function TaskComposer({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              <EffortPicker
+                busy={disabled || thinkingLevelBusy}
+                levels={thinkingLevels}
+                value={selectedThinkingLevel}
+                onLevelChange={changeThinkingLevel}
+              />
               <RlmDepthPicker
                 busy={disabled || depthBusy}
                 compact
                 depth={depth}
-                onDepthChange={changeDepth}
+                onDepthChange={onDepthChange}
               />
             </div>
             <InputGroupButton

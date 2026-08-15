@@ -41,8 +41,19 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   let sessionCreated = false;
   let liveDepth = 5;
   let modelCatalogRequests = 0;
+  let rejectNextModelChange = false;
+  const modelCatalogScopes: Array<
+    Parameters<ErnieRendererApi['listAgentModels']>[0]
+  > = [];
+  const skillCatalogRequests: string[] = [];
   let sessionFeedWatchCount = 0;
   const agentStartOperations: string[] = [];
+  const changedThinkingLevels: Array<{
+    activeSessionId: string;
+    thinkingLevel: string;
+  }> = [];
+  const configuredModels = new Map<string, string>();
+  const configuredThinkingLevels = new Map<string, string>();
   const changedModels: Array<{
     activeSessionId: string;
     modelId: string;
@@ -64,6 +75,22 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     activeSessionId: string;
     message: string;
   }> = [];
+  const modelConfiguration = (activeSessionId: string) => {
+    const modelId = configuredModels.get(activeSessionId) ?? 'gpt-5.6-sol';
+    const thinkingLevel =
+      configuredThinkingLevels.get(activeSessionId) ?? 'medium';
+    return {
+      availableThinkingLevels: ['off', 'low', 'medium', 'high'],
+      model: {
+        id: modelId,
+        key: JSON.stringify(['openai-codex', modelId]),
+        name: modelId === 'gpt-5.6-terra' ? 'GPT-5.6 Terra' : 'GPT-5.6 Sol',
+        provider: 'openai-codex',
+        thinkingLevels: ['off', 'low', 'medium', 'high'],
+      },
+      thinkingLevel,
+    };
+  };
   const user = userEvent.setup();
   const rendererApi: ErnieRendererApi = {
     signalReady: () => undefined,
@@ -183,8 +210,9 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     }),
     importAgentSession: async () => ({ ok: false }),
     renameAgentSession: async () => ({ ok: false }),
-    listAgentModels: async () => {
+    listAgentModels: async (scope) => {
       modelCatalogRequests += 1;
+      modelCatalogScopes.push(scope);
       return {
         ok: true,
         value: [
@@ -192,11 +220,25 @@ test('repository plus opens a draft and the first message creates the Prime Agen
             id: 'gpt-5.6-sol',
             name: 'GPT-5.6 Sol',
             provider: 'openai-codex',
+            reasoning: true,
+          },
+          {
+            id: 'gpt-5.6-terra',
+            name: 'GPT-5.6 Terra',
+            provider: 'openai-codex',
+            reasoning: true,
           },
         ],
       };
     },
-    listAgentSkills: async () => ({ ok: true, value: [] }),
+    getAgentConfiguration: async (activeSessionId) => ({
+      ok: true,
+      value: modelConfiguration(activeSessionId),
+    }),
+    listAgentSkills: async (activeSessionId) => {
+      skillCatalogRequests.push(activeSessionId);
+      return { ok: true, value: [] };
+    },
     watchAgentSession: (activeSessionId, listener) => {
       sessionFeedWatchCount += 1;
       const subscriptionId = `test-feed:${activeSessionId}`;
@@ -259,13 +301,26 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     setAgentModel: async (selection) => {
       agentStartOperations.push('model');
       changedModels.push(selection);
+      if (rejectNextModelChange) {
+        rejectNextModelChange = false;
+        throw new Error('Injected model update failure.');
+      }
+      configuredModels.set(selection.activeSessionId, selection.modelId);
       return {
         ok: true,
-        value: {
-          id: selection.modelId,
-          name: 'GPT-5.6 Sol',
-          provider: selection.provider,
-        },
+        value: modelConfiguration(selection.activeSessionId),
+      };
+    },
+    setAgentThinkingLevel: async (selection) => {
+      agentStartOperations.push('effort');
+      changedThinkingLevels.push(selection);
+      configuredThinkingLevels.set(
+        selection.activeSessionId,
+        selection.thinkingLevel,
+      );
+      return {
+        ok: true,
+        value: modelConfiguration(selection.activeSessionId),
       };
     },
     getAgentRlmDepth: async () => ({
@@ -470,6 +525,15 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   await user.click(
     within(document.body).getByRole('option', { name: 'GPT-5.6 Sol' }),
   );
+  const newAgentEffort = within(document.body).getByRole('combobox', {
+    name: 'Effort',
+  });
+  await user.click(newAgentEffort);
+  await user.click(
+    within(document.body).getByRole('option', { name: 'High' }),
+  );
+  assert.deepEqual(skillCatalogRequests, []);
+  assert.deepEqual(modelCatalogScopes, [{ kind: 'draft' }]);
   await user.click(
     within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),
   );
@@ -513,9 +577,13 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       provider: 'openai-codex',
     },
   ]);
-  assert.deepEqual(agentStartOperations.slice(0, 3), [
+  assert.deepEqual(changedThinkingLevels, [
+    { activeSessionId: 'blank-agent', thinkingLevel: 'high' },
+  ]);
+  assert.deepEqual(agentStartOperations.slice(0, 4), [
     'create',
     'model',
+    'effort',
     'task',
   ]);
   assert.equal(
@@ -756,6 +824,30 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       'The interaction pattern is ready.',
     ),
   );
+  const spawnedModel = within(document.body).getByRole('combobox', {
+    name: 'Model',
+  });
+  await waitFor(() =>
+    assert.equal(spawnedModel.hasAttribute('disabled'), false),
+  );
+  await user.click(spawnedModel);
+  await user.click(
+    within(document.body).getByRole('option', { name: 'GPT-5.6 Terra' }),
+  );
+  await waitFor(() =>
+    assert.deepEqual(changedModels.at(-1), {
+      activeSessionId: 'research-agent',
+      modelId: 'gpt-5.6-terra',
+      provider: 'openai-codex',
+    }),
+  );
+  assert.ok(
+    modelCatalogScopes.some(
+      (scope) =>
+        scope.kind === 'session' &&
+        scope.activeSessionId === 'research-agent',
+    ),
+  );
   await user.type(
     within(document.body).getByRole('textbox', {
       name: 'Give Ernie a task',
@@ -767,5 +859,30 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       activeSessionId: 'research-agent',
       message: 'Check the compact state',
     }),
+  );
+
+  const submittedTaskCount = submittedTasks.length;
+  rejectNextModelChange = true;
+  await user.click(
+    within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),
+  );
+  await user.type(
+    within(document.body).getByRole('textbox', {
+      name: 'Give Ernie a task',
+    }),
+    'Keep the created Agent connected{Enter}',
+  );
+  await waitFor(() => assert.equal(createdSessions.length, 2));
+  await waitFor(() =>
+    assert.equal(
+      within(document.body).queryByRole('region', {
+        name: 'New Agent settings',
+      }),
+      null,
+    ),
+  );
+  assert.equal(submittedTasks.length, submittedTaskCount);
+  assert.ok(
+    within(document.body).getByRole('heading', { name: 'Polish the sidebar' }),
   );
 });

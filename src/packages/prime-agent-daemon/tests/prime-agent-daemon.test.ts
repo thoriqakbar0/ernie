@@ -23,6 +23,7 @@ import {
   parsePrimeAgentGitWorktreeResult,
 } from '../git-client';
 import {
+  parsePrimeAgentConfigurationResult,
   parsePrimeAgentModelsResult,
   parsePrimeAgentRefinementReceiptResult,
   parsePrimeAgentRlmDepthResult,
@@ -271,6 +272,7 @@ test('owns the Prime Agent harness identity and capabilities', () => {
       'live-sessions',
       'saved-sessions',
       'models',
+      'thinking-level',
       'skills',
       'rlm-depth',
       'refinement',
@@ -388,9 +390,41 @@ testInTempDirectory(
       assert.deepEqual(coldResults, [expected, expected]);
       assert.deepEqual(warmResult, expected);
 
+      const draftModels = yield* daemon.listModels({ kind: 'draft' });
+      assert.equal(draftModels.ok, true, JSON.stringify(draftModels));
+      if (!draftModels.ok) return;
+      assert.ok(draftModels.value.length > 0);
+      assert.ok(
+        draftModels.value.every((model) => model.thinkingLevels.length > 0),
+      );
+
       const created = yield* daemon.createSession({ cwd, rlmMaxDepth: 3 });
       assert.equal(created.ok, true);
       if (!created.ok) return;
+
+      const initialConfiguration = yield* daemon.getConfiguration(
+        created.value.activeSessionId,
+      );
+      assert.equal(
+        initialConfiguration.ok,
+        true,
+        JSON.stringify(initialConfiguration),
+      );
+      if (!initialConfiguration.ok) return;
+      const requestedThinkingLevel =
+        initialConfiguration.value.availableThinkingLevels.at(-1);
+      assert.notEqual(requestedThinkingLevel, undefined);
+      if (requestedThinkingLevel === undefined) return;
+      const changedConfiguration = yield* daemon.setThinkingLevel({
+        activeSessionId: created.value.activeSessionId,
+        thinkingLevel: requestedThinkingLevel,
+      });
+      assert.equal(changedConfiguration.ok, true);
+      if (!changedConfiguration.ok) return;
+      assert.equal(
+        changedConfiguration.value.thinkingLevel,
+        requestedThinkingLevel,
+      );
 
       const agentRuntime = yield* Effect.tryPromise(async () => {
         const { DaemonAgentConnection, DaemonClient } = await import(
@@ -517,6 +551,7 @@ test('keeps active or connected top-level daemon sessions', () => {
           id: 'gpt-5.6-sol',
           name: 'GPT-5.6 Sol',
           provider: 'openai-codex',
+          reasoning: true,
         },
       },
       {
@@ -569,6 +604,7 @@ test('keeps active or connected top-level daemon sessions', () => {
           id: 'gpt-5.6-sol',
           name: 'GPT-5.6 Sol',
           provider: 'openai-codex',
+          thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
         },
         modifiedAt: '2026-08-10T10:00:00.000Z',
         sessionPath: '/sessions/root-active.jsonl',
@@ -697,9 +733,25 @@ test('projects truthful live activity from Prime Agent summaries', () => {
 test('keeps every model Prime Agent reports as available', () => {
   const result = parsePrimeAgentDaemonModels({
     models: [
-      { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'openai-codex' },
-      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', provider: 'openai-codex' },
-      { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' },
+      {
+        id: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        provider: 'openai-codex',
+        reasoning: true,
+        thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+      },
+      {
+        id: 'gpt-5.6-terra',
+        name: 'GPT-5.6 Terra',
+        provider: 'openai-codex',
+        reasoning: true,
+      },
+      {
+        id: 'claude-opus',
+        name: 'Claude Opus',
+        provider: 'anthropic',
+        reasoning: false,
+      },
     ],
   });
 
@@ -711,20 +763,53 @@ test('keeps every model Prime Agent reports as available', () => {
         id: 'gpt-5.6-sol',
         name: 'GPT-5.6 Sol',
         provider: 'openai-codex',
+        thinkingLevels: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
       },
       {
         key: '["openai-codex","gpt-5.6-terra"]',
         id: 'gpt-5.6-terra',
         name: 'GPT-5.6 Terra',
         provider: 'openai-codex',
+        thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
       },
       {
         key: '["anthropic","claude-opus"]',
         id: 'claude-opus',
         name: 'Claude Opus',
         provider: 'anthropic',
+        thinkingLevels: ['off'],
       },
     ],
+  });
+});
+
+test('parses the active model and reasoning effort after IPC', () => {
+  const result = parsePrimeAgentConfigurationResult({
+    ok: true,
+    value: {
+      availableThinkingLevels: ['low', 'medium', 'high'],
+      model: {
+        id: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        provider: 'openai-codex',
+      },
+      thinkingLevel: 'high',
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      availableThinkingLevels: ['low', 'medium', 'high'],
+      model: {
+        key: '["openai-codex","gpt-5.6-sol"]',
+        id: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        provider: 'openai-codex',
+        thinkingLevels: ['low', 'medium', 'high'],
+      },
+      thinkingLevel: 'high',
+    },
   });
 });
 
@@ -958,18 +1043,21 @@ test('orders GPT models from the largest version first in the renderer', () => {
         id: 'claude-opus',
         name: 'Claude Opus',
         provider: 'anthropic',
+        thinkingLevels: ['off'],
       },
       {
         key: 'gpt-5.4',
         id: 'gpt-5.4',
         name: 'GPT-5.4',
         provider: 'openai-codex',
+        thinkingLevels: ['low', 'medium', 'high'],
       },
       {
         key: 'gpt-5.6',
         id: 'gpt-5.6',
         name: 'GPT-5.6 Sol',
         provider: 'openai-codex',
+        thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
       },
     ],
   });

@@ -114,25 +114,34 @@ export function TaskSurface({
               workspace.selectedSessionId ?? 'new'
             }`}
             modelBusy={workspace.modelBusy}
+            depth={
+              workspace.selectedSessionId === null
+                ? workspace.rlmMaxDepth
+                : workspace.selectedSessionRlmMaxDepth
+            }
+            depthBusy={
+              workspace.selectedSessionId === null
+                ? workspace.rlmMaxDepthBusy
+                : workspace.selectedSessionRlmMaxDepthBusy
+            }
             isGenerating={selectedSessionView?.isStreaming ?? false}
             models={workspace.models}
             skills={workspace.skills}
             selectedCwd={workspace.selectedCwd}
             selectedModelKey={workspace.selectedModelKey}
             selectedSessionId={workspace.selectedSessionId}
-            selectedSessionRlmMaxDepth={workspace.selectedSessionRlmMaxDepth}
-            selectedSessionRlmMaxDepthBusy={
-              workspace.selectedSessionRlmMaxDepthBusy
-            }
-            rlmMaxDepth={workspace.rlmMaxDepth}
-            rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
+            selectedThinkingLevel={workspace.selectedThinkingLevel}
+            thinkingLevelBusy={workspace.thinkingLevelBusy}
+            thinkingLevels={workspace.thinkingLevels}
             disabled={agentUnavailable}
             changeModel={workspace.changeModel}
-            changeRlmMaxDepth={workspace.changeRlmMaxDepth}
-            changeSelectedSessionRlmMaxDepth={
-              workspace.changeSelectedSessionRlmMaxDepth
-            }
+            changeThinkingLevel={workspace.changeThinkingLevel}
             createAgentWithTask={workspace.createAgentWithTask}
+            onDepthChange={
+              workspace.selectedSessionId === null
+                ? workspace.changeRlmMaxDepth
+                : workspace.changeSelectedSessionRlmMaxDepth
+            }
           />
         </div>
 

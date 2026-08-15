@@ -96,7 +96,7 @@ function renderTaskComposer(): void {
   );
 }
 
-test('connected Agent keeps the composer free of placeholder actions', () => {
+test('connected Agent keeps explicit controls inside the composer', () => {
   renderTaskComposer();
 
   assert.equal(
@@ -113,7 +113,7 @@ test('connected Agent keeps the composer free of placeholder actions', () => {
   assert.ok(inputGroup?.contains(model));
   assert.ok(inputGroup?.contains(effort));
   assert.ok(inputGroup?.contains(depth));
-  assert.equal(depth.textContent?.includes('Depth'), false);
+  assert.equal(depth.textContent?.includes('Depth'), true);
 });
 
 test('connected Agent uses the compact quick composer', () => {

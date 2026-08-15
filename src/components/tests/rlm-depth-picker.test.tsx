@@ -218,6 +218,11 @@ test('RLM depth is displayed without another text control', async () => {
     />,
   );
 
+  const trigger = within(document.body).getByRole('button', {
+    name: 'Depth 5',
+  });
+  assert.equal(trigger.textContent, 'Depth5');
+
   await openDepthEditor(user, 5);
 
   assert.equal(

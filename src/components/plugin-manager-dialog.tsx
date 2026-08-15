@@ -34,7 +34,7 @@ export function PluginManagerDialog({
         <DialogHeader>
           <DialogTitle>Plugins</DialogTitle>
           <DialogDescription>
-            Extend Ernie through versioned views, commands, and lazy activation.
+            Extend Ernie through versioned views, commands, and startup tools.
           </DialogDescription>
         </DialogHeader>
         <div className="mt-5 flex flex-col gap-2">
@@ -71,7 +71,7 @@ export function PluginManagerDialog({
                   </p>
                   {enabled ? null : (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Its UI and commands are removed. Turn it on to restore them.
+                      Its contributions are removed. Turn it on to restore them.
                     </p>
                   )}
                   <p className="mt-1 font-mono text-[10px] text-muted-foreground/80">

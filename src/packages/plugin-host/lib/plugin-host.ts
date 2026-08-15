@@ -13,7 +13,7 @@ import {
 } from '../../effect-scope/index.js';
 
 /** The Ernie plugin API understood by this host. */
-export const currentPluginApiVersion = 2 as const;
+export const currentPluginApiVersion = 3 as const;
 
 /** An icon token that Ernie can render for a contributed view. */
 export type PluginViewIcon = 'globe' | 'puzzle';
@@ -39,11 +39,13 @@ export interface PluginContributions {
   readonly views: readonly PluginViewContribution[];
 }
 
-/** A condition that activates plugin code only when its capability is needed. */
-export type PluginActivationEvent = Readonly<{
-  event: 'view';
-  viewId: string;
-}>;
+/** A condition that activates plugin code when Ernie starts or opens a view. */
+export type PluginActivationEvent =
+  | Readonly<{ event: 'startup' }>
+  | Readonly<{
+      event: 'view';
+      viewId: string;
+    }>;
 
 /** Serializable metadata and contributions for one Ernie plugin. */
 export interface PluginManifest {
@@ -119,7 +121,7 @@ export type PluginActivation =
 export interface PluginModule<RenderedView> {
   readonly manifest: PluginManifest;
 
-  /** Lazily register runtime behavior for this plugin's declared contributions. */
+  /** Register runtime behavior when one declared activation event occurs. */
   activate(context: PluginActivationContext<RenderedView>): PluginActivation;
 }
 
@@ -313,6 +315,9 @@ export interface PluginHost<RenderedView> {
   /** Report whether the user currently permits one plugin to contribute behavior. */
   isPluginEnabled(pluginId: string): boolean;
 
+  /** Activate enabled plugins that own application-wide startup behavior. */
+  activateStartupPlugins(): Promise<readonly PluginHostError[]>;
+
   /** Permit a disabled plugin to activate again after cleanup completes. */
   enablePlugin(pluginId: string): Promise<PluginResult<void>>;
 
@@ -486,10 +491,17 @@ function parseActivationEvents(
       );
     }
     const event = readRequiredText(item, 'event');
+    if (event === 'startup') {
+      events.push({ event });
+      continue;
+    }
     const viewId = readRequiredText(item, 'viewId');
     if (event !== 'view' || viewId === null) {
       return failed(
-        new InvalidPluginManifestError(pluginId, 'Every activation event must target a view.'),
+        new InvalidPluginManifestError(
+          pluginId,
+          'Every activation event must be startup or target a view.',
+        ),
       );
     }
     events.push({ event, viewId });
@@ -530,7 +542,10 @@ function validateManifest(manifest: PluginManifest): InvalidPluginManifestError 
     }
   }
   for (const activationEvent of manifest.activationEvents) {
-    if (!viewIds.has(activationEvent.viewId)) {
+    if (
+      activationEvent.event === 'view' &&
+      !viewIds.has(activationEvent.viewId)
+    ) {
       return new InvalidPluginManifestError(
         manifest.id,
         `activation view ${activationEvent.viewId} is not contributed by this plugin.`,
@@ -822,6 +837,25 @@ export function createPluginHost<RenderedView>(
     isPluginEnabled(pluginId) {
       return records.get(pluginId)?.enabled === true;
     },
+    async activateStartupPlugins() {
+      if (lifecycle !== 'open') {
+        return Object.freeze([new PluginHostDisposedError()]);
+      }
+      const results = await Promise.all(
+        manifests
+          .filter(
+            (manifest) =>
+              records.get(manifest.id)?.enabled === true &&
+              manifest.activationEvents.some(
+                (activationEvent) => activationEvent.event === 'startup',
+              ),
+          )
+          .map((manifest) => activatePlugin(manifest.id)),
+      );
+      return Object.freeze(
+        results.flatMap((result) => (result.ok ? [] : [result.error])),
+      );
+    },
     async enablePlugin(pluginId) {
       if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
       const record = records.get(pluginId);
@@ -845,7 +879,11 @@ export function createPluginHost<RenderedView>(
       if (record.state.status === 'failed') {
         record.state = { status: 'inactive' };
       }
-      return succeeded(undefined);
+      return record.module.manifest.activationEvents.some(
+        (activationEvent) => activationEvent.event === 'startup',
+      )
+        ? activatePlugin(pluginId)
+        : succeeded(undefined);
     },
     async disablePlugin(pluginId) {
       if (lifecycle !== 'open') return failed(new PluginHostDisposedError());

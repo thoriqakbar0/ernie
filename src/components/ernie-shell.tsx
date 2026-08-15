@@ -18,9 +18,11 @@ import {
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
+import { createAgentationPluginModule } from '@/packages/agentation-plugin';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
 import { createPluginHost } from '@/packages/plugin-host';
+import { createReactGrabPluginModule } from '@/packages/react-grab-plugin';
 import type { ErnieUiSidebarRequest } from '@/packages/ernie-ui-control/sidebar-control';
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
@@ -94,7 +96,11 @@ export function ErnieShell({
   const workspace = usePrimeAgentWorkspace();
   const pluginHost = useMemo(() => {
     const created = createPluginHost(
-      [createBrowserPluginModule(window.ernie)],
+      [
+        createBrowserPluginModule(window.ernie),
+        createReactGrabPluginModule(),
+        createAgentationPluginModule(),
+      ],
       readDisabledPluginIds(),
     );
     if (!created.ok) throw created.error;
@@ -139,11 +145,20 @@ export function ErnieShell({
           : 'done';
 
   useEffect(() => {
+    let acceptStartupResult = true;
+    void pluginHost.activateStartupPlugins().then((errors) => {
+      if (acceptStartupResult && errors.length > 0) {
+        setPluginError(errors.map((error) => error.message).join(' '));
+      }
+    });
     const disposePlugins = (): void => {
       void pluginHost.dispose();
     };
     window.addEventListener('pagehide', disposePlugins, { once: true });
-    return () => window.removeEventListener('pagehide', disposePlugins);
+    return () => {
+      acceptStartupResult = false;
+      window.removeEventListener('pagehide', disposePlugins);
+    };
   }, [pluginHost]);
 
   const selectView = (viewId: string): void => {

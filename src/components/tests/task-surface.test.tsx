@@ -95,7 +95,11 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
       name: 'Ernie',
     }),
   );
-  assert.ok(within(document.body).getByText('An attempt at an RLM interface'));
+  assert.ok(
+    within(document.body).getByText(
+      'An experiment in jellyware: an RLM-able interface that follows the work',
+    ),
+  );
 
   assert.equal(
     within(document.body).getByRole('textbox', { name: 'Give Ernie a task' })

@@ -46,6 +46,7 @@
     "prime-agent": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.1/prime-agent-0.7.1.tgz",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-grab": "0.1.50",
     "react-markdown": "^10.1.0",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",

@@ -297,6 +297,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     value: rendererApi,
   });
   window.localStorage.setItem('ernie:rlm-max-depth:v1', '4');
+  window.localStorage.setItem(
+    'ernie:disabled-plugins:v1',
+    '["ernie.react-grab","ernie.agentation"]',
+  );
 
   render(
     <ErnieShell
@@ -335,7 +339,15 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   const browserPluginSwitch = within(pluginDialog).getByRole('switch', {
     name: 'Enable Browser plugin',
   });
+  const reactGrabPluginSwitch = within(pluginDialog).getByRole('switch', {
+    name: 'Enable React Grab plugin',
+  });
+  const agentationPluginSwitch = within(pluginDialog).getByRole('switch', {
+    name: 'Enable Agentation plugin',
+  });
   assert.equal(browserPluginSwitch.getAttribute('aria-checked'), 'true');
+  assert.equal(reactGrabPluginSwitch.getAttribute('aria-checked'), 'false');
+  assert.equal(agentationPluginSwitch.getAttribute('aria-checked'), 'false');
   await user.click(browserPluginSwitch);
   await waitFor(() =>
     assert.equal(
@@ -345,7 +357,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   );
   assert.equal(
     window.localStorage.getItem('ernie:disabled-plugins:v1'),
-    '["ernie.browser"]',
+    '["ernie.browser","ernie.react-grab","ernie.agentation"]',
   );
   await user.click(browserPluginSwitch);
   await user.click(within(pluginDialog).getByRole('button', { name: 'Close' }));
@@ -360,7 +372,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   );
   assert.equal(
     window.localStorage.getItem('ernie:disabled-plugins:v1'),
-    '[]',
+    '["ernie.react-grab","ernie.agentation"]',
   );
   await user.click(
     within(settings).getByRole('button', { name: 'Back to Agent' }),

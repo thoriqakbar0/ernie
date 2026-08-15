@@ -6,7 +6,6 @@ import {
 import { useState } from 'react';
 
 import { GitBranchDropdown } from '@/components/git-branch-dropdown';
-import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import { Button } from '@/components/trovecn/ui/button';
 import {
   Combobox,
@@ -42,13 +41,10 @@ type CurrentWorkspaceProps = Pick<
   | 'gitBranches'
   | 'gitWorktreeError'
   | 'loadingWorkspace'
-  | 'rlmMaxDepth'
-  | 'rlmMaxDepthBusy'
   | 'selectedCwd'
   | 'changeFolder'
   | 'chooseWorkspaceDirectory'
   | 'changeGitBranch'
-  | 'changeRlmMaxDepth'
   | 'deleteGitBranch'
   | 'initializeGitRepository'
   | 'createGitWorktree'
@@ -82,13 +78,10 @@ export function CurrentWorkspace({
   gitBranches,
   gitWorktreeError,
   loadingWorkspace,
-  rlmMaxDepth,
-  rlmMaxDepthBusy,
   selectedCwd,
   changeFolder,
   chooseWorkspaceDirectory,
   changeGitBranch,
-  changeRlmMaxDepth,
   deleteGitBranch,
   initializeGitRepository,
   createGitWorktree,
@@ -243,12 +236,6 @@ export function CurrentWorkspace({
           </SelectGroup>
         </SelectContent>
       </Select>
-
-      <RlmDepthPicker
-        busy={disabled || rlmMaxDepthBusy}
-        depth={rlmMaxDepth}
-        onDepthChange={changeRlmMaxDepth}
-      />
 
       {gitWorktreeError === null ? null : (
         <p

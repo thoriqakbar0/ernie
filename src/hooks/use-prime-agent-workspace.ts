@@ -195,6 +195,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [selectedSessionFeed, setSelectedSessionFeedState] =
     useState<PrimeAgentSessionFeedState | null>(null);
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
+  const [newAgentModelKey, setNewAgentModelKey] = useState<string | null>(null);
   const [skills, setSkills] = useState<readonly PrimeAgentSkill[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
   const [gitBranches, setGitBranches] = useState<readonly string[]>([]);
@@ -435,27 +436,35 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     };
   }, [selectedCwd]);
 
+  const sessionControlsSessionId =
+    selectedSessionId ??
+    workspace?.sessions.find((session) => session.cwd === selectedCwd)
+      ?.activeSessionId ??
+    workspace?.sessions[0]?.activeSessionId ??
+    null;
+
   useEffect(() => {
     if (selectedSessionId === null) {
-      setModels([]);
-      setSkills([]);
       updateSelectedSessionFeed(() => null);
-      return;
     }
 
-    const activeSessionId = selectedSessionId;
+    const activeSessionId = sessionControlsSessionId;
     let active = true;
     const loadSessionControls = Effect.fn('Workspace.loadSessionControls')(
       function* () {
         yield* Effect.sync(() => setLoadingSession(true));
+        const loadSkills =
+          activeSessionId === null
+            ? Effect.succeed({ ok: true, value: [] })
+            : Effect.tryPromise(() =>
+                window.ernie.listAgentSkills(activeSessionId),
+              );
         const [rawModels, rawSkills] = yield* Effect.all(
           [
             Effect.tryPromise(() =>
               window.ernie.listAgentModels(activeSessionId),
             ),
-            Effect.tryPromise(() =>
-              window.ernie.listAgentSkills(activeSessionId),
-            ),
+            loadSkills,
           ],
           { concurrency: 'unbounded' },
         );
@@ -494,7 +503,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [selectedSessionId, updateSelectedSessionFeed]);
+  }, [selectedSessionId, sessionControlsSessionId, updateSelectedSessionFeed]);
 
   useEffect(() => {
     cancelEarlierHistoryLoad();
@@ -686,8 +695,10 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
               'Untitled Agent',
           };
   const selectedModelKey =
-    models.find((model) => model.key === selectedSession?.model?.key)?.key ??
-    null;
+    selectedSession === null
+      ? (models.find((model) => model.key === newAgentModelKey)?.key ?? null)
+      : (models.find((model) => model.key === selectedSession.model?.key)?.key ??
+        null);
 
   function requestAgentSession(cwd: string) {
     return Effect.tryPromise(() =>
@@ -744,6 +755,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         message: 'A new Agent is already starting.',
       });
     }
+    const requestedModel =
+      models.find((model) => model.key === newAgentModelKey) ?? null;
 
     const create = Effect.fn('Workspace.createAgentWithTask')(function* () {
       yield* Effect.sync(() => {
@@ -758,9 +771,32 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         });
       }
 
+      let createdSession = result.value;
+      if (requestedModel !== null) {
+        const rawModelResult = yield* Effect.tryPromise(() =>
+          window.ernie.setAgentModel({
+            activeSessionId: createdSession.activeSessionId,
+            provider: requestedModel.provider,
+            modelId: requestedModel.id,
+          }),
+        );
+        const modelResult = parsePrimeAgentModelResult(rawModelResult);
+        if (!modelResult.ok) {
+          return yield* Effect.sync(() => {
+            connectAgentSession(createdSession);
+            setStatus(modelResult.error.message);
+            return {
+              ok: false as const,
+              message: modelResult.error.message,
+            };
+          });
+        }
+        createdSession = { ...createdSession, model: modelResult.value };
+      }
+
       const rawTaskResult = yield* Effect.tryPromise(() =>
         window.ernie.submitAgentTask({
-          activeSessionId: result.value.activeSessionId,
+          activeSessionId: createdSession.activeSessionId,
           message,
         }),
       );
@@ -770,12 +806,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         connectAgentSession(
           taskResult.ok
             ? {
-                ...result.value,
+                ...createdSession,
                 activity: 'queued',
                 name:
-                  sessionNameFromFirstMessage(message) ?? result.value.name,
+                  sessionNameFromFirstMessage(message) ?? createdSession.name,
               }
-            : result.value,
+            : createdSession,
         );
         setStatus(
           taskResult.ok ? 'Task sent to Prime Agent.' : taskResult.error.message,
@@ -1070,9 +1106,14 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const changeModel = useCallback(function changeModel(
     modelKey: string | null,
   ): void {
-    if (modelKey === null || selectedSession === null) return;
+    if (modelKey === null) return;
     const model = models.find((candidate) => candidate.key === modelKey);
     if (model === undefined) return;
+    if (selectedSession === null) {
+      setNewAgentModelKey(model.key);
+      setStatus(`Model set to ${model.name} for the next Agent.`);
+      return;
+    }
 
     const activeSessionId = selectedSession.activeSessionId;
     const provider = model.provider;

@@ -62,13 +62,10 @@ export function TaskSurface({
               gitBranches={workspace.gitBranches}
               gitWorktreeError={workspace.gitWorktreeError}
               loadingWorkspace={workspace.loadingWorkspace}
-              rlmMaxDepth={workspace.rlmMaxDepth}
-              rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
               selectedCwd={workspace.selectedCwd}
               changeFolder={workspace.changeFolder}
               chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
               changeGitBranch={workspace.changeGitBranch}
-              changeRlmMaxDepth={workspace.changeRlmMaxDepth}
               deleteGitBranch={workspace.deleteGitBranch}
               initializeGitRepository={workspace.initializeGitRepository}
               createGitWorktree={workspace.createGitWorktree}
@@ -127,8 +124,11 @@ export function TaskSurface({
             selectedSessionRlmMaxDepthBusy={
               workspace.selectedSessionRlmMaxDepthBusy
             }
+            rlmMaxDepth={workspace.rlmMaxDepth}
+            rlmMaxDepthBusy={workspace.rlmMaxDepthBusy}
             disabled={agentUnavailable}
             changeModel={workspace.changeModel}
+            changeRlmMaxDepth={workspace.changeRlmMaxDepth}
             changeSelectedSessionRlmMaxDepth={
               workspace.changeSelectedSessionRlmMaxDepth
             }

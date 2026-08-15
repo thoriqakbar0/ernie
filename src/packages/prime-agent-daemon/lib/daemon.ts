@@ -1,3 +1,4 @@
+import { AuthStorage, ModelRegistry } from 'prime-agent';
 import type {
   DaemonAgentConnection,
   DaemonClient,
@@ -134,6 +135,7 @@ export function createPrimeAgentDaemon(
       'Prime Agent process, extension, and socket paths must not be empty; extension flags must not be blank.',
     );
   }
+  const standaloneModelRegistry = ModelRegistry.create(AuthStorage.create());
   const extensionFlagValues =
     configuration.extensionFlagValues === undefined
       ? undefined
@@ -307,6 +309,33 @@ export function createPrimeAgentDaemon(
 
   const listModels = Effect.fn('PrimeAgentDaemon.listModels')(
     (activeSessionId: JsonValue) => {
+      if (activeSessionId === null) {
+        return Effect.tryPromise(() =>
+          standaloneModelRegistry.refreshAvailableModels(),
+        ).pipe(
+          Effect.map((models) =>
+            parseAvailableModelsData({
+              models: models.map((model) => ({
+                id: model.id,
+                name: model.name,
+                provider: model.provider,
+              })),
+            }),
+          ),
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              reportOperationalFailure(
+                'Prime Agent standalone model discovery failed.',
+                error,
+              );
+              return failure(
+                'request_failed',
+                'Prime Agent could not list available models.',
+              );
+            }),
+          ),
+        );
+      }
       const parsedSessionId = parseActiveSessionId(activeSessionId);
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 

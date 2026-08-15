@@ -63,13 +63,10 @@ test('repository selector stays stable inside a Git worktree', () => {
       gitBranches={['main', 'feature/ui']}
       gitWorktreeError={null}
       loadingWorkspace={false}
-      rlmMaxDepth={1}
-      rlmMaxDepthBusy={false}
       selectedCwd="/workspace/ernie-feature-ui"
       changeFolder={() => undefined}
       chooseWorkspaceDirectory={() => undefined}
       changeGitBranch={() => undefined}
-      changeRlmMaxDepth={() => undefined}
       deleteGitBranch={() => undefined}
       initializeGitRepository={() => undefined}
       createGitWorktree={() => undefined}
@@ -98,15 +95,12 @@ test('Trove launch controls change workspace and Git branch', async () => {
       gitBranches={['main', 'feature/ui']}
       gitWorktreeError={null}
       loadingWorkspace={false}
-      rlmMaxDepth={1}
-      rlmMaxDepthBusy={false}
       selectedCwd="/workspace/ernie"
       changeFolder={(cwd) => changedFolders.push(cwd)}
       chooseWorkspaceDirectory={() => {
         directoryPickerOpenCount += 1;
       }}
       changeGitBranch={(branch) => changedBranches.push(branch)}
-      changeRlmMaxDepth={() => undefined}
       deleteGitBranch={() => undefined}
       initializeGitRepository={() => undefined}
       createGitWorktree={() => undefined}

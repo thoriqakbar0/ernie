@@ -55,13 +55,19 @@ const models = [
 ] as const;
 
 const activeSessionDepthProps = {
+  changeRlmMaxDepth: () => undefined,
   changeSelectedSessionRlmMaxDepth: () => undefined,
+  rlmMaxDepth: 1,
+  rlmMaxDepthBusy: false,
   selectedSessionRlmMaxDepth: 5,
   selectedSessionRlmMaxDepthBusy: false,
 } as const;
 
 const newSessionDepthProps = {
+  changeRlmMaxDepth: () => undefined,
   changeSelectedSessionRlmMaxDepth: () => undefined,
+  rlmMaxDepth: 1,
+  rlmMaxDepthBusy: false,
   selectedSessionRlmMaxDepth: null,
   selectedSessionRlmMaxDepthBusy: false,
 } as const;
@@ -94,7 +100,12 @@ test('connected Agent keeps the composer free of placeholder actions', () => {
     within(document.body).queryByRole('button', { name: 'Add context' }),
     null,
   );
-  assert.ok(within(document.body).getByRole('combobox', { name: 'Model' }));
+  const composer = within(document.body).getByRole('textbox');
+  const inputGroup = composer.closest('[data-slot="input-group"]');
+  const model = within(document.body).getByRole('combobox', { name: 'Model' });
+  const depth = within(document.body).getByRole('button', { name: 'Depth 5' });
+  assert.ok(inputGroup?.contains(model));
+  assert.ok(inputGroup?.contains(depth));
 });
 
 test('connected Agent uses the compact quick composer', () => {
@@ -433,10 +444,13 @@ test('a new Agent starts only after its first non-empty task', async () => {
     within(document.body).queryByRole('button', { name: 'Add context' }),
     null,
   );
-  assert.equal(
-    within(document.body).queryByRole('button', { name: 'Model' }),
-    null,
+  const model = within(document.body).getByRole('combobox', { name: 'Model' });
+  assert.equal(model.hasAttribute('disabled'), true);
+  assert.match(model.textContent ?? '', /Model unavailable/u);
+  assert.ok(
+    composer.closest('[data-slot="input-group"]')?.contains(model),
   );
+  assert.ok(within(document.body).getByRole('button', { name: 'Depth 1' }));
   assert.equal(
     within(document.body)
       .getByRole('button', { name: 'Send task' })

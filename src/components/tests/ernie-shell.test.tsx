@@ -42,6 +42,12 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   let liveDepth = 5;
   let modelCatalogRequests = 0;
   let sessionFeedWatchCount = 0;
+  const agentStartOperations: string[] = [];
+  const changedModels: Array<{
+    activeSessionId: string;
+    modelId: string;
+    provider: string;
+  }> = [];
   const changedSessionDepths: Array<{
     activeSessionId: string;
     maxDepth: number;
@@ -119,6 +125,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       workspaceFeedListeners.delete(subscriptionId);
     },
     createAgentSession: async (creation) => {
+      agentStartOperations.push('create');
       createdSessions.push(creation);
       sessionCreated = true;
       queueMicrotask(() => {
@@ -178,7 +185,16 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     renameAgentSession: async () => ({ ok: false }),
     listAgentModels: async () => {
       modelCatalogRequests += 1;
-      return { ok: true, value: [] };
+      return {
+        ok: true,
+        value: [
+          {
+            id: 'gpt-5.6-sol',
+            name: 'GPT-5.6 Sol',
+            provider: 'openai-codex',
+          },
+        ],
+      };
     },
     listAgentSkills: async () => ({ ok: true, value: [] }),
     watchAgentSession: (activeSessionId, listener) => {
@@ -240,7 +256,18 @@ test('repository plus opens a draft and the first message creates the Prime Agen
         message: 'History loading is not used by this test.',
       },
     }),
-    setAgentModel: async () => ({ ok: false }),
+    setAgentModel: async (selection) => {
+      agentStartOperations.push('model');
+      changedModels.push(selection);
+      return {
+        ok: true,
+        value: {
+          id: selection.modelId,
+          name: 'GPT-5.6 Sol',
+          provider: selection.provider,
+        },
+      };
+    },
     getAgentRlmDepth: async () => ({
       ok: true,
       value: { maxDepth: 17, source: 'chat' },
@@ -254,6 +281,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       };
     },
     submitAgentTask: async (submission) => {
+      agentStartOperations.push('task');
       submittedTasks.push(submission);
       return { ok: true, value: { accepted: true } };
     },
@@ -432,9 +460,15 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).queryByRole('button', { name: 'Add context' }),
     null,
   );
-  assert.equal(
-    within(document.body).queryByRole('button', { name: 'Model' }),
-    null,
+  const newAgentModel = await within(document.body).findByRole('combobox', {
+    name: 'Model',
+  });
+  await waitFor(() =>
+    assert.equal(newAgentModel.hasAttribute('disabled'), false),
+  );
+  await user.click(newAgentModel);
+  await user.click(
+    within(document.body).getByRole('option', { name: 'GPT-5.6 Sol' }),
   );
   await user.click(
     within(document.body).getByRole('button', { name: 'New Agent in kastuli' }),
@@ -472,6 +506,18 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   assert.deepEqual(createdSessions, [
     { cwd: '/workspace/kastuli', rlmMaxDepth: 5 },
   ]);
+  assert.deepEqual(changedModels, [
+    {
+      activeSessionId: 'blank-agent',
+      modelId: 'gpt-5.6-sol',
+      provider: 'openai-codex',
+    },
+  ]);
+  assert.deepEqual(agentStartOperations.slice(0, 3), [
+    'create',
+    'model',
+    'task',
+  ]);
   assert.equal(
     within(document.body)
       .getByRole('button', { name: 'ernie' })
@@ -493,7 +539,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       ),
     { timeout: 2_500 },
   );
-  await waitFor(() => assert.equal(modelCatalogRequests, 1));
+  await waitFor(() => assert.equal(modelCatalogRequests, 2));
   assert.equal(
     within(document.body).queryByRole('region', {
       name: 'New Agent settings',

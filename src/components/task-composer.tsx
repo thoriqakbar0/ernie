@@ -28,6 +28,8 @@ type TaskComposerProps = Pick<
   PrimeAgentWorkspaceController,
   | 'modelBusy'
   | 'models'
+  | 'rlmMaxDepth'
+  | 'rlmMaxDepthBusy'
   | 'skills'
   | 'selectedCwd'
   | 'selectedModelKey'
@@ -35,6 +37,7 @@ type TaskComposerProps = Pick<
   | 'selectedSessionRlmMaxDepth'
   | 'selectedSessionRlmMaxDepthBusy'
   | 'changeModel'
+  | 'changeRlmMaxDepth'
   | 'changeSelectedSessionRlmMaxDepth'
   | 'createAgentWithTask'
 > & {
@@ -48,6 +51,8 @@ export const TaskComposer = memo(function TaskComposer({
   isGenerating = false,
   modelBusy,
   models,
+  rlmMaxDepth,
+  rlmMaxDepthBusy,
   skills,
   selectedCwd,
   selectedModelKey,
@@ -55,6 +60,7 @@ export const TaskComposer = memo(function TaskComposer({
   selectedSessionRlmMaxDepth,
   selectedSessionRlmMaxDepthBusy,
   changeModel,
+  changeRlmMaxDepth,
   changeSelectedSessionRlmMaxDepth,
   createAgentWithTask,
 }: TaskComposerProps): React.JSX.Element {
@@ -78,6 +84,16 @@ export const TaskComposer = memo(function TaskComposer({
     [searchSkills, skillQueryKind, skillQueryTerm],
   );
   const skillsOpen = !skillsDismissed && skillQuery !== null;
+  const depth =
+    selectedSessionId === null ? rlmMaxDepth : selectedSessionRlmMaxDepth;
+  const depthBusy =
+    selectedSessionId === null
+      ? rlmMaxDepthBusy
+      : selectedSessionRlmMaxDepthBusy;
+  const changeDepth =
+    selectedSessionId === null
+      ? changeRlmMaxDepth
+      : changeSelectedSessionRlmMaxDepth;
 
   useEffect(() => {
     if (!skillsOpen || skillQueryKind !== 'deep-full-text') return;
@@ -324,7 +340,56 @@ export const TaskComposer = memo(function TaskComposer({
             onChange={(event) => changeDraft(event.target.value)}
             onKeyDown={handleComposerKeyDown}
           />
-          <InputGroupAddon align="inline-end" className="h-9 self-end p-0">
+          <InputGroupAddon
+            align="block-end"
+            className="justify-between gap-2 px-1.5 pb-1.5"
+          >
+            <div className="flex min-w-0 items-center gap-1">
+              <Select
+                items={models.map((model) => ({
+                  label: model.name,
+                  value: model.key,
+                }))}
+                value={selectedModelKey}
+                onValueChange={changeModel}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
+                  aria-label="Model"
+                  disabled={modelBusy || models.length === 0}
+                >
+                  <SelectValue
+                    placeholder={
+                      modelBusy && models.length === 0
+                        ? 'Loading models…'
+                        : models.length === 0
+                          ? 'Model unavailable'
+                          : 'Model'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent
+                  className="max-h-72"
+                  align="start"
+                  alignItemWithTrigger={false}
+                >
+                  <SelectGroup>
+                    {models.map((model) => (
+                      <SelectItem key={model.key} value={model.key}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <RlmDepthPicker
+                busy={disabled || depthBusy}
+                compact
+                depth={depth}
+                onDepthChange={changeDepth}
+              />
+            </div>
             <InputGroupButton
               type="submit"
               size="icon-sm"
@@ -345,7 +410,8 @@ export const TaskComposer = memo(function TaskComposer({
           </InputGroupAddon>
         </InputGroup>
 
-        {selectedSessionId === null ? null : (
+        {selectedSessionId === null ||
+        (!task.submitting && !isGenerating) ? null : (
           <div className="mt-1 flex flex-wrap items-center justify-center gap-1 text-xs text-muted-foreground">
             {task.submitting ? (
               <span className="basis-full px-2 text-center font-medium text-foreground/70 min-[30rem]:basis-auto">
@@ -356,46 +422,6 @@ export const TaskComposer = memo(function TaskComposer({
                 Working · follow-ups queue
               </span>
             ) : null}
-            {models.length === 0 ? null : (
-              <Select
-                items={models.map((model) => ({
-                  label: model.name,
-                  value: model.key,
-                }))}
-                value={selectedModelKey}
-                onValueChange={changeModel}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
-                  aria-label="Model"
-                  disabled={modelBusy}
-                >
-                  <SelectValue placeholder="Model" />
-                </SelectTrigger>
-                <SelectContent
-                  className="max-h-72"
-                  align="center"
-                  alignItemWithTrigger={false}
-                >
-                  <SelectGroup>
-                    {models.map((model) => (
-                      <SelectItem key={model.key} value={model.key}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-            {selectedSessionRlmMaxDepth === null ? null : (
-              <RlmDepthPicker
-                busy={disabled || selectedSessionRlmMaxDepthBusy}
-                compact
-                depth={selectedSessionRlmMaxDepth}
-                onDepthChange={changeSelectedSessionRlmMaxDepth}
-              />
-            )}
           </div>
         )}
       </form>

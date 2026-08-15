@@ -143,7 +143,7 @@ export type ErnieRendererApi = Readonly<{
   listAgentSavedSessions: () => Promise<JsonValue>;
   importAgentSession: (sessionPath: string) => Promise<JsonValue>;
   renameAgentSession: (rename: AgentSessionRename) => Promise<JsonValue>;
-  listAgentModels: (activeSessionId: string) => Promise<JsonValue>;
+  listAgentModels: (activeSessionId: string | null) => Promise<JsonValue>;
   listAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
   watchAgentSession: (
     activeSessionId: string,

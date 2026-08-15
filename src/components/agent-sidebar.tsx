@@ -11,6 +11,7 @@ import {
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  RotateCcwIcon,
   XIcon,
 } from 'lucide-react';
 import {
@@ -344,6 +345,7 @@ export function AgentSidebar({
   const [connectionDetailsOpen, setConnectionDetailsOpen] = useState(false);
   const [draggedThread, setDraggedThread] = useState<DraggedThread | null>(null);
   const [archiveUndo, setArchiveUndo] = useState<ArchiveUndo | null>(null);
+  const [archiveExpanded, setArchiveExpanded] = useState(false);
   const [pinsExpanded, setPinsExpanded] = useState(false);
   const [settledExpandedPaths, setSettledExpandedPaths] = useState(
     () => new Set<string>(),
@@ -546,6 +548,7 @@ export function AgentSidebar({
         (repository) => repository.folder.value,
       );
       setPinsExpanded(true);
+      setArchiveExpanded(true);
       setSettledExpandedPaths(new Set(repositoryPaths));
       setWorktreesExpandedPaths(new Set(repositoryPaths));
     };
@@ -647,28 +650,23 @@ export function AgentSidebar({
     0,
     pinnedConversations.length - collapsedPinLimit,
   );
-  const archivedConversationCount = management.archivedThreadIds.reduce(
-    (count, threadId): number => {
+  const archivedConversations = management.archivedThreadIds.flatMap(
+    (threadId): readonly LocatedConversation[] => {
       const located = locatedConversations.get(threadId);
       return located === undefined ||
         archivedWorkspacePaths.has(located.workspace.folder.value)
-        ? count
-        : count + 1;
+        ? []
+        : [located];
     },
-    0,
   );
-  const archivedWorkspaceCount = repositories.reduce(
-    (count, repository) =>
-      count +
-      repository.workspaces.filter(
-        (workspace) =>
-          workspace.folder.value !== repository.folder.value &&
-          archivedWorkspacePaths.has(workspace.folder.value),
-      ).length,
-    0,
+  const archivedWorkspaces = repositories.flatMap((repository) =>
+    repository.workspaces.flatMap((workspace) =>
+      workspace.folder.value !== repository.folder.value &&
+      archivedWorkspacePaths.has(workspace.folder.value)
+        ? [{ repository, workspace }]
+        : [],
+    ),
   );
-  const archivedItemCount =
-    archivedConversationCount + archivedWorkspaceCount;
 
   const searchResults = useMemo<readonly SearchResult[]>(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
@@ -1562,12 +1560,79 @@ export function AgentSidebar({
                 </ul>
               )}
             </div>
-            {archivedItemCount === 0 ? null : (
+            {archivedConversations.length === 0 &&
+            archivedWorkspaces.length === 0 ? null : (
               <section aria-label="Archived sidebar items" className="mt-2 border-t border-sidebar-border pt-2">
-                <div className="flex h-8 items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
-                  <ArchiveIcon aria-hidden="true" className="size-3.5" />
-                  Archived ({archivedItemCount})
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start gap-1.5 px-2 text-xs font-medium"
+                  aria-expanded={archiveExpanded}
+                  onClick={() => setArchiveExpanded((current) => !current)}
+                >
+                  <ChevronRightIcon
+                    aria-hidden="true"
+                    className={`size-3 transition-transform motion-reduce:transition-none ${archiveExpanded ? 'rotate-90' : ''}`}
+                  />
+                  Archived ({archivedConversations.length + archivedWorkspaces.length})
+                </Button>
+                {archiveExpanded ? (
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {archivedWorkspaces.map(({ repository, workspace }) => {
+                      const branchName =
+                        workspace.folder.branchName ?? workspace.folder.label;
+                      return (
+                        <li
+                          key={workspace.folder.value}
+                          className="group/archived-branch flex h-8 items-center gap-1 px-2"
+                        >
+                          <ArchiveIcon
+                            aria-hidden="true"
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span
+                            className={`min-w-0 flex-1 truncate font-mono text-xs ${branchColorClass(branchName)}`}
+                            title={`${repository.folder.label} · ${branchName}`}
+                          >
+                            {branchName}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={`Restore ${branchName} branch`}
+                            title={`Restore ${branchName} branch`}
+                            onClick={() =>
+                              setManagement((current) =>
+                                setWorkspaceArchived(
+                                  current,
+                                  workspace.folder.value,
+                                  false,
+                                ),
+                              )
+                            }
+                          >
+                            <RotateCcwIcon aria-hidden="true" />
+                          </Button>
+                        </li>
+                      );
+                    })}
+                    {archivedConversations.map(
+                      ({ conversation, repository, workspace }) =>
+                        renderThread(
+                          conversation,
+                          workspace,
+                          false,
+                          workspace.folder.value === repository.folder.value
+                            ? repository.folder.label
+                            : `${repository.folder.label} · ${workspace.folder.branchName ?? workspace.folder.label}`,
+                          [],
+                          true,
+                        ),
+                    )}
+                  </ul>
+                ) : null}
               </section>
             )}
           </SidebarGroupContent>

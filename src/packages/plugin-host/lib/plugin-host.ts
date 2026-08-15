@@ -152,6 +152,12 @@ export type PluginResult<Value, Failure extends Error = PluginHostError> =
   | Readonly<{ ok: true; value: Value }>
   | Readonly<{ ok: false; error: Failure }>;
 
+const retainedPluginErrorCauses = new WeakMap<Error, unknown>();
+
+function retainPluginErrorCause(error: Error, cause: unknown): void {
+  retainedPluginErrorCauses.set(error, cause);
+}
+
 /** A service key identifier is not safe for the stable plugin contract. */
 export class InvalidPluginServiceKeyError extends Error {
   readonly _tag = 'InvalidPluginServiceKeyError';
@@ -283,6 +289,14 @@ export class PluginServiceAccessError extends Error {
   }
 }
 
+type PluginProviderFailureTag =
+  | 'PluginActivationError'
+  | 'PluginDeactivationError'
+  | 'PluginDependencyUnavailableError'
+  | 'PluginDisabledError'
+  | 'PluginHostDisposedError'
+  | 'PluginNotFoundError';
+
 /** A required provider is disabled, failed, or could not activate. */
 export class PluginDependencyUnavailableError extends Error {
   readonly _tag = 'PluginDependencyUnavailableError';
@@ -291,21 +305,43 @@ export class PluginDependencyUnavailableError extends Error {
     readonly consumerPluginId: string,
     readonly serviceId: string,
     readonly providerPluginId: string,
-    readonly providerFailureTag: string | null = null,
+    readonly providerFailureTag: PluginProviderFailureTag | null = null,
   ) {
     super(`Plugin ${consumerPluginId} cannot use unavailable service ${serviceId} from ${providerPluginId}.`);
   }
 }
 
+type PluginActivationFailureTag =
+  | 'PluginActivationContextClosedError'
+  | 'PluginServiceAccessError'
+  | 'UnknownPluginActivationFailure';
+
+function pluginActivationFailureTag(cause: unknown): PluginActivationFailureTag {
+  if (cause instanceof PluginServiceAccessError) {
+    return 'PluginServiceAccessError';
+  }
+  if (
+    cause instanceof Error &&
+    '_tag' in cause &&
+    cause._tag === 'PluginActivationContextClosedError'
+  ) {
+    return 'PluginActivationContextClosedError';
+  }
+  return 'UnknownPluginActivationFailure';
+}
+
 /** Plugin activation failed without exposing the thrown value in its message. */
 export class PluginActivationError extends Error {
   readonly _tag = 'PluginActivationError';
+  readonly failureTag: PluginActivationFailureTag;
 
   constructor(
     readonly pluginId: string,
     cause: unknown,
   ) {
-    super(`Plugin ${pluginId} could not activate.`, { cause });
+    super(`Plugin ${pluginId} could not activate.`);
+    this.failureTag = pluginActivationFailureTag(cause);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -317,10 +353,8 @@ export class PluginActivationContextClosedError extends Error {
     readonly pluginId: string,
     cause?: unknown,
   ) {
-    super(
-      `Plugin ${pluginId} used a closed activation context.`,
-      cause === undefined ? undefined : { cause },
-    );
+    super(`Plugin ${pluginId} used a closed activation context.`);
+    if (cause !== undefined) retainPluginErrorCause(this, cause);
   }
 }
 
@@ -332,7 +366,8 @@ export class PluginCommandExecutionError extends Error {
     readonly commandId: string,
     cause: unknown,
   ) {
-    super(`Plugin command ${commandId} failed.`, { cause });
+    super(`Plugin command ${commandId} failed.`);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -344,7 +379,8 @@ export class PluginViewRenderError extends Error {
     readonly viewId: string,
     cause: unknown,
   ) {
-    super(`Plugin view ${viewId} could not render.`, { cause });
+    super(`Plugin view ${viewId} could not render.`);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -357,7 +393,8 @@ export class PluginEffectCleanupError extends Error {
     readonly sequence: number,
     cause: unknown,
   ) {
-    super(`Plugin ${pluginId} cleanup ${sequence} failed.`, { cause });
+    super(`Plugin ${pluginId} cleanup ${sequence} failed.`);
+    retainPluginErrorCause(this, cause);
   }
 }
 
@@ -371,9 +408,7 @@ export class PluginDeactivationError extends Error {
     failures: readonly PluginEffectCleanupError[],
   ) {
     const stableFailures = Object.freeze([...failures]);
-    super(`Plugin ${pluginId} could not deactivate cleanly.`, {
-      cause: new AggregateError(stableFailures),
-    });
+    super(`Plugin ${pluginId} could not deactivate cleanly.`);
     this.failures = stableFailures;
   }
 }
@@ -388,9 +423,7 @@ export class PluginCascadeDeactivationError extends Error {
     failures: readonly PluginDeactivationError[],
   ) {
     const stableFailures = Object.freeze([...failures]);
-    super(`Plugin ${pluginId} dependency cleanup completed with failures.`, {
-      cause: new AggregateError(stableFailures),
-    });
+    super(`Plugin ${pluginId} dependency cleanup completed with failures.`);
     this.failures = stableFailures;
   }
 }
@@ -423,6 +456,14 @@ export type PluginHostError =
   | PluginDeactivationError
   | PluginCascadeDeactivationError
   | PluginHostDisposedError;
+
+type PluginActivationAttemptError =
+  | PluginActivationError
+  | PluginDeactivationError
+  | PluginDependencyUnavailableError
+  | PluginDisabledError
+  | PluginHostDisposedError
+  | PluginNotFoundError;
 
 /** Runtime access to validated plugin metadata, activation, and commands. */
 export interface PluginHost<RenderedView> {
@@ -464,11 +505,11 @@ type PluginRuntimeState =
   | Readonly<{ status: 'inactive' }>
   | Readonly<{
       status: 'activating';
-      activation: Promise<PluginResult<void>>;
+      activation: Promise<PluginResult<void, PluginActivationAttemptError>>;
     }>
   | Readonly<{
       status: 'disabling-activation';
-      activation: Promise<PluginResult<void>>;
+      activation: Promise<PluginResult<void, PluginActivationAttemptError>>;
     }>
   | Readonly<{
       status: 'active';
@@ -498,13 +539,24 @@ interface PublishedPluginService {
   readonly value: unknown;
 }
 
+interface RequiredPluginService {
+  readonly serviceId: string;
+  readonly providerPluginId: string;
+}
+
 type PluginHostLifecycle = 'disposed' | 'disposing' | 'open';
 
 const pluginIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/u;
 const pluginVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
 const pluginServiceIdPattern = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/u;
 
-/** Create one immutable typed key for a manifest-declared runtime service. */
+/**
+ * Create one immutable typed key for a manifest-declared runtime service.
+ *
+ * Service identifiers must contain at least two dotted namespace segments.
+ *
+ * @throws InvalidPluginServiceKeyError when plugin code defines an invalid identifier.
+ */
 export function createPluginServiceKey<Value>(
   serviceId: string,
 ): PluginServiceKey<Value> {
@@ -514,11 +566,13 @@ export function createPluginServiceKey<Value>(
   return Object.freeze(new DefinedPluginServiceKey<Value>(serviceId));
 }
 
-function succeeded<Value>(value: Value): PluginResult<Value> {
+function succeeded<Value>(value: Value): PluginResult<Value, never> {
   return { ok: true, value };
 }
 
-function failed<Value>(error: PluginHostError): PluginResult<Value> {
+function failed<Failure extends PluginHostError>(
+  error: Failure,
+): PluginResult<never, Failure> {
   return { ok: false, error };
 }
 
@@ -895,7 +949,9 @@ function topologicalOrder(
   return Object.freeze(ordered);
 }
 
-function providerFailureTag(state: PluginRuntimeState): string | null {
+function providerFailureTag(
+  state: PluginRuntimeState,
+): PluginActivationError['_tag'] | null {
   return state.status === 'failed' ? state.error._tag : null;
 }
 
@@ -1023,15 +1079,21 @@ export function createPluginHost<RenderedView>(
   }
 
   const dependenciesByPluginId = new Map<string, readonly string[]>();
+  const requiredServicesByPluginId = new Map<
+    string,
+    readonly RequiredPluginService[]
+  >();
   const dependentsByPluginId = new Map<string, Set<string>>();
   for (const manifest of manifests) {
     const dependencyIds: string[] = [];
+    const requiredServices: RequiredPluginService[] = [];
     const seenDependencyIds = new Set<string>();
     for (const serviceId of manifest.requires) {
       const providerPluginId = serviceProviders.get(serviceId);
       if (providerPluginId === undefined) {
         return failed(new MissingPluginServiceProviderError(manifest.id, serviceId));
       }
+      requiredServices.push(Object.freeze({ serviceId, providerPluginId }));
       if (!seenDependencyIds.has(providerPluginId)) {
         seenDependencyIds.add(providerPluginId);
         dependencyIds.push(providerPluginId);
@@ -1041,6 +1103,10 @@ export function createPluginHost<RenderedView>(
       dependentsByPluginId.set(providerPluginId, dependents);
     }
     dependenciesByPluginId.set(manifest.id, Object.freeze(dependencyIds));
+    requiredServicesByPluginId.set(
+      manifest.id,
+      Object.freeze(requiredServices),
+    );
   }
 
   const pluginIds = manifests.map((manifest) => manifest.id);
@@ -1074,25 +1140,48 @@ export function createPluginHost<RenderedView>(
     return result;
   };
 
+  const firstUnavailableRequiredService = (
+    pluginId: string,
+    providerIsAvailable: (
+      requirement: RequiredPluginService,
+      providerRecord: PluginRecord<RenderedView>,
+    ) => boolean,
+  ): PluginDependencyUnavailableError | null => {
+    for (const requirement of requiredServicesByPluginId.get(pluginId) ?? []) {
+      const providerRecord = records.get(requirement.providerPluginId);
+      if (
+        providerRecord !== undefined &&
+        providerIsAvailable(requirement, providerRecord)
+      ) {
+        continue;
+      }
+      return new PluginDependencyUnavailableError(
+        pluginId,
+        requirement.serviceId,
+        requirement.providerPluginId,
+        providerRecord === undefined
+          ? null
+          : providerFailureTag(providerRecord.state),
+      );
+    }
+    return null;
+  };
+
   const unavailableDependency = (
     pluginId: string,
   ): PluginDependencyUnavailableError | null => {
-    const record = records.get(pluginId);
-    if (record === undefined) return null;
-    for (const serviceId of record.module.manifest.requires) {
-      const providerPluginId = serviceProviders.get(serviceId);
-      if (providerPluginId === undefined) continue;
-      const providerRecord = records.get(providerPluginId);
-      if (providerRecord === undefined) continue;
-      if (!stateIsEnabled(providerRecord.state) || providerRecord.state.status === 'failed') {
-        return new PluginDependencyUnavailableError(
-          pluginId,
-          serviceId,
-          providerPluginId,
-          providerFailureTag(providerRecord.state),
-        );
-      }
-      const transitiveFailure = unavailableDependency(providerPluginId);
+    const directFailure = firstUnavailableRequiredService(
+      pluginId,
+      (_requirement, providerRecord) =>
+        stateIsEnabled(providerRecord.state) &&
+        providerRecord.state.status !== 'failed',
+    );
+    if (directFailure !== null) return directFailure;
+
+    for (const requirement of requiredServicesByPluginId.get(pluginId) ?? []) {
+      const transitiveFailure = unavailableDependency(
+        requirement.providerPluginId,
+      );
       if (transitiveFailure !== null) return transitiveFailure;
     }
     return null;
@@ -1136,33 +1225,20 @@ export function createPluginHost<RenderedView>(
     }
   };
 
-  const dependencyStillActive = (
+  const inactiveRequiredService = (
     pluginId: string,
-  ): PluginDependencyUnavailableError | null => {
-    const record = records.get(pluginId);
-    if (record === undefined) return null;
-    for (const serviceId of record.module.manifest.requires) {
-      const providerPluginId = serviceProviders.get(serviceId);
-      if (providerPluginId === undefined) continue;
-      const providerRecord = records.get(providerPluginId);
-      if (
-        providerRecord === undefined ||
-        !stateIsEnabled(providerRecord.state) ||
-        providerRecord.state.status !== 'active' ||
-        !publishedServices.has(serviceId)
-      ) {
-        return new PluginDependencyUnavailableError(
-          pluginId,
-          serviceId,
-          providerPluginId,
-          providerRecord === undefined ? null : providerFailureTag(providerRecord.state),
-        );
-      }
-    }
-    return null;
-  };
+  ): PluginDependencyUnavailableError | null =>
+    firstUnavailableRequiredService(
+      pluginId,
+      (requirement, providerRecord) =>
+        stateIsEnabled(providerRecord.state) &&
+        providerRecord.state.status === 'active' &&
+        publishedServices.has(requirement.serviceId),
+    );
 
-  const activatePlugin = async (pluginId: string): Promise<PluginResult<void>> => {
+  const activatePlugin = async (
+    pluginId: string,
+  ): Promise<PluginResult<void, PluginActivationAttemptError>> => {
     if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
     const record = records.get(pluginId);
     if (record === undefined) return failed(new PluginNotFoundError(pluginId));
@@ -1183,7 +1259,9 @@ export function createPluginHost<RenderedView>(
       return failed(new PluginDisabledError(pluginId));
     }
 
-    const activation = Promise.resolve().then(async (): Promise<PluginResult<void>> => {
+    const activation = Promise.resolve().then(async (): Promise<
+      PluginResult<void, PluginActivationAttemptError>
+    > => {
       const localHandlers = new Map<string, PluginCommandHandler>();
       const localViewRenderers = new Map<string, PluginViewRenderer<RenderedView>>();
       const localServices = new Map<string, PublishedPluginService>();
@@ -1283,9 +1361,9 @@ export function createPluginHost<RenderedView>(
       };
 
       const rollback = async (
-        resultError: PluginHostError,
+        resultError: PluginActivationAttemptError,
         cacheActivationFailure: boolean,
-      ): Promise<PluginResult<void>> => {
+      ): Promise<PluginResult<void, PluginActivationAttemptError>> => {
         closeActivation();
         const cleanupError = await drainResources(pluginId, resources);
         const disableRequested = stateRequestsDisable(record.state);
@@ -1339,7 +1417,7 @@ export function createPluginHost<RenderedView>(
           }
         }
 
-        const dependencyFailure = dependencyStillActive(pluginId);
+        const dependencyFailure = inactiveRequiredService(pluginId);
         if (dependencyFailure !== null) {
           return await rollback(dependencyFailure, false);
         }
@@ -1376,20 +1454,14 @@ export function createPluginHost<RenderedView>(
 
   const activatePluginGraph = async (
     pluginId: string,
-  ): Promise<PluginResult<void>> => {
+  ): Promise<PluginResult<void, PluginActivationAttemptError>> => {
     if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
     const record = records.get(pluginId);
     if (record === undefined) return failed(new PluginNotFoundError(pluginId));
     if (!stateIsEnabled(record.state)) return failed(new PluginDisabledError(pluginId));
 
-    for (const serviceId of record.module.manifest.requires) {
-      const providerPluginId = serviceProviders.get(serviceId);
-      if (providerPluginId === undefined) {
-        return failed(
-          new PluginDependencyUnavailableError(pluginId, serviceId, 'unregistered'),
-        );
-      }
-      const providerRecord = records.get(providerPluginId);
+    for (const requirement of requiredServicesByPluginId.get(pluginId) ?? []) {
+      const providerRecord = records.get(requirement.providerPluginId);
       if (
         providerRecord === undefined ||
         !stateIsEnabled(providerRecord.state) ||
@@ -1398,26 +1470,32 @@ export function createPluginHost<RenderedView>(
         return failed(
           new PluginDependencyUnavailableError(
             pluginId,
-            serviceId,
-            providerPluginId,
+            requirement.serviceId,
+            requirement.providerPluginId,
             providerRecord === undefined ? null : providerFailureTag(providerRecord.state),
           ),
         );
       }
-      const providerActivation = await activatePluginGraph(providerPluginId);
+      const providerActivation = await activatePluginGraph(
+        requirement.providerPluginId,
+      );
       if (!providerActivation.ok) {
         return failed(
           new PluginDependencyUnavailableError(
             pluginId,
-            serviceId,
-            providerPluginId,
+            requirement.serviceId,
+            requirement.providerPluginId,
             providerActivation.error._tag,
           ),
         );
       }
-      if (!publishedServices.has(serviceId)) {
+      if (!publishedServices.has(requirement.serviceId)) {
         return failed(
-          new PluginDependencyUnavailableError(pluginId, serviceId, providerPluginId),
+          new PluginDependencyUnavailableError(
+            pluginId,
+            requirement.serviceId,
+            requirement.providerPluginId,
+          ),
         );
       }
     }
@@ -1543,7 +1621,9 @@ export function createPluginHost<RenderedView>(
       return failed(new PluginCommandNotFoundError(commandId));
     }
     const record = records.get(pluginId);
-    if (record !== undefined) record.demanded = true;
+    if (record !== undefined && stateIsEnabled(record.state)) {
+      record.demanded = true;
+    }
     const activation = await enqueueTransition(() => activatePluginGraph(pluginId));
     if (!activation.ok) return activation;
     if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
@@ -1652,6 +1732,7 @@ export function createPluginHost<RenderedView>(
       if (record === undefined) {
         return Promise.resolve(failed(new PluginNotFoundError(pluginId)));
       }
+      record.demanded = false;
       requestPluginDisable(record);
       return enqueueTransition(async () => {
         if (lifecycle !== 'open') return failed(new PluginHostDisposedError());
@@ -1668,7 +1749,9 @@ export function createPluginHost<RenderedView>(
       const pluginId = viewOwners.get(viewId);
       if (pluginId === undefined) return failed(new PluginViewNotFoundError(viewId));
       const record = records.get(pluginId);
-      if (record !== undefined) record.demanded = true;
+      if (record !== undefined && stateIsEnabled(record.state)) {
+        record.demanded = true;
+      }
       const activation = await enqueueTransition(() => activatePluginGraph(pluginId));
       if (!activation.ok) return activation;
       if (lifecycle !== 'open') return failed(new PluginHostDisposedError());

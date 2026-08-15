@@ -8,6 +8,7 @@ import {
   DuplicatePluginServiceProviderError,
   DuplicatePluginIdError,
   InvalidPluginManifestError,
+  InvalidPluginServiceKeyError,
   MissingPluginServiceProviderError,
   parsePluginManifest,
   PluginActivationContextClosedError,
@@ -19,7 +20,7 @@ import {
   PluginDeactivationError,
   PluginDisabledError,
   PluginHostDisposedError,
-  PluginServiceAccessError,
+  PluginViewRenderError,
   type PluginActivationContext,
   type PluginHost,
   type PluginManifest,
@@ -170,6 +171,13 @@ test('rejects version two plugins after startup and spatial composition changes'
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.ok(result.error instanceof InvalidPluginManifestError);
+});
+
+test('rejects invalid runtime service key identifiers', () => {
+  assert.throws(
+    () => createPluginServiceKey('not-dotted'),
+    InvalidPluginServiceKeyError,
+  );
 });
 
 test('parses startup activation without a contributed view', () => {
@@ -348,6 +356,7 @@ test('isolates activation and command defects as typed failures', async () => {
   if (!activationResult.ok) {
     assert.ok(activationResult.error instanceof PluginActivationError);
     assert.doesNotMatch(activationResult.error.message, /secret/u);
+    assert.equal(activationResult.error.cause, undefined);
   }
 
   const commandFailure = createPluginHost([
@@ -368,6 +377,28 @@ test('isolates activation and command defects as typed failures', async () => {
   if (!commandResult.ok) {
     assert.ok(commandResult.error instanceof PluginCommandExecutionError);
     assert.doesNotMatch(commandResult.error.message, /secret/u);
+    assert.equal(commandResult.error.cause, undefined);
+  }
+
+  const viewFailure = createPluginHost([
+    {
+      manifest: testManifest(),
+      activate: (context) => {
+        context.registerCommand(commandId, () => undefined);
+        context.registerView(viewId, () => {
+          throw new Error('secret view detail');
+        });
+      },
+    },
+  ]);
+  assert.equal(viewFailure.ok, true);
+  if (!viewFailure.ok) return;
+  const viewResult = await viewFailure.value.renderView(viewId);
+  assert.equal(viewResult.ok, false);
+  if (!viewResult.ok) {
+    assert.ok(viewResult.error instanceof PluginViewRenderError);
+    assert.doesNotMatch(viewResult.error.message, /secret/u);
+    assert.equal(viewResult.error.cause, undefined);
   }
 });
 
@@ -692,6 +723,7 @@ test('removes plugin UI and commands until the user restores them', async () => 
 
   assert.equal((await created.value.enablePlugin('acme.browser')).ok, true);
   assert.equal(created.value.listViews()[0]?.id, viewId);
+  assert.equal(activationCount, 1);
   assert.equal((await created.value.renderView(viewId)).ok, true);
   assert.equal(activationCount, 2);
   assert.equal(disposalCount, 1);
@@ -771,6 +803,8 @@ test('consumes failing cleanup once and permits a fresh activation', async () =>
     if (firstDisable.error instanceof PluginDeactivationError) {
       assert.equal(firstDisable.error.failures.length, 1);
       assert.equal(firstDisable.error.failures[0]?.sequence, 1);
+      assert.equal(firstDisable.error.cause, undefined);
+      assert.equal(firstDisable.error.failures[0]?.cause, undefined);
     }
   }
   assert.equal(created.value.isPluginEnabled('acme.browser'), false);
@@ -1082,7 +1116,10 @@ test('rejects undeclared service publication and consumption transactionally', a
   assert.equal(publication.ok, false);
   if (!publication.ok) {
     assert.ok(publication.error instanceof PluginActivationError);
-    assert.ok(publication.error.cause instanceof PluginServiceAccessError);
+    if (publication.error instanceof PluginActivationError) {
+      assert.equal(publication.error.failureTag, 'PluginServiceAccessError');
+      assert.equal(publication.error.cause, undefined);
+    }
   }
   const unpublishedCommand = await publicationHost.value.executeCommand(
     'acme.consumer.run',
@@ -1109,7 +1146,51 @@ test('rejects undeclared service publication and consumption transactionally', a
   assert.equal(consumption.ok, false);
   if (!consumption.ok) {
     assert.ok(consumption.error instanceof PluginActivationError);
-    assert.ok(consumption.error.cause instanceof PluginServiceAccessError);
+    if (consumption.error instanceof PluginActivationError) {
+      assert.equal(consumption.error.failureTag, 'PluginServiceAccessError');
+      assert.equal(consumption.error.cause, undefined);
+    }
+  }
+});
+
+test('rejects a different runtime key with the same service identifier', async () => {
+  const providerKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const consumerKey = createPluginServiceKey<Readonly<{ value: string }>>(
+    'acme.provider.value',
+  );
+  const created = createPluginHost<string>([
+    {
+      manifest: serviceManifest('acme.provider', {
+        provides: [providerKey.id],
+      }),
+      activate(context) {
+        context.provideService(providerKey, { value: 'private' });
+      },
+    },
+    {
+      manifest: serviceManifest('acme.consumer', {
+        requires: [consumerKey.id],
+        view: true,
+      }),
+      activate(context) {
+        context.getService(consumerKey);
+        context.registerView('acme.consumer.main', () => 'unreachable');
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const result = await created.value.renderView('acme.consumer.main');
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.ok(result.error instanceof PluginActivationError);
+    if (result.error instanceof PluginActivationError) {
+      assert.equal(result.error.failureTag, 'PluginServiceAccessError');
+      assert.equal(result.error.cause, undefined);
+    }
   }
 });
 

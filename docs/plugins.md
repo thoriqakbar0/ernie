@@ -128,7 +128,8 @@ The host rolls back every staged service, contribution, and acquired effect.
 
 Cleanup runs once in reverse effect-acquisition order. A cleanup failure does
 not prevent older effects, other consumers, or providers from draining. Host
-results expose stable plugin identifiers and safe error tags.
+results expose stable plugin identifiers and safe error tags. Raw thrown values
+stay private inside the host and never appear on returned errors.
 
 ## Adding a built-in plugin
 

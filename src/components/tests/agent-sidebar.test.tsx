@@ -1071,7 +1071,7 @@ test('user can rename a thread from its Trove menu', async () => {
   ]);
 });
 
-test('archived threads remain recoverable from undo and the archive', async () => {
+test('archived threads leave the sidebar and remain recoverable from undo', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
@@ -1102,11 +1102,12 @@ test('archived threads remain recoverable from undo and the archive', async () =
   const archive = within(document.body).getByRole('region', {
     name: 'Archived sidebar items',
   });
-  await user.click(within(archive).getByRole('button', { name: 'Archived (1)' }));
-  assert.ok(
-    within(archive).getByRole('button', {
+  assert.ok(within(archive).getByText('Archived (1)'));
+  assert.equal(
+    within(archive).queryByRole('button', {
       name: 'Codebase rating feedback',
     }),
+    null,
   );
 
   await user.click(within(document.body).getByRole('button', { name: 'Undo' }));
@@ -1298,7 +1299,7 @@ test('thread actions open from a right-click context menu', () => {
   );
 });
 
-test('worktree context menu archives and restores the branch in the sidebar', async () => {
+test('worktree context menu removes the archived branch from the sidebar', async () => {
   const user = userEvent.setup();
   renderSidebar({
     addRepository: () => undefined,
@@ -1324,18 +1325,15 @@ test('worktree context menu archives and restores the branch in the sidebar', as
     }),
     null,
   );
-  await user.click(
-    within(document.body).getByRole('button', { name: 'Archived (1)' }),
-  );
-  await user.click(
-    within(document.body).getByRole('button', {
+  const archive = within(document.body).getByRole('region', {
+    name: 'Archived sidebar items',
+  });
+  assert.ok(within(archive).getByText('Archived (1)'));
+  assert.equal(
+    within(archive).queryByRole('button', {
       name: 'Restore feature/calm-ui branch',
     }),
-  );
-  assert.ok(
-    within(document.body).getByRole('listitem', {
-      name: 'feature/calm-ui worktree',
-    }),
+    null,
   );
 });
 

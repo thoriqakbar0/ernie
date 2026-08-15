@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { motion, useMotionValue, useReducedMotion, animate } from "motion/react";
+import type { Easing, Transition } from "motion/react";
 
 import { cn } from "@/components/trovecn/lib/utils";
 import { spring } from "@/components/trovecn/lib/springs";
@@ -13,6 +14,13 @@ const SIZES = {
 } as const;
 
 const DRAG_DEAD_ZONE = 2;
+const TOGGLE_OVERSHOOT = 1;
+const TOGGLE_BOUNCE_EASE: Easing = [0.34, 1.35, 0.64, 1];
+const TOGGLE_BOUNCE_TRANSITION: Transition = {
+  duration: 0.35,
+  ease: TOGGLE_BOUNCE_EASE,
+  times: [0, 0.55, 0.8, 1],
+};
 
 function Switch({
   className,
@@ -54,20 +62,33 @@ function Switch({
   const motionX = useMotionValue(thumbX);
   const reduceMotion = useReducedMotion();
   const hasMountedRef = useRef(false);
+  const previousCheckedRef = useRef(checked);
   useEffect(() => {
     hasMountedRef.current = true;
   }, []);
 
   useEffect(() => {
+    const checkedChanged = previousCheckedRef.current !== checked;
+    previousCheckedRef.current = checked;
     if (dragging.current) return;
-    if (!hasMountedRef.current) {
+    if (!hasMountedRef.current || reduceMotion) {
       motionX.set(thumbX);
       return;
     }
-    const controls = animate(motionX, thumbX, spring.moderate.enter);
+    const controls = checkedChanged
+      ? animate(
+          motionX,
+          [
+            motionX.get(),
+            thumbX + (checked ? TOGGLE_OVERSHOOT : -TOGGLE_OVERSHOOT),
+            thumbX,
+            thumbX,
+          ],
+          TOGGLE_BOUNCE_TRANSITION,
+        )
+      : animate(motionX, thumbX, spring.moderate.enter);
     return () => controls.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thumbX]);
+  }, [checked, motionX, reduceMotion, thumbX]);
 
   return (
     <SwitchPrimitive.Root

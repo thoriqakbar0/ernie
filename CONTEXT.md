@@ -15,3 +15,7 @@ _Avoid_: State path, arbitrary mutation, natural-language action
 **Capability manifest**:
 The machine-readable catalog of UI capabilities and the commands each one exposes.
 _Avoid_: Help text, plugin command list
+
+**UI control result**:
+The stable response envelope for a UI control command, carrying typed capability data or a structured error.
+_Avoid_: Output text, message

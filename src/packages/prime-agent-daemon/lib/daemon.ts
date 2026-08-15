@@ -311,20 +311,39 @@ export function createPrimeAgentDaemon(
       if (!parsedSessionId.ok) return Effect.succeed(parsedSessionId);
 
       return withClient((client) =>
-        Effect.tryPromise(() =>
-          client.request(
-            {
-              type: 'get_model_catalog',
-              activeSessionId: parsedSessionId.value,
-            },
-            requestTimeoutMs,
-          ),
-        ).pipe(
-          Effect.map(responseData),
-          Effect.map((response) =>
-            response.ok ? parseModelCatalogData(response.value) : response,
-          ),
-        ),
+        Effect.gen(function* () {
+          const [catalogResponse, connectionStateResponse] = yield* Effect.all(
+            [
+              Effect.tryPromise(() =>
+                client.request(
+                  {
+                    type: 'get_model_catalog',
+                    activeSessionId: parsedSessionId.value,
+                  },
+                  requestTimeoutMs,
+                ),
+              ),
+              Effect.tryPromise(() =>
+                client.request(
+                  {
+                    type: 'get_connection_state',
+                    activeSessionId: parsedSessionId.value,
+                  },
+                  requestTimeoutMs,
+                ),
+              ),
+            ],
+            { concurrency: 'unbounded' },
+          );
+          const catalog = responseData(catalogResponse);
+          if (!catalog.ok) return catalog;
+          const connectionState = responseData(connectionStateResponse);
+          if (!connectionState.ok) return connectionState;
+          return parseModelCatalogData(
+            catalog.value,
+            connectionState.value,
+          );
+        }),
       );
     },
   );

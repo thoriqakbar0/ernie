@@ -77,11 +77,12 @@ export function parsePrimeAgentDaemonSkillResources(
   return parseSkillResourceCatalogData(value);
 }
 
-/** Parse a raw model-catalog payload from the Prime Agent daemon. */
+/** Parse raw model-catalog and session-scope payloads from Prime Agent. */
 export function parsePrimeAgentDaemonModels(
-  value: JsonValue,
+  catalogValue: JsonValue,
+  connectionStateValue: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
-  return parseModelCatalogData(value);
+  return parseModelCatalogData(catalogValue, connectionStateValue);
 }
 
 /** Parse a refinement request received at Ernie's daemon boundary. */

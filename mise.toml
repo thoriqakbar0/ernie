@@ -1,0 +1,26 @@
+[tools]
+node = "26"
+"npm:@nubjs/nub" = "0.7.5"
+
+[settings]
+lockfile = true
+
+[tasks.setup]
+description = "Install locked dependencies and link local Agentation when available"
+run = [
+  "nub install --frozen-lockfile",
+  '''
+agentation_path="${ERNIE_AGENTATION_PATH:-/Users/thor/work/agentation/package}"
+if [ -d "$agentation_path" ]; then
+  nub link "$agentation_path"
+fi
+''',
+]
+
+[tasks.dev]
+description = "Start Ernie in development mode"
+run = "nub run dev"
+
+[tasks.check]
+description = "Run Ernie's required local checks"
+run = "nub run check"

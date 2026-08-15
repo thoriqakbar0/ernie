@@ -93,6 +93,8 @@ export interface PluginActivationContext<RenderedView> {
    * Acquire one plugin-owned value and arm its cleanup immediately.
    *
    * Setup must reverse its own partial work before throwing.
+   * The returned promise rejects with `PluginActivationContextClosedError`
+   * when acquisition starts after the activation transaction closes.
    */
   acquire<Value>(
     setup: () =>
@@ -719,7 +721,9 @@ export function createPluginHost<RenderedView>(
       };
 
       try {
-        const disposable = (await record.module.activate(context)) ?? null;
+        const activationResult = record.module.activate(context);
+        if (!(activationResult instanceof Promise)) activationOpen = false;
+        const disposable = (await activationResult) ?? null;
         if (disposable !== null) {
           await scope.acquire(() => ({
             value: undefined,

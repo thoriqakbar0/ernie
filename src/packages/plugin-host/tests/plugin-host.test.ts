@@ -329,6 +329,40 @@ test('rejects work through an activation context after activation closes', async
   assert.equal(lateSetupCount, 0);
 });
 
+test('closes synchronous activation before queued microtasks can contribute', async () => {
+  let lateFailure: unknown;
+  let reportLateAttempt = (): void => undefined;
+  const lateAttempt = new Promise<void>((resolve) => {
+    reportLateAttempt = resolve;
+  });
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      activate(context) {
+        context.registerCommand(commandId, () => undefined);
+        queueMicrotask(() => {
+          try {
+            registerTestView(context);
+          } catch (cause) {
+            lateFailure = cause;
+          } finally {
+            reportLateAttempt();
+          }
+        });
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  const result = await created.value.renderView(viewId);
+  await lateAttempt;
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.ok(result.error instanceof PluginActivationError);
+  assert.ok(lateFailure instanceof PluginActivationContextClosedError);
+});
+
 test('disposes active plugins and closes the host', async () => {
   let disposed = false;
   const created = createPluginHost([

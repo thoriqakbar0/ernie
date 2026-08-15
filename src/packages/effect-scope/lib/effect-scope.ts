@@ -70,7 +70,7 @@ export function createEffectScope(): EffectScope {
   let status: EffectScopeStatus = 'open';
   let nextSequence = 1;
   const armedEffects: ArmedEffect[] = [];
-  const acquisitionSettlements: Promise<EffectCleanupError | null>[] = [];
+  const acquisitionSettlements: Promise<void>[] = [];
   let drainPromise: Promise<readonly EffectCleanupError[]> | null = null;
 
   const scope: EffectScope = {
@@ -83,30 +83,21 @@ export function createEffectScope(): EffectScope {
         return Promise.reject(new EffectScopeClosedError());
       }
 
-      let lateCleanupFailure: EffectCleanupError | null = null;
       const acquisition = Promise.resolve()
         .then(setup)
-        .then(async ({ value, cleanup }) => {
+        .then(({ value, cleanup }) => {
           const sequence = nextSequence;
           nextSequence += 1;
+          armedEffects.push({ sequence, cleanup });
 
-          if (status === 'open') {
-            armedEffects.push({ sequence, cleanup });
-            return value;
-          }
-
-          try {
-            await cleanup();
-          } catch (cause) {
-            lateCleanupFailure = new EffectCleanupError(sequence, cause);
-          }
-          throw new EffectScopeClosedError(lateCleanupFailure ?? undefined);
+          if (status !== 'open') throw new EffectScopeClosedError();
+          return value;
         });
 
       acquisitionSettlements.push(
         acquisition.then(
-          () => null,
-          () => lateCleanupFailure,
+          () => undefined,
+          () => undefined,
         ),
       );
       return acquisition;
@@ -121,9 +112,8 @@ export function createEffectScope(): EffectScope {
       status = 'draining';
 
       drainPromise = Promise.resolve().then(async () => {
-        const failures = (await Promise.all(acquisitionSettlements)).filter(
-          (failure): failure is EffectCleanupError => failure !== null,
-        );
+        await Promise.all(acquisitionSettlements);
+        const failures: EffectCleanupError[] = [];
         const effects = armedEffects.splice(0).reverse();
 
         for (const effect of effects) {

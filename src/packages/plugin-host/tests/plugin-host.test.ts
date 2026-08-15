@@ -54,7 +54,9 @@ function registerTestView(context: PluginActivationContext<string>): void {
   context.registerView(viewId, () => 'Browser view');
 }
 
-function serializedTestManifest(apiVersion = 1): JsonValue {
+function serializedTestManifest(
+  apiVersion: number = currentPluginApiVersion,
+): JsonValue {
   return {
     apiVersion,
     id: 'acme.browser',
@@ -87,8 +89,8 @@ test('parses a serialized plugin manifest into immutable metadata', () => {
   assert.equal(Object.isFrozen(result.value.contributes.views), true);
 });
 
-test('rejects unsupported API versions at the manifest boundary', () => {
-  const result = parsePluginManifest(serializedTestManifest(2));
+test('rejects version one plugins after cleanup semantics change', () => {
+  const result = parsePluginManifest(serializedTestManifest(1));
 
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -558,6 +560,32 @@ test('consumes failing cleanup once and permits a fresh activation', async () =>
   assert.equal((await created.value.enablePlugin('acme.browser')).ok, true);
   assert.equal((await created.value.renderView(viewId)).ok, true);
   assert.equal(activationCount, 2);
+});
+
+test('does not retry version two plugin disposable cleanup', async () => {
+  let disposalCount = 0;
+  const created = createPluginHost<string>([
+    {
+      manifest: testManifest(),
+      activate(context) {
+        context.registerCommand(commandId, () => undefined);
+        registerTestView(context);
+        return {
+          dispose: () => {
+            disposalCount += 1;
+            throw new Error('cleanup failed');
+          },
+        };
+      },
+    },
+  ]);
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+
+  assert.equal((await created.value.renderView(viewId)).ok, true);
+  assert.equal((await created.value.disablePlugin('acme.browser')).ok, false);
+  assert.equal((await created.value.disablePlugin('acme.browser')).ok, true);
+  assert.equal(disposalCount, 1);
 });
 
 test('reports activation cleanup failure once when disable interrupts activation', async () => {

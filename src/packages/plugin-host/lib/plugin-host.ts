@@ -13,7 +13,7 @@ import {
 } from '../../effect-scope/index.js';
 
 /** The Ernie plugin API understood by this host. */
-export const currentPluginApiVersion = 1 as const;
+export const currentPluginApiVersion = 2 as const;
 
 /** An icon token that Ernie can render for a contributed view. */
 export type PluginViewIcon = 'globe' | 'puzzle';
@@ -58,7 +58,7 @@ export interface PluginManifest {
 
 /** Cleanup owned by an activated plugin. */
 export interface PluginDisposable {
-  /** Release resources acquired during activation. */
+  /** Release resources acquired during activation once, without automatic retry. */
   dispose(): void | Promise<void>;
 }
 
@@ -379,6 +379,16 @@ function cleanupFailure(
         pluginId,
         pluginCleanupFailures(pluginId, failures),
       );
+}
+
+async function deactivatePluginScope<RenderedView>(
+  pluginId: string,
+  record: PluginRecord<RenderedView>,
+  scope: EffectScope,
+): Promise<PluginDeactivationError | null> {
+  const cleanupError = cleanupFailure(pluginId, await scope.drain());
+  record.state = { status: 'inactive' };
+  return cleanupError;
 }
 
 function readRequiredText(record: JsonRecord, key: string): string | null {
@@ -728,11 +738,14 @@ export function createPluginHost<RenderedView>(
           }
         }
         if (!record.enabled || lifecycle !== 'open') {
-          const recoveryError = cleanupFailure(pluginId, await scope.drain());
-          record.state = { status: 'inactive' };
-          if (recoveryError !== null) {
+          const cleanupError = await deactivatePluginScope(
+            pluginId,
+            record,
+            scope,
+          );
+          if (cleanupError !== null) {
             record.enabled = false;
-            return failed(recoveryError);
+            return failed(cleanupError);
           }
           return lifecycle === 'open'
             ? failed(new PluginDisabledError(pluginId))
@@ -748,11 +761,10 @@ export function createPluginHost<RenderedView>(
         return succeeded(undefined);
       } catch (cause) {
         closeActivation();
-        const recoveryError = cleanupFailure(pluginId, await scope.drain());
-        if (recoveryError !== null) {
+        const cleanupError = await deactivatePluginScope(pluginId, record, scope);
+        if (cleanupError !== null) {
           record.enabled = false;
-          record.state = { status: 'inactive' };
-          return failed(recoveryError);
+          return failed(cleanupError);
         }
         if (lifecycle !== 'open') {
           record.state = { status: 'inactive' };
@@ -866,11 +878,14 @@ export function createPluginHost<RenderedView>(
       }
       const deactivation = Promise.resolve().then(
         async (): Promise<PluginResult<void>> => {
-          const recoveryError = cleanupFailure(pluginId, await scope.drain());
-          record.state = { status: 'inactive' };
-          return recoveryError === null
+          const cleanupError = await deactivatePluginScope(
+            pluginId,
+            record,
+            scope,
+          );
+          return cleanupError === null
             ? succeeded(undefined)
-            : failed(recoveryError);
+            : failed(cleanupError);
         },
       );
       record.state = { status: 'deactivating', deactivation };
@@ -928,12 +943,12 @@ export function createPluginHost<RenderedView>(
               record.state = { status: 'inactive' };
               return;
             }
-            const recoveryError = cleanupFailure(
+            const cleanupError = await deactivatePluginScope(
               pluginId,
-              await record.state.scope.drain(),
+              record,
+              record.state.scope,
             );
-            if (recoveryError !== null) errors.push(recoveryError);
-            record.state = { status: 'inactive' };
+            if (cleanupError !== null) errors.push(cleanupError);
           }),
         );
         commandHandlers.clear();

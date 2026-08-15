@@ -143,4 +143,4 @@ Keep the current plugin host's outer transaction. Add Cordis-style ownership thr
 
 Cordis is most valuable to Ernie as a design lens, not an immediate dependency.
 
-Ernie now adopts effect-local cleanup in the production plugin host. Provider-aware teardown remains the next experiment. HMR and self-evolution should wait.
+Ernie now adopts effect-local cleanup in plugin API v2 of the production host. The version boundary makes every v2 cleanup exactly once. Provider-aware teardown remains the next experiment. HMR and self-evolution should wait.

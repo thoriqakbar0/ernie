@@ -127,6 +127,56 @@ test('reports cleanup failure from an acquisition that settles during drain', as
   assert.equal(failures[0]?.sequence, 1);
 });
 
+test('serializes late cleanup in reverse acquisition order', async () => {
+  const cleanupOrder: string[] = [];
+  let releaseFirstSetup = (): void => undefined;
+  let releaseSecondSetup = (): void => undefined;
+  const firstSetupGate = new Promise<void>((resolve) => {
+    releaseFirstSetup = resolve;
+  });
+  const secondSetupGate = new Promise<void>((resolve) => {
+    releaseSecondSetup = resolve;
+  });
+  const scope = createEffectScope();
+
+  const firstAcquisition = scope.acquire(async () => {
+    await firstSetupGate;
+    return {
+      value: 'first',
+      cleanup: async () => {
+        cleanupOrder.push('start first');
+        await Promise.resolve();
+        cleanupOrder.push('end first');
+      },
+    };
+  });
+  const secondAcquisition = scope.acquire(async () => {
+    await secondSetupGate;
+    return {
+      value: 'second',
+      cleanup: async () => {
+        cleanupOrder.push('start second');
+        await Promise.resolve();
+        cleanupOrder.push('end second');
+      },
+    };
+  });
+  const draining = scope.drain();
+
+  releaseFirstSetup();
+  await assert.rejects(firstAcquisition, EffectScopeClosedError);
+  releaseSecondSetup();
+  await assert.rejects(secondAcquisition, EffectScopeClosedError);
+
+  assert.deepEqual(await draining, []);
+  assert.deepEqual(cleanupOrder, [
+    'start second',
+    'end second',
+    'start first',
+    'end first',
+  ]);
+});
+
 test('leaves partial acquisition rollback with the failing setup', async () => {
   const events: string[] = [];
   const scope = createEffectScope();

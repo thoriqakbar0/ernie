@@ -390,6 +390,28 @@ testInTempDirectory(
       const created = yield* daemon.createSession({ cwd, rlmMaxDepth: 3 });
       assert.equal(created.ok, true);
       if (!created.ok) return;
+
+      const systemPrompt = yield* Effect.tryPromise(async () => {
+        const { DaemonAgentConnection, DaemonClient } = await import(
+          'prime-agent'
+        );
+        const client = new DaemonClient(socketPath);
+        await client.connect(1_000);
+        const connection = await DaemonAgentConnection.attach(
+          client,
+          created.value.activeSessionId,
+          { closeClientOnDispose: true, supportsExtensionUi: false },
+        );
+        try {
+          return await connection.getSystemPrompt();
+        } finally {
+          await connection.dispose();
+        }
+      });
+      assert.match(
+        systemPrompt,
+        /You are running inside Ernie, a desktop client for Prime Agent\./u,
+      );
       yield* Effect.tryPromise(() => rm(missingSkillPath));
 
       const initialFeedItem = yield* Deferred.make<void>();

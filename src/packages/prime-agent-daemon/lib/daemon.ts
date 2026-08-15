@@ -48,6 +48,8 @@ const daemonStartupAttempts = 400;
 const requestTimeoutMs = 10_000;
 const refinementRequestTimeoutMs = 10 * 60 * 1_000;
 const daemonReconnectTimeoutMs = 120_000;
+const ernieAgentHint =
+  'You are running inside Ernie, a desktop client for Prime Agent.';
 
 function failure(
   code: PrimeAgentFailureCode,
@@ -419,6 +421,7 @@ export function createPrimeAgentDaemon(
       const newSessionConfig: NonNullable<
         Extract<DaemonCommand, { type: 'create' }>['config']
       > = {
+        appendSystemPrompt: [ernieAgentHint],
         cwd: request.cwd,
         extensions: [configuration.sessionNameExtensionPath],
       };
@@ -435,6 +438,7 @@ export function createPrimeAgentDaemon(
         type: 'create',
         sessionPath: request.sessionPath,
         config: {
+          appendSystemPrompt: [ernieAgentHint],
           extensions: [configuration.sessionNameExtensionPath],
         },
         lifecycle: 'resident',

@@ -153,7 +153,9 @@ function snapshotItem(
   projection: SessionProjection,
 ): PrimeAgentSessionFeedItem | null {
   const view = projectionView(projection);
-  return view === null ? null : { kind: 'snapshot', view };
+  return view === null
+    ? null
+    : { kind: 'snapshot', previousHistoryStart: null, view };
 }
 
 function withStreamingState(

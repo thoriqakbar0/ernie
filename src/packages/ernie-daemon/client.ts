@@ -1,4 +1,5 @@
 export type {
+  PrimeAgentChatMessage as AgentChatMessage,
   PrimeAgentModel as AgentModel,
   PrimeAgentRefinementReceipt as AgentRefinementReceipt,
   PrimeAgentGitBranchRename as AgentGitBranchRename,

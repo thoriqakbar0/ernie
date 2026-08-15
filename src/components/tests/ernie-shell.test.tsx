@@ -191,6 +191,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
             activeSessionId,
             item: {
               kind: 'snapshot',
+              previousHistoryStart: null,
               view: {
                 activeSessionId,
                 historyStart: 0,
@@ -524,6 +525,34 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     subscriptionId: 'test-feed:blank-agent',
   });
   assert.ok(await within(document.body).findByText('Live event received.'));
+  sessionFeed?.({
+    activeSessionId: 'blank-agent',
+    item: {
+      kind: 'conversation-replaced',
+      isStreaming: false,
+      messages: [
+        { id: 'stale-task', role: 'user', text: 'Injected stale task' },
+        { id: 'stale-reply', role: 'assistant', text: 'Rejected event' },
+      ],
+      transcript: [
+        {
+          id: 'stale-task',
+          kind: 'message',
+          role: 'user',
+          text: 'Injected stale task',
+        },
+        {
+          id: 'stale-reply',
+          kind: 'message',
+          role: 'assistant',
+          text: 'Rejected event',
+        },
+      ],
+    },
+    revision: 2,
+    subscriptionId: 'retired-feed:blank-agent',
+  });
+  assert.equal(within(document.body).queryByText('Rejected event'), null);
   await user.click(
     within(document.body).getByRole('button', { name: 'Depth 5' }),
   );
@@ -580,6 +609,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     within(document.body).getByRole('button', { name: 'Polish the sidebar' }),
   );
   assert.ok(within(document.body).getByText('Live event received.'));
+  assert.equal(within(document.body).queryByText('Rejected event'), null);
   assert.ok(within(document.body).getByRole('button', { name: 'Depth 6' }));
   assert.equal(sessionFeedWatchCount, 2);
   assert.equal(

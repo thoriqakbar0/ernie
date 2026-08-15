@@ -2,6 +2,7 @@ import type {
   AgentSessionFeedItem,
   AgentSessionView,
 } from '../client.js';
+import { reducePrimeAgentSessionView } from '../../prime-agent-daemon/events.js';
 
 const defaultMaximumEntries = 24;
 const defaultMaximumCacheableTranscriptItems = 200;
@@ -29,77 +30,6 @@ export interface AgentSessionViewCache {
   readonly put: (view: AgentSessionView) => void;
   /** Number of currently retained session views. */
   readonly size: number;
-}
-
-function updatedView(
-  current: AgentSessionView | null,
-  activeSessionId: string,
-  item: AgentSessionFeedItem,
-): AgentSessionView | null {
-  if (item.kind === 'snapshot') {
-    if (item.view.activeSessionId !== activeSessionId) {
-      throw new Error('An Agent session snapshot must match its cache key.');
-    }
-    return item.view;
-  }
-  if (
-    item.kind === 'closed' ||
-    item.kind === 'connection-changed' ||
-    current === null
-  ) {
-    return current;
-  }
-  if (item.kind === 'conversation-replaced') {
-    return {
-      ...current,
-      historyStart: 0,
-      isStreaming: item.isStreaming,
-      messages: item.messages,
-      transcript: item.transcript,
-    };
-  }
-  if (item.kind === 'conversation-patched') {
-    const preservesLoadedHistory = current.historyStart <
-      item.previousHistoryStart;
-    const historyStart = preservesLoadedHistory
-      ? current.historyStart
-      : item.historyStart;
-    const transcript = preservesLoadedHistory
-      ? current.transcript
-      : current.transcript.slice(
-          Math.max(0, item.historyStart - current.historyStart),
-        );
-    if (
-      item.from < historyStart ||
-      item.from > historyStart + transcript.length
-    ) {
-      return {
-        ...current,
-        historyStart: item.from,
-        isStreaming: item.isStreaming,
-        messages: item.messages,
-        transcript: item.transcript,
-      };
-    }
-    return {
-      ...current,
-      historyStart,
-      isStreaming: item.isStreaming,
-      messages: item.messages,
-      transcript: [
-        ...transcript.slice(0, item.from - historyStart),
-        ...item.transcript,
-      ],
-    };
-  }
-  if (item.kind === 'spawned-sessions-replaced') {
-    return { ...current, spawnedSessions: item.sessions };
-  }
-  if (item.kind === 'session-name-changed') {
-    return { ...current, sessionName: item.sessionName };
-  }
-  const exhaustiveItem: never = item;
-  return exhaustiveItem;
 }
 
 /** Create a bounded cache that keeps session switches warm while feeds refresh. */
@@ -144,7 +74,11 @@ export function createAgentSessionViewCache(
   return {
     apply(activeSessionId, item) {
       const current = entries.get(activeSessionId) ?? null;
-      const next = updatedView(current, activeSessionId, item);
+      const next = reducePrimeAgentSessionView(
+        current,
+        activeSessionId,
+        item,
+      );
       if (next !== null && next !== current) put(next);
     },
     clear: () => entries.clear(),

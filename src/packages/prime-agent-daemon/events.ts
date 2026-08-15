@@ -6,6 +6,7 @@ import {
 } from '../json-value/index.js';
 import { parseSessionViewResult, parseWorkspaceResult } from './lib/protocol.js';
 import type {
+  PrimeAgentChatMessage,
   PrimeAgentFailure,
   PrimeAgentResult,
   PrimeAgentSessionFeedEnvelope,
@@ -81,7 +82,24 @@ function parseFeedItem(
 
   if (value.kind === 'snapshot') {
     const view = parseView(value.view);
-    return view === null ? null : { kind: 'snapshot', view };
+    const previousHistoryStart = value.previousHistoryStart;
+    if (
+      previousHistoryStart !== null &&
+      (
+        !isJsonNumber(previousHistoryStart) ||
+        !Number.isSafeInteger(previousHistoryStart) ||
+        previousHistoryStart < 0
+      )
+    ) {
+      return null;
+    }
+    return view === null
+      ? null
+      : {
+          kind: 'snapshot',
+          previousHistoryStart,
+          view,
+        };
   }
 
   if (value.kind === 'conversation-replaced') {
@@ -118,6 +136,7 @@ function parseFeedItem(
       value.historyStart === undefined ||
       value.isStreaming === undefined ||
       value.messages === undefined ||
+      value.messagesFrom === undefined ||
       value.previousHistoryStart === undefined ||
       value.transcript === undefined ||
       !isJsonNumber(value.from) ||
@@ -127,6 +146,9 @@ function parseFeedItem(
       !Number.isSafeInteger(value.historyStart) ||
       value.historyStart < 0 ||
       value.historyStart > value.from ||
+      !isJsonNumber(value.messagesFrom) ||
+      !Number.isSafeInteger(value.messagesFrom) ||
+      value.messagesFrom < 0 ||
       !isJsonNumber(value.previousHistoryStart) ||
       !Number.isSafeInteger(value.previousHistoryStart) ||
       value.previousHistoryStart < 0
@@ -151,6 +173,7 @@ function parseFeedItem(
           kind: 'conversation-patched',
           isStreaming: view.isStreaming,
           messages: view.messages,
+          messagesFrom: value.messagesFrom,
           previousHistoryStart: value.previousHistoryStart,
           transcript: view.transcript,
         };
@@ -319,11 +342,33 @@ export function coalescePrimeAgentSessionFeedItems(
       if (pendingConversation?.kind === 'conversation-patched') {
         const pendingEnd = pendingConversation.from +
           pendingConversation.transcript.length;
-        if (item.from >= pendingConversation.from && item.from <= pendingEnd) {
+        const pendingMessagesEnd = pendingConversation.messagesFrom +
+          pendingConversation.messages.length;
+        if (
+          item.from >= pendingConversation.from &&
+          item.from <= pendingEnd &&
+          item.messagesFrom <= pendingMessagesEnd
+        ) {
           const prefixLength = item.from - pendingConversation.from;
+          const messagesFrom = Math.min(
+            pendingConversation.messagesFrom,
+            item.messagesFrom,
+          );
+          const messages: readonly PrimeAgentChatMessage[] =
+            item.messagesFrom < pendingConversation.messagesFrom
+            ? item.messages
+            : [
+                ...pendingConversation.messages.slice(
+                  0,
+                  item.messagesFrom - pendingConversation.messagesFrom,
+                ),
+                ...item.messages,
+              ];
           pendingConversation = {
             ...item,
             from: pendingConversation.from,
+            messages,
+            messagesFrom,
             previousHistoryStart: pendingConversation.previousHistoryStart,
             transcript: [
               ...pendingConversation.transcript.slice(0, prefixLength),
@@ -380,6 +425,118 @@ function protocolClosedState(
   };
 }
 
+function mergeSnapshotHistory(
+  current: PrimeAgentSessionView | null,
+  incoming: PrimeAgentSessionView,
+  previousHistoryStart: number | null,
+): PrimeAgentSessionView {
+  if (current === null || previousHistoryStart === null) {
+    return incoming;
+  }
+  const currentEnd = current.historyStart + current.transcript.length;
+  if (
+    current.historyStart >= previousHistoryStart ||
+    previousHistoryStart > currentEnd ||
+    incoming.historyStart < current.historyStart ||
+    incoming.historyStart > currentEnd
+  ) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    historyStart: current.historyStart,
+    transcript: [
+      ...current.transcript.slice(
+        0,
+        incoming.historyStart - current.historyStart,
+      ),
+      ...incoming.transcript,
+    ],
+  };
+}
+
+/**
+ * Project one validated feed item into a session view without mutating it.
+ *
+ * Connection and closure items retain the current view. Incremental items
+ * require an existing view. A crossed snapshot identity is an invariant defect.
+ *
+ * @throws When a snapshot identity contradicts the expected session identity.
+ */
+export function reducePrimeAgentSessionView(
+  current: PrimeAgentSessionView | null,
+  activeSessionId: string,
+  item: PrimeAgentSessionFeedItem,
+): PrimeAgentSessionView | null {
+  if (item.kind === 'snapshot') {
+    if (item.view.activeSessionId !== activeSessionId) {
+      throw new Error('An Agent session snapshot must match its session key.');
+    }
+    return mergeSnapshotHistory(
+      current,
+      item.view,
+      item.previousHistoryStart,
+    );
+  }
+  if (
+    item.kind === 'closed' ||
+    item.kind === 'connection-changed' ||
+    current === null
+  ) {
+    return current;
+  }
+  if (item.kind === 'conversation-replaced') {
+    return {
+      ...current,
+      historyStart: 0,
+      isStreaming: item.isStreaming,
+      messages: item.messages,
+      transcript: item.transcript,
+    };
+  }
+  if (item.kind === 'conversation-patched') {
+    const preservesLoadedHistory = current.historyStart <
+      item.previousHistoryStart;
+    const historyStart = preservesLoadedHistory
+      ? current.historyStart
+      : item.historyStart;
+    const transcript = preservesLoadedHistory
+      ? current.transcript
+      : current.transcript.slice(
+          Math.max(0, item.historyStart - current.historyStart),
+        );
+    const messages = item.messagesFrom <= current.messages.length
+      ? [...current.messages.slice(0, item.messagesFrom), ...item.messages]
+      : item.messages;
+    if (
+      item.from < historyStart ||
+      item.from > historyStart + transcript.length
+    ) {
+      return {
+        ...current,
+        historyStart: item.from,
+        isStreaming: item.isStreaming,
+        messages,
+        transcript: item.transcript,
+      };
+    }
+    return {
+      ...current,
+      historyStart,
+      isStreaming: item.isStreaming,
+      messages,
+      transcript: [
+        ...transcript.slice(0, item.from - historyStart),
+        ...item.transcript,
+      ],
+    };
+  }
+  if (item.kind === 'spawned-sessions-replaced') {
+    return { ...current, spawnedSessions: item.sessions };
+  }
+  return { ...current, sessionName: item.sessionName };
+}
+
 /** Apply one ordered session-feed event without allowing stale state mutation. */
 export function reducePrimeAgentSessionFeed(
   state: PrimeAgentSessionFeedState,
@@ -409,12 +566,18 @@ export function reducePrimeAgentSessionFeed(
     if (item.view.activeSessionId !== state.activeSessionId) {
       return protocolClosedState(state, envelope.revision);
     }
+    const view = reducePrimeAgentSessionView(
+      stateView(state),
+      state.activeSessionId,
+      item,
+    );
+    if (view === null) return protocolClosedState(state, envelope.revision);
     return {
       kind: 'live',
       activeSessionId: state.activeSessionId,
       revision: envelope.revision,
       subscriptionId: state.subscriptionId,
-      view: item.view,
+      view,
     };
   }
   if (item.kind === 'connection-changed') {
@@ -434,60 +597,16 @@ export function reducePrimeAgentSessionFeed(
   if (state.kind === 'connecting') {
     return protocolClosedState(state, envelope.revision);
   }
-  const view = state.view;
-  if (item.kind === 'conversation-replaced') {
-    return {
-      ...state,
-      revision: envelope.revision,
-      view: {
-        ...view,
-        historyStart: 0,
-        isStreaming: item.isStreaming,
-        messages: item.messages,
-        transcript: item.transcript,
-      },
-    };
-  }
-  if (item.kind === 'conversation-patched') {
-    const preservesLoadedHistory = view.historyStart < item.previousHistoryStart;
-    const historyStart = preservesLoadedHistory
-      ? view.historyStart
-      : item.historyStart;
-    const transcript = preservesLoadedHistory
-      ? view.transcript
-      : view.transcript.slice(
-          Math.max(0, item.historyStart - view.historyStart),
-        );
-    const viewEnd = historyStart + transcript.length;
-    const canPatch = item.from >= historyStart && item.from <= viewEnd;
-    return {
-      ...state,
-      revision: envelope.revision,
-      view: {
-        ...view,
-        historyStart: canPatch ? historyStart : item.from,
-        isStreaming: item.isStreaming,
-        messages: item.messages,
-        transcript: canPatch
-          ? [
-              ...transcript.slice(0, item.from - historyStart),
-              ...item.transcript,
-            ]
-          : item.transcript,
-      },
-    };
-  }
-  if (item.kind === 'spawned-sessions-replaced') {
-    return {
-      ...state,
-      revision: envelope.revision,
-      view: { ...view, spawnedSessions: item.sessions },
-    };
-  }
+  const view = reducePrimeAgentSessionView(
+    state.view,
+    state.activeSessionId,
+    item,
+  );
+  if (view === null) return protocolClosedState(state, envelope.revision);
   return {
     ...state,
     revision: envelope.revision,
-    view: { ...view, sessionName: item.sessionName },
+    view,
   };
 }
 

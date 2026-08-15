@@ -30,7 +30,11 @@ function sessionView(
 test('retains complete views and applies incremental feed changes', () => {
   const cache = createAgentSessionViewCache({ maximumEntries: 2 });
   const first = sessionView('first', 'First task');
-  cache.apply('first', { kind: 'snapshot', view: first });
+  cache.apply('first', {
+    kind: 'snapshot',
+    previousHistoryStart: null,
+    view: first,
+  });
   cache.apply('first', {
     kind: 'conversation-replaced',
     isStreaming: true,
@@ -50,6 +54,7 @@ test('retains complete views and applies incremental feed changes', () => {
     kind: 'conversation-patched',
     isStreaming: false,
     messages: [{ id: 'first:reply', role: 'assistant', text: 'Done' }],
+    messagesFrom: 0,
     previousHistoryStart: 0,
     transcript: [
       {
@@ -95,9 +100,10 @@ test('evicts the least recently used view and rejects crossed identities', () =>
     () =>
       cache.apply('first', {
         kind: 'snapshot',
+        previousHistoryStart: null,
         view: sessionView('wrong', 'Wrong'),
       }),
-    /must match its cache key/u,
+    /must match its session key/u,
   );
 });
 
@@ -116,4 +122,46 @@ test('retains the newest bounded window of an oversized transcript', () => {
     historyStart: 1,
     transcript: view.transcript,
   });
+});
+
+test('preserves explicitly loaded history through refreshed snapshots', () => {
+  const cache = createAgentSessionViewCache();
+  const view = sessionView('history', 'Current');
+  cache.put({
+    ...view,
+    historyStart: 79,
+    transcript: [
+      {
+        id: 'history:old',
+        kind: 'message',
+        role: 'user',
+        text: 'Loaded earlier',
+      },
+      ...view.transcript,
+    ],
+  });
+
+  cache.apply('history', {
+    kind: 'snapshot',
+    previousHistoryStart: 80,
+    view: {
+      ...view,
+      historyStart: 80,
+      transcript: [
+        ...view.transcript,
+        {
+          id: 'history:new',
+          kind: 'message',
+          role: 'assistant',
+          text: 'Resynchronized',
+        },
+      ],
+    },
+  });
+
+  assert.equal(cache.peek('history')?.historyStart, 79);
+  assert.deepEqual(
+    cache.peek('history')?.transcript.map((item) => item.id),
+    ['history:old', 'history:message', 'history:new'],
+  );
 });

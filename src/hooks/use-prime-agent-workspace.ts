@@ -90,6 +90,7 @@ export interface PrimeAgentWorkspaceController {
     message: string,
   ) => Promise<CreateAgentWithTaskResult>;
   readonly loadSavedSessions: () => void;
+  /** Load and prepend the next bounded page for the selected session. */
   readonly loadEarlierSessionHistory: () => void;
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
@@ -140,6 +141,11 @@ type WorkspaceDirectorySelection =
   | { readonly ok: true; readonly value: string | null }
   | { readonly ok: false };
 
+interface OwnedEarlierHistoryLoad {
+  readonly activeSessionId: string;
+  fiber: Fiber.Fiber<void> | null;
+}
+
 function parseWorkspaceDirectorySelection(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function parses the Electron IPC boundary value before use.
   value: unknown,
@@ -184,7 +190,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
   );
-  const [selectedSessionFeed, setSelectedSessionFeed] =
+  const [selectedSessionFeed, setSelectedSessionFeedState] =
     useState<PrimeAgentSessionFeedState | null>(null);
   const [sessionPreviews, setSessionPreviews] = useState<
     Readonly<Record<string, string>>
@@ -218,6 +224,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   >(new Map());
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
+  const selectedSessionFeedRef = useRef<PrimeAgentSessionFeedState | null>(null);
+  const earlierHistoryLoadRef = useRef<OwnedEarlierHistoryLoad | null>(null);
   const sessionViewCacheRef = useRef<ReturnType<
     typeof createAgentSessionViewCache
   > | null>(null);
@@ -225,6 +233,32 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     sessionViewCacheRef.current = createAgentSessionViewCache();
   }
   const sessionViewCache = sessionViewCacheRef.current;
+  const updateSelectedSessionFeed = useCallback(
+    function updateSelectedSessionFeed(
+      update: (
+        current: PrimeAgentSessionFeedState | null,
+      ) => PrimeAgentSessionFeedState | null,
+    ): PrimeAgentSessionFeedState | null {
+      const current = selectedSessionFeedRef.current;
+      const next = update(current);
+      if (next === current) return current;
+      selectedSessionFeedRef.current = next;
+      setSelectedSessionFeedState(next);
+      return next;
+    },
+    [],
+  );
+  const cancelEarlierHistoryLoad = useCallback(
+    function cancelEarlierHistoryLoad(): void {
+      const owner = earlierHistoryLoadRef.current;
+      if (owner === null) return;
+      earlierHistoryLoadRef.current = null;
+      if (owner.fiber !== null) {
+        Effect.runFork(Fiber.interrupt(owner.fiber));
+      }
+    },
+    [],
+  );
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
   const liveSelectedSessionView = selectedSessionFeed === null
     ? null
@@ -406,7 +440,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (selectedSessionId === null) {
       setModels([]);
       setSkills([]);
-      setSelectedSessionFeed(null);
+      updateSelectedSessionFeed(() => null);
       return;
     }
 
@@ -461,12 +495,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [selectedSessionId]);
+  }, [selectedSessionId, updateSelectedSessionFeed]);
 
   useEffect(() => {
+    cancelEarlierHistoryLoad();
+    setLoadingEarlierHistory(false);
     if (selectedSessionId === null) {
-      setSelectedSessionFeed(null);
-      setLoadingEarlierHistory(false);
+      updateSelectedSessionFeed(() => null);
       return;
     }
 
@@ -480,13 +515,28 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           setStatus(envelope.error.message);
           return;
         }
-        const item = envelope.value.item;
-        sessionViewCache.apply(activeSessionId, item);
-        setSelectedSessionFeed((current) =>
-          current === null
-            ? current
-            : reducePrimeAgentSessionFeed(current, envelope.value),
+        const current = selectedSessionFeedRef.current;
+        if (current === null) return;
+        const next = updateSelectedSessionFeed((state) =>
+          state === null
+            ? null
+            : reducePrimeAgentSessionFeed(state, envelope.value)
         );
+        if (next === current) return;
+
+        const item = envelope.value.item;
+        if (next?.kind === 'closed' && item.kind !== 'closed') {
+          setStatus(next.failure.message);
+          return;
+        }
+        const nextView = next === null ? null : primeAgentSessionFeedView(next);
+        if (
+          nextView !== null &&
+          item.kind !== 'closed' &&
+          item.kind !== 'connection-changed'
+        ) {
+          sessionViewCache.put(nextView);
+        }
 
         const messages = item.kind === 'snapshot'
           ? item.view.messages
@@ -534,14 +584,23 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         }
       },
     );
-    setSelectedSessionFeed(
-      createPrimeAgentSessionFeedState(subscriptionId, activeSessionId),
+    updateSelectedSessionFeed(
+      () => createPrimeAgentSessionFeedState(subscriptionId, activeSessionId),
     );
 
     return () => {
       window.ernie.unwatchAgentSession(subscriptionId);
+      const historyOwner = earlierHistoryLoadRef.current;
+      if (historyOwner?.activeSessionId === activeSessionId) {
+        cancelEarlierHistoryLoad();
+      }
     };
-  }, [selectedSessionId, sessionViewCache]);
+  }, [
+    cancelEarlierHistoryLoad,
+    selectedSessionId,
+    sessionViewCache,
+    updateSelectedSessionFeed,
+  ]);
 
   const workspacePaths = useMemo(() => {
     const paths = new Set([
@@ -782,7 +841,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
 
   function loadEarlierSessionHistory(): void {
     if (
-      loadingEarlierHistory ||
+      earlierHistoryLoadRef.current !== null ||
       selectedSessionView === null ||
       selectedSessionView.historyStart === 0
     ) {
@@ -804,7 +863,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         return;
       }
       yield* Effect.sync(() => {
-        setSelectedSessionFeed((current) => {
+        updateSelectedSessionFeed((current) => {
           if (current === null) return null;
           const next = prependPrimeAgentSessionHistory(current, result.value);
           const nextView = primeAgentSessionFeedView(next);
@@ -815,14 +874,25 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       });
     });
 
-    Effect.runFork(
+    const owner: OwnedEarlierHistoryLoad = {
+      activeSessionId,
+      fiber: null,
+    };
+    earlierHistoryLoadRef.current = owner;
+    owner.fiber = Effect.runFork(
       load().pipe(
         Effect.catch(() =>
           Effect.sync(() =>
             setStatus('Ernie could not load earlier Agent history.'),
           ),
         ),
-        Effect.ensuring(Effect.sync(() => setLoadingEarlierHistory(false))),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (earlierHistoryLoadRef.current !== owner) return;
+            earlierHistoryLoadRef.current = null;
+            setLoadingEarlierHistory(false);
+          }),
+        ),
       ),
     );
   }
@@ -1307,7 +1377,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           }
 
           yield* Effect.sync(() => {
-            setSelectedSessionFeed((current) => {
+            updateSelectedSessionFeed((current) => {
               if (current === null) return null;
               const next = replacePrimeAgentSessionFeedRlmDepth(
                 current,
@@ -1338,7 +1408,12 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         ),
       );
     },
-    [selectedSessionId, selectedSessionView?.rlmMaxDepth, sessionViewCache],
+    [
+      selectedSessionId,
+      selectedSessionView?.rlmMaxDepth,
+      sessionViewCache,
+      updateSelectedSessionFeed,
+    ],
   );
 
   const modelBusy = loadingWorkspace || loadingSession || savingModel;

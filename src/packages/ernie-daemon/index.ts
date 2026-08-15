@@ -89,6 +89,7 @@ export interface AgentHarnessAdapter extends AgentHarnessOperations {
 /** Ernie's immutable daemon API with one selected harness adapter. */
 export interface ErnieDaemon extends AgentHarnessOperations {
   readonly harness: AgentHarnessDescriptor;
+  /** Load one bounded transcript page before the requested history index. */
   readonly loadSessionHistory: (
     request: JsonValue,
   ) => Effect.Effect<AgentResult<AgentSessionHistoryPage>>;
@@ -100,6 +101,10 @@ export interface ErnieDaemonConfiguration {
 }
 
 interface OwnedSessionWarmup {
+  fiber: Fiber.Fiber<void> | null;
+}
+
+interface OwnedDaemonShutdown {
   fiber: Fiber.Fiber<void> | null;
 }
 
@@ -140,6 +145,7 @@ export function createErnieDaemon(
   const sessionViews = createAgentSessionViewCache();
   const pendingSessionWarmups = new Set<string>();
   let activeSessionWarmup: OwnedSessionWarmup | null = null;
+  let activeShutdown: OwnedDaemonShutdown | null = null;
   let closed = false;
 
   const warmSession = (activeSessionId: string) =>
@@ -193,8 +199,10 @@ export function createErnieDaemon(
   const sessionFeed = (activeSessionId: JsonValue) => {
     const sessionId = normalizedSessionId(activeSessionId);
     if (sessionId !== null) pendingSessionWarmups.delete(sessionId);
+    const cachedView = sessionId === null ? null : sessionViews.read(sessionId);
     const liveFeed = windowAgentSessionFeed(
       adapter.sessionFeed(activeSessionId),
+      cachedView,
     ).pipe(
       Stream.mapEffect((item) =>
         Effect.sync(() => {
@@ -205,10 +213,13 @@ export function createErnieDaemon(
     );
     if (sessionId === null) return liveFeed;
 
-    const cachedView = sessionViews.read(sessionId);
     return cachedView === null
       ? liveFeed
-      : Stream.succeed({ kind: 'snapshot' as const, view: cachedView }).pipe(
+      : Stream.succeed({
+          kind: 'snapshot' as const,
+          previousHistoryStart: null,
+          view: cachedView,
+        }).pipe(
           Stream.concat(liveFeed),
         );
   };
@@ -261,15 +272,31 @@ export function createErnieDaemon(
   return Object.freeze({
     harness,
     close(): void {
+      if (closed) return;
       closed = true;
       pendingSessionWarmups.clear();
       const warmup = activeSessionWarmup;
       activeSessionWarmup = null;
-      if (warmup?.fiber !== null && warmup?.fiber !== undefined) {
-        Effect.runFork(Fiber.interrupt(warmup.fiber));
+      const closeAdapter = Effect.sync(() => {
+        sessionViews.clear();
+        adapter.close();
+      });
+      if (warmup?.fiber === null || warmup?.fiber === undefined) {
+        Effect.runSync(closeAdapter);
+        return;
       }
-      sessionViews.clear();
-      adapter.close();
+      const shutdown: OwnedDaemonShutdown = { fiber: null };
+      activeShutdown = shutdown;
+      shutdown.fiber = Effect.runFork(
+        Fiber.interrupt(warmup.fiber).pipe(
+          Effect.andThen(closeAdapter),
+          Effect.ensuring(
+            Effect.sync(() => {
+              if (activeShutdown === shutdown) activeShutdown = null;
+            }),
+          ),
+        ),
+      );
     },
     createSession: adapter.createSession,
     getRlmDepth: adapter.getRlmDepth,

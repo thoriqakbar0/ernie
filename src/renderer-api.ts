@@ -150,6 +150,7 @@ export type ErnieRendererApi = Readonly<{
     listener: (value: JsonValue) => void,
   ) => string;
   unwatchAgentSession: (subscriptionId: string) => void;
+  /** Load one bounded transcript page before the requested history index. */
   loadAgentSessionHistory: (
     request: AgentSessionHistoryRequest,
   ) => Promise<JsonValue>;

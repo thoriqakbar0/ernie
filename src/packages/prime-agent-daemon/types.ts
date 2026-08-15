@@ -91,6 +91,7 @@ export interface PrimeAgentSessionView {
 export type PrimeAgentSessionFeedItem =
   | Readonly<{
       kind: 'snapshot';
+      previousHistoryStart: number | null;
       view: PrimeAgentSessionView;
     }>
   | Readonly<{
@@ -105,6 +106,7 @@ export type PrimeAgentSessionFeedItem =
       kind: 'conversation-patched';
       isStreaming: boolean;
       messages: readonly PrimeAgentChatMessage[];
+      messagesFrom: number;
       previousHistoryStart: number;
       transcript: readonly PrimeAgentTranscriptItem[];
     }>

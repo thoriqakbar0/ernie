@@ -297,17 +297,21 @@ test('user can detect and insert a Prime Agent skill', async () => {
   assert.equal(within(document.body).queryByRole('listbox'), null);
 });
 
-test('skill results scroll without moving the popup heading', async () => {
+test('skill results scroll independently from the search controls', async () => {
   const user = userEvent.setup();
   renderTaskComposer();
 
   await user.type(within(document.body).getByRole('textbox'), '/');
 
+  const dialog = within(document.body).getByRole('dialog', {
+    name: 'Search skills',
+  });
   const results = document.querySelector('[data-slot="skill-results"]');
   assert.ok(results);
+  assert.equal(results.parentElement, dialog);
   assert.equal(results.classList.contains('overflow-y-auto'), true);
   assert.equal(results.classList.contains('overscroll-contain'), true);
-  assert.ok(within(document.body).getByText('Skills'));
+  assert.ok(within(dialog).getByText('Searches complete skill files'));
 });
 
 test('user can select a detected skill with the keyboard', async () => {
@@ -349,7 +353,7 @@ test('double slash searches the complete skill files', async () => {
   await user.type(composer, '//');
 
   assert.ok(
-    within(document.body).getByText('Full skill search · //'),
+    within(document.body).getByText('Searches complete skill files'),
   );
   assert.equal(
     within(document.body).getAllByRole('option').length,

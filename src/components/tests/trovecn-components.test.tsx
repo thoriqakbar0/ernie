@@ -344,34 +344,60 @@ test('focused chat does not duplicate composer depth', () => {
   assert.equal(within(document.body).queryByText('depth 2'), null);
 });
 
-test('focused chat keeps user messages free of a divider', () => {
-  render(
-    <AgentChat
-      sessionView={{
-        activeSessionId: 'root',
-        historyStart: 0,
-        isStreaming: false,
-        messages: [{ id: 'one', role: 'user', text: 'hello' }],
-        rlmMaxDepth: 2,
-        sessionName: 'Hello',
-        spawnedSessions: [],
-        transcript: [
-          { id: 'one', kind: 'message', role: 'user', text: 'hello' },
-        ],
-      }}
-    />,
+test('focused chat expands long user messages without a divider', async () => {
+  const user = userEvent.setup();
+  const originalScrollHeight = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'scrollHeight',
   );
-
-  const message = within(document.body).getByRole('article', {
-    name: 'Your message',
+  Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+    configurable: true,
+    get: () => 500,
   });
-  assert.doesNotMatch(message.className, /border-t/u);
-  const ask = within(message).getByText('hello');
-  assert.match(ask.className, /overflow-wrap:anywhere/u);
-  assert.match(ask.className, /whitespace-pre-wrap/u);
-  assert.match(ask.className, /max-h-\[min\(40vh,24rem\)\]/u);
-  assert.match(ask.className, /overflow-y-auto/u);
-  assert.match(ask.className, /overscroll-contain/u);
+
+  try {
+    render(
+      <AgentChat
+        sessionView={{
+          activeSessionId: 'root',
+          historyStart: 0,
+          isStreaming: false,
+          messages: [{ id: 'one', role: 'user', text: 'hello' }],
+          rlmMaxDepth: 2,
+          sessionName: 'Hello',
+          spawnedSessions: [],
+          transcript: [
+            { id: 'one', kind: 'message', role: 'user', text: 'hello' },
+          ],
+        }}
+      />,
+    );
+
+    const message = within(document.body).getByRole('article', {
+      name: 'Your message',
+    });
+    assert.doesNotMatch(message.className, /border-t/u);
+    const ask = within(message).getByText('hello');
+    assert.match(ask.className, /overflow-wrap:anywhere/u);
+    assert.match(ask.className, /whitespace-pre-wrap/u);
+    assert.match(ask.className, /max-h-72/u);
+    assert.match(ask.className, /overflow-hidden/u);
+
+    await user.click(within(message).getByRole('button', { name: 'Show more' }));
+
+    assert.doesNotMatch(ask.className, /max-h-72/u);
+    assert.ok(within(message).getByRole('button', { name: 'Show less' }));
+  } finally {
+    if (originalScrollHeight === undefined) {
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight');
+    } else {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'scrollHeight',
+        originalScrollHeight,
+      );
+    }
+  }
 });
 
 test('focused chat renders Prime Agent markdown as document structure', () => {

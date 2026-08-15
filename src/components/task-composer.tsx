@@ -80,9 +80,9 @@ export const TaskComposer = memo(function TaskComposer({
   const skillsOpen = !skillsDismissed && skillQuery !== null;
 
   useEffect(() => {
-    if (!skillsOpen) return;
+    if (!skillsOpen || skillQueryKind !== 'deep-full-text') return;
     skillSearchRef.current?.focus();
-  }, [skillsOpen]);
+  }, [skillQueryKind, skillsOpen]);
 
   function insertSkill(command: string): void {
     if (skillQuery === null) return;

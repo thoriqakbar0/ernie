@@ -108,7 +108,9 @@ export function createRenameSessionTool(
     name: 'rename_session',
     parameters: renameSessionParameters,
     promptGuidelines: [
-      'Use rename_session after understanding the first user request in every Ernie session. Give the session a concise, specific work name, and rename it again when the work changes materially.',
+      'After understanding the first user request, you must call rename_session before other work.',
+      'When calling rename_session, provide a concise, specific work name.',
+      'Call rename_session again when the work changes materially.',
     ],
     execute(_toolCallId, parameters) {
       return renameSessionFromAgentSuggestion(setSessionName, parameters.name);

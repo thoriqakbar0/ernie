@@ -116,7 +116,8 @@ test('connected Agent keeps explicit controls inside the composer', () => {
   assert.equal(depth.textContent?.includes('Depth'), true);
 });
 
-test('connected Agent uses the compact quick composer', () => {
+test('connected Agent uses the compact quick composer', async () => {
+  const user = userEvent.setup();
   renderTaskComposer();
 
   const composer = within(document.body).getByRole('textbox');
@@ -134,9 +135,13 @@ test('connected Agent uses the compact quick composer', () => {
       'has-[[data-slot=input-group-control]:focus-visible]:ring-0',
     ),
   );
-  assert.ok(inputGroup?.className.includes('focus-within:opacity-100'));
+  assert.ok(inputGroup?.className.includes('focus-within:!opacity-100'));
   assert.ok(composer.className.includes('focus-visible:border-0'));
   assert.ok(composer.className.includes('focus-visible:outline-none'));
+
+  await user.click(composer);
+  assert.equal(document.activeElement, composer);
+  assert.equal(inputGroup?.contains(document.activeElement), true);
 });
 
 test('working Agent keeps an editable follow-up queue', async () => {

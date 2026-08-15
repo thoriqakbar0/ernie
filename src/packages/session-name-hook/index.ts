@@ -99,7 +99,7 @@ export async function renameSessionFromAgentSuggestion(
 /** Create the session-scoped tool that lets an agent rename itself. */
 export function createRenameSessionTool(
   setSessionName: ExtensionAPI['setSessionName'],
-): ToolDefinition<typeof renameSessionParameters, RenameSessionDetails> {
+) {
   return {
     description:
       'Rename the current Ernie session to a concise name that reflects the work.',
@@ -107,13 +107,13 @@ export function createRenameSessionTool(
     label: 'Rename session',
     name: 'rename_session',
     parameters: renameSessionParameters,
-    promptGuidelines: [
-      'Use rename_session when the current Ernie session name is missing, vague, or no longer describes the work.',
-    ],
     execute(_toolCallId, parameters) {
       return renameSessionFromAgentSuggestion(setSessionName, parameters.name);
     },
-  };
+  } satisfies ToolDefinition<
+    typeof renameSessionParameters,
+    RenameSessionDetails
+  >;
 }
 
 /** Install Ernie's session naming capabilities into Prime Agent. */

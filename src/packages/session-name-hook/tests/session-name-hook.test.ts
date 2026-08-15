@@ -57,17 +57,12 @@ test('lets the agent rename its current session through a scoped tool', async ()
     renamedSessions.push(name);
   });
 
-  const result = await renameSessionFromAgentSuggestion(
-    (name) => {
-      renamedSessions.push(name);
-    },
-    '  investigate   cache invalidation  ',
-  );
+  const result = await tool.execute('rename-1', {
+    name: '  investigate   cache invalidation  ',
+  });
 
   assert.equal(tool.name, 'rename_session');
-  assert.deepEqual(tool.promptGuidelines, [
-    'Use rename_session when the current Ernie session name is missing, vague, or no longer describes the work.',
-  ]);
+  assert.equal(Object.hasOwn(tool, 'promptGuidelines'), false);
   assert.deepEqual(renamedSessions, ['Investigate cache invalidation']);
   assert.deepEqual(result, {
     content: [

@@ -24,6 +24,7 @@ import * as Tooltip from '@/components/trovecn/ui/tooltip';
 import { Conversation } from '@/components/trovecn/ai-workbench/conversation';
 import { PromptComposer } from '@/components/trovecn/ai-workbench/prompt-composer';
 import { motionSafeProps } from '@/components/trovecn/lib/motion-safe-props';
+import type { PrimeAgentSpawnedSessionTarget } from '@/hooks/use-prime-agent-workspace';
 
 afterEach(cleanup);
 
@@ -657,8 +658,10 @@ test('sending a follow-up keeps completed work collapsed', () => {
 });
 
 test('focused chat reveals a recursively indexed spawned Agent tree', () => {
+  const openedSessions: PrimeAgentSpawnedSessionTarget[] = [];
   render(
     <AgentChat
+      onOpenSpawnedSession={(session) => openedSessions.push(session)}
       sessionView={{
         activeSessionId: 'root',
         historyStart: 0,
@@ -708,6 +711,17 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
   assert.ok(within(spawnedAgents).getByLabelText('2 spawned agents'));
   assert.ok(within(spawnedAgents).getByText('Research'));
   assert.ok(within(spawnedAgents).getByText('Verify'));
+  const openResearch = within(spawnedAgents).getByRole('button', {
+    name: 'Open Agent 1 input and output: Research',
+  });
+  fireEvent.click(openResearch);
+  assert.deepEqual(openedSessions, [
+    {
+      activeSessionId: 'research-active',
+      name: 'Research',
+      number: 1,
+    },
+  ]);
   const nestedAgents = spawnedAgents.querySelector(
     '[data-slot="spawned-agent-children"]',
   );

@@ -648,4 +648,66 @@ test('repository plus opens a draft and the first message creates the Prime Agen
       .getAttribute('aria-current'),
     'page',
   );
+
+  await user.click(
+    within(document.body).getByRole('button', {
+      name: 'Open Agent 1 input and output: Research interaction patterns',
+    }),
+  );
+  assert.ok(
+    await within(document.body).findByRole('status', {
+      name: 'Current agent: Agent 1 · Research interaction patterns',
+    }),
+  );
+  const researchFeed = sessionFeedListeners.get('test-feed:research-agent');
+  assert.notEqual(researchFeed, undefined);
+  researchFeed?.({
+    activeSessionId: 'research-agent',
+    item: {
+      kind: 'snapshot',
+      previousHistoryStart: null,
+      view: {
+        activeSessionId: 'research-agent',
+        historyStart: 0,
+        isStreaming: false,
+        messages: [
+          {
+            id: 'research-output',
+            role: 'assistant',
+            text: 'The interaction pattern is ready.',
+          },
+        ],
+        rlmMaxDepth: 1,
+        sessionName: 'Research interaction patterns',
+        spawnedSessions: [],
+        transcript: [
+          {
+            id: 'research-output',
+            kind: 'message',
+            role: 'assistant',
+            text: 'The interaction pattern is ready.',
+          },
+        ],
+      },
+    },
+    revision: 0,
+    subscriptionId: 'test-feed:research-agent',
+  });
+  assert.ok(
+    await within(document.body).findByText(
+      'The interaction pattern is ready.',
+    ),
+  );
+  await user.type(
+    within(document.body).getByRole('textbox', {
+      name: 'Give Ernie a task',
+    }),
+    'Check the compact state{Enter}',
+  );
+  await waitFor(() =>
+    assert.deepEqual(submittedTasks.at(-1), {
+      activeSessionId: 'research-agent',
+      message: 'Check the compact state',
+    }),
+  );
 });

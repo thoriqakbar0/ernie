@@ -43,6 +43,7 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     rlmMaxDepthBusy: false,
     selectedCwd: null,
     selectedModelKey: null,
+    selectedAgentIdentity: null,
     selectedSessionId: null,
     selectedSessionView: null,
     selectedSessionRlmMaxDepth: null,
@@ -115,6 +116,11 @@ test('working Agent shows its hydrated conversation before a response', () => {
         ...unavailableWorkspace(),
         primeAgentConnection: 'ready',
         selectedCwd: '/workspace/ernie',
+        selectedAgentIdentity: {
+          kind: 'spawned',
+          name: 'Research interaction patterns',
+          number: 2,
+        },
         selectedSessionId: 'active-agent',
         selectedSessionView: {
           activeSessionId: 'active-agent',
@@ -160,6 +166,11 @@ test('working Agent shows its hydrated conversation before a response', () => {
   assert.ok(within(document.body).getByRole('article', { name: 'Your message' }));
   assert.ok(
     within(document.body).getByRole('textbox', { name: 'Give Ernie a task' }),
+  );
+  assert.ok(
+    within(document.body).getByRole('status', {
+      name: 'Current agent: Agent 2 · Research interaction patterns',
+    }),
   );
 });
 

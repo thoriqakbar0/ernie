@@ -52,6 +52,18 @@ export type CreateAgentWithTaskResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly message: string };
 
+/** One spawned Agent target selected from a parent conversation. */
+export interface PrimeAgentSpawnedSessionTarget {
+  readonly activeSessionId: string;
+  readonly name: string;
+  readonly number: number;
+}
+
+/** The Agent identity currently connected to Ernie's shared composer. */
+export type PrimeAgentSelectedIdentity =
+  | Readonly<{ kind: 'prime'; name: string }>
+  | Readonly<{ kind: 'spawned'; name: string; number: number }>;
+
 /** Live state and actions used by Ernie's task and environment controls. */
 export interface PrimeAgentWorkspaceController {
   readonly busy: boolean;
@@ -75,6 +87,7 @@ export interface PrimeAgentWorkspaceController {
   readonly rlmMaxDepthBusy: boolean;
   readonly selectedCwd: string | null;
   readonly selectedModelKey: string | null;
+  readonly selectedAgentIdentity: PrimeAgentSelectedIdentity | null;
   readonly selectedSessionId: string | null;
   readonly selectedSessionView: PrimeAgentSessionView | null;
   readonly selectedSessionRlmMaxDepth: number | null;
@@ -94,7 +107,7 @@ export interface PrimeAgentWorkspaceController {
   readonly importSession: (sessionPath: string) => void;
   readonly renameSession: (rename: PrimeAgentSessionRename) => void;
   readonly selectSession: (activeSessionId: string) => void;
-  readonly openSpawnedSession: (activeSessionId: string) => void;
+  readonly openSpawnedSession: (target: PrimeAgentSpawnedSessionTarget) => void;
   readonly chooseWorkspaceDirectory: () => void;
   readonly addWorkspaceDirectory: () => Promise<string | null>;
   readonly changeGitBranch: (name: string | null) => void;
@@ -177,6 +190,8 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
   );
+  const [selectedSpawnedSession, setSelectedSpawnedSession] =
+    useState<PrimeAgentSpawnedSessionTarget | null>(null);
   const [selectedSessionFeed, setSelectedSessionFeedState] =
     useState<PrimeAgentSessionFeedState | null>(null);
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
@@ -654,6 +669,22 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const selectedSession =
     agents.find((session) => session.activeSessionId === selectedSessionId) ??
     null;
+  const selectedAgentIdentity: PrimeAgentSelectedIdentity | null =
+    selectedSessionId === null
+      ? null
+      : selectedSpawnedSession?.activeSessionId === selectedSessionId
+        ? {
+            kind: 'spawned',
+            name: selectedSpawnedSession.name,
+            number: selectedSpawnedSession.number,
+          }
+        : {
+            kind: 'prime',
+            name:
+              selectedSession?.name ??
+              selectedSessionView?.sessionName ??
+              'Untitled Agent',
+          };
   const selectedModelKey =
     models.find((model) => model.key === selectedSession?.model?.key)?.key ??
     null;
@@ -974,8 +1005,9 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     setStatus('Connected to Prime Agent.');
   }
 
-  function openSpawnedSession(activeSessionId: string): void {
-    setSelectedSessionId(activeSessionId);
+  function openSpawnedSession(target: PrimeAgentSpawnedSessionTarget): void {
+    setSelectedSpawnedSession(target);
+    setSelectedSessionId(target.activeSessionId);
     setStatus('Opened spawned Agent conversation.');
   }
 
@@ -1417,6 +1449,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     rlmMaxDepthBusy,
     selectedCwd,
     selectedModelKey,
+    selectedAgentIdentity,
     selectedSessionId,
     selectedSessionView,
     selectedSessionRlmMaxDepth: selectedSessionView?.rlmMaxDepth ?? null,

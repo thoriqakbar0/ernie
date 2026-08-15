@@ -6,12 +6,14 @@ import {
   ChevronUpIcon,
   ExternalLinkIcon,
   GitForkIcon,
+  MessageSquareTextIcon,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
 
 import { ChatMarkdown } from '@/components/chat-markdown';
 import { Button } from '@/components/trovecn/ui/button';
+import type { PrimeAgentSpawnedSessionTarget } from '@/hooks/use-prime-agent-workspace';
 import type {
   PrimeAgentSessionView,
   PrimeAgentSpawnedSession,
@@ -83,7 +85,9 @@ function CollapsibleUserMessage({
 interface AgentChatProps {
   readonly loadingEarlierHistory?: boolean;
   readonly onLoadEarlierHistory?: () => void;
-  readonly onOpenSpawnedSession?: (activeSessionId: string) => void;
+  readonly onOpenSpawnedSession?: (
+    target: PrimeAgentSpawnedSessionTarget,
+  ) => void;
   readonly sessionView: PrimeAgentSessionView;
   readonly thinkingOrbState?: ThinkingOrbState;
 }
@@ -425,6 +429,7 @@ function delegationProgressLabel(
 function SpawnedSessionBranch({
   session,
   childrenByParent,
+  numberBySessionId,
   onOpenSession,
 }: {
   readonly session: PrimeAgentSpawnedSession;
@@ -432,10 +437,17 @@ function SpawnedSessionBranch({
     string | null,
     readonly PrimeAgentSpawnedSession[]
   >;
-  readonly onOpenSession: ((activeSessionId: string) => void) | undefined;
+  readonly numberBySessionId: ReadonlyMap<string, number>;
+  readonly onOpenSession:
+    | ((target: PrimeAgentSpawnedSessionTarget) => void)
+    | undefined;
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(true);
   const children = childrenByParent.get(session.id) ?? [];
+  const number = numberBySessionId.get(session.id);
+  if (number === undefined) {
+    throw new Error(`Spawned Agent ${session.id} has no display number.`);
+  }
   const descendants = descendantCount(session.id, childrenByParent);
   const statusLabel =
     session.status === 'queued'
@@ -454,13 +466,15 @@ function SpawnedSessionBranch({
 
   return (
     <li className="relative ps-3 before:absolute before:-start-3 before:top-4 before:w-3 before:border-t before:border-border/70">
-      <div className="flex min-h-8 items-start gap-1 rounded-lg px-2 py-1.5 hover:bg-muted/50">
+      <div className="flex min-h-10 items-start gap-1 rounded-xl bg-muted/20 p-1 shadow-sm transition-colors hover:bg-muted/40 motion-reduce:transition-none">
         {children.length === 0 ? (
-          <span className="size-6 shrink-0" aria-hidden="true" />
+          <span className="size-7 shrink-0" aria-hidden="true" />
         ) : (
-          <button
+          <Button
             type="button"
-            className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            variant="ghost"
+            size="icon-sm"
+            className="mt-0.5 shrink-0 text-muted-foreground"
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${session.name}`}
             aria-expanded={expanded}
             onClick={() => setExpanded((current) => !current)}
@@ -469,27 +483,42 @@ function SpawnedSessionBranch({
               aria-hidden="true"
               className={`size-3 transition-transform motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`}
             />
-          </button>
+          </Button>
         )}
-        <div className="min-w-0 flex-1">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 text-xs">
-            <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                className="min-w-0 truncate text-start font-medium text-foreground hover:underline disabled:no-underline"
-                disabled={
-                  session.activeSessionId === null || onOpenSession === undefined
-                }
-                onClick={() => {
-                  if (session.activeSessionId !== null) {
-                    onOpenSession?.(session.activeSessionId);
-                  }
-                }}
-              >
-                {session.name}
-              </button>
-              {session.activeSessionId === null || onOpenSession === undefined ? null : (
-                <ExternalLinkIcon aria-hidden="true" className="size-3 text-muted-foreground" />
+        <div className="min-w-0 flex-1 py-0.5">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+            <div className="flex min-w-0 items-center">
+              {session.activeSessionId === null || onOpenSession === undefined ? (
+                <p className="min-w-0 truncate px-2 text-xs font-medium text-foreground">
+                  <span className="text-muted-foreground">Agent {number} · </span>
+                  <span>{session.name}</span>
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 min-w-0 justify-start px-2 text-start text-xs"
+                  aria-label={`Open Agent ${number} input and output: ${session.name}`}
+                  onClick={() => {
+                    if (session.activeSessionId !== null) {
+                      onOpenSession({
+                        activeSessionId: session.activeSessionId,
+                        name: session.name,
+                        number,
+                      });
+                    }
+                  }}
+                >
+                  <span className="min-w-0 truncate">
+                    <span className="text-muted-foreground">Agent {number} · </span>
+                    <span>{session.name}</span>
+                  </span>
+                  <MessageSquareTextIcon
+                    aria-hidden="true"
+                    className="size-3 text-muted-foreground"
+                  />
+                </Button>
               )}
               {descendants === 0 ? null : (
                 <span
@@ -500,7 +529,7 @@ function SpawnedSessionBranch({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
+            <div className="flex items-center gap-2 pt-1 text-xs whitespace-nowrap">
               <span className={`font-medium ${statusTone}`}>{statusLabel}</span>
               {durationLabel(session.durationMs) === null ? null : (
                 <span className="text-muted-foreground">
@@ -510,8 +539,9 @@ function SpawnedSessionBranch({
             </div>
           </div>
           {session.recap === null && session.error === null ? null : (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-              {session.error ?? session.recap}
+            <p className="mt-0.5 line-clamp-2 px-2 text-xs leading-5 text-muted-foreground">
+              <span className="text-foreground/70">Output: </span>
+              <span>{session.error ?? session.recap}</span>
             </p>
           )}
         </div>
@@ -526,6 +556,7 @@ function SpawnedSessionBranch({
               key={child.id}
               session={child}
               childrenByParent={childrenByParent}
+              numberBySessionId={numberBySessionId}
               onOpenSession={onOpenSession}
             />
           ))}
@@ -566,6 +597,16 @@ export function AgentChat({
     return index;
   }, [sessionView.spawnedSessions]);
   const roots = childrenByParent.get(null) ?? [];
+  const numberBySessionId = useMemo(
+    () =>
+      new Map(
+        sessionView.spawnedSessions.map((session, index) => [
+          session.id,
+          index + 1,
+        ]),
+      ),
+    [sessionView.spawnedSessions],
+  );
   const activeSpawnedAgentCount = sessionView.spawnedSessions.filter(
     (session) => session.status === 'queued' || session.status === 'working',
   ).length;
@@ -711,20 +752,21 @@ export function AgentChat({
               className="mt-10 w-full max-w-[65ch]"
             >
               <header
-                className="mb-3 flex min-h-11 items-center gap-2.5 rounded-xl bg-muted/30 px-3 py-2.5"
+                className="mb-3 flex min-h-12 items-center gap-3 rounded-2xl bg-card/80 p-2 shadow-sm"
                 role="status"
               >
                 <span
                   aria-label={`${sessionView.spawnedSessions.length} spawned agents`}
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground shadow-bevel"
                 >
                   <GitForkIcon aria-hidden="true" className="size-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-xs font-medium text-foreground">
-                    Ernie spawned {agentCountLabel(sessionView.spawnedSessions.length)}
+                  <h2 className="text-sm font-medium text-foreground">
+                    Ernie spawned{' '}
+                    {agentCountLabel(sessionView.spawnedSessions.length)}
                   </h2>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {delegationProgressLabel(sessionView.spawnedSessions)}
                   </p>
                 </div>
@@ -755,6 +797,7 @@ export function AgentChat({
                     key={session.id}
                     session={session}
                     childrenByParent={childrenByParent}
+                    numberBySessionId={numberBySessionId}
                     onOpenSession={onOpenSpawnedSession}
                   />
                 ))}

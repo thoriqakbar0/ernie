@@ -1,4 +1,5 @@
 import {
+  parseConfigurationResult,
   parseModelResult,
   parseModelsResult,
   parseRefinementReceiptResult,
@@ -16,7 +17,9 @@ import {
 import type { JsonValue } from '../json-value/index.js';
 
 import type {
+  PrimeAgentConfiguration,
   PrimeAgentModel,
+  PrimeAgentModelCatalogScope,
   PrimeAgentChatMessage,
   PrimeAgentIpythonAttachment,
   PrimeAgentModelSelection,
@@ -38,6 +41,8 @@ import type {
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
+  PrimeAgentThinkingLevel,
+  PrimeAgentThinkingLevelSelection,
   PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 } from './types.js';
@@ -64,7 +69,9 @@ function orderModels(
 }
 
 export type {
+  PrimeAgentConfiguration,
   PrimeAgentModel,
+  PrimeAgentModelCatalogScope,
   PrimeAgentChatMessage,
   PrimeAgentIpythonAttachment,
   PrimeAgentModelSelection,
@@ -86,6 +93,8 @@ export type {
   PrimeAgentSkill,
   PrimeAgentTaskReceipt,
   PrimeAgentTaskSubmission,
+  PrimeAgentThinkingLevel,
+  PrimeAgentThinkingLevelSelection,
   PrimeAgentTranscriptItem,
   PrimeAgentWorkspace,
 };
@@ -161,6 +170,13 @@ export function parsePrimeAgentModelResult(
   value: JsonValue,
 ): PrimeAgentResult<PrimeAgentModel> {
   return parseModelResult(value);
+}
+
+/** Parse active model configuration received from Electron's main process. */
+export function parsePrimeAgentConfigurationResult(
+  value: JsonValue,
+): PrimeAgentResult<PrimeAgentConfiguration> {
+  return parseConfigurationResult(value);
 }
 
 /** Parse an RLM-depth response received from Electron's main process. */

@@ -1,6 +1,7 @@
 import { ArrowUpIcon, SearchIcon } from 'lucide-react';
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { EffortPicker } from '@/components/effort-picker';
 import { RlmDepthPicker } from '@/components/rlm-depth-picker';
 import {
   InputGroup,
@@ -32,19 +33,25 @@ type TaskComposerProps = Pick<
   | 'selectedCwd'
   | 'selectedModelKey'
   | 'selectedSessionId'
-  | 'selectedSessionRlmMaxDepth'
-  | 'selectedSessionRlmMaxDepthBusy'
+  | 'selectedThinkingLevel'
+  | 'thinkingLevelBusy'
+  | 'thinkingLevels'
   | 'changeModel'
-  | 'changeSelectedSessionRlmMaxDepth'
+  | 'changeThinkingLevel'
   | 'createAgentWithTask'
 > & {
+  readonly depth: number | null;
+  readonly depthBusy: boolean;
   readonly disabled?: boolean;
   readonly isGenerating?: boolean;
+  readonly onDepthChange: (depth: string | null) => void;
 };
 
 /** Compose and submit one task without rerendering workspace controls. */
 export const TaskComposer = memo(function TaskComposer({
   disabled = false,
+  depth,
+  depthBusy,
   isGenerating = false,
   modelBusy,
   models,
@@ -52,11 +59,13 @@ export const TaskComposer = memo(function TaskComposer({
   selectedCwd,
   selectedModelKey,
   selectedSessionId,
-  selectedSessionRlmMaxDepth,
-  selectedSessionRlmMaxDepthBusy,
+  selectedThinkingLevel,
+  thinkingLevelBusy,
+  thinkingLevels,
   changeModel,
-  changeSelectedSessionRlmMaxDepth,
+  changeThinkingLevel,
   createAgentWithTask,
+  onDepthChange,
 }: TaskComposerProps): React.JSX.Element {
   const task = usePrimeAgentTask(
     selectedSessionId,
@@ -78,7 +87,6 @@ export const TaskComposer = memo(function TaskComposer({
     [searchSkills, skillQueryKind, skillQueryTerm],
   );
   const skillsOpen = !skillsDismissed && skillQuery !== null;
-
   useEffect(() => {
     if (!skillsOpen || skillQueryKind !== 'deep-full-text') return;
     skillSearchRef.current?.focus();
@@ -324,7 +332,62 @@ export const TaskComposer = memo(function TaskComposer({
             onChange={(event) => changeDraft(event.target.value)}
             onKeyDown={handleComposerKeyDown}
           />
-          <InputGroupAddon align="inline-end" className="h-9 self-end p-0">
+          <InputGroupAddon
+            align="block-end"
+            className="justify-between gap-2 px-1.5 pb-1.5"
+          >
+            <div className="flex min-w-0 items-center gap-1">
+              <Select
+                items={models.map((model) => ({
+                  label: model.name,
+                  value: model.key,
+                }))}
+                value={selectedModelKey}
+                onValueChange={changeModel}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
+                  aria-label="Model"
+                  disabled={modelBusy || models.length === 0}
+                >
+                  <SelectValue
+                    placeholder={
+                      modelBusy && models.length === 0
+                        ? 'Loading models…'
+                        : models.length === 0
+                          ? 'Model unavailable'
+                          : 'Model'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent
+                  className="max-h-72"
+                  align="start"
+                  alignItemWithTrigger={false}
+                >
+                  <SelectGroup>
+                    {models.map((model) => (
+                      <SelectItem key={model.key} value={model.key}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <EffortPicker
+                busy={disabled || thinkingLevelBusy}
+                levels={thinkingLevels}
+                value={selectedThinkingLevel}
+                onLevelChange={changeThinkingLevel}
+              />
+              <RlmDepthPicker
+                busy={disabled || depthBusy}
+                compact
+                depth={depth}
+                onDepthChange={onDepthChange}
+              />
+            </div>
             <InputGroupButton
               type="submit"
               size="icon-sm"
@@ -345,7 +408,8 @@ export const TaskComposer = memo(function TaskComposer({
           </InputGroupAddon>
         </InputGroup>
 
-        {selectedSessionId === null ? null : (
+        {selectedSessionId === null ||
+        (!task.submitting && !isGenerating) ? null : (
           <div className="mt-1 flex flex-wrap items-center justify-center gap-1 text-xs text-muted-foreground">
             {task.submitting ? (
               <span className="basis-full px-2 text-center font-medium text-foreground/70 min-[30rem]:basis-auto">
@@ -356,46 +420,6 @@ export const TaskComposer = memo(function TaskComposer({
                 Working · follow-ups queue
               </span>
             ) : null}
-            {models.length === 0 ? null : (
-              <Select
-                items={models.map((model) => ({
-                  label: model.name,
-                  value: model.key,
-                }))}
-                value={selectedModelKey}
-                onValueChange={changeModel}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-7 max-w-56 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none"
-                  aria-label="Model"
-                  disabled={modelBusy}
-                >
-                  <SelectValue placeholder="Model" />
-                </SelectTrigger>
-                <SelectContent
-                  className="max-h-72"
-                  align="center"
-                  alignItemWithTrigger={false}
-                >
-                  <SelectGroup>
-                    {models.map((model) => (
-                      <SelectItem key={model.key} value={model.key}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-            {selectedSessionRlmMaxDepth === null ? null : (
-              <RlmDepthPicker
-                busy={disabled || selectedSessionRlmMaxDepthBusy}
-                compact
-                depth={selectedSessionRlmMaxDepth}
-                onDepthChange={changeSelectedSessionRlmMaxDepth}
-              />
-            )}
           </div>
         )}
       </form>

@@ -26,6 +26,7 @@ const primeAgentSavedSessionsChannel = 'ernie:prime-agent:saved-sessions';
 const primeAgentImportSessionChannel = 'ernie:prime-agent:import-session';
 const primeAgentRenameSessionChannel = 'ernie:prime-agent:rename-session';
 const primeAgentModelsChannel = 'ernie:prime-agent:models';
+const primeAgentConfigurationChannel = 'ernie:prime-agent:configuration';
 const primeAgentSkillsChannel = 'ernie:prime-agent:skills';
 const primeAgentSessionFeedStartChannel =
   'ernie:prime-agent:session-feed:start';
@@ -36,6 +37,8 @@ const primeAgentSessionFeedEventChannel =
 const primeAgentSessionHistoryChannel =
   'ernie:prime-agent:session-history';
 const primeAgentSetModelChannel = 'ernie:prime-agent:set-model';
+const primeAgentSetThinkingLevelChannel =
+  'ernie:prime-agent:set-thinking-level';
 const primeAgentRlmDepthChannel = 'ernie:prime-agent:rlm-depth';
 const primeAgentSetRlmDepthChannel = 'ernie:prime-agent:set-rlm-depth';
 const primeAgentSubmitTaskChannel = 'ernie:prime-agent:submit-task';
@@ -166,8 +169,11 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   renameAgentSession(rename) {
     return ipcRenderer.invoke(primeAgentRenameSessionChannel, rename);
   },
-  listAgentModels(activeSessionId) {
-    return ipcRenderer.invoke(primeAgentModelsChannel, activeSessionId);
+  listAgentModels(scope) {
+    return ipcRenderer.invoke(primeAgentModelsChannel, scope);
+  },
+  getAgentConfiguration(activeSessionId) {
+    return ipcRenderer.invoke(primeAgentConfigurationChannel, activeSessionId);
   },
   listAgentSkills(activeSessionId) {
     return ipcRenderer.invoke(primeAgentSkillsChannel, activeSessionId);
@@ -201,6 +207,9 @@ const rendererApi: ErnieRendererApi = Object.freeze({
   },
   setAgentModel(selection) {
     return ipcRenderer.invoke(primeAgentSetModelChannel, selection);
+  },
+  setAgentThinkingLevel(selection) {
+    return ipcRenderer.invoke(primeAgentSetThinkingLevelChannel, selection);
   },
   getAgentRlmDepth(activeSessionId) {
     return ipcRenderer.invoke(primeAgentRlmDepthChannel, activeSessionId);

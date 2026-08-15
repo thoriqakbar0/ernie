@@ -1,11 +1,22 @@
 import type { JsonValue } from '../json-value/index.js';
 
+/** Reasoning effort supported by Prime Agent models and sessions. */
+export type PrimeAgentThinkingLevel =
+  | 'off'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max';
+
 /** A model that the connected Prime Agent session can use. */
 export interface PrimeAgentModel {
   readonly key: string;
   readonly id: string;
   readonly name: string;
   readonly provider: string;
+  readonly thinkingLevels: readonly PrimeAgentThinkingLevel[];
 }
 
 /** Truthful activity states shown for one connected Prime Agent session. */
@@ -277,6 +288,7 @@ export type PrimeAgentHarnessCapability =
   | 'live-sessions'
   | 'saved-sessions'
   | 'models'
+  | 'thinking-level'
   | 'skills'
   | 'rlm-depth'
   | 'refinement';
@@ -293,6 +305,24 @@ export interface PrimeAgentModelSelection {
   readonly activeSessionId: string;
   readonly provider: string;
   readonly modelId: string;
+}
+
+/** The model catalog required by a draft or one connected Agent. */
+export type PrimeAgentModelCatalogScope =
+  | Readonly<{ kind: 'draft' }>
+  | Readonly<{ kind: 'session'; activeSessionId: string }>;
+
+/** The active model and reasoning effort for one connected Agent. */
+export interface PrimeAgentConfiguration {
+  readonly availableThinkingLevels: readonly PrimeAgentThinkingLevel[];
+  readonly model: PrimeAgentModel;
+  readonly thinkingLevel: PrimeAgentThinkingLevel;
+}
+
+/** The reasoning-effort change requested for one live Prime Agent session. */
+export interface PrimeAgentThinkingLevelSelection {
+  readonly activeSessionId: string;
+  readonly thinkingLevel: PrimeAgentThinkingLevel;
 }
 
 /** The source that currently owns one session's RLM maximum depth. */
@@ -363,8 +393,11 @@ export interface PrimeAgentDaemon {
     PrimeAgentResult<PrimeAgentWorkspace>
   >;
   readonly listModels: (
-    activeSessionId: JsonValue,
+    scope: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentModel[]>>;
+  readonly getConfiguration: (
+    activeSessionId: JsonValue,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentConfiguration>>;
   readonly listSkills: (
     activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<readonly PrimeAgentSkill[]>>;
@@ -386,7 +419,10 @@ export interface PrimeAgentDaemon {
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentSessionRenameReceipt>>;
   readonly setModel: (
     selection: JsonValue,
-  ) => Effect.Effect<PrimeAgentResult<PrimeAgentModel>>;
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentConfiguration>>;
+  readonly setThinkingLevel: (
+    selection: JsonValue,
+  ) => Effect.Effect<PrimeAgentResult<PrimeAgentConfiguration>>;
   readonly getRlmDepth: (
     activeSessionId: JsonValue,
   ) => Effect.Effect<PrimeAgentResult<PrimeAgentRlmDepth>>;

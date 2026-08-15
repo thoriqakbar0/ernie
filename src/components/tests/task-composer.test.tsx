@@ -51,19 +51,28 @@ const models = [
     key: 'openai:gpt-5.6',
     name: 'GPT-5.6',
     provider: 'openai',
+    thinkingLevels: ['off', 'low', 'medium', 'high'],
   },
 ] as const;
 
 const activeSessionDepthProps = {
-  changeSelectedSessionRlmMaxDepth: () => undefined,
-  selectedSessionRlmMaxDepth: 5,
-  selectedSessionRlmMaxDepthBusy: false,
+  changeThinkingLevel: () => undefined,
+  depth: 5,
+  depthBusy: false,
+  onDepthChange: () => undefined,
+  selectedThinkingLevel: 'high',
+  thinkingLevelBusy: false,
+  thinkingLevels: ['low', 'medium', 'high'],
 } as const;
 
 const newSessionDepthProps = {
-  changeSelectedSessionRlmMaxDepth: () => undefined,
-  selectedSessionRlmMaxDepth: null,
-  selectedSessionRlmMaxDepthBusy: false,
+  changeThinkingLevel: () => undefined,
+  depth: 1,
+  depthBusy: false,
+  onDepthChange: () => undefined,
+  selectedThinkingLevel: null,
+  thinkingLevelBusy: false,
+  thinkingLevels: [],
 } as const;
 
 afterEach(() => {
@@ -94,7 +103,17 @@ test('connected Agent keeps the composer free of placeholder actions', () => {
     within(document.body).queryByRole('button', { name: 'Add context' }),
     null,
   );
-  assert.ok(within(document.body).getByRole('combobox', { name: 'Model' }));
+  const composer = within(document.body).getByRole('textbox');
+  const inputGroup = composer.closest('[data-slot="input-group"]');
+  const model = within(document.body).getByRole('combobox', { name: 'Model' });
+  const depth = within(document.body).getByRole('button', { name: 'Depth 5' });
+  const effort = within(document.body).getByRole('combobox', {
+    name: 'Effort',
+  });
+  assert.ok(inputGroup?.contains(model));
+  assert.ok(inputGroup?.contains(effort));
+  assert.ok(inputGroup?.contains(depth));
+  assert.equal(depth.textContent?.includes('Depth'), false);
 });
 
 test('connected Agent uses the compact quick composer', () => {
@@ -433,10 +452,13 @@ test('a new Agent starts only after its first non-empty task', async () => {
     within(document.body).queryByRole('button', { name: 'Add context' }),
     null,
   );
-  assert.equal(
-    within(document.body).queryByRole('button', { name: 'Model' }),
-    null,
+  const model = within(document.body).getByRole('combobox', { name: 'Model' });
+  assert.equal(model.hasAttribute('disabled'), true);
+  assert.match(model.textContent ?? '', /Model unavailable/u);
+  assert.ok(
+    composer.closest('[data-slot="input-group"]')?.contains(model),
   );
+  assert.ok(within(document.body).getByRole('button', { name: 'Depth 1' }));
   assert.equal(
     within(document.body)
       .getByRole('button', { name: 'Send task' })

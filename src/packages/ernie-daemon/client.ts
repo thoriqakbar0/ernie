@@ -1,6 +1,8 @@
 export type {
   PrimeAgentChatMessage as AgentChatMessage,
+  PrimeAgentConfiguration as AgentConfiguration,
   PrimeAgentModel as AgentModel,
+  PrimeAgentModelCatalogScope as AgentModelCatalogScope,
   PrimeAgentRefinementReceipt as AgentRefinementReceipt,
   PrimeAgentGitBranchRename as AgentGitBranchRename,
   PrimeAgentGitBranchSelection as AgentGitBranchSelection,
@@ -22,6 +24,7 @@ export type {
   PrimeAgentSkill as AgentSkill,
   PrimeAgentTaskReceipt as AgentTaskReceipt,
   PrimeAgentTaskSubmission as AgentTaskSubmission,
+  PrimeAgentThinkingLevelSelection as AgentThinkingLevelSelection,
   PrimeAgentTranscriptItem as AgentTranscriptItem,
   PrimeAgentWorkspace as AgentWorkspace,
   PrimeAgentWorkspaceConnection as AgentWorkspaceConnection,

@@ -42,6 +42,7 @@ import {
   agentHarnessChannel,
   chooseWorkspaceDirectoryChannel,
   colorThemeRequestChannel,
+  primeAgentConfigurationChannel,
   primeAgentCreateSessionChannel,
   primeAgentCreateGitWorktreeChannel,
   primeAgentGitBranchesChannel,
@@ -61,6 +62,7 @@ import {
   primeAgentRenameSessionChannel,
   primeAgentRefineSessionChannel,
   primeAgentSetModelChannel,
+  primeAgentSetThinkingLevelChannel,
   primeAgentSetRlmDepthChannel,
   primeAgentSubmitTaskChannel,
   primeAgentSwitchGitBranchChannel,
@@ -368,8 +370,12 @@ function registerErnieDaemonHandlers(agentUiControlSocketPath: string): void {
   );
   ipcMain.handle(
     primeAgentModelsChannel,
+    (_event, scope: JsonValue) => Effect.runPromise(daemon.listModels(scope)),
+  );
+  ipcMain.handle(
+    primeAgentConfigurationChannel,
     (_event, activeSessionId: JsonValue) =>
-      Effect.runPromise(daemon.listModels(activeSessionId)),
+      Effect.runPromise(daemon.getConfiguration(activeSessionId)),
   );
   ipcMain.handle(
     primeAgentSkillsChannel,
@@ -383,6 +389,11 @@ function registerErnieDaemonHandlers(agentUiControlSocketPath: string): void {
   );
   ipcMain.handle(primeAgentSetModelChannel, (_event, selection: JsonValue) =>
     Effect.runPromise(daemon.setModel(selection)),
+  );
+  ipcMain.handle(
+    primeAgentSetThinkingLevelChannel,
+    (_event, selection: JsonValue) =>
+      Effect.runPromise(daemon.setThinkingLevel(selection)),
   );
   ipcMain.handle(
     primeAgentRlmDepthChannel,

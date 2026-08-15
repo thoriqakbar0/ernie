@@ -533,6 +533,31 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   sessionFeed?.({
     activeSessionId: 'blank-agent',
     item: {
+      kind: 'spawned-sessions-replaced',
+      sessions: [
+        {
+          activeSessionId: 'research-agent',
+          activity: 'researching',
+          durationMs: 1_200,
+          error: null,
+          id: 'research',
+          name: 'Research interaction patterns',
+          parentId: null,
+          recap: null,
+          status: 'working',
+        },
+      ],
+    },
+    revision: 2,
+    subscriptionId: 'test-feed:blank-agent',
+  });
+  assert.ok(await within(document.body).findByText('1 agent working'));
+  assert.ok(
+    within(document.body).getByRole('region', { name: 'Delegated work' }),
+  );
+  sessionFeed?.({
+    activeSessionId: 'blank-agent',
+    item: {
       kind: 'conversation-replaced',
       isStreaming: false,
       messages: [
@@ -554,7 +579,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
         },
       ],
     },
-    revision: 2,
+    revision: 3,
     subscriptionId: 'retired-feed:blank-agent',
   });
   assert.equal(within(document.body).queryByText('Rejected event'), null);

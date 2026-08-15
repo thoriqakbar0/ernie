@@ -131,7 +131,7 @@ export function ErnieShell({
     ).length ?? 0;
   const sessionStatus =
     workingAgentCount > 0
-      ? `${workingAgentCount} working`
+      ? `${workingAgentCount} ${workingAgentCount === 1 ? 'agent' : 'agents'} working`
       : selectedSessionView?.isStreaming
         ? 'working'
         : selectedSessionView === null

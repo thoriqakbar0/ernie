@@ -698,11 +698,13 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
   );
 
   const spawnedAgents = within(document.body).getByRole('region', {
-    name: 'Spawned agents',
+    name: 'Delegated work',
   });
   assert.ok(spawnedAgents);
   assert.doesNotMatch(spawnedAgents.className, /border/u);
   assert.match(spawnedAgents.className, /max-w-\[65ch\]/u);
+  assert.ok(within(spawnedAgents).getByText('Ernie spawned 2 agents'));
+  assert.ok(within(spawnedAgents).getByText('1 working · 1 finished'));
   assert.ok(within(spawnedAgents).getByLabelText('2 spawned agents'));
   assert.ok(within(spawnedAgents).getByText('Research'));
   assert.ok(within(spawnedAgents).getByText('Verify'));
@@ -710,7 +712,7 @@ test('focused chat reveals a recursively indexed spawned Agent tree', () => {
     '[data-slot="spawned-agent-children"]',
   );
   assert.ok(nestedAgents);
-  assert.doesNotMatch(nestedAgents.className, /border/u);
+  assert.match(nestedAgents.className, /border-s/u);
   assert.ok(within(spawnedAgents).getByText('working'));
   assert.ok(within(spawnedAgents).getByText('done'));
 });

@@ -5,6 +5,7 @@ import {
   ChevronRightIcon,
   ChevronUpIcon,
   ExternalLinkIcon,
+  GitForkIcon,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
@@ -396,6 +397,31 @@ function descendantCount(
   );
 }
 
+function agentCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'agent' : 'agents'}`;
+}
+
+function delegationProgressLabel(
+  sessions: readonly PrimeAgentSpawnedSession[],
+): string {
+  const counts = {
+    cancelled: 0,
+    done: 0,
+    error: 0,
+    queued: 0,
+    working: 0,
+  } satisfies Record<PrimeAgentSpawnedSession['status'], number>;
+  for (const session of sessions) counts[session.status] += 1;
+
+  const parts: string[] = [];
+  if (counts.working > 0) parts.push(`${counts.working} working`);
+  if (counts.queued > 0) parts.push(`${counts.queued} waiting`);
+  if (counts.done > 0) parts.push(`${counts.done} finished`);
+  if (counts.error > 0) parts.push(`${counts.error} failed`);
+  if (counts.cancelled > 0) parts.push(`${counts.cancelled} interrupted`);
+  return parts.join(' · ');
+}
+
 function SpawnedSessionBranch({
   session,
   childrenByParent,
@@ -427,7 +453,7 @@ function SpawnedSessionBranch({
         : 'text-muted-foreground';
 
   return (
-    <li>
+    <li className="relative ps-3 before:absolute before:-start-3 before:top-4 before:w-3 before:border-t before:border-border/70">
       <div className="flex min-h-8 items-start gap-1 rounded-lg px-2 py-1.5 hover:bg-muted/50">
         {children.length === 0 ? (
           <span className="size-6 shrink-0" aria-hidden="true" />
@@ -493,7 +519,7 @@ function SpawnedSessionBranch({
       {!expanded || children.length === 0 ? null : (
         <ul
           data-slot="spawned-agent-children"
-          className="ms-5 mt-1 flex flex-col gap-1"
+          className="ms-3 mt-1 flex flex-col gap-1 border-s border-border/70"
         >
           {children.map((child) => (
             <SpawnedSessionBranch
@@ -540,6 +566,12 @@ export function AgentChat({
     return index;
   }, [sessionView.spawnedSessions]);
   const roots = childrenByParent.get(null) ?? [];
+  const activeSpawnedAgentCount = sessionView.spawnedSessions.filter(
+    (session) => session.status === 'queued' || session.status === 'working',
+  ).length;
+  const delegatedWorkHasIssues = sessionView.spawnedSessions.some(
+    (session) => session.status === 'error' || session.status === 'cancelled',
+  );
   const blocks = useMemo(
     () => transcriptBlocks(sessionView.transcript),
     [sessionView.transcript],
@@ -675,19 +707,49 @@ export function AgentChat({
 
           {roots.length === 0 ? null : (
             <section
-              aria-label="Spawned agents"
+              aria-label="Delegated work"
               className="mt-10 w-full max-w-[65ch]"
             >
-              <header className="mb-2 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
-                <h2>Agents</h2>
+              <header
+                className="mb-3 flex min-h-11 items-center gap-2.5 rounded-xl bg-muted/30 px-3 py-2.5"
+                role="status"
+              >
                 <span
                   aria-label={`${sessionView.spawnedSessions.length} spawned agents`}
-                  className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[inset_0_0_0_1px_var(--border)]"
                 >
-                  {sessionView.spawnedSessions.length}
+                  <GitForkIcon aria-hidden="true" className="size-3.5" />
                 </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xs font-medium text-foreground">
+                    Ernie spawned {agentCountLabel(sessionView.spawnedSessions.length)}
+                  </h2>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {delegationProgressLabel(sessionView.spawnedSessions)}
+                  </p>
+                </div>
+                {activeSpawnedAgentCount > 0 ? (
+                  <ThinkingOrb
+                    aria-hidden="true"
+                    className="shrink-0"
+                    data-thinking-orb-state={thinkingOrbState}
+                    size={20}
+                    state={thinkingOrbState}
+                    theme="auto"
+                  />
+                ) : delegatedWorkHasIssues ? (
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 shrink-0 rounded-full border border-muted-foreground"
+                  />
+                ) : (
+                  <CheckIcon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  />
+                )}
               </header>
-              <ul className="flex flex-col gap-1 rounded-xl bg-muted/20 p-1">
+              <ul className="ms-3 flex flex-col gap-1 border-s border-border/70">
                 {roots.map((session) => (
                   <SpawnedSessionBranch
                     key={session.id}

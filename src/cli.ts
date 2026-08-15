@@ -8,7 +8,9 @@ import {
 
 const socketPath = defaultErnieUiControlSocketPath();
 process.exitCode = await runErnieUiControlCli(process.argv.slice(2), {
-  request: (command) => requestErnieUiControl(socketPath, command),
+  requestCapabilities: () =>
+    requestErnieUiControl(socketPath, { type: 'list-capabilities' }),
+  requestCommand: (command) => requestErnieUiControl(socketPath, command),
   writeError: (message) => console.error(message),
   writeOutput: (message) => console.log(message),
 });

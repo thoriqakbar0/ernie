@@ -27,8 +27,9 @@ import { createErnieDaemon } from './packages/ernie-daemon/index.js';
 import { createSelectedFeedRegistry } from './packages/ernie-daemon/selected-feed.js';
 import {
   startErnieUiControlServer,
+  type ErnieUiControlCapabilityAvailability,
   type ErnieUiControlCommand,
-  type ErnieUiControlResult,
+  type ErnieUiControlCommandResult,
 } from './packages/ernie-ui-control/index.js';
 import { ernieUiControlSocketFlagName } from './packages/ernie-agent-interaction/index.js';
 import {
@@ -592,7 +593,29 @@ function reportStartupFailure(cause: unknown): void {
   app.quit();
 }
 
-function handleUiControl(command: ErnieUiControlCommand): ErnieUiControlResult {
+function reportUiControlFailure(message: string, cause?: unknown): void {
+  if (cause instanceof Error) {
+    console.error(message, { name: cause.name });
+    return;
+  }
+  console.error(message);
+}
+
+function readUiControlAvailability(
+  capabilityId: string,
+): ErnieUiControlCapabilityAvailability {
+  return {
+    status:
+      capabilityId !== 'discovery' &&
+      (mainWindow === null || mainWindow.isDestroyed())
+        ? 'unavailable'
+        : 'available',
+  };
+}
+
+function handleUiControl(
+  command: ErnieUiControlCommand,
+): ErnieUiControlCommandResult {
   const window = mainWindow;
   if (window === null || window.isDestroyed()) {
     return {
@@ -642,14 +665,16 @@ const startApplication = Effect.fn('Ernie.startApplication')(function* () {
     startErnieUiControlServer(
       agentUiControlSocketPath,
       handleUiControl,
-      (message) => console.error(message),
+      reportUiControlFailure,
+      readUiControlAvailability,
     ),
   );
   const cliUiControl = yield* Effect.promise(() =>
     startErnieUiControlServer(
       path.join(app.getPath('userData'), 'ui-control.sock'),
       handleUiControl,
-      (message) => console.error(message),
+      reportUiControlFailure,
+      readUiControlAvailability,
     ),
   );
   for (const uiControl of [agentUiControl, cliUiControl]) {

@@ -10,19 +10,44 @@ import {
   type JsonValue,
 } from '../json-value/index.js';
 import {
+  createErnieUiControlBuiltInCapabilityCatalog,
   ernieUiControlCommandDefinitions,
+  parseErnieUiControlCapabilityManifest,
+  type ErnieUiControlCapabilityAvailability,
+  type ErnieUiControlCapabilityCatalog,
+  type ErnieUiControlCapabilityManifest,
   type ErnieUiControlCommand,
+  type ErnieUiControlRequest,
   type ErnieUiControlRunnableCommandDefinition,
 } from './lib/capability-definitions.js';
 
 export {
+  createErnieUiControlCapabilityRegistry,
+  DuplicateUiCapabilityIdError,
+  DuplicateUiCommandIdError,
+  DuplicateUiCommandPathError,
   ernieUiSidebarDefaultWidth,
   ernieUiSidebarMaximumWidth,
   ernieUiSidebarMinimumWidth,
+  InvalidUiCapabilityDefinitionError,
+  parseErnieUiControlCapabilityManifest,
   parseErnieUiSidebarRequest,
   type ErnieUiColorTheme,
+  type ErnieUiControlCapabilityAvailability,
+  type ErnieUiControlCapabilityCatalog,
+  type ErnieUiControlCapabilityId,
+  type ErnieUiControlCapabilityManifest,
+  type ErnieUiControlCapabilityRegistration,
+  type ErnieUiControlCapabilityRegistrationError,
+  type ErnieUiControlCapabilityRegistrationResult,
+  type ErnieUiControlCapabilityRegistry,
   type ErnieUiControlCommand,
+  type ErnieUiControlInputConstraint,
+  type ErnieUiControlManifestCapability,
+  type ErnieUiControlManifestCommand,
+  type ErnieUiControlRequest,
   type ErnieUiSidebarRequest,
+  UiCapabilityRegistryClosedError,
 } from './lib/capability-definitions.js';
 
 /** Version of Ernie's local UI-control protocol. */
@@ -50,17 +75,34 @@ export type ErnieUiControlFailureCode =
   | 'invalid_response'
   | 'ui_unavailable';
 
-/** Result of one local Ernie UI-control request. */
-export type ErnieUiControlResult =
+/** Safe structured failure returned by Ernie UI control. */
+export type ErnieUiControlFailure = Readonly<{
+  error: Readonly<{
+    code: ErnieUiControlFailureCode;
+    message: string;
+  }>;
+  ok: false;
+  version: 1;
+}>;
+
+/** Result of one UI-changing command. */
+export type ErnieUiControlCommandResult =
   | Readonly<{ ok: true; version: 1 }>
+  | ErnieUiControlFailure;
+
+/** Result of one capability discovery request. */
+export type ErnieUiControlCapabilityManifestResult =
   | Readonly<{
-      error: Readonly<{
-        code: ErnieUiControlFailureCode;
-        message: string;
-      }>;
-      ok: false;
+      manifest: ErnieUiControlCapabilityManifest;
+      ok: true;
       version: 1;
-    }>;
+    }>
+  | ErnieUiControlFailure;
+
+/** Parsed result of one local Ernie UI-control protocol request. */
+export type ErnieUiControlResult =
+  | ErnieUiControlCommandResult
+  | ErnieUiControlCapabilityManifestResult;
 
 /** Lifecycle handle for Ernie's local UI-control socket. */
 export interface ErnieUiControlServer {
@@ -79,7 +121,7 @@ export type ErnieUiControlServerStartResult =
 
 /** Parsed command-line request for Ernie's UI-control client. */
 export type ErnieUiControlCliArgumentsResult =
-  | Readonly<{ command: ErnieUiControlCommand; ok: true }>
+  | Readonly<{ command: ErnieUiControlRequest; ok: true }>
   | Readonly<{ message: string; ok: false }>;
 
 /** Exit status: `0` success, `1` runtime failure, or `2` invalid usage. */
@@ -87,10 +129,14 @@ export type ErnieUiControlCliExitCode = 0 | 1 | 2;
 
 /** Runtime capabilities required to execute one Ernie UI-control CLI invocation. */
 export interface ErnieUiControlCliRuntime {
-  /** Return the expected result of sending one command to Ernie. */
-  readonly request: (
+  /** Send one UI-changing command to Ernie. */
+  readonly requestCommand: (
     command: ErnieUiControlCommand,
-  ) => Promise<ErnieUiControlResult>;
+  ) => Promise<ErnieUiControlCommandResult>;
+  /** Read Ernie's current built-in Capability manifest. */
+  readonly requestCapabilities: () => Promise<
+    ErnieUiControlCapabilityManifestResult
+  >;
   /** Write one safe usage or runtime diagnostic to standard error. */
   readonly writeError: (message: string) => void;
   /** Write one help or successful result to standard output. */
@@ -111,7 +157,7 @@ type ExistingSocketPath = SocketPathIdentity | 'missing' | 'not-socket';
 function failure(
   code: ErnieUiControlFailureCode,
   message: string,
-): ErnieUiControlResult {
+): ErnieUiControlFailure {
   return {
     error: { code, message },
     ok: false,
@@ -185,7 +231,7 @@ async function prepareSocketPath(
   );
 }
 
-function parseCommand(value: JsonValue | undefined): ErnieUiControlCommand | null {
+function parseCommand(value: JsonValue | undefined): ErnieUiControlRequest | null {
   for (const commandDefinition of ernieUiControlCommandDefinitions) {
     const command = commandDefinition.parseRequest(value);
     if (command !== null) return command;
@@ -197,7 +243,7 @@ function parseCommand(value: JsonValue | undefined): ErnieUiControlCommand | nul
 export function parseErnieUiControlRequest(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function owns the local socket boundary and returns the parsed command.
   value: unknown,
-): ErnieUiControlCommand | null {
+): ErnieUiControlRequest | null {
   const parsed = parseJsonValue(value);
   if (
     !isJsonRecord(parsed) ||
@@ -223,6 +269,19 @@ export function parseErnieUiControlResult(
   }
   if (parsed.ok === true && Object.keys(parsed).length === 2) {
     return { ok: true, version: ernieUiControlProtocolVersion };
+  }
+  if (
+    parsed.ok === true &&
+    Object.keys(parsed).length === 3
+  ) {
+    const manifest = parseErnieUiControlCapabilityManifest(parsed.manifest);
+    return manifest === null
+      ? null
+      : {
+          manifest,
+          ok: true,
+          version: ernieUiControlProtocolVersion,
+        };
   }
   if (
     parsed.ok !== false ||
@@ -299,16 +358,29 @@ function parseCliArguments(
 ):
   | Readonly<{
       command: ErnieUiControlCommand;
+      kind: 'message';
+      message: string;
       ok: true;
-      successMessage: string;
     }>
+  | Readonly<{ kind: 'manifest'; ok: true }>
   | Readonly<{ message: string; ok: false }> {
   for (const definition of ernieUiControlCommandDefinitions) {
     if (!pathMatches(commandArguments, definition.path)) continue;
     const parsed = definition.parseCli(
       commandArguments.slice(definition.path.length),
     );
-    if (parsed !== null) return { ...parsed, ok: true };
+    if (parsed === null) continue;
+    if (parsed.kind === 'manifest') {
+      if (parsed.command.type !== 'list-capabilities') continue;
+      return { kind: 'manifest', ok: true };
+    }
+    if (parsed.command.type === 'list-capabilities') continue;
+    return {
+      command: parsed.command,
+      kind: 'message',
+      message: parsed.message,
+      ok: true,
+    };
   }
   return { message: formatCliUsage(commandArguments), ok: false };
 }
@@ -320,7 +392,13 @@ export function parseErnieUiControlCliArguments(
   const commandArguments = normalizeCliArguments(arguments_);
   const parsed = parseCliArguments(commandArguments);
   return parsed.ok
-    ? { command: parsed.command, ok: true }
+    ? {
+        command:
+          parsed.kind === 'manifest'
+            ? { type: 'list-capabilities' }
+            : parsed.command,
+        ok: true,
+      }
     : parsed;
 }
 
@@ -357,17 +435,25 @@ export async function runErnieUiControlCli(
     return 2;
   }
 
-  const result = await runtime.request(parsed.command);
+  if (parsed.kind === 'manifest') {
+    const result = await runtime.requestCapabilities();
+    if (!result.ok) {
+      runtime.writeError(result.error.message);
+      return 1;
+    }
+    runtime.writeOutput(JSON.stringify(result.manifest, null, 2));
+    return 0;
+  }
+  const result = await runtime.requestCommand(parsed.command);
   if (!result.ok) {
     runtime.writeError(result.error.message);
     return 1;
   }
-
-  runtime.writeOutput(parsed.successMessage);
+  runtime.writeOutput(parsed.message);
   return 0;
 }
 
-function serializeRequest(command: ErnieUiControlCommand): string {
+function serializeRequest(command: ErnieUiControlRequest): string {
   return `${JSON.stringify({
     command,
     version: ernieUiControlProtocolVersion,
@@ -390,7 +476,12 @@ function parseLine(line: string): JsonValue | undefined {
 
 function handleSocket(
   socket: Socket,
-  handleCommand: (command: ErnieUiControlCommand) => ErnieUiControlResult,
+  handleCommand: (command: ErnieUiControlCommand) => ErnieUiControlCommandResult,
+  capabilityCatalog: ErnieUiControlCapabilityCatalog,
+  readAvailability: (
+    capabilityId: string,
+  ) => ErnieUiControlCapabilityAvailability,
+  reportFailure: (message: string, cause?: unknown) => void,
 ): void {
   let received = '';
   let responded = false;
@@ -426,10 +517,29 @@ function handleSocket(
       respond(failure('invalid_request', 'Invalid Ernie UI control request.'));
       return;
     }
+    if (command.type === 'list-capabilities') {
+      try {
+        respond({
+          manifest: capabilityCatalog.createManifest(readAvailability),
+          ok: true,
+          version: ernieUiControlProtocolVersion,
+        });
+      } catch (cause) {
+        reportFailure('Ernie UI capability inspection failed.', cause);
+        respond(
+          failure(
+            'internal_error',
+            'Ernie could not inspect its UI capabilities.',
+          ),
+        );
+      }
+      return;
+    }
 
     try {
       respond(handleCommand(command));
-    } catch {
+    } catch (cause) {
+      reportFailure('Ernie UI control command failed.', cause);
       respond(failure('internal_error', 'Ernie could not control its UI.'));
     }
   });
@@ -462,11 +572,24 @@ async function closeServerAndSocket(
   await unlink(socketPath).catch(() => undefined);
 }
 
-/** Bind an owner-only local socket that accepts UI-control commands. */
+/**
+ * Bind an owner-only local socket that accepts UI-control requests.
+ *
+ * The server owns discovery. Action requests go to `handleCommand`, while
+ * `readAvailability` supplies current state for declared built-in capabilities.
+ * Caught defects retain their original cause through `reportFailure`.
+ *
+ * @throws When checked-in built-in definitions violate their invariant.
+ */
 export async function startErnieUiControlServer(
   socketPath: string,
-  handleCommand: (command: ErnieUiControlCommand) => ErnieUiControlResult,
-  reportFailure: (message: string) => void,
+  handleCommand: (command: ErnieUiControlCommand) => ErnieUiControlCommandResult,
+  reportFailure: (message: string, cause?: unknown) => void,
+  readAvailability: (
+    capabilityId: string,
+  ) => ErnieUiControlCapabilityAvailability = () => ({
+    status: 'available',
+  }),
 ): Promise<ErnieUiControlServerStartResult> {
   const normalizedPath = socketPath.trim();
   if (normalizedPath.length === 0) {
@@ -479,11 +602,21 @@ export async function startErnieUiControlServer(
     };
   }
 
+  const capabilityCatalog = createErnieUiControlBuiltInCapabilityCatalog();
+
   const preparation = await prepareSocketPath(normalizedPath);
   if (!preparation.ok) return preparation;
 
   return new Promise((resolve) => {
-    const server = createServer((socket) => handleSocket(socket, handleCommand));
+    const server = createServer((socket) =>
+      handleSocket(
+        socket,
+        handleCommand,
+        capabilityCatalog,
+        readAvailability,
+        reportFailure,
+      ),
+    );
     let starting = true;
     server.on('error', () => {
       if (!starting) {
@@ -540,7 +673,7 @@ export async function startErnieUiControlServer(
 }
 
 /**
- * Send one UI-only command to the running Ernie application.
+ * Send one UI-changing command to the running application.
  *
  * Availability and protocol failures are returned as values. Cancellation
  * closes the socket and rejects with the signal's Error reason. Other reasons
@@ -549,6 +682,21 @@ export async function startErnieUiControlServer(
 export function requestErnieUiControl(
   socketPath: string,
   command: ErnieUiControlCommand,
+  signal?: AbortSignal,
+): Promise<ErnieUiControlCommandResult>;
+/**
+ * Read the running application's built-in Capability manifest.
+ *
+ * Cancellation follows the same contract as UI-changing commands.
+ */
+export function requestErnieUiControl(
+  socketPath: string,
+  command: Readonly<{ type: 'list-capabilities' }>,
+  signal?: AbortSignal,
+): Promise<ErnieUiControlCapabilityManifestResult>;
+export function requestErnieUiControl(
+  socketPath: string,
+  command: ErnieUiControlRequest,
   signal?: AbortSignal,
 ): Promise<ErnieUiControlResult> {
   if (signal?.aborted) return Promise.reject(abortReason(signal));
@@ -604,9 +752,37 @@ export function requestErnieUiControl(
       const result = parseErnieUiControlResult(
         parseLine(received.slice(0, newlineIndex)),
       );
+      if (result === null) {
+        finish(
+          failure(
+            'invalid_response',
+            'Ernie returned an invalid UI response.',
+          ),
+        );
+        return;
+      }
+      if (!result.ok) {
+        finish(result);
+        return;
+      }
+      if (command.type === 'list-capabilities') {
+        finish(
+          'manifest' in result
+            ? result
+            : failure(
+                'invalid_response',
+                'Ernie returned an invalid UI response.',
+              ),
+        );
+        return;
+      }
       finish(
-        result ??
-          failure('invalid_response', 'Ernie returned an invalid UI response.'),
+        'manifest' in result
+          ? failure(
+              'invalid_response',
+              'Ernie returned an invalid UI response.',
+            )
+          : result,
       );
     });
     socket.once('close', () => {

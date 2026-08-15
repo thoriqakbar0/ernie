@@ -311,7 +311,11 @@ export function ErnieShell({
                 }`}
               >
                 {agentsActive ? (
-                  <TaskSurface workspace={workspace} onRetryConnection={onReload} />
+                  <TaskSurface
+                    workspace={workspace}
+                    onRetryConnection={onReload}
+                    thinkingOrbState={thinkingOrbState}
+                  />
                 ) : activePluginContent !== null &&
                   activePluginView !== null &&
                   activePluginManifest !== undefined &&

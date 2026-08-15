@@ -47,7 +47,6 @@ function unavailableWorkspace(): PrimeAgentWorkspaceController {
     selectedSessionView: null,
     selectedSessionRlmMaxDepth: null,
     selectedSessionRlmMaxDepthBusy: false,
-    sessionPreviews: {},
     sessions: [],
     savedSessions: [],
     status: 'The Prime Agent daemon is not available.',
@@ -79,6 +78,7 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
   render(
     <TaskSurface
       workspace={unavailableWorkspace()}
+      thinkingOrbState="working"
       onRetryConnection={() => {
         retries += 1;
       }}
@@ -151,6 +151,7 @@ test('working Agent shows its hydrated conversation before a response', () => {
           },
         ],
       }}
+      thinkingOrbState="working"
       onRetryConnection={() => undefined}
     />,
   );
@@ -205,6 +206,7 @@ test('settled Agent keeps its AI response visible', () => {
           },
         ],
       }}
+      thinkingOrbState="working"
       onRetryConnection={() => undefined}
     />,
   );

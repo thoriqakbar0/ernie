@@ -79,7 +79,6 @@ export interface PrimeAgentWorkspaceController {
   readonly selectedSessionView: PrimeAgentSessionView | null;
   readonly selectedSessionRlmMaxDepth: number | null;
   readonly selectedSessionRlmMaxDepthBusy: boolean;
-  readonly sessionPreviews: Readonly<Record<string, string>>;
   readonly sessions: readonly PrimeAgentSession[];
   readonly savedSessions: readonly PrimeAgentSavedSession[];
   readonly status: string;
@@ -170,18 +169,6 @@ function newestSession(
   return sessions.find((session) => session.cwd === cwd) ?? null;
 }
 
-function latestUserMessage(
-  messages: PrimeAgentSessionView['messages'],
-): string | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role !== 'user') continue;
-    const text = message.text.trim();
-    if (text.length > 0) return text;
-  }
-  return null;
-}
-
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
 export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
@@ -192,9 +179,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   );
   const [selectedSessionFeed, setSelectedSessionFeedState] =
     useState<PrimeAgentSessionFeedState | null>(null);
-  const [sessionPreviews, setSessionPreviews] = useState<
-    Readonly<Record<string, string>>
-  >({});
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
   const [skills, setSkills] = useState<readonly PrimeAgentSkill[]>([]);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
@@ -536,21 +520,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           item.kind !== 'connection-changed'
         ) {
           sessionViewCache.put(nextView);
-        }
-
-        const messages = item.kind === 'snapshot'
-          ? item.view.messages
-          : item.kind === 'conversation-replaced' ||
-              item.kind === 'conversation-patched'
-            ? item.messages
-            : null;
-        const preview = messages === null ? null : latestUserMessage(messages);
-        if (preview !== null) {
-          setSessionPreviews((current) =>
-            current[activeSessionId] === preview
-              ? current
-              : { ...current, [activeSessionId]: preview },
-          );
         }
 
         const sessionName = item.kind === 'snapshot'
@@ -1453,7 +1422,6 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     selectedSessionRlmMaxDepth: selectedSessionView?.rlmMaxDepth ?? null,
     selectedSessionRlmMaxDepthBusy:
       loadingSession || savingSessionRlmMaxDepth,
-    sessionPreviews,
     sessions: workspace?.sessions ?? [],
     savedSessions,
     status,

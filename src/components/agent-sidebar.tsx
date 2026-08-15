@@ -97,7 +97,6 @@ type AgentSidebarProps = Pick<
   | 'savedSessions'
   | 'selectedCwd'
   | 'selectedSessionId'
-  | 'sessionPreviews'
   | 'sessions'
   | 'changeFolder'
   | 'addWorkspaceDirectory'
@@ -187,16 +186,6 @@ function branchColorClass(branchName: string): string {
 
 function conversationFallbackIdentity(cwd: string, name: string): string {
   return `${cwd}\u0000${name}`;
-}
-
-function conversationLabel(
-  conversation: ThreadConversation,
-  sessionPreviews: Readonly<Record<string, string>>,
-): string {
-  return conversation.kind === 'live'
-    ? (sessionPreviews[conversation.session.activeSessionId] ??
-      conversation.session.name)
-    : conversation.session.name;
 }
 
 function sessionAge(modifiedAt: string | null): string | null {
@@ -337,7 +326,6 @@ export function AgentSidebar({
   savedSessions,
   selectedCwd,
   selectedSessionId,
-  sessionPreviews,
   sessions,
   changeFolder,
   addWorkspaceDirectory,
@@ -727,7 +715,7 @@ export function AgentSidebar({
             conversation,
             key: `Agent:${id}`,
             kind: 'Agent',
-            label: conversationLabel(conversation, sessionPreviews),
+            label: conversation.session.name,
             repositoryPath: repository.folder.value,
           });
         }
@@ -811,7 +799,7 @@ export function AgentSidebar({
       conversation.kind === 'saved' &&
       importingSessionPath === conversation.session.path;
     const activity = conversationActivity(conversation, connected, management);
-    const label = conversationLabel(conversation, sessionPreviews);
+    const label = conversation.session.name;
     const conversationIndex = visibleConversations.findIndex(
       (candidate) => threadConversationId(candidate) === id,
     );

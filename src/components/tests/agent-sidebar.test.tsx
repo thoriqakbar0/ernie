@@ -31,7 +31,6 @@ interface SidebarFixtureOverrides {
     | 'reconnecting'
     | 'unavailable';
   readonly savedSessions?: readonly PrimeAgentSavedSession[];
-  readonly sessionPreviews?: Readonly<Record<string, string>>;
   readonly selectedCwd?: string;
   readonly selectedSessionId?: string | null;
   readonly sessions?: readonly PrimeAgentSession[];
@@ -121,7 +120,6 @@ function renderSidebar(actions: {
               ? 'ernie-agent'
               : overrides.selectedSessionId
           }
-          sessionPreviews={overrides.sessionPreviews ?? {}}
           sessions={sessions}
           savedSessions={savedSessions}
           changeFolder={actions.changeFolder ?? (() => undefined)}
@@ -160,7 +158,7 @@ test('working Agents use the selected thinking animation', () => {
   );
 });
 
-test('live Agent rows preview the latest user message', () => {
+test('live Agent rows use the persisted session name', () => {
   renderSidebar(
     {
       addRepository: () => undefined,
@@ -169,16 +167,11 @@ test('live Agent rows preview the latest user message', () => {
       renameSession: () => undefined,
       selectSession: () => undefined,
     },
-    {
-      sessionPreviews: {
-        'ernie-agent': 'Review the empty state next',
-      },
-    },
   );
 
   assert.ok(
     within(document.body).getByRole('button', {
-      name: 'Review the empty state next',
+      name: 'Codebase rating feedback',
     }),
   );
 });

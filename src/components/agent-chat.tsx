@@ -6,6 +6,7 @@ import {
   ExternalLinkIcon,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ThinkingOrb } from 'thinking-orbs';
 
 import { ChatMarkdown } from '@/components/chat-markdown';
 import { Button } from '@/components/trovecn/ui/button';
@@ -14,12 +15,14 @@ import type {
   PrimeAgentSpawnedSession,
   PrimeAgentTranscriptItem,
 } from '@/packages/prime-agent-daemon/client';
+import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 interface AgentChatProps {
   readonly loadingEarlierHistory?: boolean;
   readonly onLoadEarlierHistory?: () => void;
   readonly onOpenSpawnedSession?: (activeSessionId: string) => void;
   readonly sessionView: PrimeAgentSessionView;
+  readonly thinkingOrbState?: ThinkingOrbState;
 }
 
 function durationLabel(durationMs: number | null): string | null {
@@ -226,8 +229,10 @@ function IpythonCell({
 
 function ExecutionRun({
   cells,
+  thinkingOrbState,
 }: {
   readonly cells: readonly NumberedIpythonCell[];
+  readonly thinkingOrbState: ThinkingOrbState;
 }): React.JSX.Element {
   const containsError = cells.some(({ cell }) => cell.status === 'error');
   const containsAborted = cells.some(({ cell }) => cell.status === 'aborted');
@@ -271,7 +276,7 @@ function ExecutionRun({
         type="button"
         variant="ghost"
         size="sm"
-        className="max-w-full justify-start gap-2 bg-muted/35 px-2.5 font-normal hover:bg-muted/60"
+        className="max-w-full justify-start gap-2 bg-transparent px-2.5 font-normal hover:bg-muted/35 aria-expanded:bg-transparent dark:hover:bg-muted/35"
         aria-label={`${expanded ? 'Collapse' : 'Expand'} work`}
         aria-expanded={expanded}
         onClick={() => setExpanded((current) => !current)}
@@ -287,6 +292,15 @@ function ExecutionRun({
         <span className={`flex min-w-0 items-center gap-1 font-medium ${statusTone}`}>
           {status === 'complete' ? (
             <CheckIcon aria-hidden="true" className="size-3.5" />
+          ) : containsRunning ? (
+            <ThinkingOrb
+              aria-hidden="true"
+              className="shrink-0"
+              data-thinking-orb-state={thinkingOrbState}
+              size={20}
+              state={thinkingOrbState}
+              theme="auto"
+            />
           ) : containsError ? (
             <span
               aria-hidden="true"
@@ -439,6 +453,7 @@ export function AgentChat({
   onLoadEarlierHistory,
   onOpenSpawnedSession,
   sessionView,
+  thinkingOrbState = 'working',
 }: AgentChatProps): React.JSX.Element {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeSessionIdRef = useRef(sessionView.activeSessionId);
@@ -561,7 +576,13 @@ export function AgentChat({
           <div className="flex flex-col gap-6">
             {blocks.map((block, index) => {
               if (block.kind === 'execution') {
-                return <ExecutionRun key={block.id} cells={block.cells} />;
+                return (
+                  <ExecutionRun
+                    key={block.id}
+                    cells={block.cells}
+                    thinkingOrbState={thinkingOrbState}
+                  />
+                );
               }
               const item = block.item;
               const followsExecution =

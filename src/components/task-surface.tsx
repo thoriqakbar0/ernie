@@ -6,15 +6,18 @@ import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/trovecn/ui/button';
 import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 interface TaskSurfaceProps {
   readonly onRetryConnection: () => void;
+  readonly thinkingOrbState: ThinkingOrbState;
   readonly workspace: PrimeAgentWorkspaceController;
 }
 
 /** Ernie's primary task input and its connected execution environment. */
 export function TaskSurface({
   onRetryConnection,
+  thinkingOrbState,
   workspace,
 }: TaskSurfaceProps): React.JSX.Element {
   const selectedSessionView =
@@ -78,6 +81,7 @@ export function TaskSurface({
               onLoadEarlierHistory={workspace.loadEarlierSessionHistory}
               onOpenSpawnedSession={workspace.openSpawnedSession}
               sessionView={selectedSessionView}
+              thinkingOrbState={thinkingOrbState}
             />
           </div>
         ) : null}

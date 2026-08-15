@@ -458,7 +458,9 @@ test('focused chat groups completed work and keeps output streams distinct', asy
   assert.doesNotMatch(work.className, /border/u);
   assert.match(work.className, /max-w-\[42rem\]/u);
   const disclosure = within(work).getByRole('button', { name: 'Expand work' });
-  assert.match(disclosure.className, /bg-muted/u);
+  assert.match(disclosure.className, /bg-transparent/u);
+  assert.match(disclosure.className, /aria-expanded:bg-transparent/u);
+  assert.doesNotMatch(disclosure.className, /(?:^|\s)bg-muted\/35(?:\s|$)/u);
   const completedStatus = within(work).getByText('complete');
   assert.match(completedStatus.parentElement?.className ?? '', /text-emerald/u);
   await user.click(within(work).getByRole('button', { name: 'Expand work' }));
@@ -485,6 +487,7 @@ test('focused chat groups completed work and keeps output streams distinct', asy
 test('focused chat expands only the newest work while streaming', () => {
   render(
     <AgentChat
+      thinkingOrbState="weaving"
       sessionView={{
         activeSessionId: 'root',
         historyStart: 0,
@@ -541,6 +544,9 @@ test('focused chat expands only the newest work while streaming', () => {
   );
   assert.ok(
     within(activeWork).getByRole('region', { name: 'IPython cell 2' }),
+  );
+  assert.ok(
+    activeWork.querySelector('canvas[data-thinking-orb-state="weaving"]'),
   );
 });
 

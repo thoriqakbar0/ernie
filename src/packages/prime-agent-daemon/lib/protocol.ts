@@ -905,66 +905,20 @@ export function parseSkillResourceCatalogData(
   };
 }
 
-/** Parse the configured model catalog returned by the Prime Agent daemon. */
-export function parseModelCatalogData(
-  catalogValue: JsonValue,
-  connectionStateValue: JsonValue,
+/** Parse the models that Prime Agent reports as usable by one live session. */
+export function parseAvailableModelsData(
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
-  if (
-    !isJsonRecord(catalogValue) ||
-    !Array.isArray(catalogValue.configuredProviders)
-  ) {
-    return failure('protocol_error', 'Prime Agent returned an invalid model catalog.');
+  if (!isJsonRecord(value)) {
+    return failure('protocol_error', 'Prime Agent returned invalid model data.');
   }
 
-  const configuredProviders = catalogValue.configuredProviders
-    .map(nonEmptyString)
-    .filter((provider): provider is string => provider !== null);
-  if (configuredProviders.length !== catalogValue.configuredProviders.length) {
-    return failure('protocol_error', 'Prime Agent returned an invalid provider list.');
-  }
-
-  const models = parseModels(catalogValue.models);
+  const models = parseModels(value.models);
   if (models === null) {
     return failure('protocol_error', 'Prime Agent returned invalid model data.');
   }
 
-  const configured = new Set(configuredProviders);
-  const availableModels = models.filter((model) =>
-    configured.has(model.provider)
-  );
-  if (
-    !isJsonRecord(connectionStateValue) ||
-    !Array.isArray(connectionStateValue.scopedModels)
-  ) {
-    return failure('protocol_error', 'Prime Agent returned invalid model scope data.');
-  }
-
-  const scopedModels: PrimeAgentModel[] = [];
-  for (const scopedModel of connectionStateValue.scopedModels) {
-    if (!isJsonRecord(scopedModel)) {
-      return failure('protocol_error', 'Prime Agent returned invalid model scope data.');
-    }
-    const model = parseModel(scopedModel.model);
-    if (model === null) {
-      return failure('protocol_error', 'Prime Agent returned invalid model scope data.');
-    }
-    scopedModels.push(model);
-  }
-  if (scopedModels.length === 0) {
-    return { ok: true, value: availableModels };
-  }
-
-  const availableByKey = new Map(
-    availableModels.map((model) => [model.key, model]),
-  );
-  return {
-    ok: true,
-    value: scopedModels.flatMap((model) => {
-      const availableModel = availableByKey.get(model.key);
-      return availableModel === undefined ? [] : [availableModel];
-    }),
-  };
+  return { ok: true, value: models };
 }
 
 /** Parse one model returned after a Prime Agent model change. */

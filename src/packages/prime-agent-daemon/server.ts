@@ -20,7 +20,7 @@ export {
 import type { JsonValue } from '../json-value/index.js';
 import {
   parseCreatedSessionData,
-  parseModelCatalogData,
+  parseAvailableModelsData,
   parseRefinementRequest,
   parseSavedSessionListData,
   parseSessionListData,
@@ -77,12 +77,11 @@ export function parsePrimeAgentDaemonSkillResources(
   return parseSkillResourceCatalogData(value);
 }
 
-/** Parse raw model-catalog and session-scope payloads from Prime Agent. */
+/** Parse the raw available-model payload from Prime Agent. */
 export function parsePrimeAgentDaemonModels(
-  catalogValue: JsonValue,
-  connectionStateValue: JsonValue,
+  value: JsonValue,
 ): PrimeAgentResult<readonly PrimeAgentModel[]> {
-  return parseModelCatalogData(catalogValue, connectionStateValue);
+  return parseAvailableModelsData(value);
 }
 
 /** Parse a refinement request received at Ernie's daemon boundary. */

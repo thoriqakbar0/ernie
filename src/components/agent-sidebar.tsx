@@ -260,7 +260,7 @@ function ActivitySummary({
     <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
       {needsInputCount > 0 ? (
         <span
-          className="inline-flex items-center gap-0.5 font-medium text-sidebar-foreground"
+          className="inline-flex items-center gap-0.5 font-medium text-warning"
           title={needsInputLabel}
         >
           <MessageCircleQuestionIcon aria-hidden="true" className="size-3" />

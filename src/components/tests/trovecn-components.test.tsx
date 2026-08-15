@@ -489,7 +489,7 @@ test('focused chat groups completed work and keeps output streams distinct', asy
   assert.match(disclosure.className, /aria-expanded:bg-transparent/u);
   assert.doesNotMatch(disclosure.className, /(?:^|\s)bg-muted\/35(?:\s|$)/u);
   const completedStatus = within(work).getByText('complete');
-  assert.match(completedStatus.parentElement?.className ?? '', /text-emerald/u);
+  assert.match(completedStatus.parentElement?.className ?? '', /text-success/u);
   await user.click(within(work).getByRole('button', { name: 'Expand work' }));
   assert.equal(
     within(work).getAllByRole('region', { name: /IPython cell/u }).length,

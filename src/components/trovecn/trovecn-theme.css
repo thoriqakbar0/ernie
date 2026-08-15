@@ -1,6 +1,6 @@
 @theme inline {
   --color-link: var(--trovecn-link);
-  --color-success: var(--trovecn-success);
+  --color-success: var(--success);
   --color-accent-blue: var(--trovecn-accent-blue);
   --color-accent-blue-hover: var(--trovecn-accent-blue-hover);
   --color-hover: var(--trovecn-hover);
@@ -27,19 +27,20 @@
 }
 
 :root {
-  --trovecn-hover: color-mix(in oklab, var(--foreground) 4%, transparent);
-  --trovecn-active: color-mix(in oklab, var(--foreground) 6%, transparent);
-  --trovecn-success: oklch(0.6 0.15 145);
-  --trovecn-accent-blue: oklch(0.693 0.161 265);
-  --trovecn-accent-blue-hover: oklch(0.649 0.164 265);
-  --trovecn-link: oklch(0.5 0.18 265);
+  --trovecn-hover: color-mix(in oklch, var(--foreground) 4%, transparent);
+  --trovecn-active: color-mix(in oklch, var(--foreground) 6%, transparent);
+  --trovecn-accent-blue: var(--primary);
+  --trovecn-accent-blue-hover: color-mix(
+    in oklch,
+    var(--primary),
+    var(--foreground) 8%
+  );
+  --trovecn-link: var(--primary);
 }
 
 .dark {
-  --trovecn-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
-  --trovecn-active: color-mix(in oklab, var(--foreground) 10%, transparent);
-  --trovecn-success: oklch(0.75 0.17 145);
-  --trovecn-link: oklch(0.78 0.13 265);
+  --trovecn-hover: color-mix(in oklch, var(--foreground) 6%, transparent);
+  --trovecn-active: color-mix(in oklch, var(--foreground) 10%, transparent);
 }
 
 .shadow-panel {

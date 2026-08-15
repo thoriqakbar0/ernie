@@ -732,6 +732,10 @@ test('live status changes do not reorder Agent rows', () => {
   const repository = within(document.body).getByRole('listitem', {
     name: 'ernie repository',
   });
+  assert.match(
+    within(repository).getByLabelText('Needs input').className,
+    /\btext-warning\b/u,
+  );
   const threadLabels = within(repository)
     .getAllByRole('button')
     .map((button) => button.getAttribute('aria-label'))
@@ -753,6 +757,7 @@ test('needs-input summaries stay compact without losing their meaning', () => {
   assert.equal(summaries.length, 2);
   for (const summary of summaries) {
     assert.equal(summary.textContent, '1 Agent needs input');
+    assert.match(summary.className, /\btext-warning\b/u);
     assert.equal(summary.querySelector('[aria-hidden="true"]') !== null, true);
   }
 });

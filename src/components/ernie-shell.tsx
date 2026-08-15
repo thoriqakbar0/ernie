@@ -284,7 +284,7 @@ export function ErnieShell({
                 )}
                 {settingsOpen || !agentsActive || sessionStatus === null ? null : (
                   <span
-                    className={`inline-flex items-center gap-1 text-xs font-medium ${sessionStatus === 'done' ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
+                    className={`inline-flex items-center gap-1 text-xs font-medium ${sessionStatus === 'done' ? 'text-success' : 'text-muted-foreground'}`}
                   >
                     {sessionStatus === 'done' ? null : (
                       <ThinkingOrb

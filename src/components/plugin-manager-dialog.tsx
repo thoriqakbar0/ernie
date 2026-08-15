@@ -56,7 +56,7 @@ export function PluginManagerDialog({
                     <span
                       className={
                         enabled
-                          ? 'rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400'
+                          ? 'rounded-full bg-success/12 px-2 py-0.5 text-[10px] font-medium text-success'
                           : 'rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground'
                       }
                     >

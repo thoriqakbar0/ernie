@@ -12,18 +12,12 @@ export type EffectSetup<Value> = () =>
   | EffectAcquisition<Value>
   | Promise<EffectAcquisition<Value>>;
 
-/** The lifecycle phase of one effect scope. */
-export type EffectScopeStatus = 'open' | 'closed' | 'draining' | 'drained';
-
 /** An effect was requested after its owning scope stopped accepting acquisitions. */
 export class EffectScopeClosedError extends Error {
   readonly _tag = 'EffectScopeClosedError';
 
-  constructor(cause?: unknown) {
-    super(
-      'The effect scope no longer accepts acquisitions.',
-      cause === undefined ? undefined : { cause },
-    );
+  constructor() {
+    super('The effect scope no longer accepts acquisitions.');
   }
 }
 
@@ -41,9 +35,6 @@ export class EffectCleanupError extends Error {
 
 /** Owns effects acquired during one bounded lifecycle attempt. */
 export interface EffectScope {
-  /** Report whether this scope still accepts work or is closing. */
-  readonly status: EffectScopeStatus;
-
   /**
    * Acquire one value and arm its cleanup immediately after setup succeeds.
    *
@@ -65,19 +56,17 @@ type ArmedEffect = Readonly<{
   cleanup: EffectCleanup;
 }>;
 
+type EffectScopeState = 'open' | 'closed' | 'draining' | 'drained';
+
 /** Create an empty effect scope for one lifecycle attempt. */
 export function createEffectScope(): EffectScope {
-  let status: EffectScopeStatus = 'open';
+  let status: EffectScopeState = 'open';
   let nextSequence = 1;
   const armedEffects: ArmedEffect[] = [];
   const acquisitionSettlements: Promise<void>[] = [];
   let drainPromise: Promise<readonly EffectCleanupError[]> | null = null;
 
   const scope: EffectScope = {
-    get status() {
-      return status;
-    },
-
     acquire<Value>(setup: EffectSetup<Value>): Promise<Value> {
       if (status !== 'open') {
         return Promise.reject(new EffectScopeClosedError());

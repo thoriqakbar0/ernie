@@ -28,7 +28,6 @@ test('drains acquired effects once in reverse acquisition order', async () => {
   assert.deepEqual(await scope.drain(), []);
   assert.deepEqual(await scope.drain(), []);
   assert.deepEqual(cleanupOrder, ['second', 'first']);
-  assert.equal(scope.status, 'drained');
 });
 
 test('continues draining after cleanup failures', async () => {

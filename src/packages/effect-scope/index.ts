@@ -8,6 +8,5 @@ export type {
   EffectAcquisition,
   EffectCleanup,
   EffectScope,
-  EffectScopeStatus,
   EffectSetup,
 } from './lib/effect-scope.js';

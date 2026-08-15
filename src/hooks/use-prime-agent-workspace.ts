@@ -1,6 +1,7 @@
 import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { createAgentSessionViewCache } from '@/packages/ernie-daemon/session-view-cache';
 import {
   parsePrimeAgentGitBranchesResult,
   parsePrimeAgentGitWorkspaceResult,
@@ -212,10 +213,23 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   >(new Map());
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
+  const sessionViewCacheRef = useRef<ReturnType<
+    typeof createAgentSessionViewCache
+  > | null>(null);
+  if (sessionViewCacheRef.current === null) {
+    sessionViewCacheRef.current = createAgentSessionViewCache();
+  }
+  const sessionViewCache = sessionViewCacheRef.current;
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
-  const selectedSessionView = selectedSessionFeed === null
+  const liveSelectedSessionView = selectedSessionFeed === null
     ? null
     : primeAgentSessionFeedView(selectedSessionFeed);
+  const selectedSessionView =
+    liveSelectedSessionView?.activeSessionId === selectedSessionId
+      ? liveSelectedSessionView
+      : selectedSessionId === null
+        ? null
+        : sessionViewCache.peek(selectedSessionId);
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -445,12 +459,13 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }, [selectedSessionId]);
 
   useEffect(() => {
-    setSelectedSessionFeed(null);
     if (selectedSessionId === null) {
+      setSelectedSessionFeed(null);
       return;
     }
 
     const activeSessionId = selectedSessionId;
+    sessionViewCache.read(activeSessionId);
     const subscriptionId = window.ernie.watchAgentSession(
       activeSessionId,
       (rawEnvelope) => {
@@ -460,6 +475,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           return;
         }
         const item = envelope.value.item;
+        sessionViewCache.apply(activeSessionId, item);
         setSelectedSessionFeed((current) =>
           current === null
             ? current
@@ -518,7 +534,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     return () => {
       window.ernie.unwatchAgentSession(subscriptionId);
     };
-  }, [selectedSessionId]);
+  }, [selectedSessionId, sessionViewCache]);
 
   const workspacePaths = useMemo(() => {
     const paths = new Set([
@@ -1237,15 +1253,17 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
           }
 
           yield* Effect.sync(() => {
-            setSelectedSessionFeed((current) =>
-              current === null
-                ? null
-                : replacePrimeAgentSessionFeedRlmDepth(
-                    current,
-                    activeSessionId,
-                    result.value.maxDepth,
-                  ),
-            );
+            setSelectedSessionFeed((current) => {
+              if (current === null) return null;
+              const next = replacePrimeAgentSessionFeedRlmDepth(
+                current,
+                activeSessionId,
+                result.value.maxDepth,
+              );
+              const nextView = primeAgentSessionFeedView(next);
+              if (nextView !== null) sessionViewCache.put(nextView);
+              return next;
+            });
             setStatus(
               `RLM max depth changed to ${result.value.maxDepth} for this Agent.`,
             );
@@ -1266,7 +1284,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         ),
       );
     },
-    [selectedSessionId, selectedSessionView?.rlmMaxDepth],
+    [selectedSessionId, selectedSessionView?.rlmMaxDepth, sessionViewCache],
   );
 
   const modelBusy = loadingWorkspace || loadingSession || savingModel;

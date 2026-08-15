@@ -13,6 +13,7 @@ export type {
   PrimeAgentSession as AgentSession,
   PrimeAgentSessionCreation as AgentSessionCreation,
   PrimeAgentSessionFeedItem as AgentSessionFeedItem,
+  PrimeAgentSessionView as AgentSessionView,
   PrimeAgentSessionRename as AgentSessionRename,
   PrimeAgentSessionRenameReceipt as AgentSessionRenameReceipt,
   PrimeAgentSkill as AgentSkill,

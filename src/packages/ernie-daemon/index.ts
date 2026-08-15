@@ -1,5 +1,6 @@
-import type { Effect, Stream } from 'effect';
-import type { JsonValue } from '../json-value/index.js';
+import { Effect, Stream } from 'effect';
+import { isJsonString, type JsonValue } from '../json-value/index.js';
+import { createAgentSessionViewCache } from './lib/session-view-cache.js';
 import type {
   AgentModel,
   AgentRefinementReceipt,
@@ -108,15 +109,44 @@ function normalizedDescriptor(
   });
 }
 
+function normalizedSessionId(value: JsonValue): string | null {
+  if (!isJsonString(value)) return null;
+  const activeSessionId = value.trim();
+  return activeSessionId.length === 0 ? null : activeSessionId;
+}
+
 /** Install one runtime adapter behind Ernie's stable daemon boundary. */
 export function createErnieDaemon(
   configuration: ErnieDaemonConfiguration,
 ): ErnieDaemon {
   const adapter = configuration.harness;
   const harness = normalizedDescriptor(adapter.descriptor);
+  const sessionViews = createAgentSessionViewCache();
+  const sessionFeed = (activeSessionId: JsonValue) => {
+    const sessionId = normalizedSessionId(activeSessionId);
+    const liveFeed = adapter.sessionFeed(activeSessionId).pipe(
+      Stream.mapEffect((item) =>
+        Effect.sync(() => {
+          if (sessionId !== null) sessionViews.apply(sessionId, item);
+          return item;
+        }),
+      ),
+    );
+    if (sessionId === null) return liveFeed;
+
+    const cachedView = sessionViews.read(sessionId);
+    return cachedView === null
+      ? liveFeed
+      : Stream.succeed({ kind: 'snapshot' as const, view: cachedView }).pipe(
+          Stream.concat(liveFeed),
+        );
+  };
   return Object.freeze({
     harness,
-    close: adapter.close,
+    close(): void {
+      sessionViews.clear();
+      adapter.close();
+    },
     createSession: adapter.createSession,
     getRlmDepth: adapter.getRlmDepth,
     importSession: adapter.importSession,
@@ -126,7 +156,7 @@ export function createErnieDaemon(
     listWorkspace: adapter.listWorkspace,
     refineSession: adapter.refineSession,
     renameSession: adapter.renameSession,
-    sessionFeed: adapter.sessionFeed,
+    sessionFeed,
     setModel: adapter.setModel,
     setRlmDepth: adapter.setRlmDepth,
     submitTask: adapter.submitTask,

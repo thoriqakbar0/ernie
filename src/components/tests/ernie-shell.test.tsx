@@ -41,6 +41,7 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   let sessionCreated = false;
   let liveDepth = 5;
   let modelCatalogRequests = 0;
+  let sessionFeedWatchCount = 0;
   const changedSessionDepths: Array<{
     activeSessionId: string;
     maxDepth: number;
@@ -181,47 +182,50 @@ test('repository plus opens a draft and the first message creates the Prime Agen
     },
     listAgentSkills: async () => ({ ok: true, value: [] }),
     watchAgentSession: (activeSessionId, listener) => {
+      sessionFeedWatchCount += 1;
       const subscriptionId = `test-feed:${activeSessionId}`;
       sessionFeedListeners.set(subscriptionId, listener);
-      queueMicrotask(() =>
-        listener({
-          activeSessionId,
-          item: {
-            kind: 'snapshot',
-            view: {
-              activeSessionId,
-              isStreaming: false,
-              messages: [
-                { id: 'task', role: 'user', text: 'Polish the sidebar' },
-                {
-                  id: 'reply',
-                  role: 'assistant',
-                  text: 'I am working on it.',
-                },
-              ],
-              rlmMaxDepth: liveDepth,
-              sessionName: 'Polish the sidebar',
-              spawnedSessions: [],
-              transcript: [
-                {
-                  id: 'task',
-                  kind: 'message',
-                  role: 'user',
-                  text: 'Polish the sidebar',
-                },
-                {
-                  id: 'reply',
-                  kind: 'message',
-                  role: 'assistant',
-                  text: 'I am working on it.',
-                },
-              ],
+      if (sessionFeedWatchCount === 1) {
+        queueMicrotask(() =>
+          listener({
+            activeSessionId,
+            item: {
+              kind: 'snapshot',
+              view: {
+                activeSessionId,
+                isStreaming: false,
+                messages: [
+                  { id: 'task', role: 'user', text: 'Polish the sidebar' },
+                  {
+                    id: 'reply',
+                    role: 'assistant',
+                    text: 'I am working on it.',
+                  },
+                ],
+                rlmMaxDepth: liveDepth,
+                sessionName: 'Polish the sidebar',
+                spawnedSessions: [],
+                transcript: [
+                  {
+                    id: 'task',
+                    kind: 'message',
+                    role: 'user',
+                    text: 'Polish the sidebar',
+                  },
+                  {
+                    id: 'reply',
+                    kind: 'message',
+                    role: 'assistant',
+                    text: 'I am working on it.',
+                  },
+                ],
+              },
             },
-          },
-          revision: 0,
-          subscriptionId,
-        }),
-      );
+            revision: 0,
+            subscriptionId,
+          }),
+        );
+      }
       return subscriptionId;
     },
     unwatchAgentSession: (subscriptionId) => {
@@ -564,10 +568,16 @@ test('repository plus opens a draft and the first message creates the Prime Agen
   await user.click(
     within(document.body).getByRole('button', { name: 'kastuli' }),
   );
+  await user.click(
+    within(document.body).getByRole('button', { name: 'Polish the sidebar' }),
+  );
+  assert.ok(within(document.body).getByText('Live event received.'));
+  assert.ok(within(document.body).getByRole('button', { name: 'Depth 6' }));
+  assert.equal(sessionFeedWatchCount, 2);
   assert.equal(
     within(document.body)
       .getByRole('button', { name: 'Polish the sidebar' })
       .getAttribute('aria-current'),
-    null,
+    'page',
   );
 });

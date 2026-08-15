@@ -58,6 +58,63 @@ test('installs one immutable harness behind the Ernie daemon API', async () => {
   });
 });
 
+test('replays a cached session view before refreshing its harness feed', async () => {
+  const firstView = {
+    activeSessionId: 'agent-one',
+    isStreaming: false,
+    messages: [{ id: 'first', role: 'user' as const, text: 'First view' }],
+    rlmMaxDepth: 1,
+    sessionName: 'First view',
+    spawnedSessions: [],
+    transcript: [
+      {
+        id: 'first',
+        kind: 'message' as const,
+        role: 'user' as const,
+        text: 'First view',
+      },
+    ],
+  };
+  const refreshedView = {
+    ...firstView,
+    messages: [{ id: 'second', role: 'user' as const, text: 'Refreshed view' }],
+    sessionName: 'Refreshed view',
+    transcript: [
+      {
+        id: 'second',
+        kind: 'message' as const,
+        role: 'user' as const,
+        text: 'Refreshed view',
+      },
+    ],
+  };
+  let nextView = firstView;
+  const daemon = createErnieDaemon({
+    harness: {
+      ...fakeHarness(),
+      sessionFeed: () =>
+        Stream.succeed({ kind: 'snapshot' as const, view: nextView }),
+    },
+  });
+
+  const firstItems = await Effect.runPromise(
+    daemon.sessionFeed('agent-one').pipe(Stream.runCollect),
+  );
+  nextView = refreshedView;
+  const warmItems = await Effect.runPromise(
+    daemon.sessionFeed('agent-one').pipe(Stream.runCollect),
+  );
+
+  assert.deepEqual(Array.from(firstItems), [
+    { kind: 'snapshot', view: firstView },
+  ]);
+  assert.deepEqual(Array.from(warmItems), [
+    { kind: 'snapshot', view: firstView },
+    { kind: 'snapshot', view: refreshedView },
+  ]);
+  daemon.close();
+});
+
 test('rejects invalid harness descriptors', () => {
   assert.throws(
     () =>

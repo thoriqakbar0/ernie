@@ -24,6 +24,9 @@ jobs:
   release:
     name: Build and release Apple silicon app
     runs-on: macos-15
+    env:
+      HAS_MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+      HAS_NOTARIZATION_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
     steps:
       - name: Check out Ernie
         uses: actions/checkout@v7
@@ -87,7 +90,7 @@ jobs:
           fi
 
       - name: Import Apple signing credentials
-        if: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+        if: ${{ env.HAS_MACOS_CERTIFICATE == 'true' }}
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -104,7 +107,7 @@ jobs:
           security list-keychain -d user -s "$keychain_path"
 
       - name: Prepare notarization credentials
-        if: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
+        if: ${{ env.HAS_NOTARIZATION_KEY == 'true' }}
         env:
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}

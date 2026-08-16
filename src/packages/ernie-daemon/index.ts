@@ -86,16 +86,18 @@ export interface AgentHarnessOperations {
   readonly refineSession: (
     request: JsonValue,
   ) => Effect.Effect<AgentResult<AgentRefinementReceipt>>;
-  readonly close: () => void;
 }
 
 /** One provider-owned adapter installed behind Ernie's stable daemon boundary. */
 export interface AgentHarnessAdapter extends AgentHarnessOperations {
+  readonly close: () => void;
   readonly descriptor: AgentHarnessDescriptor;
 }
 
 /** Ernie's immutable daemon API with one selected harness adapter. */
 export interface ErnieDaemon extends AgentHarnessOperations {
+  /** Finalize every owned feed before closing the installed harness adapter. */
+  readonly close: () => Promise<void>;
   readonly harness: AgentHarnessDescriptor;
   /** Load one bounded transcript page before the requested history index. */
   readonly loadSessionHistory: (
@@ -111,6 +113,11 @@ export interface ErnieDaemonConfiguration {
 interface OwnedSessionWarmup {
   fiber: Fiber.Fiber<void> | null;
 }
+
+type DaemonLifecycle =
+  | Readonly<{ status: 'open' }>
+  | Readonly<{ completion: Promise<void>; status: 'closing' }>
+  | Readonly<{ status: 'closed' }>;
 
 const maximumPrewarmedSessions = 24;
 const maximumConcurrentWarmups = 4;
@@ -150,7 +157,7 @@ export function createErnieDaemon(
   const pendingSessionWarmups = new Set<string>();
   const activeSessionWarmups = new Map<string, OwnedSessionWarmup>();
   const selectedSessionCounts = new Map<string, number>();
-  let closed = false;
+  let lifecycle: DaemonLifecycle = { status: 'open' };
 
   const warmSession = (activeSessionId: string) =>
     windowAgentSessionFeed(adapter.sessionFeed(activeSessionId)).pipe(
@@ -164,7 +171,7 @@ export function createErnieDaemon(
 
   const startPendingSessionWarmups = (): void => {
     while (
-      !closed &&
+      lifecycle.status === 'open' &&
       activeSessionWarmups.size < maximumConcurrentWarmups
     ) {
       const activeSessionId = pendingSessionWarmups.values().next().value;
@@ -324,29 +331,32 @@ export function createErnieDaemon(
   );
   return Object.freeze({
     harness,
-    close(): void {
-      if (closed) return;
-      closed = true;
+    close(): Promise<void> {
+      if (lifecycle.status === 'closed') return Promise.resolve();
+      if (lifecycle.status === 'closing') return lifecycle.completion;
       pendingSessionWarmups.clear();
       selectedSessionCounts.clear();
       const warmupFibers = [...activeSessionWarmups.values()].flatMap((owner) =>
         owner.fiber === null ? [] : [owner.fiber]
       );
       activeSessionWarmups.clear();
-      const closeAdapter = Effect.sync(() => {
-        sessionViews.clear();
-        adapter.close();
-      });
-      if (warmupFibers.length === 0) {
-        Effect.runSync(closeAdapter);
-        return;
-      }
-      Effect.runFork(
+      const completion = Effect.runPromise(
         Effect.forEach(warmupFibers, Fiber.interrupt, {
           concurrency: 'unbounded',
           discard: true,
-        }).pipe(Effect.andThen(closeAdapter)),
-      );
+        }).pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              sessionViews.clear();
+              adapter.close();
+            }),
+          ),
+        ),
+      ).finally(() => {
+        lifecycle = { status: 'closed' };
+      });
+      lifecycle = { completion, status: 'closing' };
+      return completion;
     },
     createSession: adapter.createSession,
     getConfiguration: adapter.getConfiguration,

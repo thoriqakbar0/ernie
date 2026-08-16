@@ -119,7 +119,7 @@ test('replays a cached session view before refreshing its harness feed', async (
     { kind: 'snapshot', previousHistoryStart: null, view: firstView },
     { kind: 'snapshot', previousHistoryStart: 0, view: refreshedView },
   ]);
-  daemon.close();
+  await daemon.close();
 });
 
 test('prewarms visible Agent sessions before their first selection', () =>
@@ -199,7 +199,7 @@ test('prewarms visible Agent sessions before their first selection', () =>
       assert.deepEqual(Array.from(selectedItems), [
         { kind: 'snapshot', previousHistoryStart: null, view },
       ]);
-      daemon.close();
+      yield* Effect.promise(() => daemon.close());
     }),
   ));
 
@@ -271,9 +271,29 @@ test('claims an active warmup before opening the selected session feed', () =>
         previousHistoryStart: null,
         view,
       }]);
-      daemon.close();
+      yield* Effect.promise(() => daemon.close());
     }),
   ));
+
+test('shares one daemon shutdown completion and closes the adapter once', async () => {
+  let closeCount = 0;
+  const daemon = createErnieDaemon({
+    harness: {
+      ...fakeHarness(),
+      close: () => {
+        closeCount += 1;
+      },
+    },
+  });
+
+  const first = daemon.close();
+  const second = daemon.close();
+  await Promise.all([first, second]);
+  await daemon.close();
+
+  assert.equal(first, second);
+  assert.equal(closeCount, 1);
+});
 
 test('finalizes an active warmup before closing its adapter', () =>
   Effect.runPromise(
@@ -322,7 +342,7 @@ test('finalizes an active warmup before closing its adapter', () =>
 
       yield* daemon.workspaceFeed().pipe(Stream.runDrain);
       yield* Deferred.await(warmupStarted).pipe(Effect.timeout('1 second'));
-      daemon.close();
+      yield* Effect.promise(() => daemon.close());
       yield* Deferred.await(adapterClosed).pipe(Effect.timeout('1 second'));
 
       assert.deepEqual(shutdownEvents, [
@@ -443,7 +463,7 @@ test('windows session feeds and pages earlier transcript history', async () => {
   assert.equal(page.value.transcript.length, 80);
   assert.equal(page.value.transcript[0]?.id, 'item-10');
   assert.equal(page.value.transcript.at(-1)?.id, 'item-89');
-  daemon.close();
+  await daemon.close();
 });
 
 test('rejects invalid harness descriptors', () => {

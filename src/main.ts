@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import type {
+  Event,
   IpcMainEvent,
   MenuItemConstructorOptions,
   OpenDialogOptions,
@@ -463,9 +464,20 @@ function registerErnieDaemonHandlers(agentUiControlSocketPath: string): void {
     shell.showItemInFolder(workspacePath);
     return true;
   });
-  app.once('will-quit', () => {
+  let quitStarted = false;
+  let quitReady = false;
+  app.on('before-quit', (event: Event) => {
+    if (quitReady) return;
+    event.preventDefault();
+    if (quitStarted) return;
+    quitStarted = true;
     for (const senderId of observedSenders) stopSenderFeeds(senderId);
-    daemon.close();
+    void daemon.close().catch((cause: unknown) => {
+      console.error('Ernie daemon shutdown failed.', cause);
+    }).finally(() => {
+      quitReady = true;
+      app.quit();
+    });
   });
 }
 

@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Ernie is a macOS interface that adapts to durable agent work."
+      content="Ernie is a macOS workspace for durable Prime Agent sessions."
     />
     <meta name="theme-color" content="#f4f1e8" />
     <meta property="og:title" content="Ernie — interface that follows your work" />
     <meta
       property="og:description"
-      content="A macOS workspace for durable Prime Agent sessions."
+      content="A repository-aware macOS workspace for durable Prime Agent sessions."
     />
     <meta property="og:image" content="https://ernie.ta-0.com/ernie-release-workspace.webp" />
     <meta property="og:type" content="website" />
@@ -22,59 +22,130 @@
     <link rel="stylesheet" href="/styles.css" />
     <title>Ernie — interface that follows your work</title>
   </head>
-  <body>
-    <main>
-      <header class="hero">
+  <body class="landing-page">
+    <a class="skip-link" href="#main-content">skip to content</a>
+
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Ernie home">
+        <img alt="" height="28" src="/ernie-smile.png" width="28" />
+        <span>ernie</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#app">app</a>
+        <a href="/docs/">docs</a>
+        <a href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made">
+          essay <span aria-hidden="true">↗</span>
+        </a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="hero">
         <div class="hero-copy">
           <h1>ernie</h1>
           <p class="lede">an interface that adapts to your work.</p>
           <p class="intro">
-            ernie keeps agent sessions attached to repositories, worktrees, and
-            the artifacts they produce. the first macOS alpha is now running on
-            Apple silicon.
+            Ernie gives durable Prime Agent sessions a repository-aware macOS
+            home. Work remains attached to its repository, worktree, tools, and
+            child Agents instead of dissolving into one transcript.
           </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made">
+            <a class="button button-primary" href="/docs/">
+              read the docs <span aria-hidden="true">→</span>
+            </a>
+            <a
+              class="button button-secondary"
+              href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made"
+            >
               read the essay <span aria-hidden="true">↗</span>
             </a>
-            <a class="button button-secondary" href="#first-build">
-              see the first build <span aria-hidden="true">↓</span>
-            </a>
           </div>
-          <p class="availability">
-            v0.1.0 · macOS for Apple silicon · private alpha
-          </p>
         </div>
 
-        <figure class="hero-shot">
-          <img
-            alt="Ernie showing repositories and their saved agent sessions"
-            fetchpriority="high"
-            height="900"
-            src="/ernie-release-workspace.webp"
-            width="1360"
-          />
-          <figcaption>
-            one workspace for repositories, worktrees, and durable sessions.
-          </figcaption>
-        </figure>
-      </header>
+        <aside class="release-card" aria-labelledby="release-card-title">
+          <h2 id="release-card-title">v0.1.0</h2>
+          <p>the first working macOS package.</p>
+          <dl>
+            <div>
+              <dt>platform</dt>
+              <dd>Apple silicon</dd>
+            </div>
+            <div>
+              <dt>channel</dt>
+              <dd>private alpha</dd>
+            </div>
+            <div>
+              <dt>signature</dt>
+              <dd>ad hoc</dd>
+            </div>
+          </dl>
+          <a href="/docs/#release">understand the release →</a>
+        </aside>
+      </section>
+
+      <figure class="product-frame hero-shot" id="app">
+        <img
+          alt="Ernie showing repositories and their saved agent sessions"
+          fetchpriority="high"
+          height="900"
+          src="/ernie-release-workspace.webp"
+          width="1360"
+        />
+        <figcaption>
+          repositories, worktrees, and durable sessions share one workspace.
+        </figcaption>
+      </figure>
+
+      <section class="capabilities" aria-labelledby="capabilities-title">
+        <div class="section-intro">
+          <h2 id="capabilities-title">work stays where it belongs.</h2>
+          <p>
+            Ernie keeps the desktop shell calm while Prime Agent remains the
+            authority for execution and session history.
+          </p>
+        </div>
+        <div class="capability-grid">
+          <article>
+            <h3>repository-aware</h3>
+            <p>
+              sessions stay grouped with repositories and linked Git worktrees,
+              so their working context remains visible.
+            </p>
+          </article>
+          <article>
+            <h3>durable by default</h3>
+            <p>
+              Prime Agent owns the session. Ernie can reconnect, restore, and
+              continue without becoming a second source of truth.
+            </p>
+          </article>
+          <article>
+            <h3>bounded and inspectable</h3>
+            <p>
+              typed IPC, local UI controls, and lifecycle-managed plugins keep
+              important boundaries explicit.
+            </p>
+          </article>
+        </div>
+      </section>
 
       <section class="release" id="first-build">
         <div class="release-copy">
-          <h2>the first mac build</h2>
+          <h2>the first mac build is real.</h2>
           <p>
-            v0.1.0 packages the working Ernie desktop app for Apple silicon.
-            it connects to Prime Agent, preserves sessions by repository, and
-            keeps the next action close to the work.
+            v0.1.0 packages the working Electron application, its renderer, and
+            the installed Prime Agent runtime graph for Apple silicon.
           </p>
           <p>
-            this first build is a private, ad-hoc signed alpha. public download
-            comes after Developer ID signing and Apple notarization.
+            this build is for private testing. public distribution follows
+            after Developer ID signing and Apple notarization.
           </p>
+          <a class="text-link" href="/docs/#release">
+            read the release guide <span aria-hidden="true">→</span>
+          </a>
         </div>
 
-        <figure class="session-shot">
+        <figure class="product-frame session-shot">
           <img
             alt="A conversation with Prime Agent inside the Ernie macOS app"
             height="900"
@@ -83,16 +154,46 @@
             width="1360"
           />
           <figcaption>
-            a focused session surface, with model controls beside the composer.
+            one focused session, with model controls beside the composer.
           </figcaption>
         </figure>
+      </section>
+
+      <section class="docs-preview">
+        <div class="docs-preview-copy">
+          <h2>understand the whole system.</h2>
+          <p>
+            the documentation follows a task from the renderer, across Electron
+            IPC, into Ernie’s daemon, and finally to Prime Agent. it also covers
+            the CLI, plugin lifecycle, packaging, and failure recovery.
+          </p>
+          <a class="button button-light" href="/docs/">
+            open documentation <span aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <div class="terminal-card" aria-label="Ernie development commands">
+          <div class="terminal-title">
+            <span>start locally</span>
+            <span>macOS</span>
+          </div>
+          <pre><code><span>$</span> nub install
+<span>$</span> nub run dev
+
+<span class="comment"># in another terminal</span>
+<span>$</span> nub run cli -- ui capabilities</code></pre>
+          <dl>
+            <div><dt>checks</dt><dd><code>nub run check</code></dd></div>
+            <div><dt>package</dt><dd><code>nub run package:mac</code></dd></div>
+          </dl>
+        </div>
       </section>
 
       <section class="principle">
         <h2>the interface should follow the task.</h2>
         <p>
           chat is one useful surface, not the final shape of every kind of work.
-          Ernie is an experiment in interfaces that preserve the structure an
+          Ernie is a learning lab for interfaces that preserve the structure an
           agent discovers.
         </p>
         <a href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made">
@@ -101,8 +202,12 @@
       </section>
     </main>
 
-    <footer>
+    <footer class="site-footer">
       <span>built by <a href="https://ta-0.com/">thoriq</a></span>
+      <nav aria-label="Footer navigation">
+        <a href="/docs/">documentation</a>
+        <a href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made">essay</a>
+      </nav>
       <span>macOS alpha · 2026</span>
     </footer>
   </body>

@@ -79,6 +79,8 @@ shell-automation behavior.
 
 ## Read the documentation
 
+- [Website documentation](https://ernie.ta-0.com/docs/) covers setup, architecture,
+  CLI control, plugins, releases, and troubleshooting.
 - [Ernie plugins](docs/plugins.md) documents the built-in plugin contract.
 - [Use the Ernie CLI](docs/ui-control.md) shows how to inspect and control the app.
 - [Lynx experiment](lynx/README.md) covers the separate native-renderer study.

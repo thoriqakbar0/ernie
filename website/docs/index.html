@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Documentation for running, understanding, controlling, and releasing Ernie."
+    />
+    <meta name="theme-color" content="#f4f1e8" />
+    <meta property="og:title" content="Ernie documentation" />
+    <meta
+      property="og:description"
+      content="Run Ernie, understand its architecture, use its CLI, and package the macOS app."
+    />
+    <meta property="og:image" content="https://ernie.ta-0.com/ernie-release-workspace.webp" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ernie.ta-0.com/docs/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://ernie.ta-0.com/docs/" />
+    <link rel="icon" href="/ernie-smile.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <title>Ernie documentation</title>
+  </head>
+  <body class="docs-page">
+    <a class="skip-link" href="#main-content">skip to documentation</a>
+
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Ernie home">
+        <img alt="" height="28" src="/ernie-smile.png" width="28" />
+        <span>ernie</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="/">app</a>
+        <a aria-current="page" href="/docs/">docs</a>
+        <a href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made">
+          essay <span aria-hidden="true">↗</span>
+        </a>
+      </nav>
+    </header>
+
+    <main class="docs-shell" id="main-content">
+      <aside class="docs-menu">
+        <p class="docs-menu-title">on this page</p>
+        <nav aria-label="Documentation sections">
+          <a href="#start">start locally</a>
+          <a href="#workspace">workspace model</a>
+          <a href="#architecture">architecture</a>
+          <a href="#cli">CLI control</a>
+          <a href="#plugins">plugins</a>
+          <a href="#release">release</a>
+          <a href="#troubleshooting">troubleshooting</a>
+          <a href="#boundaries">boundaries</a>
+        </nav>
+      </aside>
+
+      <article class="docs-content">
+        <header class="docs-hero">
+          <h1>documentation</h1>
+          <p>
+            run Ernie, follow a task through the system, control the visible
+            interface, and understand what the first macOS release contains.
+          </p>
+          <div class="docs-status" aria-label="Release status">
+            <strong>v0.1.0</strong>
+            <span>Apple silicon</span>
+            <span>private alpha</span>
+            <span>ad-hoc signed</span>
+          </div>
+        </header>
+
+        <section id="start">
+          <h2>start Ernie locally</h2>
+          <p>
+            development currently targets macOS. the repository uses Nub
+            <code>0.7.5</code> for dependency installation, scripts, and Node.js
+            execution.
+          </p>
+
+          <h3>before installation</h3>
+          <ul>
+            <li>use an Apple silicon Mac for the packaged release path.</li>
+            <li>install Nub <code>0.7.5</code>.</li>
+            <li>
+              make sure the local <code>agentation</code> path in
+              <code>package.json</code> points to your Agentation package.
+            </li>
+          </ul>
+
+          <h3>install and run</h3>
+          <pre><code>nub install
+nub run dev</code></pre>
+          <p>
+            the development command builds the Electron main process and
+            renderer, starts Vite at <code>127.0.0.1:5173</code>, and opens Ernie.
+            stop the process with <code>Control+C</code>.
+          </p>
+
+          <div class="callout">
+            <h3>check before changing code</h3>
+            <p>
+              run <code>nub run check</code>. it covers TypeScript, source lint,
+              package boundaries, and the test suite.
+            </p>
+          </div>
+        </section>
+
+        <section id="workspace">
+          <h2>understand the workspace model</h2>
+          <p>
+            Ernie organizes work around durable identities. the sidebar is a
+            projection of repository, worktree, and Prime Agent session state.
+          </p>
+
+          <div class="definition-grid">
+            <article>
+              <h3>repository</h3>
+              <p>
+                the stable project root. adding or removing it changes Ernie’s
+                navigation, not the repository on disk.
+              </p>
+            </article>
+            <article>
+              <h3>worktree</h3>
+              <p>
+                a linked Git workspace nested below its repository. branch and
+                worktree identity stay visible together.
+              </p>
+            </article>
+            <article>
+              <h3>Agent session</h3>
+              <p>
+                durable work owned by Prime Agent. Ernie renders its messages,
+                tools, queued work, and recursively spawned Agents.
+              </p>
+            </article>
+          </div>
+
+          <h3>start a task</h3>
+          <ol>
+            <li>choose a repository or linked worktree.</li>
+            <li>open a new Agent draft.</li>
+            <li>select the model, reasoning effort, and RLM depth.</li>
+            <li>send the first non-empty task to create the durable session.</li>
+            <li>continue, queue follow-up work, or reopen the session later.</li>
+          </ol>
+        </section>
+
+        <section id="architecture">
+          <h2>follow a request through Ernie</h2>
+          <p>
+            Prime Agent owns execution and durable session truth. Ernie owns the
+            desktop shell, boundary parsing, navigation projection, and native
+            lifecycle.
+          </p>
+
+          <ol class="architecture-flow" aria-label="Ernie request path">
+            <li><strong>renderer</strong><span>React presents repositories, sessions, and the composer.</span></li>
+            <li><strong>renderer client</strong><span>typed requests and feed events are parsed at the boundary.</span></li>
+            <li><strong>Electron IPC</strong><span>plain data crosses the sandboxed preload boundary.</span></li>
+            <li><strong>Ernie daemon</strong><span>session feeds, caches, and the Prime Agent adapter live here.</span></li>
+            <li><strong>Prime Agent</strong><span>the daemon socket owns execution and durable sessions.</span></li>
+          </ol>
+
+          <pre><code>renderer → Electron IPC → Ernie daemon → Prime Agent adapter → daemon socket</code></pre>
+
+          <h3>why the boundary matters</h3>
+          <p>
+            the renderer does not receive arbitrary daemon JSON and guess what
+            it means. requests, results, and feed events are parsed before UI
+            code consumes them. expected failures remain data; broken invariants
+            remain defects.
+          </p>
+        </section>
+
+        <section id="cli">
+          <h2>control the visible interface</h2>
+          <p>
+            the local CLI changes visible Ernie state. it cannot read, create,
+            stop, or modify Prime Agent sessions.
+          </p>
+
+          <h3>discover the current surface</h3>
+          <pre><code>nub run cli -- --help
+nub run cli -- ui capabilities</code></pre>
+          <p>
+            <code>ui capabilities</code> returns a versioned JSON manifest with
+            capability identifiers, availability, commands, and input limits.
+          </p>
+
+          <h3>window, theme, and sidebar</h3>
+          <pre><code>nub run cli -- ui focus
+nub run cli -- ui theme dark
+nub run cli -- ui theme light
+nub run cli -- ui sidebar show
+nub run cli -- ui sidebar hide
+nub run cli -- ui sidebar width 320</code></pre>
+          <p>
+            sidebar width accepts values from <code>192</code> through
+            <code>384</code> pixels. Ernie must be running for discovery and
+            interface-changing commands.
+          </p>
+
+          <div class="table-wrap" role="region" aria-label="CLI exit statuses" tabindex="0">
+            <table>
+              <thead><tr><th>status</th><th>meaning</th><th>stream</th></tr></thead>
+              <tbody>
+                <tr><td><code>0</code></td><td>help or command success</td><td>stdout</td></tr>
+                <tr><td><code>1</code></td><td>runtime, availability, or protocol failure</td><td>stderr</td></tr>
+                <tr><td><code>2</code></td><td>invalid command or arguments</td><td>stderr</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <h3>local security</h3>
+            <p>
+              the CLI uses <code>~/Library/Application Support/Ernie/ui-control.sock</code>.
+              Ernie creates it with owner-only permissions and accepts only its
+              bounded, versioned UI protocol.
+            </p>
+          </div>
+        </section>
+
+        <section id="plugins">
+          <h2>work with built-in plugins</h2>
+          <p>
+            Ernie’s versioned plugin host ships with Browser, React Grab, and
+            Agentation. current plugins are trusted built-in code.
+          </p>
+
+          <h3>activation and cleanup</h3>
+          <ul>
+            <li>view plugins activate when their workbench view is requested.</li>
+            <li>application-wide tools activate at startup.</li>
+            <li>providers activate before consumers that require their services.</li>
+            <li>cleanup runs once in reverse acquisition order.</li>
+            <li>a failed activation rolls back staged services and contributions.</li>
+          </ul>
+
+          <h3>Browser boundary</h3>
+          <p>
+            Browser uses Electron <code>WebContentsView</code> with context
+            isolation, sandboxing, no Node.js integration, and denied page
+            permission requests. navigation accepts only HTTP and HTTPS.
+          </p>
+
+          <div class="callout callout-warning">
+            <h3>plugins are not an extension marketplace</h3>
+            <p>
+              spatial composition controls lifecycle and service visibility. it
+              does not make hostile JavaScript safe. external downloads and
+              untrusted plugin execution remain out of scope.
+            </p>
+          </div>
+        </section>
+
+        <section id="release">
+          <h2>build and release the mac app</h2>
+          <p>
+            Ernie packages an Apple silicon <code>.app</code> inside a ZIP. the
+            archive contains the renderer, Electron main process, and installed
+            Prime Agent runtime dependencies.
+          </p>
+
+          <h3>build locally</h3>
+          <pre><code>nub run check
+nub run package:mac</code></pre>
+          <p>
+            the archive and its SHA-256 file appear in
+            <code>.build/release/</code>. without a signing identity, the packager
+            uses ad-hoc signing for development and private testing.
+          </p>
+
+          <h3>publish from GitHub Actions</h3>
+          <pre><code>gh workflow run release.yml \
+  -f tag=v0.1.0 \
+  -f prerelease=true</code></pre>
+          <p>
+            the tag must equal <code>v</code> plus the version in
+            <code>package.json</code>. the workflow installs locked dependencies,
+            runs the complete checks, packages the app, uploads build evidence,
+            and creates the GitHub release.
+          </p>
+
+          <h3>identified distribution</h3>
+          <p>
+            a public download needs a Developer ID Application certificate and
+            App Store Connect API credentials. the complete credential set
+            enables hardened-runtime signing, notarization, ticket stapling, and
+            final archive creation.
+          </p>
+
+          <p>
+            <a href="https://github.com/thoriqakbar0/ernie/releases/tag/v0.1.0">
+              view v0.1.0 release details (repository access required) ↗
+            </a>
+          </p>
+        </section>
+
+        <section id="troubleshooting">
+          <h2>recover from common failures</h2>
+          <div class="troubleshooting-list">
+            <article>
+              <h3>the CLI says Ernie is unavailable</h3>
+              <p>
+                keep <code>nub run dev</code> running, then retry
+                <code>nub run cli -- ui capabilities</code>. help commands work
+                without the app; live commands do not.
+              </p>
+            </article>
+            <article>
+              <h3>dependency installation cannot find Agentation</h3>
+              <p>
+                inspect the <code>agentation</code> <code>file:</code> dependency in
+                <code>package.json</code>. it must point to the local Agentation
+                package before <code>nub install</code>.
+              </p>
+            </article>
+            <article>
+              <h3>macOS warns about the package</h3>
+              <p>
+                an ad-hoc build is not an identified-developer download. use it
+                only for private testing, or configure the full signing and
+                notarization path.
+              </p>
+            </article>
+            <article>
+              <h3>the release workflow rejects the tag</h3>
+              <p>
+                make the requested tag exactly match <code>v</code> plus the
+                <code>package.json</code> version. partial Apple credentials also
+                fail intentionally.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="boundaries">
+          <h2>know what Ernie is not</h2>
+          <ul>
+            <li>Ernie is not a model runtime; Prime Agent owns execution.</li>
+            <li>the UI CLI is not a general session-control channel.</li>
+            <li>the plugin host is not a sandbox for untrusted extensions.</li>
+            <li>v0.1.0 is not a notarized public macOS download.</li>
+            <li>the task-shaped interface remains an experiment.</li>
+          </ul>
+          <p>
+            Ernie stays intentionally small. it is a learning lab for making
+            agent-runtime and interface boundaries visible enough to observe,
+            test, and explain.
+          </p>
+        </section>
+
+        <footer class="docs-footer">
+          <a href="/">← return to Ernie</a>
+          <a href="https://ta-0.com/blog/the-best-software-is-yet-to-be-made">read the essay ↗</a>
+        </footer>
+      </article>
+    </main>
+  </body>
+</html>

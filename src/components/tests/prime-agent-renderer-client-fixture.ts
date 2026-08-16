@@ -10,6 +10,8 @@ export function createPrimeAgentRendererClientFixture(
   overrides: Partial<PrimeAgentRendererClient> = {},
 ): PrimeAgentRendererClient {
   return {
+    describeHarness: async () => unusedResult,
+    listWorkspace: async () => unusedResult,
     watchWorkspace: () => ({ id: 'test-workspace', close: () => undefined }),
     watchSession: () => ({ id: 'test-session', close: () => undefined }),
     createSession: async () => unusedResult,

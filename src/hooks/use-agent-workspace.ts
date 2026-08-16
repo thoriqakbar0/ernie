@@ -1,11 +1,12 @@
 import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { createAgentSessionViewCache } from '@/packages/ernie-daemon/session-view-cache';
 import type { AgentRendererClients } from '@/packages/agent-renderer-client';
 import {
   agentWorkspaceName,
   connectAgentWorkspaceSession,
+  createAgentGitWorkspaceService,
+  createAgentSessionLifecycle,
   createAgentWithTask as runAgentCreation,
   projectAgentWorkspaceControls,
   projectAgentWorkspaceFolders,
@@ -30,7 +31,6 @@ import {
 import {
   createPrimeAgentSessionFeedState,
   primeAgentSessionFeedView,
-  prependPrimeAgentSessionHistory,
   reducePrimeAgentSessionFeed,
   replacePrimeAgentSessionFeedRlmDepth,
   type PrimeAgentSessionFeedState,
@@ -62,16 +62,15 @@ function loadStoredRlmMaxDepth(): number {
   }
 }
 
-interface OwnedEarlierHistoryLoad {
-  readonly activeSessionId: string;
-  fiber: Fiber.Fiber<void> | null;
-}
-
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
 export function useAgentWorkspace(
   clients: AgentRendererClients,
 ): AgentWorkspaceController {
   const { agent, localWorkspace } = clients;
+  const gitService = useMemo(
+    () => createAgentGitWorkspaceService(localWorkspace),
+    [localWorkspace],
+  );
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
   const [addedCwds, setAddedCwds] = useState<readonly string[]>([]);
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
@@ -118,14 +117,13 @@ export function useAgentWorkspace(
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [status, setStatus] = useState('');
   const selectedSessionFeedRef = useRef<PrimeAgentSessionFeedState | null>(null);
-  const earlierHistoryLoadRef = useRef<OwnedEarlierHistoryLoad | null>(null);
-  const sessionViewCacheRef = useRef<ReturnType<
-    typeof createAgentSessionViewCache
+  const sessionLifecycleRef = useRef<ReturnType<
+    typeof createAgentSessionLifecycle
   > | null>(null);
-  if (sessionViewCacheRef.current === null) {
-    sessionViewCacheRef.current = createAgentSessionViewCache();
+  if (sessionLifecycleRef.current === null) {
+    sessionLifecycleRef.current = createAgentSessionLifecycle();
   }
-  const sessionViewCache = sessionViewCacheRef.current;
+  const sessionLifecycle = sessionLifecycleRef.current;
   const updateSelectedSessionFeed = useCallback(
     function updateSelectedSessionFeed(
       update: (
@@ -143,14 +141,9 @@ export function useAgentWorkspace(
   );
   const cancelEarlierHistoryLoad = useCallback(
     function cancelEarlierHistoryLoad(): void {
-      const owner = earlierHistoryLoadRef.current;
-      if (owner === null) return;
-      earlierHistoryLoadRef.current = null;
-      if (owner.fiber !== null) {
-        Effect.runFork(Fiber.interrupt(owner.fiber));
-      }
+      sessionLifecycle.cancelEarlierHistory();
     },
-    [],
+    [sessionLifecycle],
   );
   const skipGitBranchLoadForCwd = useRef<string | null>(null);
   const liveSelectedSessionView = selectedSessionFeed === null
@@ -161,7 +154,11 @@ export function useAgentWorkspace(
       ? liveSelectedSessionView
       : selectedSessionId === null
         ? null
-        : sessionViewCache.peek(selectedSessionId);
+        : sessionLifecycle.peek(selectedSessionId);
+  useEffect(
+    () => () => sessionLifecycle.close(),
+    [sessionLifecycle],
+  );
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -404,7 +401,7 @@ export function useAgentWorkspace(
     }
 
     const activeSessionId = selectedSessionId;
-    sessionViewCache.read(activeSessionId);
+    sessionLifecycle.read(activeSessionId);
     const subscription = agent.watchSession(
       activeSessionId,
       (envelope) => {
@@ -432,7 +429,7 @@ export function useAgentWorkspace(
           item.kind !== 'closed' &&
           item.kind !== 'connection-changed'
         ) {
-          sessionViewCache.put(nextView);
+          sessionLifecycle.put(nextView);
         }
 
         const sessionName = item.kind === 'snapshot'
@@ -472,16 +469,13 @@ export function useAgentWorkspace(
 
     return () => {
       subscription.close();
-      const historyOwner = earlierHistoryLoadRef.current;
-      if (historyOwner?.activeSessionId === activeSessionId) {
-        cancelEarlierHistoryLoad();
-      }
+      sessionLifecycle.cancelEarlierHistory(activeSessionId);
     };
   }, [
     cancelEarlierHistoryLoad,
     agent,
     selectedSessionId,
-    sessionViewCache,
+    sessionLifecycle,
     updateSelectedSessionFeed,
   ]);
 
@@ -503,31 +497,12 @@ export function useAgentWorkspace(
     let active = true;
     const identifyWorkspaces = Effect.fn('Workspace.identifyGitWorkspaces')(
       function* () {
-        const identified = yield* Effect.all(
-          workspacePaths.map((cwd) =>
-            Effect.tryPromise(() =>
-              localWorkspace.readWorkspace(cwd),
-            ).pipe(
-              Effect.map((result) =>
-                result.ok ? ([cwd, result.value] as const) : null,
-              ),
-              Effect.catch(() => Effect.succeed(null)),
-            ),
-          ),
-          { concurrency: 'unbounded' },
+        const identified = yield* Effect.tryPromise(() =>
+          gitService.identifyWorkspaces(workspacePaths),
         );
         if (!active) return;
         yield* Effect.sync(() => {
-          setGitWorkspaces(
-            new Map(
-              identified.filter(
-                (
-                  entry,
-                ): entry is readonly [string, PrimeAgentGitWorkspace] =>
-                  entry !== null,
-              ),
-            ),
-          );
+          setGitWorkspaces(identified);
         });
       },
     );
@@ -536,7 +511,7 @@ export function useAgentWorkspace(
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [localWorkspace, workspacePaths]);
+  }, [gitService, workspacePaths]);
 
   const folders = useMemo(
     () => projectAgentWorkspaceFolders(workspacePaths, gitWorkspaces),
@@ -643,7 +618,8 @@ export function useAgentWorkspace(
       }
       if (outcome.unexpected) {
         console.error('New Agent setup failed.', {
-          name: outcome.causeName ?? 'NonError',
+          name: outcome.error.name,
+          stage: outcome.error.stage,
         });
       }
       setStatus(outcome.message);
@@ -690,60 +666,20 @@ export function useAgentWorkspace(
   }
 
   function loadEarlierSessionHistory(): void {
-    if (
-      earlierHistoryLoadRef.current !== null ||
-      selectedSessionView === null ||
-      selectedSessionView.historyStart === 0
-    ) {
-      return;
-    }
-    const activeSessionId = selectedSessionView.activeSessionId;
-    const before = selectedSessionView.historyStart;
-    const load = Effect.fn('Workspace.loadEarlierSessionHistory')(function* () {
-      yield* Effect.sync(() => {
+    if (selectedSessionView === null) return;
+    sessionLifecycle.loadEarlierHistory(agent, selectedSessionView, {
+      currentFeed: () => selectedSessionFeedRef.current,
+      onFeed: (next) => {
+        selectedSessionFeedRef.current = next;
+        setSelectedSessionFeedState(next);
+      },
+      onFinished: () => setLoadingEarlierHistory(false),
+      onStarted: () => {
         setLoadingEarlierHistory(true);
         setStatus('Loading earlier Agent history…');
-      });
-      const result = yield* Effect.tryPromise(() =>
-        agent.loadHistory({ activeSessionId, before }),
-      );
-      if (!result.ok) {
-        yield* Effect.sync(() => setStatus(result.error.message));
-        return;
-      }
-      yield* Effect.sync(() => {
-        updateSelectedSessionFeed((current) => {
-          if (current === null) return null;
-          const next = prependPrimeAgentSessionHistory(current, result.value);
-          const nextView = primeAgentSessionFeedView(next);
-          if (nextView !== null) sessionViewCache.put(nextView);
-          return next;
-        });
-        setStatus('Loaded earlier Agent history.');
-      });
+      },
+      onStatus: setStatus,
     });
-
-    const owner: OwnedEarlierHistoryLoad = {
-      activeSessionId,
-      fiber: null,
-    };
-    earlierHistoryLoadRef.current = owner;
-    owner.fiber = Effect.runFork(
-      load().pipe(
-        Effect.catch(() =>
-          Effect.sync(() =>
-            setStatus('Ernie could not load earlier Agent history.'),
-          ),
-        ),
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (earlierHistoryLoadRef.current !== owner) return;
-            earlierHistoryLoadRef.current = null;
-            setLoadingEarlierHistory(false);
-          }),
-        ),
-      ),
-    );
   }
 
   function importSession(sessionPath: string): void {
@@ -1046,7 +982,7 @@ export function useAgentWorkspace(
           setStatus(`Switching to local Git branch ${branchName}…`);
         });
         const result = yield* Effect.tryPromise(() =>
-          localWorkspace.switchBranch({
+          gitService.switchBranch({
             cwd,
             name: branchName,
           }),
@@ -1059,7 +995,7 @@ export function useAgentWorkspace(
         yield* Effect.sync(() => {
           setGitBranch(result.value.current);
           setGitBranches(result.value.names);
-          setStatus(`Git branch changed to ${branchName}.`);
+          setStatus(result.status);
         });
       },
     );
@@ -1096,7 +1032,7 @@ export function useAgentWorkspace(
         setStatus(`Deleting local Git branch ${name}…`);
       });
       const result = yield* Effect.tryPromise(() =>
-        localWorkspace.deleteBranch({
+        gitService.deleteBranch({
           cwd,
           name,
         }),
@@ -1128,7 +1064,7 @@ export function useAgentWorkspace(
             setSelectedSessionId(null);
           }
         }
-        setStatus(`Deleted local Git branch ${name}.`);
+        setStatus(result.status);
       });
     });
 
@@ -1155,7 +1091,7 @@ export function useAgentWorkspace(
         setStatus('Initializing local Git repository with main…');
       });
       const result = yield* Effect.tryPromise(() =>
-        localWorkspace.initializeGit(cwd),
+        gitService.initializeRepository(cwd),
       );
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
@@ -1165,7 +1101,7 @@ export function useAgentWorkspace(
       yield* Effect.sync(() => {
         setGitBranch(result.value.current);
         setGitBranches(result.value.names);
-        setStatus('Initialized local Git repository with main.');
+        setStatus(result.status);
       });
     });
 
@@ -1193,7 +1129,7 @@ export function useAgentWorkspace(
           setStatus(`Creating worktree for ${branchName}…`);
         });
         const result = yield* Effect.tryPromise(() =>
-          localWorkspace.createWorktree({ cwd, branchName }),
+          gitService.createWorktree({ cwd, branchName }),
         );
         if (!result.ok) {
           yield* Effect.sync(() => {
@@ -1220,7 +1156,7 @@ export function useAgentWorkspace(
           }
           setSelectedCwd(result.value.cwd);
           setSelectedSessionId(null);
-          setStatus(`Created worktree for ${result.value.branchName}.`);
+          setStatus(result.status);
         });
       },
     );
@@ -1292,7 +1228,7 @@ export function useAgentWorkspace(
                 result.value.maxDepth,
               );
               const nextView = primeAgentSessionFeedView(next);
-              if (nextView !== null) sessionViewCache.put(nextView);
+              if (nextView !== null) sessionLifecycle.put(nextView);
               return next;
             });
             setStatus(
@@ -1319,7 +1255,7 @@ export function useAgentWorkspace(
       agent,
       selectedSessionId,
       selectedSessionView?.rlmMaxDepth,
-      sessionViewCache,
+      sessionLifecycle,
       updateSelectedSessionFeed,
     ],
   );
@@ -1328,66 +1264,77 @@ export function useAgentWorkspace(
     loadingWorkspace || loadingSession || savingModel || savingThinkingLevel;
   const thinkingLevelBusy = modelBusy;
   const rlmMaxDepthBusy = loadingWorkspace;
+  const busy =
+    modelBusy ||
+    rlmMaxDepthBusy ||
+    choosingDirectory ||
+    loadingSavedSessions ||
+    importingSessionPath !== null ||
+    renamingSession ||
+    creatingAgent ||
+    gitBranchBusy;
   return {
-    busy:
-      modelBusy ||
-      rlmMaxDepthBusy ||
-      choosingDirectory ||
-      loadingSavedSessions ||
-      importingSessionPath !== null ||
-      renamingSession ||
-      creatingAgent ||
+    composer: {
+      changeModel,
+      changeRlmMaxDepth,
+      changeSelectedSessionRlmMaxDepth,
+      changeThinkingLevel,
+      createAgentWithTask,
+      creatingAgent,
+      modelBusy,
+      models,
+      rlmMaxDepth,
+      rlmMaxDepthBusy,
+      selectedModelKey,
+      selectedSessionRlmMaxDepth: selectedSessionView?.rlmMaxDepth ?? null,
+      selectedSessionRlmMaxDepthBusy:
+        loadingSession || savingSessionRlmMaxDepth,
+      selectedThinkingLevel,
+      skills,
+      thinkingLevelBusy,
+      thinkingLevels,
+    },
+    connection: {
+      loadingWorkspace,
+      primeAgentConnection,
+      status,
+    },
+    conversation: {
+      loadEarlierSessionHistory,
+      loadingEarlierHistory,
+      openSpawnedSession,
+      selectedAgentIdentity,
+      selectedSessionView,
+    },
+    git: {
+      changeGitBranch,
+      createGitWorktree,
+      deleteGitBranch,
+      gitBranch,
       gitBranchBusy,
-    creatingAgent,
-    folders,
-    gitBranch,
-    gitBranchBusy,
-    gitBranches,
-    gitWorktreeError,
-    loadingWorkspace,
-    loadingSavedSessions,
-    loadingEarlierHistory,
-    importingSessionPath,
-    renamingSession,
-    modelBusy,
-    models,
-    primeAgentConnection,
-    skills,
-    repoName: selectedCwd === null ? 'work' : agentWorkspaceName(selectedCwd),
-    rlmMaxDepth,
-    rlmMaxDepthBusy,
-    selectedCwd,
-    selectedModelKey,
-    selectedThinkingLevel,
-    selectedAgentIdentity,
-    selectedSessionId,
-    selectedSessionView,
-    selectedSessionRlmMaxDepth: selectedSessionView?.rlmMaxDepth ?? null,
-    selectedSessionRlmMaxDepthBusy:
-      loadingSession || savingSessionRlmMaxDepth,
-    sessions: workspace?.sessions ?? [],
-    savedSessions,
-    status,
-    thinkingLevelBusy,
-    thinkingLevels,
-    changeFolder,
-    startAgentDraft,
-    createAgentWithTask,
-    loadSavedSessions,
-    loadEarlierSessionHistory,
-    importSession,
-    renameSession,
-    selectSession,
-    openSpawnedSession,
-    chooseWorkspaceDirectory,
-    addWorkspaceDirectory,
-    changeGitBranch,
-    deleteGitBranch,
-    initializeGitRepository,
-    createGitWorktree,
-    changeModel,
-    changeThinkingLevel,
-    changeRlmMaxDepth,
-    changeSelectedSessionRlmMaxDepth,
+      gitBranches,
+      gitWorktreeError,
+      initializeGitRepository,
+    },
+    navigation: {
+      addWorkspaceDirectory,
+      busy,
+      changeFolder,
+      chooseWorkspaceDirectory,
+      folders,
+      importingSessionPath,
+      importSession,
+      loadSavedSessions,
+      loadingSavedSessions,
+      renameSession,
+      renamingSession,
+      repoName: selectedCwd === null ? 'work' : agentWorkspaceName(selectedCwd),
+      savedSessions,
+      selectedCwd,
+      selectedSessionId,
+      selectSession,
+      sessions: workspace?.sessions ?? [],
+      startAgentDraft,
+    },
   };
 }

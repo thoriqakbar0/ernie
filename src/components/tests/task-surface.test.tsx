@@ -25,57 +25,67 @@ const agentClient = createPrimeAgentRendererClientFixture();
 
 function unavailableWorkspace(): AgentWorkspaceController {
   return {
-    busy: false,
-    folders: [],
-    gitBranch: null,
-    gitBranchBusy: false,
-    gitBranches: [],
-    gitWorktreeError: null,
-    creatingAgent: false,
-    loadingWorkspace: false,
-    loadingSavedSessions: false,
-    loadingEarlierHistory: false,
-    importingSessionPath: null,
-    renamingSession: false,
-    modelBusy: false,
-    models: [],
-    primeAgentConnection: 'unavailable',
-    skills: [],
-    repoName: 'Workspace',
-    rlmMaxDepth: 1,
-    rlmMaxDepthBusy: false,
-    selectedCwd: null,
-    selectedModelKey: null,
-    selectedThinkingLevel: null,
-    selectedAgentIdentity: null,
-    selectedSessionId: null,
-    selectedSessionView: null,
-    selectedSessionRlmMaxDepth: null,
-    selectedSessionRlmMaxDepthBusy: false,
-    sessions: [],
-    savedSessions: [],
-    status: 'The Prime Agent daemon is not available.',
-    thinkingLevelBusy: false,
-    thinkingLevels: [],
-    changeFolder: () => undefined,
-    startAgentDraft: () => undefined,
-    createAgentWithTask: async () => ({ ok: false, message: 'Unavailable' }),
-    loadSavedSessions: () => undefined,
-    loadEarlierSessionHistory: () => undefined,
-    importSession: () => undefined,
-    renameSession: () => undefined,
-    selectSession: () => undefined,
-    openSpawnedSession: () => undefined,
-    chooseWorkspaceDirectory: () => undefined,
-    addWorkspaceDirectory: async () => null,
-    changeGitBranch: () => undefined,
-    deleteGitBranch: () => undefined,
-    initializeGitRepository: () => undefined,
-    createGitWorktree: () => undefined,
-    changeModel: () => undefined,
-    changeThinkingLevel: () => undefined,
-    changeRlmMaxDepth: () => undefined,
-    changeSelectedSessionRlmMaxDepth: () => undefined,
+    composer: {
+      creatingAgent: false,
+      modelBusy: false,
+      models: [],
+      skills: [],
+      rlmMaxDepth: 1,
+      rlmMaxDepthBusy: false,
+      selectedModelKey: null,
+      selectedThinkingLevel: null,
+      selectedSessionRlmMaxDepth: null,
+      selectedSessionRlmMaxDepthBusy: false,
+      thinkingLevelBusy: false,
+      thinkingLevels: [],
+      createAgentWithTask: async () => ({ ok: false, message: 'Unavailable' }),
+      changeModel: () => undefined,
+      changeThinkingLevel: () => undefined,
+      changeRlmMaxDepth: () => undefined,
+      changeSelectedSessionRlmMaxDepth: () => undefined,
+    },
+    connection: {
+      loadingWorkspace: false,
+      primeAgentConnection: 'unavailable',
+      status: 'The Prime Agent daemon is not available.',
+    },
+    conversation: {
+      loadingEarlierHistory: false,
+      selectedAgentIdentity: null,
+      selectedSessionView: null,
+      loadEarlierSessionHistory: () => undefined,
+      openSpawnedSession: () => undefined,
+    },
+    git: {
+      gitBranch: null,
+      gitBranchBusy: false,
+      gitBranches: [],
+      gitWorktreeError: null,
+      changeGitBranch: () => undefined,
+      deleteGitBranch: () => undefined,
+      initializeGitRepository: () => undefined,
+      createGitWorktree: () => undefined,
+    },
+    navigation: {
+      busy: false,
+      folders: [],
+      loadingSavedSessions: false,
+      importingSessionPath: null,
+      renamingSession: false,
+      repoName: 'Workspace',
+      selectedCwd: null,
+      selectedSessionId: null,
+      sessions: [],
+      savedSessions: [],
+      changeFolder: () => undefined,
+      startAgentDraft: () => undefined,
+      loadSavedSessions: () => undefined,
+      importSession: () => undefined,
+      renameSession: () => undefined,
+      selectSession: () => undefined,
+      chooseWorkspaceDirectory: () => undefined,
+      addWorkspaceDirectory: async () => null,
+    },
   };
 }
 
@@ -122,53 +132,63 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
 });
 
 test('working Agent shows its hydrated conversation before a response', () => {
+  const unavailable = unavailableWorkspace();
   render(
     <TaskSurface
       agentClient={agentClient}
       workspace={{
-        ...unavailableWorkspace(),
-        primeAgentConnection: 'ready',
-        selectedCwd: '/workspace/ernie',
-        selectedAgentIdentity: {
-          kind: 'spawned',
-          name: 'Research interaction patterns',
-          number: 2,
+        ...unavailable,
+        connection: {
+          ...unavailable.connection,
+          primeAgentConnection: 'ready',
         },
-        selectedSessionId: 'active-agent',
-        selectedSessionView: {
-          activeSessionId: 'active-agent',
-          historyStart: 0,
-          isStreaming: true,
-          messages: [
-            {
-              id: 'active-agent:0',
-              role: 'user',
-              text: 'Inspect the daemon',
-            },
-          ],
-          rlmMaxDepth: 1,
-          sessionName: 'Inspect the daemon',
-          spawnedSessions: [],
-          transcript: [
-            {
-              id: 'active-agent:0',
-              kind: 'message',
-              role: 'user',
-              text: 'Inspect the daemon',
-            },
-          ],
-        },
-        sessions: [
-          {
-            activeSessionId: 'active-agent',
-            activity: 'working',
-            cwd: '/workspace/ernie',
-            model: null,
-            modifiedAt: null,
-            name: 'Active Agent',
-            sessionPath: null,
+        conversation: {
+          ...unavailable.conversation,
+          selectedAgentIdentity: {
+            kind: 'spawned',
+            name: 'Research interaction patterns',
+            number: 2,
           },
-        ],
+          selectedSessionView: {
+            activeSessionId: 'active-agent',
+            historyStart: 0,
+            isStreaming: true,
+            messages: [
+              {
+                id: 'active-agent:0',
+                role: 'user',
+                text: 'Inspect the daemon',
+              },
+            ],
+            rlmMaxDepth: 1,
+            sessionName: 'Inspect the daemon',
+            spawnedSessions: [],
+            transcript: [
+              {
+                id: 'active-agent:0',
+                kind: 'message',
+                role: 'user',
+                text: 'Inspect the daemon',
+              },
+            ],
+          },
+        },
+        navigation: {
+          ...unavailable.navigation,
+          selectedCwd: '/workspace/ernie',
+          selectedSessionId: 'active-agent',
+          sessions: [
+            {
+              activeSessionId: 'active-agent',
+              activity: 'working',
+              cwd: '/workspace/ernie',
+              model: null,
+              modifiedAt: null,
+              name: 'Active Agent',
+              sessionPath: null,
+            },
+          ],
+        },
       }}
       thinkingOrbState="working"
       onRetryConnection={() => undefined}
@@ -189,48 +209,58 @@ test('working Agent shows its hydrated conversation before a response', () => {
 });
 
 test('settled Agent keeps its AI response visible', () => {
+  const unavailable = unavailableWorkspace();
   render(
     <TaskSurface
       agentClient={agentClient}
       workspace={{
-        ...unavailableWorkspace(),
-        primeAgentConnection: 'ready',
-        selectedCwd: '/workspace/ernie',
-        selectedSessionId: 'settled-agent',
-        selectedSessionView: {
-          activeSessionId: 'settled-agent',
-          historyStart: 0,
-          isStreaming: false,
-          messages: [
+        ...unavailable,
+        connection: {
+          ...unavailable.connection,
+          primeAgentConnection: 'ready',
+        },
+        conversation: {
+          ...unavailable.conversation,
+          selectedSessionView: {
+            activeSessionId: 'settled-agent',
+            historyStart: 0,
+            isStreaming: false,
+            messages: [
+              {
+                id: 'settled-agent:0',
+                role: 'assistant',
+                text: 'The daemon is healthy.',
+              },
+            ],
+            rlmMaxDepth: 1,
+            sessionName: 'Inspect the daemon',
+            spawnedSessions: [],
+            transcript: [
+              {
+                id: 'settled-agent:0',
+                kind: 'message',
+                role: 'assistant',
+                text: 'The daemon is healthy.',
+              },
+            ],
+          },
+        },
+        navigation: {
+          ...unavailable.navigation,
+          selectedCwd: '/workspace/ernie',
+          selectedSessionId: 'settled-agent',
+          sessions: [
             {
-              id: 'settled-agent:0',
-              role: 'assistant',
-              text: 'The daemon is healthy.',
-            },
-          ],
-          rlmMaxDepth: 1,
-          sessionName: 'Inspect the daemon',
-          spawnedSessions: [],
-          transcript: [
-            {
-              id: 'settled-agent:0',
-              kind: 'message',
-              role: 'assistant',
-              text: 'The daemon is healthy.',
+              activeSessionId: 'settled-agent',
+              activity: 'settled',
+              cwd: '/workspace/ernie',
+              model: null,
+              modifiedAt: null,
+              name: 'Settled Agent',
+              sessionPath: null,
             },
           ],
         },
-        sessions: [
-          {
-            activeSessionId: 'settled-agent',
-            activity: 'settled',
-            cwd: '/workspace/ernie',
-            model: null,
-            modifiedAt: null,
-            name: 'Settled Agent',
-            sessionPath: null,
-          },
-        ],
       }}
       thinkingOrbState="working"
       onRetryConnection={() => undefined}

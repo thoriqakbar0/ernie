@@ -62,6 +62,15 @@ const source: RepositoryNavigationSource = {
   selectedSessionId: 'live-one',
 };
 
+const collapsedDisplay = {
+  pinsExpanded: false,
+  revealedWorkspaceCwd: null,
+  searchQuery: '',
+  selectedCwd: null,
+  settledExpandedRepositoryPaths: new Set<string>(),
+  worktreesExpandedRepositoryPaths: new Set<string>(),
+} as const;
+
 test('parses legacy storage and rejects malformed preferences', () => {
   assert.deepEqual(
     parseRepositoryNavigationPreferences({
@@ -87,7 +96,7 @@ test('projects canonical conversations, repositories, and search results', () =>
   const projection = projectRepositoryNavigation(
     source,
     emptyRepositoryNavigationPreferences,
-    { pinsExpanded: false, searchQuery: 'saved' },
+    { ...collapsedDisplay, searchQuery: 'saved' },
   );
 
   assert.deepEqual(
@@ -117,13 +126,12 @@ test('projects disconnected activity and unseen output truthfully', () => {
     },
   );
   const connected = projectRepositoryNavigation(source, viewed, {
-    pinsExpanded: false,
-    searchQuery: '',
+    ...collapsedDisplay,
   });
   const disconnected = projectRepositoryNavigation(
     { ...source, connected: false },
     viewed,
-    { pinsExpanded: false, searchQuery: '' },
+    collapsedDisplay,
   );
 
   assert.equal(connected.repositories[0]?.conversations[0]?.activity, 'needs_input');
@@ -210,8 +218,62 @@ test('fails fast when typed source identities are impossible', () => {
       projectRepositoryNavigation(
         { ...source, folders: [source.folders[0]!, source.folders[0]!] },
         emptyRepositoryNavigationPreferences,
-        { pinsExpanded: false, searchQuery: '' },
+        collapsedDisplay,
       ),
     /duplicate folder paths/u,
   );
+});
+
+test('projects settled and quiet-worktree disclosure before rendering', () => {
+  const root = source.folders[0]!;
+  const quietWorktrees = Array.from({ length: 6 }, (_, index) => ({
+    branchName: `feature/quiet-${index + 1}`,
+    label: `quiet-${index + 1}`,
+    repositoryCwd: root.value,
+    value: `/work/ernie-quiet-${index + 1}`,
+  }));
+  const settledSessions = Array.from({ length: 5 }, (_, index) => ({
+    activity: 'settled' as const,
+    cwd: root.value,
+    modifiedAt: `2026-08-${String(10 - index).padStart(2, '0')}T10:00:00.000Z`,
+    name: `Settled ${index + 1}`,
+    path: `/sessions/settled-${index + 1}.jsonl`,
+  }));
+  const disclosureSource: RepositoryNavigationSource = {
+    connected: true,
+    folders: [root, ...quietWorktrees],
+    importingSessionPath: null,
+    liveSessions: quietWorktrees.map((folder, index) => ({
+        activity: 'idle' as const,
+        activeSessionId: `quiet-${index + 1}`,
+        cwd: folder.value,
+        modifiedAt: null,
+        name: `Quiet ${index + 1}`,
+        sessionPath: `/sessions/quiet-${index + 1}.jsonl`,
+      })),
+    savedSessions: settledSessions,
+    selectedSessionId: null,
+  };
+
+  const collapsed = projectRepositoryNavigation(
+    disclosureSource,
+    emptyRepositoryNavigationPreferences,
+    collapsedDisplay,
+  ).visibleRepositoryViews[0]!;
+  assert.equal(collapsed.rootWorkspace?.visibleConversations.length, 3);
+  assert.equal(collapsed.hiddenSettledCount, 2);
+  assert.equal(collapsed.visibleWorktrees.length, 5);
+  assert.equal(collapsed.hiddenWorktreeCount, 1);
+
+  const expanded = projectRepositoryNavigation(
+    disclosureSource,
+    emptyRepositoryNavigationPreferences,
+    {
+      ...collapsedDisplay,
+      settledExpandedRepositoryPaths: new Set([root.value]),
+      worktreesExpandedRepositoryPaths: new Set([root.value]),
+    },
+  ).visibleRepositoryViews[0]!;
+  assert.equal(expanded.rootWorkspace?.visibleConversations.length, 5);
+  assert.equal(expanded.visibleWorktrees.length, 6);
 });

@@ -23,13 +23,14 @@ export function TaskSurface({
   thinkingOrbState,
   workspace,
 }: TaskSurfaceProps): React.JSX.Element {
+  const { composer, connection, conversation, git, navigation } = workspace;
   const selectedSessionView =
-    workspace.selectedSessionView?.activeSessionId ===
-    workspace.selectedSessionId
-      ? workspace.selectedSessionView
+    conversation.selectedSessionView?.activeSessionId ===
+    navigation.selectedSessionId
+      ? conversation.selectedSessionView
       : null;
   const chatVisible = selectedSessionView !== null;
-  const agentUnavailable = workspace.primeAgentConnection === 'unavailable';
+  const agentUnavailable = connection.primeAgentConnection === 'unavailable';
 
   return (
     <div
@@ -46,7 +47,7 @@ export function TaskSurface({
           Give Ernie a task
         </FieldLabel>
 
-        {workspace.selectedSessionId === null ? (
+        {navigation.selectedSessionId === null ? (
           <div className="flex flex-col gap-6">
             <header className="relative pb-6 after:absolute after:bottom-0 after:left-0 after:h-px after:w-32 after:rounded-full after:bg-gradient-to-r after:from-primary/60 after:via-primary/20 after:to-transparent">
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -58,29 +59,29 @@ export function TaskSurface({
               </p>
             </header>
             <CurrentWorkspace
-              busy={workspace.busy || agentUnavailable}
+              busy={navigation.busy || agentUnavailable}
               disabled={agentUnavailable}
-              folders={workspace.folders}
-              gitBranch={workspace.gitBranch}
-              gitBranchBusy={workspace.gitBranchBusy}
-              gitBranches={workspace.gitBranches}
-              gitWorktreeError={workspace.gitWorktreeError}
-              loadingWorkspace={workspace.loadingWorkspace}
-              selectedCwd={workspace.selectedCwd}
-              changeFolder={workspace.changeFolder}
-              chooseWorkspaceDirectory={workspace.chooseWorkspaceDirectory}
-              changeGitBranch={workspace.changeGitBranch}
-              deleteGitBranch={workspace.deleteGitBranch}
-              initializeGitRepository={workspace.initializeGitRepository}
-              createGitWorktree={workspace.createGitWorktree}
+              folders={navigation.folders}
+              gitBranch={git.gitBranch}
+              gitBranchBusy={git.gitBranchBusy}
+              gitBranches={git.gitBranches}
+              gitWorktreeError={git.gitWorktreeError}
+              loadingWorkspace={connection.loadingWorkspace}
+              selectedCwd={navigation.selectedCwd}
+              changeFolder={navigation.changeFolder}
+              chooseWorkspaceDirectory={navigation.chooseWorkspaceDirectory}
+              changeGitBranch={git.changeGitBranch}
+              deleteGitBranch={git.deleteGitBranch}
+              initializeGitRepository={git.initializeGitRepository}
+              createGitWorktree={git.createGitWorktree}
             />
           </div>
         ) : selectedSessionView !== null ? (
           <div className="min-h-0 w-full flex-1 overflow-hidden">
             <AgentChat
-              loadingEarlierHistory={workspace.loadingEarlierHistory}
-              onLoadEarlierHistory={workspace.loadEarlierSessionHistory}
-              onOpenSpawnedSession={workspace.openSpawnedSession}
+              loadingEarlierHistory={conversation.loadingEarlierHistory}
+              onLoadEarlierHistory={conversation.loadEarlierSessionHistory}
+              onOpenSpawnedSession={conversation.openSpawnedSession}
               sessionView={selectedSessionView}
               thinkingOrbState={thinkingOrbState}
             />
@@ -96,37 +97,37 @@ export function TaskSurface({
         >
           <TaskComposer
             agentClient={agentClient}
-            key={`${workspace.selectedCwd ?? 'no-workspace'}:${
-              workspace.selectedSessionId ?? 'new'
+            key={`${navigation.selectedCwd ?? 'no-workspace'}:${
+              navigation.selectedSessionId ?? 'new'
             }`}
-            modelBusy={workspace.modelBusy}
+            modelBusy={composer.modelBusy}
             depth={
-              workspace.selectedSessionId === null
-                ? workspace.rlmMaxDepth
-                : workspace.selectedSessionRlmMaxDepth
+              navigation.selectedSessionId === null
+                ? composer.rlmMaxDepth
+                : composer.selectedSessionRlmMaxDepth
             }
             depthBusy={
-              workspace.selectedSessionId === null
-                ? workspace.rlmMaxDepthBusy
-                : workspace.selectedSessionRlmMaxDepthBusy
+              navigation.selectedSessionId === null
+                ? composer.rlmMaxDepthBusy
+                : composer.selectedSessionRlmMaxDepthBusy
             }
             isGenerating={selectedSessionView?.isStreaming ?? false}
-            models={workspace.models}
-            skills={workspace.skills}
-            selectedCwd={workspace.selectedCwd}
-            selectedModelKey={workspace.selectedModelKey}
-            selectedSessionId={workspace.selectedSessionId}
-            selectedThinkingLevel={workspace.selectedThinkingLevel}
-            thinkingLevelBusy={workspace.thinkingLevelBusy}
-            thinkingLevels={workspace.thinkingLevels}
+            models={composer.models}
+            skills={composer.skills}
+            selectedCwd={navigation.selectedCwd}
+            selectedModelKey={composer.selectedModelKey}
+            selectedSessionId={navigation.selectedSessionId}
+            selectedThinkingLevel={composer.selectedThinkingLevel}
+            thinkingLevelBusy={composer.thinkingLevelBusy}
+            thinkingLevels={composer.thinkingLevels}
             disabled={agentUnavailable}
-            changeModel={workspace.changeModel}
-            changeThinkingLevel={workspace.changeThinkingLevel}
-            createAgentWithTask={workspace.createAgentWithTask}
+            changeModel={composer.changeModel}
+            changeThinkingLevel={composer.changeThinkingLevel}
+            createAgentWithTask={composer.createAgentWithTask}
             onDepthChange={
-              workspace.selectedSessionId === null
-                ? workspace.changeRlmMaxDepth
-                : workspace.changeSelectedSessionRlmMaxDepth
+              navigation.selectedSessionId === null
+                ? composer.changeRlmMaxDepth
+                : composer.changeSelectedSessionRlmMaxDepth
             }
           />
         </div>
@@ -152,7 +153,7 @@ export function TaskSurface({
       </Field>
 
       <p id="workspace-status" className="sr-only" role="status">
-        {workspace.status}
+        {connection.status}
       </p>
     </div>
   );

@@ -29,28 +29,31 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import type {
+  AgentWorkspaceConnectionController,
   AgentWorkspaceFolder,
-  AgentWorkspaceController,
+  AgentWorkspaceGitController,
+  AgentWorkspaceNavigationController,
 } from '@/packages/agent-workspace';
 
 type CurrentWorkspaceProps = Pick<
-  AgentWorkspaceController,
+  AgentWorkspaceNavigationController,
   | 'busy'
+  | 'folders'
+  | 'selectedCwd'
+  | 'changeFolder'
+  | 'chooseWorkspaceDirectory'
+> & Pick<AgentWorkspaceConnectionController, 'loadingWorkspace'> & Pick<
+  AgentWorkspaceGitController,
   | 'gitBranch'
   | 'gitBranchBusy'
   | 'gitBranches'
   | 'gitWorktreeError'
-  | 'loadingWorkspace'
-  | 'selectedCwd'
-  | 'changeFolder'
-  | 'chooseWorkspaceDirectory'
   | 'changeGitBranch'
   | 'deleteGitBranch'
   | 'initializeGitRepository'
   | 'createGitWorktree'
 > & {
   readonly disabled?: boolean;
-  readonly folders: readonly AgentWorkspaceFolder[];
 };
 
 const executionTargets = [

@@ -3,12 +3,16 @@ import { test } from 'node:test';
 
 import {
   connectAgentWorkspaceSession,
+  createAgentSessionLifecycle,
+  createAgentGitWorkspaceService,
   createAgentWithTask,
   projectAgentWorkspaceControls,
   projectAgentWorkspaceFolders,
   selectInitialAgentWorkspace,
   type AgentCreationPort,
+  type AgentGitWorkspacePort,
 } from '../index';
+import type { PrimeAgentSessionFeedState } from '../../prime-agent-daemon/events';
 
 const model = {
   id: 'gpt-5.6',
@@ -218,9 +222,145 @@ test('returns the current stage message after a transport failure', async () => 
   assert.equal(outcome.ok, false);
   if (outcome.ok) return;
   assert.equal(outcome.unexpected, true);
+  assert.equal(outcome.error.name, 'AgentCreationTransportError');
+  assert.equal(outcome.error.stage, 'task');
+  assert.equal((outcome.error.cause as Error).message, 'transport');
   assert.equal(
     outcome.message,
     'Ernie created the Agent, but could not send its first task.',
   );
   assert.equal(outcome.session?.activeSessionId, session.activeSessionId);
+});
+
+test('preserves cancellation instead of translating it into a failure', async () => {
+  const cancellation = new DOMException('cancelled', 'AbortError');
+  const port: AgentCreationPort = {
+    ...creationPort([]),
+    createSession: async () => Promise.reject(cancellation),
+  };
+
+  await assert.rejects(
+    createAgentWithTask(port, {
+      cwd: session.cwd,
+      message: 'Start the task',
+      model,
+      rlmMaxDepth: 1,
+      thinkingLevel: 'medium',
+    }),
+    cancellation,
+  );
+});
+
+test('owns earlier-history loading, cache updates, and completion', async () => {
+  const lifecycle = createAgentSessionLifecycle();
+  const view = {
+    activeSessionId: session.activeSessionId,
+    historyStart: 1,
+    isStreaming: false,
+    messages: [],
+    rlmMaxDepth: 1,
+    sessionName: session.name,
+    spawnedSessions: [],
+    transcript: [{
+      id: 'message-1',
+      kind: 'message',
+      role: 'assistant',
+      text: 'Newer response',
+    }],
+  } as const;
+  let feed: PrimeAgentSessionFeedState = {
+    activeSessionId: session.activeSessionId,
+    kind: 'live',
+    revision: 0,
+    subscriptionId: 'test-feed',
+    view,
+  };
+  const statuses: string[] = [];
+  let starts = 0;
+  let finishes = 0;
+
+  assert.equal(
+    lifecycle.loadEarlierHistory(
+      {
+        loadHistory: async () => ({
+          ok: true,
+          value: {
+            activeSessionId: session.activeSessionId,
+            start: 0,
+            transcript: [{
+              id: 'message-0',
+              kind: 'message',
+              role: 'user',
+              text: 'Earlier task',
+            }],
+          },
+        }),
+      },
+      view,
+      {
+        currentFeed: () => feed,
+        onFeed: (next) => {
+          feed = next;
+        },
+        onFinished: () => {
+          finishes += 1;
+        },
+        onStarted: () => {
+          starts += 1;
+        },
+        onStatus: (message) => statuses.push(message),
+      },
+    ),
+    true,
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(starts, 1);
+  assert.equal(finishes, 1);
+  assert.equal(statuses.at(-1), 'Loaded earlier Agent history.');
+  assert.equal(lifecycle.peek(session.activeSessionId)?.historyStart, 0);
+  assert.equal(lifecycle.peek(session.activeSessionId)?.transcript.length, 2);
+  lifecycle.close();
+});
+
+test('owns local Git transition messages and workspace identification', async () => {
+  const branches = {
+    cwd: session.cwd,
+    current: 'main',
+    names: ['main'],
+  } as const;
+  const port: AgentGitWorkspacePort = {
+    createWorktree: async ({ branchName }) => ({
+      ok: true,
+      value: { branchName, cwd: `${session.cwd}-${branchName}` },
+    }),
+    deleteBranch: async () => ({ ok: true, value: branches }),
+    initializeGit: async () => ({ ok: true, value: branches }),
+    readWorkspace: async (cwd) =>
+      cwd.endsWith('missing')
+        ? { ok: false, error: { code: 'request_failed', message: 'Missing.' } }
+        : {
+            ok: true,
+            value: { branchName: 'main', cwd, repositoryCwd: session.cwd },
+          },
+    switchBranch: async ({ name }) => ({
+      ok: true,
+      value: { ...branches, current: name },
+    }),
+  };
+  const service = createAgentGitWorkspaceService(port);
+
+  const switched = await service.switchBranch({
+    cwd: session.cwd,
+    name: 'feature/calm',
+  });
+  assert.equal(switched.ok, true);
+  if (switched.ok) {
+    assert.equal(switched.status, 'Git branch changed to feature/calm.');
+  }
+  const identified = await service.identifyWorkspaces([
+    session.cwd,
+    `${session.cwd}-missing`,
+  ]);
+  assert.deepEqual([...identified.keys()], [session.cwd]);
 });

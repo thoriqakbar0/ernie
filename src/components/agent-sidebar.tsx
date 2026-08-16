@@ -60,7 +60,11 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import type { AgentWorkspaceController } from '@/packages/agent-workspace';
+import type {
+  AgentWorkspaceComposerController,
+  AgentWorkspaceConnectionController,
+  AgentWorkspaceNavigationController,
+} from '@/packages/agent-workspace';
 import { useRepositoryNavigation } from '@/hooks/use-repository-navigation';
 import {
   projectRepositoryNavigation,
@@ -74,11 +78,9 @@ import {
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 type AgentSidebarProps = Pick<
-  AgentWorkspaceController,
-  | 'creatingAgent'
+  AgentWorkspaceNavigationController,
   | 'folders'
   | 'importingSessionPath'
-  | 'primeAgentConnection'
   | 'renamingSession'
   | 'savedSessions'
   | 'selectedCwd'
@@ -90,7 +92,8 @@ type AgentSidebarProps = Pick<
   | 'importSession'
   | 'renameSession'
   | 'selectSession'
-> & {
+> & Pick<AgentWorkspaceConnectionController, 'primeAgentConnection'> &
+  Pick<AgentWorkspaceComposerController, 'creatingAgent'> & {
   readonly onOpenSettings: () => void;
   readonly settingsOpen: boolean;
   readonly thinkingOrbState: ThinkingOrbState;
@@ -111,8 +114,6 @@ interface ArchiveUndo {
   readonly wasPinned: boolean;
 }
 
-const recentSettledLimit = 3;
-const collapsedWorktreeLimit = 5;
 const branchColorClasses = [
   'text-blue-700 dark:text-blue-300',
   'text-violet-700 dark:text-violet-300',
@@ -206,17 +207,6 @@ function ActivitySummary({
   );
 }
 
-function modifiedTime(conversation: AgentConversation): number {
-  const value = conversation.session.modifiedAt;
-  if (value === null) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function workspaceLatestActivity(workspace: WorkspaceGroup): number {
-  return Math.max(0, ...workspace.conversations.map(modifiedTime));
-}
-
 function repositoryForCwd(
   repositories: readonly RepositoryGroup[],
   cwd: string | null,
@@ -299,9 +289,22 @@ export function AgentSidebar({
     () =>
       projectRepositoryNavigation(navigationSource, navigationPreferences, {
         pinsExpanded,
+        revealedWorkspaceCwd,
         searchQuery,
+        selectedCwd,
+        settledExpandedRepositoryPaths: settledExpandedPaths,
+        worktreesExpandedRepositoryPaths: worktreesExpandedPaths,
       }),
-    [navigationPreferences, navigationSource, pinsExpanded, searchQuery],
+    [
+      navigationPreferences,
+      navigationSource,
+      pinsExpanded,
+      revealedWorkspaceCwd,
+      searchQuery,
+      selectedCwd,
+      settledExpandedPaths,
+      worktreesExpandedPaths,
+    ],
   );
   const applyNavigationCommand = useCallback(
     (command: RepositoryNavigationCommand): void => {
@@ -321,19 +324,8 @@ export function AgentSidebar({
     selectedConversationId,
     visiblePinnedConversations,
     visibleRepositories,
+    visibleRepositoryViews,
   } = navigation;
-  const archivedConversationIds = useMemo(
-    () => new Set(navigationPreferences.archivedConversationIds),
-    [navigationPreferences.archivedConversationIds],
-  );
-  const archivedWorkspacePaths = useMemo(
-    () => new Set(navigationPreferences.archivedWorkspacePaths),
-    [navigationPreferences.archivedWorkspacePaths],
-  );
-  const pinnedConversationIds = useMemo(
-    () => new Set(navigationPreferences.pinnedConversationIds),
-    [navigationPreferences.pinnedConversationIds],
-  );
   const selectedLiveSession = sessions.find(
     (session) => session.activeSessionId === selectedSessionId,
   );
@@ -778,8 +770,19 @@ export function AgentSidebar({
                 </Button>
               ) : (
                 <ul className="flex flex-col gap-1">
-                  {visibleRepositories.map((repository, index) => {
+                  {visibleRepositoryViews.map((repositoryView, index) => {
+                    const {
+                      hiddenSettledCount,
+                      hiddenWorktreeCount,
+                      needsInputCount,
+                      repository,
+                      rootWorkspace,
+                      visibleWorktrees,
+                      workingCount,
+                    } = repositoryView;
                     const { folder } = repository;
+                    const settledExpanded = settledExpandedPaths.has(folder.value);
+                    const worktreesExpanded = worktreesExpandedPaths.has(folder.value);
                     const expanded =
                       navigationPreferences.expandedRepositoryPath === folder.value;
                     const repositoryActive =
@@ -788,129 +791,6 @@ export function AgentSidebar({
                       ? 'bg-sidebar-accent/60 aria-expanded:bg-sidebar-accent/60'
                       : 'aria-expanded:bg-transparent';
                     const conversationsId = `repository-${index}-conversations`;
-                    const rootWorkspace = repository.workspaces.find(
-                      (workspace) => workspace.folder.value === folder.value,
-                    );
-                    const unarchived = repository.workspaces
-                      .filter(
-                        (workspace) =>
-                          !archivedWorkspacePaths.has(workspace.folder.value),
-                      )
-                      .flatMap((workspace) => workspace.conversations)
-                      .filter(
-                        (conversation) =>
-                          !archivedConversationIds.has(
-                            agentConversationId(conversation),
-                          ),
-                      );
-                    const workingCount = unarchived.filter(
-                      (conversation) =>
-                        conversationActivity(conversation) ===
-                        'working',
-                    ).length;
-                    const needsInputCount = unarchived.filter(
-                      (conversation) =>
-                        conversationActivity(conversation) ===
-                        'needs_input',
-                    ).length;
-                    const settled = unarchived
-                      .filter(
-                        (conversation) =>
-                          !pinnedConversationIds.has(agentConversationId(conversation)) &&
-                          conversationActivity(conversation) ===
-                          'settled',
-                      )
-                      .sort((left, right) => modifiedTime(right) - modifiedTime(left));
-                    const recentSettled = settled.slice(0, recentSettledLimit);
-                    const settledExpanded = settledExpandedPaths.has(folder.value);
-                    const visibleSettledIds = new Set(
-                      (settledExpanded ? settled : recentSettled).map(
-                        agentConversationId,
-                      ),
-                    );
-                    const selectedSettled = settled.find(
-                      (conversation) =>
-                        agentConversationId(conversation) === selectedConversationId,
-                    );
-                    if (selectedSettled !== undefined) {
-                      visibleSettledIds.add(agentConversationId(selectedSettled));
-                    }
-                    const hiddenSettledCount = Math.max(
-                      0,
-                      settled.length - recentSettledLimit,
-                    );
-                    const conversationsFor = (workspace: WorkspaceGroup) =>
-                      workspace.conversations.filter((conversation) => {
-                        const id = agentConversationId(conversation);
-                        if (
-                          archivedConversationIds.has(id) ||
-                          pinnedConversationIds.has(id)
-                        ) {
-                          return false;
-                        }
-                        return (
-                          conversationActivity(conversation) !==
-                            'settled' || visibleSettledIds.has(id)
-                        );
-                      });
-                    const worktrees = repository.workspaces.filter(
-                      (workspace) =>
-                        workspace.folder.value !== folder.value &&
-                        !archivedWorkspacePaths.has(workspace.folder.value),
-                    );
-                    const worktreeEntries = worktrees
-                      .map((workspace, order) => {
-                        const visibleConversations = conversationsFor(workspace);
-                        const selectedOrRevealed =
-                          workspace.folder.value === selectedCwd ||
-                          workspace.folder.value === revealedWorkspaceCwd;
-                        const alwaysVisible =
-                          selectedOrRevealed ||
-                          visibleConversations.some((conversation) => {
-                            const activity = conversationActivity(conversation);
-                            return (
-                              activity === 'working' ||
-                              activity === 'needs_input' ||
-                              activity === 'queued' ||
-                              activity === 'settled'
-                            );
-                          });
-                        return {
-                          alwaysVisible,
-                          latestActivity: workspaceLatestActivity(workspace),
-                          order,
-                          selectedOrRevealed,
-                          visibleConversations,
-                          workspace,
-                        };
-                      })
-                      .filter(
-                        (entry) =>
-                          entry.selectedOrRevealed ||
-                          entry.visibleConversations.length > 0,
-                      );
-                    const alwaysVisibleWorktrees = worktreeEntries.filter(
-                      (entry) => entry.alwaysVisible,
-                    );
-                    const quietWorktrees = worktreeEntries
-                      .filter((entry) => !entry.alwaysVisible)
-                      .sort(
-                        (left, right) =>
-                          right.latestActivity - left.latestActivity ||
-                          left.order - right.order,
-                      );
-                    const worktreesExpanded = worktreesExpandedPaths.has(folder.value);
-                    const visibleWorktrees = [
-                      ...alwaysVisibleWorktrees,
-                      ...(worktreesExpanded
-                        ? quietWorktrees
-                        : quietWorktrees.slice(0, collapsedWorktreeLimit)),
-                    ].sort((left, right) => left.order - right.order);
-                    const hiddenWorktreeCount = Math.max(
-                      0,
-                      quietWorktrees.length - collapsedWorktreeLimit,
-                    );
-
                     return (
                       <li key={folder.value} aria-label={`${folder.label} repository`}>
                         <div className="group/repository relative flex items-center">
@@ -1028,40 +908,29 @@ export function AgentSidebar({
                           }}
                         >
                           <ul className="mt-0.5 ml-4 flex min-h-0 flex-col gap-0.5 overflow-hidden">
-                            {rootWorkspace === undefined
+                            {rootWorkspace === null
                               ? null
-                              : conversationsFor(rootWorkspace).map((conversation) =>
+                              : rootWorkspace.visibleConversations.map((conversation) =>
                                   renderConversation(
                                     conversation,
-                                    rootWorkspace,
+                                    rootWorkspace.workspace,
                                     false,
                                     sessionAge(conversation.session.modifiedAt),
-                                    conversationsFor(rootWorkspace),
+                                    rootWorkspace.visibleConversations,
                                   ),
                                 )}
                             {visibleWorktrees.map(
-                              ({ workspace, visibleConversations }) => {
+                              ({
+                                needsInputCount: workspaceNeedsInputCount,
+                                visibleConversations,
+                                workingCount: workspaceWorkingCount,
+                                workspace,
+                              }) => {
                                 const workspaceLabel =
                                   workspace.folder.branchName ?? workspace.folder.label;
                                 const worktreeActive =
                                   selectedConversationId === null &&
                                   selectedCwd === workspace.folder.value;
-                                const workspaceUnarchived = workspace.conversations.filter(
-                                  (conversation) =>
-                                    !archivedConversationIds.has(
-                                      agentConversationId(conversation),
-                                    ),
-                                );
-                                const workspaceWorkingCount = workspaceUnarchived.filter(
-                                  (conversation) =>
-                                    conversationActivity(conversation) ===
-                                    'working',
-                                ).length;
-                                const workspaceNeedsInputCount = workspaceUnarchived.filter(
-                                  (conversation) =>
-                                    conversationActivity(conversation) ===
-                                    'needs_input',
-                                ).length;
                                 return (
                                   <li
                                     key={workspace.folder.value}

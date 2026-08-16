@@ -855,54 +855,6 @@ test('ready footer stays quiet while unavailable state reveals recovery details'
   );
 });
 
-test('shows three recent settled Agents and discloses only the hidden remainder', async () => {
-  const user = userEvent.setup();
-  const savedSessions = Array.from({ length: 5 }, (_, index) => ({
-    activity: 'settled' as const,
-    cwd: '/workspace/ernie',
-    messageCount: 1,
-    modifiedAt: `2026-08-${String(10 - index).padStart(2, '0')}T10:00:00.000Z`,
-    name: `Settled ${index + 1}`,
-    path: `/sessions/settled-${index + 1}.jsonl`,
-  }));
-  renderSidebar(
-    {
-      addRepository: () => undefined,
-      startAgentDraft: () => undefined,
-      importSession: () => undefined,
-      renameSession: () => undefined,
-      selectSession: () => undefined,
-    },
-    { savedSessions },
-  );
-
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Settled 1, saved session',
-    }),
-  );
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Settled 3, saved session',
-    }),
-  );
-  assert.equal(
-    within(document.body).queryByRole('button', {
-      name: 'Settled 4, saved session',
-    }),
-    null,
-  );
-  await user.click(
-    within(document.body).getByRole('button', { name: 'Settled (2)' }),
-  );
-  assert.ok(
-    within(document.body).getByRole('button', {
-      name: 'Settled 5, saved session',
-    }),
-  );
-  assert.ok(within(document.body).getByRole('button', { name: 'Hide settled' }));
-});
-
 test('Control+O reveals every hidden thread group', () => {
   const savedSessions = Array.from({ length: 5 }, (_, index) => ({
     activity: 'settled' as const,

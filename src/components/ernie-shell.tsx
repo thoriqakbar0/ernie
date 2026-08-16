@@ -95,10 +95,17 @@ export function ErnieShell({
   thinkingOrbState,
 }: ErnieShellProps): React.JSX.Element {
   const rendererClients = useMemo(
-    () => createAgentRendererClients(window.ernie),
+    () =>
+      createAgentRendererClients({
+        feeds: window.ernie,
+        harness: window.ernie,
+        localWorkspace: window.ernie,
+        requests: window.ernie,
+      }),
     [],
   );
   const workspace = useAgentWorkspace(rendererClients);
+  const { composer, connection, conversation, git, navigation } = workspace;
   const pluginHost = useMemo(() => {
     const created = createPluginHost(
       [
@@ -129,12 +136,12 @@ export function ErnieShell({
   const activePluginManifest = pluginManifests.find((manifest) =>
     manifest.contributes.views.some((view) => view.id === activeViewId),
   );
-  const selectedSession = workspace.sessions.find(
-    (session) => session.activeSessionId === workspace.selectedSessionId,
+  const selectedSession = navigation.sessions.find(
+    (session) => session.activeSessionId === navigation.selectedSessionId,
   );
   const selectedSessionView =
-    workspace.selectedSessionView?.activeSessionId === workspace.selectedSessionId
-      ? workspace.selectedSessionView
+    conversation.selectedSessionView?.activeSessionId === navigation.selectedSessionId
+      ? conversation.selectedSessionView
       : null;
   const workingAgentCount =
     selectedSessionView?.spawnedSessions.filter(
@@ -239,25 +246,27 @@ export function ErnieShell({
           <SidebarControlBridge request={sidebarControlRequest} />
           {agentsActive ? (
             <AgentSidebar
-              {...workspace}
+              {...navigation}
+              creatingAgent={composer.creatingAgent}
+              primeAgentConnection={connection.primeAgentConnection}
               changeFolder={(cwd) => {
                 setSettingsOpen(false);
-                workspace.changeFolder(cwd);
+                navigation.changeFolder(cwd);
               }}
               importSession={(sessionPath) => {
                 setSettingsOpen(false);
-                workspace.importSession(sessionPath);
+                navigation.importSession(sessionPath);
               }}
               onOpenSettings={() => setSettingsOpen(true)}
               selectSession={(activeSessionId) => {
                 setSettingsOpen(false);
-                workspace.selectSession(activeSessionId);
+                navigation.selectSession(activeSessionId);
               }}
               settingsOpen={settingsOpen}
               thinkingOrbState={thinkingOrbState}
               startAgentDraft={(cwd) => {
                 setSettingsOpen(false);
-                workspace.startAgentDraft(cwd);
+                navigation.startAgentDraft(cwd);
               }}
             />
           ) : null}
@@ -283,7 +292,7 @@ export function ErnieShell({
                 {settingsOpen ? null : (
                   <span className="hidden text-xs text-muted-foreground sm:inline">
                     {agentsActive
-                      ? `${workspace.repoName}${workspace.gitBranch === null ? '' : ` · ${workspace.gitBranch}`}`
+                      ? `${navigation.repoName}${git.gitBranch === null ? '' : ` · ${git.gitBranch}`}`
                       : 'Built-in plugin'}
                   </span>
                 )}

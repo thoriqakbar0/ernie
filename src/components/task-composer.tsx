@@ -17,7 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { AgentWorkspaceController } from '@/packages/agent-workspace';
+import type {
+  AgentWorkspaceComposerController,
+  AgentWorkspaceNavigationController,
+} from '@/packages/agent-workspace';
 import type { PrimeAgentRendererClient } from '@/packages/agent-renderer-client';
 import { usePrimeAgentTask } from '@/hooks/use-prime-agent-task';
 import {
@@ -27,20 +30,18 @@ import {
 } from '@/packages/skill-search';
 
 type TaskComposerProps = Pick<
-  AgentWorkspaceController,
+  AgentWorkspaceComposerController,
   | 'modelBusy'
   | 'models'
   | 'skills'
-  | 'selectedCwd'
   | 'selectedModelKey'
-  | 'selectedSessionId'
   | 'selectedThinkingLevel'
   | 'thinkingLevelBusy'
   | 'thinkingLevels'
   | 'changeModel'
   | 'changeThinkingLevel'
   | 'createAgentWithTask'
-> & {
+> & Pick<AgentWorkspaceNavigationController, 'selectedCwd' | 'selectedSessionId'> & {
   readonly agentClient: PrimeAgentRendererClient;
   readonly depth: number | null;
   readonly depthBusy: boolean;

@@ -8,8 +8,8 @@ import type { JsonValue } from './packages/json-value/index.js' with {
   'resolution-mode': 'import',
 };
 
-// Sandboxed preloads cannot load local runtime modules. Keep these channel
-// literals in sync with renderer-api.ts.
+// Sandboxed preloads cannot load local runtime modules. The contract test keeps
+// this static mirror in sync with agent-renderer-client/channels.ts.
 const rendererReadyChannel = 'ernie:renderer-ready';
 const colorThemeRequestChannel = 'ernie:color-theme:request';
 const sidebarControlRequestChannel = 'ernie:sidebar:control-request';

@@ -1,4 +1,9 @@
-import type { JsonValue } from '../../json-value/index.js';
+import {
+  isJsonRecord,
+  isJsonString,
+  type JsonValue,
+} from '../../json-value/index.js';
+import type { AgentHarnessDescriptor } from '../../ernie-daemon/index.js';
 import {
   parsePrimeAgentConfigurationResult,
   parsePrimeAgentModelsResult,
@@ -10,6 +15,7 @@ import {
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
   parsePrimeAgentTaskReceiptResult,
+  parsePrimeAgentWorkspaceResult,
 } from '../../prime-agent-daemon/client.js';
 import {
   parsePrimeAgentSessionFeedEnvelope,
@@ -49,14 +55,30 @@ import type {
   PrimeAgentTaskSubmission,
   PrimeAgentThinkingLevelSelection,
   PrimeAgentWorkspaceFeedItem,
+  PrimeAgentWorkspace,
 } from '../../prime-agent-daemon/types.js';
 
-/** Raw preload operations used by the typed renderer clients. */
-export interface AgentRendererTransport {
+/** Raw harness discovery operations exposed by Electron's preload. */
+export interface AgentHarnessRendererTransport {
+  readonly describeAgentHarness: () => Promise<JsonValue>;
+  readonly listAgentWorkspace: () => Promise<JsonValue>;
+}
+
+/** Raw feed operations exposed by Electron's preload. */
+export interface AgentFeedRendererTransport {
   readonly watchAgentWorkspace: (
     listener: (value: JsonValue) => void,
   ) => string;
   readonly unwatchAgentWorkspace: (subscriptionId: string) => void;
+  readonly watchAgentSession: (
+    activeSessionId: string,
+    listener: (value: JsonValue) => void,
+  ) => string;
+  readonly unwatchAgentSession: (subscriptionId: string) => void;
+}
+
+/** Raw Prime Agent request operations exposed by Electron's preload. */
+export interface AgentRequestRendererTransport {
   readonly createAgentSession: (
     creation: PrimeAgentSessionCreation,
   ) => Promise<JsonValue>;
@@ -72,11 +94,6 @@ export interface AgentRendererTransport {
     activeSessionId: string,
   ) => Promise<JsonValue>;
   readonly listAgentSkills: (activeSessionId: string) => Promise<JsonValue>;
-  readonly watchAgentSession: (
-    activeSessionId: string,
-    listener: (value: JsonValue) => void,
-  ) => string;
-  readonly unwatchAgentSession: (subscriptionId: string) => void;
   readonly loadAgentSessionHistory: (
     request: PrimeAgentSessionHistoryRequest,
   ) => Promise<JsonValue>;
@@ -96,6 +113,10 @@ export interface AgentRendererTransport {
   readonly refineAgentSession: (
     request: PrimeAgentRefinementRequest,
   ) => Promise<JsonValue>;
+}
+
+/** Raw local workspace operations exposed by Electron's preload. */
+export interface LocalWorkspaceRendererTransport {
   readonly listGitBranches: (cwd: string) => Promise<JsonValue>;
   readonly readGitWorkspace: (cwd: string) => Promise<JsonValue>;
   readonly switchGitBranch: (
@@ -114,6 +135,14 @@ export interface AgentRendererTransport {
   readonly chooseWorkspaceDirectory: () => Promise<JsonValue>;
 }
 
+/** Narrow preload capabilities used to construct renderer clients. */
+export interface AgentRendererTransportConfiguration {
+  readonly feeds: AgentFeedRendererTransport;
+  readonly harness: AgentHarnessRendererTransport;
+  readonly localWorkspace: LocalWorkspaceRendererTransport;
+  readonly requests: AgentRequestRendererTransport;
+}
+
 /** One active renderer feed with exact, idempotent cleanup. */
 export interface AgentRendererSubscription {
   readonly id: string;
@@ -122,6 +151,8 @@ export interface AgentRendererSubscription {
 
 /** Parsed Prime Agent operations available to renderer state adapters. */
 export interface PrimeAgentRendererClient {
+  readonly describeHarness: () => Promise<PrimeAgentResult<AgentHarnessDescriptor>>;
+  readonly listWorkspace: () => Promise<PrimeAgentResult<PrimeAgentWorkspace>>;
   readonly watchWorkspace: (
     listener: (
       result: PrimeAgentResult<PrimeAgentWorkspaceFeedItem>,
@@ -177,6 +208,7 @@ export interface PrimeAgentRendererClient {
   ) => Promise<PrimeAgentResult<PrimeAgentRefinementReceipt>>;
 }
 
+/** Parsed result of the native workspace-directory picker. */
 export type WorkspaceDirectorySelection =
   | Readonly<{ ok: true; value: string | null }>
   | Readonly<{ ok: false }>;
@@ -237,117 +269,166 @@ function parseDirectorySelection(value: JsonValue): WorkspaceDirectorySelection 
   return { ok: false };
 }
 
+const harnessCapabilities = [
+  'live-sessions',
+  'saved-sessions',
+  'models',
+  'thinking-level',
+  'skills',
+  'rlm-depth',
+  'refinement',
+] as const satisfies readonly AgentHarnessDescriptor['capabilities'][number][];
+
+function parseHarnessDescriptor(
+  value: JsonValue,
+): PrimeAgentResult<AgentHarnessDescriptor> {
+  if (
+    !isJsonRecord(value) ||
+    !isJsonString(value.id) ||
+    value.id.trim().length === 0 ||
+    !isJsonString(value.name) ||
+    value.name.trim().length === 0 ||
+    !Array.isArray(value.capabilities) ||
+    !value.capabilities.every(
+      (capability): capability is AgentHarnessDescriptor['capabilities'][number] =>
+        isJsonString(capability) &&
+        harnessCapabilities.some((candidate) => candidate === capability),
+    )
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: 'protocol_error',
+        message: 'The Agent harness descriptor was invalid.',
+      },
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      capabilities: value.capabilities,
+      id: value.id,
+      name: value.name,
+    },
+  };
+}
+
 /** Parse all Agent and local workspace values at the renderer transport edge. */
 export function createAgentRendererClients(
-  transport: AgentRendererTransport,
+  configuration: AgentRendererTransportConfiguration,
 ): AgentRendererClients {
+  const { feeds, harness, localWorkspace, requests } = configuration;
   return {
     agent: {
+      describeHarness: async () =>
+        parseHarnessDescriptor(await harness.describeAgentHarness()),
+      listWorkspace: async () =>
+        parsePrimeAgentWorkspaceResult(await harness.listAgentWorkspace()),
       watchWorkspace: (listener) => {
         let active = true;
-        const id = transport.watchAgentWorkspace((value) => {
+        const id = feeds.watchAgentWorkspace((value) => {
           if (active) listener(parsePrimeAgentWorkspaceFeedItem(value));
         });
         const subscription = createSubscription(id, (subscriptionId) => {
           active = false;
-          transport.unwatchAgentWorkspace(subscriptionId);
+          feeds.unwatchAgentWorkspace(subscriptionId);
         });
         return subscription;
       },
       watchSession: (activeSessionId, listener) => {
         let active = true;
-        const id = transport.watchAgentSession(activeSessionId, (value) => {
+        const id = feeds.watchAgentSession(activeSessionId, (value) => {
           if (active) listener(parsePrimeAgentSessionFeedEnvelope(value));
         });
         return createSubscription(id, (subscriptionId) => {
           active = false;
-          transport.unwatchAgentSession(subscriptionId);
+          feeds.unwatchAgentSession(subscriptionId);
         });
       },
       createSession: async (creation) =>
         parsePrimeAgentSessionResult(
-          await transport.createAgentSession(creation),
+          await requests.createAgentSession(creation),
         ),
       listSavedSessions: async () =>
         parsePrimeAgentSavedSessionsResult(
-          await transport.listAgentSavedSessions(),
+          await requests.listAgentSavedSessions(),
         ),
       importSession: async (sessionPath) =>
         parsePrimeAgentSessionResult(
-          await transport.importAgentSession(sessionPath),
+          await requests.importAgentSession(sessionPath),
         ),
       renameSession: async (rename) =>
         parsePrimeAgentSessionRenameResult(
-          await transport.renameAgentSession(rename),
+          await requests.renameAgentSession(rename),
         ),
       listModels: async (scope) =>
-        parsePrimeAgentModelsResult(await transport.listAgentModels(scope)),
+        parsePrimeAgentModelsResult(await requests.listAgentModels(scope)),
       getConfiguration: async (activeSessionId) =>
         parsePrimeAgentConfigurationResult(
-          await transport.getAgentConfiguration(activeSessionId),
+          await requests.getAgentConfiguration(activeSessionId),
         ),
       listSkills: async (activeSessionId) =>
         parsePrimeAgentSkillsResult(
-          await transport.listAgentSkills(activeSessionId),
+          await requests.listAgentSkills(activeSessionId),
         ),
       loadHistory: async (request) =>
         parsePrimeAgentSessionHistoryPageResult(
-          await transport.loadAgentSessionHistory(request),
+          await requests.loadAgentSessionHistory(request),
         ),
       setModel: async (selection) =>
         parsePrimeAgentConfigurationResult(
-          await transport.setAgentModel(selection),
+          await requests.setAgentModel(selection),
         ),
       setThinkingLevel: async (selection) =>
         parsePrimeAgentConfigurationResult(
-          await transport.setAgentThinkingLevel(selection),
+          await requests.setAgentThinkingLevel(selection),
         ),
       getRlmDepth: async (activeSessionId) =>
         parsePrimeAgentRlmDepthResult(
-          await transport.getAgentRlmDepth(activeSessionId),
+          await requests.getAgentRlmDepth(activeSessionId),
         ),
       setRlmDepth: async (selection) =>
         parsePrimeAgentRlmDepthResult(
-          await transport.setAgentRlmDepth(selection),
+          await requests.setAgentRlmDepth(selection),
         ),
       submitTask: async (submission) =>
         parsePrimeAgentTaskReceiptResult(
-          await transport.submitAgentTask(submission),
+          await requests.submitAgentTask(submission),
         ),
       refineSession: async (request) =>
         parsePrimeAgentRefinementReceiptResult(
-          await transport.refineAgentSession(request),
+          await requests.refineAgentSession(request),
         ),
     },
     localWorkspace: {
       listBranches: async (cwd) =>
         parsePrimeAgentGitBranchesResult(
-          await transport.listGitBranches(cwd),
+          await localWorkspace.listGitBranches(cwd),
         ),
       readWorkspace: async (cwd) =>
         parsePrimeAgentGitWorkspaceResult(
-          await transport.readGitWorkspace(cwd),
+          await localWorkspace.readGitWorkspace(cwd),
         ),
       switchBranch: async (selection) =>
         parsePrimeAgentGitBranchesResult(
-          await transport.switchGitBranch(selection),
+          await localWorkspace.switchGitBranch(selection),
         ),
       deleteBranch: async (selection) =>
         parsePrimeAgentGitBranchesResult(
-          await transport.deleteGitBranch(selection),
+          await localWorkspace.deleteGitBranch(selection),
         ),
       renameBranch: async (rename) =>
         parsePrimeAgentGitBranchesResult(
-          await transport.renameGitBranch(rename),
+          await localWorkspace.renameGitBranch(rename),
         ),
       initializeGit: async (cwd) =>
-        parsePrimeAgentGitBranchesResult(await transport.initializeGit(cwd)),
+        parsePrimeAgentGitBranchesResult(await localWorkspace.initializeGit(cwd)),
       createWorktree: async (creation) =>
         parsePrimeAgentGitWorktreeResult(
-          await transport.createGitWorktree(creation),
+          await localWorkspace.createGitWorktree(creation),
         ),
       chooseDirectory: async () =>
-        parseDirectorySelection(await transport.chooseWorkspaceDirectory()),
+        parseDirectorySelection(await localWorkspace.chooseWorkspaceDirectory()),
     },
   };
 }

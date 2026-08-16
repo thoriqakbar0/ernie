@@ -1,11 +1,34 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
   createAgentRendererClients,
-  type AgentRendererTransport,
+  type AgentFeedRendererTransport,
+  type AgentHarnessRendererTransport,
+  type AgentRendererTransportConfiguration,
+  type AgentRequestRendererTransport,
+  type LocalWorkspaceRendererTransport,
 } from '../index.js';
 import type { JsonValue } from '../../json-value/index.js';
+import { agentRendererChannels } from '../channels.js';
+
+test('keeps the sandboxed preload channel mirror aligned with the contract', () => {
+  const preloadSource = readFileSync(
+    new URL('../../../preload.cts', import.meta.url),
+    'utf8',
+  );
+  const channels = Object.values(agentRendererChannels);
+
+  assert.equal(new Set(channels).size, channels.length);
+  for (const channel of channels) {
+    assert.equal(
+      preloadSource.includes(`'${channel}'`),
+      true,
+      `missing preload mirror for ${channel}`,
+    );
+  }
+});
 
 const model = {
   id: 'gpt-5.6',
@@ -33,8 +56,33 @@ const branches = {
   names: ['feature/calm', 'main'],
 } as const;
 
-function successfulTransport(): AgentRendererTransport {
+type AgentRendererTestTransport = AgentFeedRendererTransport &
+  AgentHarnessRendererTransport &
+  AgentRequestRendererTransport &
+  LocalWorkspaceRendererTransport;
+
+function configureTransport(
+  transport: AgentRendererTestTransport,
+): AgentRendererTransportConfiguration {
   return {
+    feeds: transport,
+    harness: transport,
+    localWorkspace: transport,
+    requests: transport,
+  };
+}
+
+function successfulTransport(): AgentRendererTestTransport {
+  return {
+    describeAgentHarness: async () => ({
+      capabilities: ['live-sessions'],
+      id: 'prime-agent',
+      name: 'Prime Agent',
+    }),
+    listAgentWorkspace: async () => ({
+      ok: true,
+      value: { currentCwd: session.cwd, sessions: [session] },
+    }),
     watchAgentWorkspace: () => 'workspace-feed',
     unwatchAgentWorkspace: () => undefined,
     createAgentSession: async () => ({ ok: true, value: session }),
@@ -115,9 +163,11 @@ function successfulTransport(): AgentRendererTransport {
 
 test('parses every renderer operation before returning it to callers', async () => {
   const { agent, localWorkspace } = createAgentRendererClients(
-    successfulTransport(),
+    configureTransport(successfulTransport()),
   );
   const results = await Promise.all([
+    agent.describeHarness(),
+    agent.listWorkspace(),
     agent.createSession({ cwd: session.cwd, rlmMaxDepth: 2 }),
     agent.listSavedSessions(),
     agent.importSession(session.sessionPath),
@@ -167,7 +217,7 @@ test('parses every renderer operation before returning it to callers', async () 
   ]);
 
   assert.equal(results.every((result) => result.ok), true);
-  const branchResult = results[14];
+  const branchResult = results[16];
   assert.equal(branchResult?.ok, true);
   if (branchResult?.ok) {
     assert.deepEqual(branchResult.value.names, ['main', 'feature/calm']);
@@ -182,8 +232,10 @@ test('turns malformed responses and feed events into typed protocol failures', a
   let workspaceListener: (value: JsonValue) => void = () => undefined;
   let sessionListener: (value: JsonValue) => void = () => undefined;
   const transport = successfulTransport();
-  const clients = createAgentRendererClients({
+  const clients = createAgentRendererClients(configureTransport({
     ...transport,
+    describeAgentHarness: async () => ({ invalid: true }),
+    listAgentWorkspace: async () => ({ invalid: true }),
     listAgentModels: async () => ({ nope: true }),
     watchAgentWorkspace: (listener) => {
       workspaceListener = listener;
@@ -193,7 +245,7 @@ test('turns malformed responses and feed events into typed protocol failures', a
       sessionListener = listener;
       return 'session-feed';
     },
-  });
+  }));
   const workspaceResults: unknown[] = [];
   const sessionResults: unknown[] = [];
   clients.agent.watchWorkspace((result) => workspaceResults.push(result));
@@ -204,8 +256,12 @@ test('turns malformed responses and feed events into typed protocol failures', a
   workspaceListener({ invalid: true });
   sessionListener({ invalid: true });
   const modelResult = await clients.agent.listModels({ kind: 'draft' });
+  const harnessResult = await clients.agent.describeHarness();
+  const workspaceResult = await clients.agent.listWorkspace();
 
   assert.equal(modelResult.ok, false);
+  assert.equal(harnessResult.ok, false);
+  assert.equal(workspaceResult.ok, false);
   assert.equal(workspaceResults.length, 1);
   assert.equal(sessionResults.length, 1);
   assert.equal((workspaceResults[0] as { ok: boolean }).ok, false);
@@ -216,14 +272,14 @@ test('closes the exact subscription once and ignores late feed events', () => {
   const stopped: string[] = [];
   let listener: (value: JsonValue) => void = () => undefined;
   const transport = successfulTransport();
-  const clients = createAgentRendererClients({
+  const clients = createAgentRendererClients(configureTransport({
     ...transport,
     watchAgentWorkspace: (nextListener) => {
       listener = nextListener;
       return 'workspace-owned';
     },
     unwatchAgentWorkspace: (subscriptionId) => stopped.push(subscriptionId),
-  });
+  }));
   const results: unknown[] = [];
   const subscription = clients.agent.watchWorkspace((result) =>
     results.push(result)
@@ -241,11 +297,11 @@ test('closes the exact subscription once and ignores late feed events', () => {
 test('preserves transport rejection and directory cancellation', async () => {
   const transport = successfulTransport();
   const rejected = new Error('transport unavailable');
-  const clients = createAgentRendererClients({
+  const clients = createAgentRendererClients(configureTransport({
     ...transport,
     listAgentSavedSessions: async () => Promise.reject(rejected),
     chooseWorkspaceDirectory: async () => null,
-  });
+  }));
 
   await assert.rejects(clients.agent.listSavedSessions(), rejected);
   assert.deepEqual(await clients.localWorkspace.chooseDirectory(), {

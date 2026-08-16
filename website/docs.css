@@ -194,6 +194,7 @@
 .table-wrap { margin-block: 28px; overflow-x: auto; }
 .table-wrap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 .docs-content table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 0.88rem; }
+.table-wrap-wide table { min-width: 760px; }
 .docs-content th, .docs-content td { border-bottom: 1px solid var(--line); padding: 13px 14px; text-align: start; vertical-align: top; }
 .docs-content th { border-top: 1px solid var(--line-strong); color: var(--faint); font-weight: 560; }
 

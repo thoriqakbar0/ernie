@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    alt="Ernie — an interface that adapts to your work"
+    alt="Ernie — a macOS workspace for Prime Agent"
     src="docs/design/ernie-github-social.png"
     width="960"
   />
@@ -8,21 +8,21 @@
 
 # Ernie
 
-Ernie is a macOS desktop client and learning lab for Prime Agent. Prime Agent
-owns durable sessions and execution. Ernie gives that work a repository-aware
-desktop home.
+Ernie is an experimental macOS workspace for Prime Agent. It groups durable
+sessions with repositories and Git worktrees. Prime Agent—not Ernie—runs models
+and stores session history.
 
 The project stays intentionally small. Its purpose is to make agent-runtime
 boundaries visible enough to build, observe, and explain.
 
 ## What Ernie does
 
-- Keeps Prime Agent sessions attached to their repositories and Git worktrees.
+- Groups Prime Agent sessions with their repositories and Git worktrees.
 - Shows durable conversations, tool activity, queued work, and child Agents.
-- Preserves Prime Agent as the source of truth across window and client changes.
+- Reads and updates sessions through Prime Agent instead of storing a competing copy.
 - Hosts trusted built-in plugins, including the Browser plugin.
 - Tells each Prime Agent session that Ernie is its desktop host.
-- Lets people and hosted Agents use typed, local UI controls.
+- Exposes typed controls for window focus, light or dark theme, and sidebar state.
 
 Ernie does not implement its own model runtime. It connects its Electron main
 process to Prime Agent through a provider-owned daemon adapter.
@@ -31,9 +31,25 @@ process to Prime Agent through a provider-owned daemon adapter.
 renderer -> Electron IPC -> Ernie daemon -> Prime Agent adapter -> daemon socket
 ```
 
+## What Ernie can change
+
+- Adding or removing a repository changes Ernie's navigation, not files on disk.
+- Git actions can initialize a repository, switch or rename a local branch,
+  delete a merged local branch, and create or reuse a sibling worktree. These
+  actions call local Git and can change the checkout on disk.
+- Session controls send typed requests to Prime Agent. They can change the
+  session name, model, thinking level, RLM depth, and submitted tasks when Prime
+  Agent accepts the request.
+- The CLI and hosted `ernie_ui` tool can focus the window, select a light or dark
+  theme, and change sidebar visibility or width. They cannot read or change Git,
+  transcripts, or Prime Agent sessions.
+- Plugin settings apply only to trusted plugins bundled with Ernie. v0.1.0 does
+  not download or run third-party plugins.
+
 ## Run Ernie locally
 
-Development currently targets macOS and uses Nub `0.7.5` as its package runner.
+The v0.1.0 development path targets macOS and uses Nub `0.7.5` as its package
+runner.
 
 This checkout also uses a local Agentation dependency. Before installing,
 make sure its `file:` path in `package.json` points to your Agentation package.
@@ -95,6 +111,9 @@ shell-automation behavior.
 
 ## Project status
 
-Ernie is an experimental learning environment with an Apple silicon macOS
-prerelease. Compatibility can change while its harness and UI boundaries are
-still being studied.
+Ernie v0.1.0 is a public Apple silicon prerelease on GitHub. Its ZIP uses an
+ad-hoc signature and is not notarized by Apple, so macOS can block the first
+launch. The fixed desktop workspace works; task-specific interface composition
+remains a research direction.
+
+[Download Ernie v0.1.0 from GitHub Releases](https://github.com/thoriqakbar0/ernie/releases/tag/v0.1.0).

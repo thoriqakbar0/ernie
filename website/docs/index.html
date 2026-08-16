@@ -46,6 +46,7 @@
         <nav aria-label="Documentation sections">
           <a href="#start">start locally</a>
           <a href="#workspace">workspace model</a>
+          <a href="#changes">what changes</a>
           <a href="#architecture">architecture</a>
           <a href="#cli">CLI control</a>
           <a href="#plugins">plugins</a>
@@ -59,21 +60,21 @@
         <header class="docs-hero">
           <h1>documentation</h1>
           <p>
-            run Ernie, follow a task through the system, control the visible
-            interface, and understand what the first macOS release contains.
+            run Ernie, learn what v0.1.0 can change, follow a task through the
+            system, and understand what the first macOS release contains.
           </p>
           <div class="docs-status" aria-label="Release status">
             <strong>v0.1.0</strong>
             <span>Apple silicon</span>
-            <span>private alpha</span>
-            <span>ad-hoc signed</span>
+            <span>public prerelease</span>
+            <span>ad hoc, not notarized</span>
           </div>
         </header>
 
         <section id="start">
           <h2>start Ernie locally</h2>
           <p>
-            development currently targets macOS. the repository uses Nub
+            the v0.1.0 development path targets macOS. the repository uses Nub
             <code>0.7.5</code> for dependency installation, scripts, and Node.js
             execution.
           </p>
@@ -147,12 +148,70 @@ nub run dev</code></pre>
           </ol>
         </section>
 
+        <section id="changes">
+          <h2>know what Ernie can change</h2>
+          <p>
+            v0.1.0 has separate owners for interface state, local Git state, and
+            Prime Agent sessions. the control you use determines which owner can
+            accept and store the change.
+          </p>
+
+          <div
+            class="table-wrap table-wrap-wide"
+            role="region"
+            aria-label="Ernie change boundaries"
+            tabindex="0"
+          >
+            <table>
+              <thead>
+                <tr><th>control</th><th>what it changes</th><th>what it cannot change</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>repository list</td>
+                  <td>Ernie’s saved navigation and selected workspace</td>
+                  <td>repository files, Git history, or remotes</td>
+                </tr>
+                <tr>
+                  <td>local Git controls</td>
+                  <td>the repository on disk: initialize Git, switch or rename a local branch, delete a merged local branch, and create or reuse a sibling worktree</td>
+                  <td>remote branches; Ernie also refuses to rename or delete <code>main</code>, delete an unmerged branch, or remove a dirty worktree</td>
+                </tr>
+                <tr>
+                  <td>session controls</td>
+                  <td>Prime Agent state through its daemon: session name, model, thinking level, RLM depth, and submitted tasks</td>
+                  <td>the model runtime or a separate Ernie-owned session history</td>
+                </tr>
+                <tr>
+                  <td>UI CLI and <code>ernie_ui</code></td>
+                  <td>window focus, saved light or dark theme, sidebar visibility, and sidebar width</td>
+                  <td>repositories, Git, transcripts, or Prime Agent sessions</td>
+                </tr>
+                <tr>
+                  <td>plugin settings</td>
+                  <td>whether a trusted plugin bundled with Ernie is active</td>
+                  <td>downloading or running third-party plugin code</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout callout-warning">
+            <h3>local Git changes are real</h3>
+            <p>
+              adding or removing a repository from the sidebar changes only
+              Ernie’s navigation. branch and worktree actions call local Git and
+              can change the checkout on disk.
+            </p>
+          </div>
+        </section>
+
         <section id="architecture">
           <h2>follow a request through Ernie</h2>
           <p>
             Prime Agent owns execution and durable session truth. Ernie owns the
-            desktop shell, boundary parsing, navigation projection, and native
-            lifecycle.
+            desktop shell, boundary parsing, navigation projection, local Git
+            adapter, and native lifecycle.
           </p>
 
           <ol class="architecture-flow" aria-label="Ernie request path">
@@ -177,8 +236,9 @@ nub run dev</code></pre>
         <section id="cli">
           <h2>control the visible interface</h2>
           <p>
-            the local CLI changes visible Ernie state. it cannot read, create,
-            stop, or modify Prime Agent sessions.
+            the local CLI changes only window focus, saved theme, and sidebar
+            state. it cannot read or change repositories, Git, transcripts, or
+            Prime Agent sessions.
           </p>
 
           <h3>discover the current surface</h3>
@@ -226,8 +286,8 @@ nub run cli -- ui sidebar width 320</code></pre>
         <section id="plugins">
           <h2>work with built-in plugins</h2>
           <p>
-            Ernie’s versioned plugin host ships with Browser, React Grab, and
-            Agentation. current plugins are trusted built-in code.
+            in v0.1.0, Ernie bundles Browser, React Grab, and Agentation. these
+            plugins are trusted code shipped with the application.
           </p>
 
           <h3>activation and cleanup</h3>
@@ -259,9 +319,16 @@ nub run cli -- ui sidebar width 320</code></pre>
         <section id="release">
           <h2>build and release the mac app</h2>
           <p>
-            Ernie packages an Apple silicon <code>.app</code> inside a ZIP. the
-            archive contains the renderer, Electron main process, and installed
-            Prime Agent runtime dependencies.
+            the public v0.1.0 GitHub prerelease packages an Apple silicon
+            <code>.app</code> inside a ZIP. the archive contains the renderer,
+            Electron main process, and installed Prime Agent runtime
+            dependencies.
+          </p>
+
+          <p>
+            <a href="https://github.com/thoriqakbar0/ernie/releases/tag/v0.1.0">
+              download Ernie v0.1.0 and its checksum from GitHub Releases
+            </a>
           </p>
 
           <h3>build locally</h3>
@@ -270,7 +337,7 @@ nub run package:mac</code></pre>
           <p>
             the archive and its SHA-256 file appear in
             <code>.build/release/</code>. without a signing identity, the packager
-            uses ad-hoc signing for development and private testing.
+            uses ad-hoc signing for development and local testing.
           </p>
 
           <h3>publish from GitHub Actions</h3>
@@ -284,17 +351,18 @@ nub run package:mac</code></pre>
             and creates the GitHub release.
           </p>
 
-          <h3>identified distribution</h3>
+          <h3>standard macOS distribution</h3>
           <p>
-            a public download needs a Developer ID Application certificate and
-            App Store Connect API credentials. the complete credential set
-            enables hardened-runtime signing, notarization, ticket stapling, and
-            final archive creation.
+            the public prerelease uses an ad-hoc signature and is not notarized.
+            macOS can block its first launch. a standard release would need a
+            Developer ID Application certificate and App Store Connect API
+            credentials for hardened-runtime signing, notarization, and ticket
+            stapling. the project does not promise a date for that release.
           </p>
 
           <p>
             <a href="https://github.com/thoriqakbar0/ernie/releases/tag/v0.1.0">
-              view v0.1.0 release details (repository access required) ↗
+              view the public v0.1.0 release on GitHub ↗
             </a>
           </p>
         </section>
@@ -322,7 +390,7 @@ nub run package:mac</code></pre>
               <h3>macOS warns about the package</h3>
               <p>
                 an ad-hoc build is not an identified-developer download. use it
-                only for private testing, or configure the full signing and
+                for development or testing, or configure the full signing and
                 notarization path.
               </p>
             </article>
@@ -343,8 +411,11 @@ nub run package:mac</code></pre>
             <li>Ernie is not a model runtime; Prime Agent owns execution.</li>
             <li>the UI CLI is not a general session-control channel.</li>
             <li>the plugin host is not a sandbox for untrusted extensions.</li>
-            <li>v0.1.0 is not a notarized public macOS download.</li>
-            <li>the task-shaped interface remains an experiment.</li>
+            <li>v0.1.0 is public, but it is not notarized by Apple.</li>
+            <li>
+              v0.1.0 does not compose task-specific surfaces; jellyware remains
+              a research direction.
+            </li>
           </ul>
           <p>
             Ernie stays intentionally small. it is a learning lab for making

@@ -232,8 +232,9 @@ function testInTempDirectory(
   name: string,
   prefix: string,
   use: (cwd: string) => Effect.Effect<void, unknown>,
+  skip: boolean | string = false,
 ): void {
-  test(name, () =>
+  test(name, { skip }, () =>
     Effect.runPromise(
       Effect.acquireUseRelease(
         Effect.tryPromise(() => mkdtemp(join(tmpdir(), prefix))),
@@ -529,6 +530,9 @@ testInTempDirectory(
       );
     }).pipe(Effect.ensuring(shutdown));
   },
+  process.env.CI === 'true'
+    ? 'requires a locally configured Prime Agent model catalog'
+    : false,
 );
 
 test('keeps active or connected top-level daemon sessions', () => {

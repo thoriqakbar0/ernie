@@ -12,7 +12,6 @@ import {
 import type { DragEvent } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
 
-import type { ThreadConversation } from '@/components/thread-conversation';
 import { Button } from '@/components/trovecn/ui/button';
 import {
   ContextMenu,
@@ -28,12 +27,15 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from '@/components/trovecn/ui/menu';
-import type { PrimeAgentSessionActivity } from '@/packages/prime-agent-daemon/client';
+import type {
+  AgentConversation,
+  AgentConversationActivity,
+} from '@/packages/repository-navigation';
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
-interface ThreadRowProps {
+interface AgentConversationRowProps {
   readonly archived: boolean;
-  readonly activity: PrimeAgentSessionActivity;
+  readonly activity: AgentConversationActivity;
   readonly detail: string | null;
   readonly disabled: boolean;
   readonly dragging: boolean;
@@ -42,7 +44,7 @@ interface ThreadRowProps {
   readonly pinned: boolean;
   readonly selected: boolean;
   readonly thinkingOrbState: ThinkingOrbState;
-  readonly thread: ThreadConversation;
+  readonly conversation: AgentConversation;
   readonly onArchiveChange: (archived: boolean) => void;
   readonly onDragEnd: () => void;
   readonly onDragStart: (event: DragEvent<HTMLLIElement>) => void;
@@ -54,8 +56,8 @@ interface ThreadRowProps {
   readonly onRename: () => void;
 }
 
-/** Interactive Trove thread row with direct opening, whole-row drag, and actions. */
-export function ThreadRow({
+/** Interactive Agent conversation with direct opening, drag, and actions. */
+export function AgentConversationRow({
   archived,
   activity,
   detail,
@@ -66,7 +68,7 @@ export function ThreadRow({
   pinned,
   selected,
   thinkingOrbState,
-  thread,
+  conversation,
   onArchiveChange,
   onDragEnd,
   onDragStart,
@@ -76,7 +78,7 @@ export function ThreadRow({
   onMoveUp,
   onPinChange,
   onRename,
-}: ThreadRowProps): React.JSX.Element {
+}: AgentConversationRowProps): React.JSX.Element {
   const reorderable = !archived;
 
   const activityLabel = {
@@ -126,7 +128,7 @@ export function ThreadRow({
           <li
             draggable={reorderable}
             data-dragging={dragging}
-            className="group/thread relative flex min-w-0 items-center rounded-lg opacity-100 transition-opacity data-[dragging=true]:opacity-40"
+            className="group/conversation relative flex min-w-0 items-center rounded-lg opacity-100 transition-opacity data-[dragging=true]:opacity-40"
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             onDragOver={(event) => {
@@ -146,7 +148,7 @@ export function ThreadRow({
           data-sidebar-tree-row
           aria-current={selected ? 'page' : undefined}
           aria-description={activityLabel ?? undefined}
-          aria-label={thread.kind === 'saved' ? `${label}, saved session` : label}
+          aria-label={conversation.kind === 'saved' ? `${label}, saved session` : label}
           title={pinned && detail !== null ? `${label} · ${detail}` : label}
           className={`h-8 min-w-0 flex-1 justify-start rounded-md px-2 pe-14 text-start text-sidebar-foreground hover:bg-sidebar-accent/70 ${selected ? 'bg-sidebar-accent' : 'bg-transparent'} ${activity === 'working' ? 'font-medium' : 'font-normal'}`}
           onClick={onOpen}
@@ -169,7 +171,7 @@ export function ThreadRow({
                 size="icon-xs"
                 aria-label={`More actions for ${label}`}
                 title="More actions"
-                className={`absolute end-1 text-muted-foreground group-hover/thread:opacity-100 group-focus-within/thread:opacity-100 aria-expanded:opacity-100 ${selected ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute end-1 text-muted-foreground group-hover/conversation:opacity-100 group-focus-within/conversation:opacity-100 aria-expanded:opacity-100 ${selected ? 'opacity-100' : 'opacity-0'}`}
               />
             }
           >

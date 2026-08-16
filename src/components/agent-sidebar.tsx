@@ -15,6 +15,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -24,16 +25,12 @@ import {
 } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
 
-import { RenameThreadDialog } from '@/components/rename-thread-dialog';
+import { RenameAgentConversationDialog } from '@/components/rename-agent-conversation-dialog';
 import {
   RepositoryDialog,
   type RepositoryDialogTarget,
 } from '@/components/repository-dialog';
-import {
-  threadConversationId,
-  type ThreadConversation,
-} from '@/components/thread-conversation';
-import { ThreadRow } from '@/components/thread-row';
+import { AgentConversationRow } from '@/components/agent-conversation-row';
 import { Button } from '@/components/trovecn/ui/button';
 import {
   ContextMenu,
@@ -63,28 +60,17 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import type {
-  PrimeAgentFolderChoice,
-  PrimeAgentWorkspaceController,
-} from '@/hooks/use-prime-agent-workspace';
-import { useThreadManagement } from '@/hooks/use-thread-management';
-import type { PrimeAgentSessionActivity } from '@/packages/prime-agent-daemon/client';
+import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+import { useRepositoryNavigation } from '@/hooks/use-repository-navigation';
 import {
-  hasUnseenThreadActivity,
-  movePinnedThread,
-  moveRepositoryThread,
-  orderRepositoryPaths,
-  orderRepositoryThreadIds,
-  rememberRepositoryPaths,
-  setExpandedRepository,
-  setRepositoryHidden,
-  setRepositoryLabel,
-  setThreadArchived,
-  setThreadPinned,
-  setThreadViewedAt,
-  setWorkspaceArchived,
-  type ThreadManagementState,
-} from '@/packages/thread-management';
+  projectRepositoryNavigation,
+  transitionRepositoryNavigation,
+  type AgentConversation,
+  type RepositoryNavigationCommand,
+  type RepositoryNavigationRepository,
+  type RepositoryNavigationSource,
+  type RepositoryNavigationWorkspace,
+} from '@/packages/repository-navigation';
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 type AgentSidebarProps = Pick<
@@ -110,27 +96,13 @@ type AgentSidebarProps = Pick<
   readonly thinkingOrbState: ThinkingOrbState;
 };
 
-interface WorkspaceGroup {
-  readonly folder: PrimeAgentFolderChoice;
-  readonly conversations: readonly ThreadConversation[];
-}
+type WorkspaceGroup = RepositoryNavigationWorkspace;
+type RepositoryGroup = RepositoryNavigationRepository;
 
-interface RepositoryGroup {
-  readonly folder: PrimeAgentFolderChoice;
-  readonly workspaces: readonly WorkspaceGroup[];
-  readonly conversations: readonly ThreadConversation[];
-}
-
-interface DraggedThread {
+interface DraggedConversation {
   readonly cwd: string;
   readonly id: string;
   readonly pinned: boolean;
-}
-
-interface LocatedConversation {
-  readonly conversation: ThreadConversation;
-  readonly repository: RepositoryGroup;
-  readonly workspace: WorkspaceGroup;
 }
 
 interface ArchiveUndo {
@@ -139,33 +111,7 @@ interface ArchiveUndo {
   readonly wasPinned: boolean;
 }
 
-type SearchResult =
-  | Readonly<{
-      breadcrumb: string;
-      key: string;
-      kind: 'repository';
-      label: string;
-      repositoryPath: string;
-    }>
-  | Readonly<{
-      breadcrumb: string;
-      key: string;
-      kind: 'worktree';
-      label: string;
-      repositoryPath: string;
-      workspacePath: string;
-    }>
-  | Readonly<{
-      breadcrumb: string;
-      conversation: ThreadConversation;
-      key: string;
-      kind: 'Agent';
-      label: string;
-      repositoryPath: string;
-    }>;
-
 const recentSettledLimit = 3;
-const collapsedPinLimit = 5;
 const collapsedWorktreeLimit = 5;
 const branchColorClasses = [
   'text-blue-700 dark:text-blue-300',
@@ -184,8 +130,12 @@ function branchColorClass(branchName: string): string {
   return branchColorClasses[hash % branchColorClasses.length]!;
 }
 
-function conversationFallbackIdentity(cwd: string, name: string): string {
-  return `${cwd}\u0000${name}`;
+function agentConversationId(conversation: AgentConversation): string {
+  return conversation.id;
+}
+
+function conversationActivity(conversation: AgentConversation) {
+  return conversation.activity;
 }
 
 function sessionAge(modifiedAt: string | null): string | null {
@@ -204,43 +154,6 @@ function sessionAge(modifiedAt: string | null): string | null {
 
   const elapsedDays = Math.floor(elapsedHours / 24);
   return elapsedDays < 7 ? `${elapsedDays}d` : null;
-}
-
-function rawConversationActivity(
-  conversation: ThreadConversation,
-): PrimeAgentSessionActivity {
-  return conversation.session.activity;
-}
-
-function conversationActivity(
-  conversation: ThreadConversation,
-  connected: boolean,
-  management: ThreadManagementState,
-): PrimeAgentSessionActivity {
-  const activity = rawConversationActivity(conversation);
-  if (!connected && activity !== 'settled') return 'idle';
-  if (activity === 'working' || activity === 'queued') return activity;
-  if (conversation.session.modifiedAt === null) return activity;
-  if (
-    hasUnseenThreadActivity(
-      management,
-      threadConversationId(conversation),
-      conversation.session.modifiedAt,
-    )
-  ) {
-    return 'needs_input';
-  }
-  return 'settled';
-}
-
-function activityOrder(activity: PrimeAgentSessionActivity): number {
-  return {
-    working: 0,
-    needs_input: 1,
-    queued: 2,
-    idle: 3,
-    settled: 4,
-  }[activity];
 }
 
 function ActivitySummary({
@@ -293,7 +206,7 @@ function ActivitySummary({
   );
 }
 
-function modifiedTime(conversation: ThreadConversation): number {
+function modifiedTime(conversation: AgentConversation): number {
   const value = conversation.session.modifiedAt;
   if (value === null) return 0;
   const parsed = Date.parse(value);
@@ -337,13 +250,13 @@ export function AgentSidebar({
   settingsOpen,
   thinkingOrbState,
 }: AgentSidebarProps): React.JSX.Element {
-  const [renameTarget, setRenameTarget] = useState<ThreadConversation | null>(
+  const [renameTarget, setRenameTarget] = useState<AgentConversation | null>(
     null,
   );
   const [repositoryDialog, setRepositoryDialog] =
     useState<RepositoryDialogTarget | null>(null);
   const [connectionDetailsOpen, setConnectionDetailsOpen] = useState(false);
-  const [draggedThread, setDraggedThread] = useState<DraggedThread | null>(null);
+  const [draggedConversation, setDraggedConversation] = useState<DraggedConversation | null>(null);
   const [archiveUndo, setArchiveUndo] = useState<ArchiveUndo | null>(null);
   const [archiveExpanded, setArchiveExpanded] = useState(false);
   const [pinsExpanded, setPinsExpanded] = useState(false);
@@ -359,53 +272,86 @@ export function AgentSidebar({
   const [revealedWorkspaceCwd, setRevealedWorkspaceCwd] = useState<string | null>(
     null,
   );
-  const [management, setManagement] = useThreadManagement();
+  const [navigationPreferences, setNavigationPreferences] = useRepositoryNavigation();
   const navigationRef = useRef<HTMLDivElement>(null);
   const initializedDisclosure = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const connected = primeAgentConnection === 'ready';
-  const archivedThreadIds = useMemo(
-    () => new Set(management.archivedThreadIds),
-    [management.archivedThreadIds],
+  const navigationSource = useMemo<RepositoryNavigationSource>(
+    () => ({
+      connected,
+      folders,
+      importingSessionPath,
+      liveSessions: sessions,
+      savedSessions,
+      selectedSessionId,
+    }),
+    [
+      connected,
+      folders,
+      importingSessionPath,
+      savedSessions,
+      selectedSessionId,
+      sessions,
+    ],
+  );
+  const navigation = useMemo(
+    () =>
+      projectRepositoryNavigation(navigationSource, navigationPreferences, {
+        pinsExpanded,
+        searchQuery,
+      }),
+    [navigationPreferences, navigationSource, pinsExpanded, searchQuery],
+  );
+  const applyNavigationCommand = useCallback(
+    (command: RepositoryNavigationCommand): void => {
+      setNavigationPreferences((current) =>
+        transitionRepositoryNavigation(current, navigationSource, command),
+      );
+    },
+    [navigationSource, setNavigationPreferences],
+  );
+  const {
+    archivedConversations,
+    archivedWorkspaces,
+    hiddenPinCount,
+    pinnedConversations,
+    repositories,
+    searchResults,
+    selectedConversationId,
+    visiblePinnedConversations,
+    visibleRepositories,
+  } = navigation;
+  const archivedConversationIds = useMemo(
+    () => new Set(navigationPreferences.archivedConversationIds),
+    [navigationPreferences.archivedConversationIds],
   );
   const archivedWorkspacePaths = useMemo(
-    () => new Set(management.archivedWorkspacePaths),
-    [management.archivedWorkspacePaths],
+    () => new Set(navigationPreferences.archivedWorkspacePaths),
+    [navigationPreferences.archivedWorkspacePaths],
   );
-  const hiddenRepositoryPaths = useMemo(
-    () => new Set(management.hiddenRepositoryPaths),
-    [management.hiddenRepositoryPaths],
-  );
-  const pinnedThreadIds = useMemo(
-    () => new Set(management.pinnedThreadIds),
-    [management.pinnedThreadIds],
+  const pinnedConversationIds = useMemo(
+    () => new Set(navigationPreferences.pinnedConversationIds),
+    [navigationPreferences.pinnedConversationIds],
   );
   const selectedLiveSession = sessions.find(
     (session) => session.activeSessionId === selectedSessionId,
   );
-  const selectedThreadId = importingSessionPath !== null
-    ? `session:${importingSessionPath}`
-    : selectedLiveSession === undefined
-      ? null
-      : threadConversationId({ kind: 'live', session: selectedLiveSession });
 
   useEffect(() => {
     if (
-      selectedThreadId === null ||
+      selectedConversationId === null ||
       selectedLiveSession === undefined ||
       selectedLiveSession.modifiedAt === null
     ) {
       return;
     }
-    const viewedAt = selectedLiveSession.modifiedAt;
-    setManagement((current) =>
-      setThreadViewedAt(
-        current,
-        selectedThreadId,
-        viewedAt,
-      ),
-    );
-  }, [selectedLiveSession?.modifiedAt, selectedThreadId, setManagement]);
+    applyNavigationCommand({
+      type: 'mark-viewed',
+      conversationId: selectedConversationId,
+      viewedAt: selectedLiveSession.modifiedAt,
+    });
+  }, [applyNavigationCommand, selectedLiveSession?.modifiedAt, selectedConversationId]);
 
   useEffect(() => {
     const openSearch = (event: globalThis.KeyboardEvent): void => {
@@ -421,120 +367,8 @@ export function AgentSidebar({
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
 
-  const workspaceGroups = useMemo<readonly WorkspaceGroup[]>(
-    () =>
-      folders.map((folder) => {
-        const liveSessions = sessions.filter(
-          (session) => session.cwd === folder.value,
-        );
-        const livePaths = new Set(
-          liveSessions.flatMap((session) =>
-            session.sessionPath === null ? [] : [session.sessionPath],
-          ),
-        );
-        const pathlessLiveIdentities = new Set(
-          liveSessions.flatMap((session) =>
-            session.sessionPath === null
-              ? [conversationFallbackIdentity(session.cwd, session.name)]
-              : [],
-          ),
-        );
-        const unordered: readonly ThreadConversation[] = [
-          ...liveSessions.map(
-            (session): ThreadConversation => ({ kind: 'live', session }),
-          ),
-          ...savedSessions
-            .filter(
-              (session) =>
-                session.cwd === folder.value &&
-                !livePaths.has(session.path) &&
-                !pathlessLiveIdentities.has(
-                  conversationFallbackIdentity(session.cwd, session.name),
-                ),
-            )
-            .map(
-              (session): ThreadConversation => ({ kind: 'saved', session }),
-            ),
-        ];
-        const byId = new Map(
-          unordered.map((conversation) => [
-            threadConversationId(conversation),
-            conversation,
-          ]),
-        );
-        const orderedIds = orderRepositoryThreadIds(
-          management,
-          folder.value,
-          [...byId.keys()],
-        );
-        return {
-          folder,
-          conversations: orderedIds.flatMap((id) => {
-            const conversation = byId.get(id);
-            return conversation === undefined ? [] : [conversation];
-          }),
-        };
-      }),
-    [folders, management, savedSessions, sessions],
-  );
-
-  const repositories = useMemo<readonly RepositoryGroup[]>(() => {
-    const grouped = new Map<string, WorkspaceGroup[]>();
-    for (const workspaceGroup of workspaceGroups) {
-      const current = grouped.get(workspaceGroup.folder.repositoryCwd) ?? [];
-      grouped.set(workspaceGroup.folder.repositoryCwd, [
-        ...current,
-        workspaceGroup,
-      ]);
-    }
-
-    const unordered = [...grouped.entries()].map(([repositoryCwd, workspaces]) => {
-      const rootWorkspace = workspaces.find(
-        (workspaceGroup) => workspaceGroup.folder.value === repositoryCwd,
-      );
-      const fallbackLabel =
-        repositoryCwd.split(/[\\/]/u).filter(Boolean).at(-1) ?? repositoryCwd;
-      const baseFolder =
-        rootWorkspace?.folder ??
-        ({
-          branchName: null,
-          label: fallbackLabel,
-          repositoryCwd,
-          value: repositoryCwd,
-        } satisfies PrimeAgentFolderChoice);
-      const folder = {
-        ...baseFolder,
-        label: management.repositoryLabels[repositoryCwd] ?? baseFolder.label,
-      };
-      const orderedWorkspaces = [...workspaces].sort((left, right) => {
-        if (left.folder.value === repositoryCwd) return -1;
-        if (right.folder.value === repositoryCwd) return 1;
-        return (left.folder.branchName ?? left.folder.label).localeCompare(
-          right.folder.branchName ?? right.folder.label,
-        );
-      });
-      return {
-        folder,
-        workspaces: orderedWorkspaces,
-        conversations: orderedWorkspaces.flatMap(
-          (workspaceGroup) => workspaceGroup.conversations,
-        ),
-      };
-    });
-    const byPath = new Map(
-      unordered.map((repository) => [repository.folder.value, repository]),
-    );
-    return orderRepositoryPaths(
-      management,
-      unordered.map((repository) => repository.folder.value),
-    ).flatMap((path) => {
-      const repository = byPath.get(path);
-      return repository === undefined ? [] : [repository];
-    });
-  }, [management, workspaceGroups]);
-
   useEffect(() => {
-    const openAllThreads = (event: globalThis.KeyboardEvent): void => {
+    const openAllConversations = (event: globalThis.KeyboardEvent): void => {
       if (
         event.key.toLowerCase() !== 'o' ||
         !event.ctrlKey ||
@@ -552,40 +386,29 @@ export function AgentSidebar({
       setSettledExpandedPaths(new Set(repositoryPaths));
       setWorktreesExpandedPaths(new Set(repositoryPaths));
     };
-    window.addEventListener('keydown', openAllThreads);
-    return () => window.removeEventListener('keydown', openAllThreads);
+    window.addEventListener('keydown', openAllConversations);
+    return () => window.removeEventListener('keydown', openAllConversations);
   }, [repositories]);
 
   useEffect(() => {
-    setManagement((current) =>
-      rememberRepositoryPaths(
-        current,
-        repositories.map((repository) => repository.folder.value),
-      ),
-    );
-  }, [repositories, setManagement]);
-
-  const visibleRepositories = repositories.filter(
-    (repository) => !hiddenRepositoryPaths.has(repository.folder.value),
-  );
+    applyNavigationCommand({ type: 'remember-repositories' });
+  }, [applyNavigationCommand, repositories]);
 
   useEffect(() => {
     if (pendingAddedCwd === null) return;
     const repository = repositoryForCwd(repositories, pendingAddedCwd);
     if (repository === null) return;
-    setManagement((current) =>
-      setExpandedRepository(
-        {
-          ...current,
-          hiddenRepositoryPaths: current.hiddenRepositoryPaths.filter(
-            (path) => path !== repository.folder.value,
-          ),
-        },
-        repository.folder.value,
-      ),
-    );
+    applyNavigationCommand({
+      type: 'set-repository-hidden',
+      repositoryPath: repository.folder.value,
+      hidden: false,
+    });
+    applyNavigationCommand({
+      type: 'set-expanded-repository',
+      repositoryPath: repository.folder.value,
+    });
     setPendingAddedCwd(null);
-  }, [pendingAddedCwd, repositories, setManagement]);
+  }, [applyNavigationCommand, pendingAddedCwd, repositories]);
 
   const addRepository = (): void => {
     void addWorkspaceDirectory().then((cwd) => {
@@ -605,155 +428,20 @@ export function AgentSidebar({
   useEffect(() => {
     if (initializedDisclosure.current || visibleRepositories.length === 0) return;
     initializedDisclosure.current = true;
-    if (management.expandedRepositoryPath !== null) return;
+    if (navigationPreferences.expandedRepositoryPath !== null) return;
     const selectedRepository = repositoryForCwd(visibleRepositories, selectedCwd);
-    setManagement((current) =>
-      setExpandedRepository(
-        current,
+    applyNavigationCommand({
+      type: 'set-expanded-repository',
+      repositoryPath:
         selectedRepository?.folder.value ??
-          visibleRepositories[0]?.folder.value ??
-          null,
-      ),
-    );
-  }, [management.expandedRepositoryPath, selectedCwd, setManagement, visibleRepositories]);
-
-  const locatedConversations = useMemo(() => {
-    const located = new Map<string, LocatedConversation>();
-    for (const repository of repositories) {
-      for (const workspace of repository.workspaces) {
-        for (const conversation of workspace.conversations) {
-          located.set(threadConversationId(conversation), {
-            conversation,
-            repository,
-            workspace,
-          });
-        }
-      }
-    }
-    return located;
-  }, [repositories]);
-
-  const pinnedConversations = management.pinnedThreadIds.flatMap(
-    (threadId): readonly LocatedConversation[] => {
-      const located = locatedConversations.get(threadId);
-      return located === undefined ||
-        archivedThreadIds.has(threadId) ||
-        archivedWorkspacePaths.has(located.workspace.folder.value)
-        ? []
-        : [located];
-    },
-  );
-  const visiblePinnedConversations = pinsExpanded
-    ? pinnedConversations
-    : pinnedConversations.slice(0, collapsedPinLimit);
-  const hiddenPinCount = Math.max(
-    0,
-    pinnedConversations.length - collapsedPinLimit,
-  );
-  const archivedConversations = management.archivedThreadIds.flatMap(
-    (threadId): readonly LocatedConversation[] => {
-      const located = locatedConversations.get(threadId);
-      return located === undefined ||
-        archivedWorkspacePaths.has(located.workspace.folder.value)
-        ? []
-        : [located];
-    },
-  );
-  const archivedWorkspaces = repositories.flatMap((repository) =>
-    repository.workspaces.flatMap((workspace) =>
-      workspace.folder.value !== repository.folder.value &&
-      archivedWorkspacePaths.has(workspace.folder.value)
-        ? [{ repository, workspace }]
-        : [],
-    ),
-  );
-
-  const searchResults = useMemo<readonly SearchResult[]>(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
-    if (query.length === 0) return [];
-
-    const results: SearchResult[] = [];
-    for (const repository of repositories) {
-      const repositoryHidden = hiddenRepositoryPaths.has(repository.folder.value);
-      if (!repositoryHidden) {
-        results.push({
-          breadcrumb: repository.folder.value,
-          key: `repository:${repository.folder.value}`,
-          kind: 'repository',
-          label: repository.folder.label,
-          repositoryPath: repository.folder.value,
-        });
-        for (const workspace of repository.workspaces) {
-          if (workspace.folder.value === repository.folder.value) continue;
-          if (archivedWorkspacePaths.has(workspace.folder.value)) continue;
-          results.push({
-            breadcrumb: repository.folder.label,
-            key: `worktree:${workspace.folder.value}`,
-            kind: 'worktree',
-            label: workspace.folder.branchName ?? workspace.folder.label,
-            repositoryPath: repository.folder.value,
-            workspacePath: workspace.folder.value,
-          });
-        }
-      }
-
-      for (const workspace of repository.workspaces) {
-        if (archivedWorkspacePaths.has(workspace.folder.value)) continue;
-        for (const conversation of workspace.conversations) {
-          const id = threadConversationId(conversation);
-          if (
-            archivedThreadIds.has(id) ||
-            (repositoryHidden && !pinnedThreadIds.has(id))
-          ) {
-            continue;
-          }
-          results.push({
-            breadcrumb:
-              workspace.folder.value === repository.folder.value
-                ? repository.folder.label
-                : `${repository.folder.label} · ${workspace.folder.branchName ?? workspace.folder.label}`,
-            conversation,
-            key: `Agent:${id}`,
-            kind: 'Agent',
-            label: conversation.session.name,
-            repositoryPath: repository.folder.value,
-          });
-        }
-      }
-    }
-
-    return results
-      .filter((result) =>
-        `${result.label} ${result.breadcrumb}`.toLocaleLowerCase().includes(query),
-      )
-      .sort((left, right) => {
-        const exactDifference =
-          Number(right.label.toLocaleLowerCase() === query) -
-          Number(left.label.toLocaleLowerCase() === query);
-        if (exactDifference !== 0) return exactDifference;
-        if (left.kind === 'Agent' && right.kind === 'Agent') {
-          const statusDifference =
-            activityOrder(
-              conversationActivity(left.conversation, connected, management),
-            ) -
-            activityOrder(
-              conversationActivity(right.conversation, connected, management),
-            );
-          if (statusDifference !== 0) return statusDifference;
-          return modifiedTime(right.conversation) - modifiedTime(left.conversation);
-        }
-        if (left.kind === 'Agent') return -1;
-        if (right.kind === 'Agent') return 1;
-        return left.label.localeCompare(right.label);
-      });
+        visibleRepositories[0]?.folder.value ??
+        null,
+    });
   }, [
-    archivedThreadIds,
-    archivedWorkspacePaths,
-    connected,
-    hiddenRepositoryPaths,
-    pinnedThreadIds,
-    repositories,
-    searchQuery,
+    applyNavigationCommand,
+    navigationPreferences.expandedRepositoryPath,
+    selectedCwd,
+    visibleRepositories,
   ]);
 
   const clearSearch = (): void => {
@@ -761,7 +449,7 @@ export function AgentSidebar({
     setSearchOpen(false);
   };
 
-  const openThread = (conversation: ThreadConversation): void => {
+  const openConversation = (conversation: AgentConversation): void => {
     if (conversation.kind === 'live') {
       selectSession(conversation.session.activeSessionId);
     } else {
@@ -769,104 +457,111 @@ export function AgentSidebar({
     }
   };
 
-  const moveThread = (
+  const moveConversation = (
     cwd: string,
-    conversations: readonly ThreadConversation[],
     sourceId: string,
     targetId: string,
   ): void => {
-    setManagement((current) =>
-      moveRepositoryThread(
-        current,
-        cwd,
-        conversations.map(threadConversationId),
-        sourceId,
-        targetId,
-      ),
-    );
+    applyNavigationCommand({
+      type: 'move-conversation',
+      workspacePath: cwd,
+      sourceConversationId: sourceId,
+      targetConversationId: targetId,
+    });
   };
 
-  const renderThread = (
-    conversation: ThreadConversation,
+  const renderConversation = (
+    conversation: AgentConversation,
     workspace: WorkspaceGroup,
     pinned: boolean,
     detail: string | null,
-    visibleConversations: readonly ThreadConversation[],
+    visibleConversations: readonly AgentConversation[],
     archived = false,
   ): React.JSX.Element => {
-    const id = threadConversationId(conversation);
+    const id = agentConversationId(conversation);
     const importing =
       conversation.kind === 'saved' &&
       importingSessionPath === conversation.session.path;
-    const activity = conversationActivity(conversation, connected, management);
+    const activity = conversationActivity(conversation);
     const label = conversation.session.name;
     const conversationIndex = visibleConversations.findIndex(
-      (candidate) => threadConversationId(candidate) === id,
+      (candidate) => agentConversationId(candidate) === id,
     );
     const moveToIndex = (targetIndex: number): void => {
       const target = visibleConversations[targetIndex];
       if (target === undefined) return;
-      const targetId = threadConversationId(target);
+      const targetId = agentConversationId(target);
       if (pinned) {
-        setManagement((current) => movePinnedThread(current, id, targetId));
+        applyNavigationCommand({
+          type: 'move-pinned-conversation',
+          sourceConversationId: id,
+          targetConversationId: targetId,
+        });
       } else {
-        moveThread(workspace.folder.value, visibleConversations, id, targetId);
+        moveConversation(workspace.folder.value, id, targetId);
       }
     };
 
     return (
-      <ThreadRow
+      <AgentConversationRow
         key={id}
         activity={activity}
         archived={archived}
         detail={detail}
         disabled={importingSessionPath !== null}
-        dragging={draggedThread?.id === id}
+        dragging={draggedConversation?.id === id}
         importing={importing}
         label={label}
         pinned={pinned}
-        selected={id === selectedThreadId}
+        selected={id === selectedConversationId}
         thinkingOrbState={thinkingOrbState}
-        thread={conversation}
+        conversation={conversation}
         onArchiveChange={(archived) => {
           if (archived) {
             setArchiveUndo({ id, name: conversation.session.name, wasPinned: pinned });
-            setManagement((current) =>
-              setThreadArchived(setThreadPinned(current, id, false), id, true),
-            );
+            applyNavigationCommand({
+              type: 'set-conversation-archived',
+              conversationId: id,
+              archived: true,
+            });
           } else {
-            setManagement((current) => setThreadArchived(current, id, false));
+            applyNavigationCommand({
+              type: 'set-conversation-archived',
+              conversationId: id,
+              archived: false,
+            });
             if (archiveUndo?.id === id) setArchiveUndo(null);
           }
         }}
-        onDragEnd={() => setDraggedThread(null)}
+        onDragEnd={() => setDraggedConversation(null)}
         onDragStart={(event: DragEvent<HTMLLIElement>) => {
           event.dataTransfer.effectAllowed = 'move';
           event.dataTransfer.setData('text/plain', id);
-          setDraggedThread({ cwd: workspace.folder.value, id, pinned });
+          setDraggedConversation({ cwd: workspace.folder.value, id, pinned });
         }}
         onDrop={(event: DragEvent<HTMLLIElement>) => {
           event.preventDefault();
-          if (draggedThread === null) return;
-          if (pinned && draggedThread.pinned) {
-            setManagement((current) =>
-              movePinnedThread(current, draggedThread.id, id),
-            );
+          if (draggedConversation === null) return;
+          if (pinned && draggedConversation.pinned) {
+            applyNavigationCommand({
+              type: 'move-pinned-conversation',
+              sourceConversationId: draggedConversation.id,
+              targetConversationId: id,
+            });
           } else if (
             !pinned &&
-            !draggedThread.pinned &&
-            draggedThread.cwd === workspace.folder.value
+            !draggedConversation.pinned &&
+            draggedConversation.cwd === workspace.folder.value
           ) {
-            moveThread(
+            moveConversation(
               workspace.folder.value,
-              visibleConversations,
-              draggedThread.id,
+              draggedConversation.id,
               id,
             );
           }
-          setDraggedThread(null);
+          setDraggedConversation(null);
         }}
-        onOpen={() => openThread(conversation)}
+        onOpen={() => openConversation(conversation)}
         onMoveDown={
           archived || conversationIndex < 0 || conversationIndex >= visibleConversations.length - 1
             ? undefined
@@ -878,7 +573,11 @@ export function AgentSidebar({
             : () => moveToIndex(conversationIndex - 1)
         }
         onPinChange={(nextPinned) =>
-          setManagement((current) => setThreadPinned(current, id, nextPinned))
+          applyNavigationCommand({
+            type: 'set-conversation-pinned',
+            conversationId: id,
+            pinned: nextPinned,
+          })
         }
         onRename={() => setRenameTarget(conversation)}
       />
@@ -943,22 +642,24 @@ export function AgentSidebar({
           </div>
         ) : null}
 
-        {pinnedConversations.length > 0 || draggedThread !== null ? (
+        {pinnedConversations.length > 0 || draggedConversation !== null ? (
           <section
             aria-label="Pinned tasks"
             className="mb-1 pb-1"
             onDragOver={(event) => {
-              if (draggedThread === null || draggedThread.pinned) return;
+              if (draggedConversation === null || draggedConversation.pinned) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = 'move';
             }}
             onDrop={(event) => {
               event.preventDefault();
-              if (draggedThread === null || draggedThread.pinned) return;
-              setManagement((current) =>
-                setThreadPinned(current, draggedThread.id, true),
-              );
-              setDraggedThread(null);
+              if (draggedConversation === null || draggedConversation.pinned) return;
+              applyNavigationCommand({
+                type: 'set-conversation-pinned',
+                conversationId: draggedConversation.id,
+                pinned: true,
+              });
+              setDraggedConversation(null);
             }}
           >
             <div className="flex h-7 items-center px-2">
@@ -969,7 +670,7 @@ export function AgentSidebar({
             <ul className="flex flex-col gap-0.5">
               {visiblePinnedConversations.map(
                 ({ conversation, repository, workspace }) =>
-                  renderThread(
+                  renderConversation(
                     conversation,
                     workspace,
                     true,
@@ -1039,11 +740,12 @@ export function AgentSidebar({
                           className="h-10 w-full min-w-0 justify-start px-2 text-left font-normal"
                           onClick={() => {
                             if (result.kind === 'Agent') {
-                              openThread(result.conversation);
+                              openConversation(result.conversation);
                             } else {
-                              setManagement((current) =>
-                                setExpandedRepository(current, result.repositoryPath),
-                              );
+                              applyNavigationCommand({
+                                type: 'set-expanded-repository',
+                                repositoryPath: result.repositoryPath,
+                              });
                               setRevealedWorkspaceCwd(
                                 result.kind === 'worktree'
                                   ? result.workspacePath
@@ -1079,9 +781,9 @@ export function AgentSidebar({
                   {visibleRepositories.map((repository, index) => {
                     const { folder } = repository;
                     const expanded =
-                      management.expandedRepositoryPath === folder.value;
+                      navigationPreferences.expandedRepositoryPath === folder.value;
                     const repositoryActive =
-                      selectedThreadId === null && selectedCwd === folder.value;
+                      selectedConversationId === null && selectedCwd === folder.value;
                     const repositoryActiveClass = repositoryActive
                       ? 'bg-sidebar-accent/60 aria-expanded:bg-sidebar-accent/60'
                       : 'aria-expanded:bg-transparent';
@@ -1097,37 +799,25 @@ export function AgentSidebar({
                       .flatMap((workspace) => workspace.conversations)
                       .filter(
                         (conversation) =>
-                          !archivedThreadIds.has(
-                            threadConversationId(conversation),
+                          !archivedConversationIds.has(
+                            agentConversationId(conversation),
                           ),
                       );
                     const workingCount = unarchived.filter(
                       (conversation) =>
-                        conversationActivity(
-                          conversation,
-                          connected,
-                          management,
-                        ) ===
+                        conversationActivity(conversation) ===
                         'working',
                     ).length;
                     const needsInputCount = unarchived.filter(
                       (conversation) =>
-                        conversationActivity(
-                          conversation,
-                          connected,
-                          management,
-                        ) ===
+                        conversationActivity(conversation) ===
                         'needs_input',
                     ).length;
                     const settled = unarchived
                       .filter(
                         (conversation) =>
-                          !pinnedThreadIds.has(threadConversationId(conversation)) &&
-                          conversationActivity(
-                            conversation,
-                            connected,
-                            management,
-                          ) ===
+                          !pinnedConversationIds.has(agentConversationId(conversation)) &&
+                          conversationActivity(conversation) ===
                           'settled',
                       )
                       .sort((left, right) => modifiedTime(right) - modifiedTime(left));
@@ -1135,15 +825,15 @@ export function AgentSidebar({
                     const settledExpanded = settledExpandedPaths.has(folder.value);
                     const visibleSettledIds = new Set(
                       (settledExpanded ? settled : recentSettled).map(
-                        threadConversationId,
+                        agentConversationId,
                       ),
                     );
                     const selectedSettled = settled.find(
                       (conversation) =>
-                        threadConversationId(conversation) === selectedThreadId,
+                        agentConversationId(conversation) === selectedConversationId,
                     );
                     if (selectedSettled !== undefined) {
-                      visibleSettledIds.add(threadConversationId(selectedSettled));
+                      visibleSettledIds.add(agentConversationId(selectedSettled));
                     }
                     const hiddenSettledCount = Math.max(
                       0,
@@ -1151,19 +841,15 @@ export function AgentSidebar({
                     );
                     const conversationsFor = (workspace: WorkspaceGroup) =>
                       workspace.conversations.filter((conversation) => {
-                        const id = threadConversationId(conversation);
+                        const id = agentConversationId(conversation);
                         if (
-                          archivedThreadIds.has(id) ||
-                          pinnedThreadIds.has(id)
+                          archivedConversationIds.has(id) ||
+                          pinnedConversationIds.has(id)
                         ) {
                           return false;
                         }
                         return (
-                          conversationActivity(
-                            conversation,
-                            connected,
-                            management,
-                          ) !==
+                          conversationActivity(conversation) !==
                             'settled' || visibleSettledIds.has(id)
                         );
                       });
@@ -1181,11 +867,7 @@ export function AgentSidebar({
                         const alwaysVisible =
                           selectedOrRevealed ||
                           visibleConversations.some((conversation) => {
-                            const activity = conversationActivity(
-                              conversation,
-                              connected,
-                              management,
-                            );
+                            const activity = conversationActivity(conversation);
                             return (
                               activity === 'working' ||
                               activity === 'needs_input' ||
@@ -1247,12 +929,10 @@ export function AgentSidebar({
                                   onClick={() => {
                                     setRevealedWorkspaceCwd(null);
                                     changeFolder(folder.value);
-                                    setManagement((current) =>
-                                      setExpandedRepository(
-                                        current,
-                                        expanded ? null : folder.value,
-                                      ),
-                                    );
+                                    applyNavigationCommand({
+                                      type: 'set-expanded-repository',
+                                      repositoryPath: expanded ? null : folder.value,
+                                    });
                                   }}
                                 />
                               }
@@ -1323,8 +1003,8 @@ export function AgentSidebar({
                           data-expanded={expanded}
                           onDragOver={(event) => {
                             if (
-                              draggedThread?.pinned !== true ||
-                              draggedThread.cwd !== folder.value
+                              draggedConversation?.pinned !== true ||
+                              draggedConversation.cwd !== folder.value
                             ) {
                               return;
                             }
@@ -1333,23 +1013,25 @@ export function AgentSidebar({
                           }}
                           onDrop={(event) => {
                             if (
-                              draggedThread?.pinned !== true ||
-                              draggedThread.cwd !== folder.value
+                              draggedConversation?.pinned !== true ||
+                              draggedConversation.cwd !== folder.value
                             ) {
                               return;
                             }
                             event.preventDefault();
-                            setManagement((current) =>
-                              setThreadPinned(current, draggedThread.id, false),
-                            );
-                            setDraggedThread(null);
+                            applyNavigationCommand({
+                              type: 'set-conversation-pinned',
+                              conversationId: draggedConversation.id,
+                              pinned: false,
+                            });
+                            setDraggedConversation(null);
                           }}
                         >
                           <ul className="mt-0.5 ml-4 flex min-h-0 flex-col gap-0.5 overflow-hidden">
                             {rootWorkspace === undefined
                               ? null
                               : conversationsFor(rootWorkspace).map((conversation) =>
-                                  renderThread(
+                                  renderConversation(
                                     conversation,
                                     rootWorkspace,
                                     false,
@@ -1362,30 +1044,22 @@ export function AgentSidebar({
                                 const workspaceLabel =
                                   workspace.folder.branchName ?? workspace.folder.label;
                                 const worktreeActive =
-                                  selectedThreadId === null &&
+                                  selectedConversationId === null &&
                                   selectedCwd === workspace.folder.value;
                                 const workspaceUnarchived = workspace.conversations.filter(
                                   (conversation) =>
-                                    !archivedThreadIds.has(
-                                      threadConversationId(conversation),
+                                    !archivedConversationIds.has(
+                                      agentConversationId(conversation),
                                     ),
                                 );
                                 const workspaceWorkingCount = workspaceUnarchived.filter(
                                   (conversation) =>
-                                    conversationActivity(
-                                      conversation,
-                                      connected,
-                                      management,
-                                    ) ===
+                                    conversationActivity(conversation) ===
                                     'working',
                                 ).length;
                                 const workspaceNeedsInputCount = workspaceUnarchived.filter(
                                   (conversation) =>
-                                    conversationActivity(
-                                      conversation,
-                                      connected,
-                                      management,
-                                    ) ===
+                                    conversationActivity(conversation) ===
                                     'needs_input',
                                 ).length;
                                 return (
@@ -1395,8 +1069,8 @@ export function AgentSidebar({
                                     className="mt-1"
                                     onDragOver={(event) => {
                                       if (
-                                        draggedThread?.pinned !== true ||
-                                        draggedThread.cwd !== workspace.folder.value
+                                        draggedConversation?.pinned !== true ||
+                                        draggedConversation.cwd !== workspace.folder.value
                                       ) {
                                         return;
                                       }
@@ -1406,19 +1080,17 @@ export function AgentSidebar({
                                     onDrop={(event) => {
                                       event.preventDefault();
                                       if (
-                                        draggedThread?.pinned !== true ||
-                                        draggedThread.cwd !== workspace.folder.value
+                                        draggedConversation?.pinned !== true ||
+                                        draggedConversation.cwd !== workspace.folder.value
                                       ) {
                                         return;
                                       }
-                                      setManagement((current) =>
-                                        setThreadPinned(
-                                          current,
-                                          draggedThread.id,
-                                          false,
-                                        ),
-                                      );
-                                      setDraggedThread(null);
+                                      applyNavigationCommand({
+                                        type: 'set-conversation-pinned',
+                                        conversationId: draggedConversation.id,
+                                        pinned: false,
+                                      });
+                                      setDraggedConversation(null);
                                     }}
                                   >
                                     <ContextMenu>
@@ -1473,13 +1145,11 @@ export function AgentSidebar({
                                         </ContextMenuItem>
                                         <ContextMenuItem
                                           onClick={() =>
-                                            setManagement((current) =>
-                                              setWorkspaceArchived(
-                                                current,
-                                                workspace.folder.value,
-                                                true,
-                                              ),
-                                            )
+                                            applyNavigationCommand({
+                                              type: 'set-workspace-archived',
+                                              workspacePath: workspace.folder.value,
+                                              archived: true,
+                                            })
                                           }
                                         >
                                           <ArchiveIcon />
@@ -1489,7 +1159,7 @@ export function AgentSidebar({
                                     </ContextMenu>
                                     <ul className="ml-2 flex flex-col gap-0.5">
                                       {visibleConversations.map((conversation) =>
-                                        renderThread(
+                                        renderConversation(
                                           conversation,
                                           workspace,
                                           false,
@@ -1604,13 +1274,11 @@ export function AgentSidebar({
                             aria-label={`Restore ${branchName} branch`}
                             title={`Restore ${branchName} branch`}
                             onClick={() =>
-                              setManagement((current) =>
-                                setWorkspaceArchived(
-                                  current,
-                                  workspace.folder.value,
-                                  false,
-                                ),
-                              )
+                              applyNavigationCommand({
+                                type: 'set-workspace-archived',
+                                workspacePath: workspace.folder.value,
+                                archived: false,
+                              })
                             }
                           >
                             <RotateCcwIcon aria-hidden="true" />
@@ -1620,7 +1288,7 @@ export function AgentSidebar({
                     })}
                     {archivedConversations.map(
                       ({ conversation, repository, workspace }) =>
-                        renderThread(
+                        renderConversation(
                           conversation,
                           workspace,
                           false,
@@ -1653,12 +1321,18 @@ export function AgentSidebar({
             variant="ghost"
             size="xs"
             onClick={() => {
-              setManagement((current) => {
-                const restored = setThreadArchived(current, archiveUndo.id, false);
-                return archiveUndo.wasPinned
-                  ? setThreadPinned(restored, archiveUndo.id, true)
-                  : restored;
+              applyNavigationCommand({
+                type: 'set-conversation-archived',
+                conversationId: archiveUndo.id,
+                archived: false,
               });
+              if (archiveUndo.wasPinned) {
+                applyNavigationCommand({
+                  type: 'set-conversation-pinned',
+                  conversationId: archiveUndo.id,
+                  pinned: true,
+                });
+              }
               setArchiveUndo(null);
             }}
           >
@@ -1736,9 +1410,9 @@ export function AgentSidebar({
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
-      <RenameThreadDialog
+      <RenameAgentConversationDialog
         busy={renamingSession}
-        thread={renameTarget}
+        conversation={renameTarget}
         onOpenChange={(open) => {
           if (!open) setRenameTarget(null);
         }}
@@ -1767,16 +1441,25 @@ export function AgentSidebar({
           if (!open) setRepositoryDialog(null);
         }}
         onRemove={(path) => {
-          setManagement((current) => {
-            const hidden = setRepositoryHidden(current, path, true);
-            return hidden.expandedRepositoryPath === path
-              ? setExpandedRepository(hidden, null)
-              : hidden;
+          applyNavigationCommand({
+            type: 'set-repository-hidden',
+            repositoryPath: path,
+            hidden: true,
           });
+          if (navigationPreferences.expandedRepositoryPath === path) {
+            applyNavigationCommand({
+              type: 'set-expanded-repository',
+              repositoryPath: null,
+            });
+          }
           setRepositoryDialog(null);
         }}
         onRename={(path, label) => {
-          setManagement((current) => setRepositoryLabel(current, path, label));
+          applyNavigationCommand({
+            type: 'set-repository-label',
+            repositoryPath: path,
+            label,
+          });
           setRepositoryDialog(null);
         }}
       />

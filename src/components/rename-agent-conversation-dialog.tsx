@@ -10,34 +10,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/trovecn/ui/dialog';
-import type { ThreadConversation } from '@/components/thread-conversation';
+import type { AgentConversation } from '@/packages/repository-navigation';
 
-interface RenameThreadDialogProps {
+interface RenameAgentConversationDialogProps {
   readonly busy: boolean;
-  readonly thread: ThreadConversation | null;
+  readonly conversation: AgentConversation | null;
   readonly onOpenChange: (open: boolean) => void;
   readonly onRename: (name: string) => void;
 }
 
-/** Rename one Prime Agent thread through a focused Trove dialog. */
-export function RenameThreadDialog({
+/** Rename one Agent conversation through a focused Trove dialog. */
+export function RenameAgentConversationDialog({
   busy,
-  thread,
+  conversation,
   onOpenChange,
   onRename,
-}: RenameThreadDialogProps): React.JSX.Element {
+}: RenameAgentConversationDialogProps): React.JSX.Element {
   const inputId = useId();
   const [name, setName] = useState('');
 
   useEffect(() => {
-    setName(thread?.session.name ?? '');
-  }, [thread]);
+    setName(conversation?.session.name ?? '');
+  }, [conversation]);
 
   const normalizedName = name.trim();
 
   return (
     <Dialog
-      open={thread !== null}
+      open={conversation !== null}
       onOpenChange={(open) => onOpenChange(open)}
     >
       <DialogContent>
@@ -77,7 +77,7 @@ export function RenameThreadDialog({
               disabled={
                 busy ||
                 normalizedName.length === 0 ||
-                normalizedName === thread?.session.name
+                normalizedName === conversation?.session.name
               }
             >
               Rename

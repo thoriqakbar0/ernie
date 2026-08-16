@@ -10,6 +10,9 @@
   --line: rgb(23 24 21 / 16%);
   --line-strong: rgb(23 24 21 / 28%);
   --accent: #deda8e;
+  --drawably-fill: var(--ink);
+  --drawably-paper: var(--paper);
+  --drawably-stroke: var(--ink);
   color: var(--ink);
   background: var(--paper);
   font-family: 'Geist Variable', ui-sans-serif, -apple-system, sans-serif;
@@ -172,11 +175,64 @@ h1, h2, h3, p { margin-top: 0; }
 .button-secondary:hover, .button-primary:hover { color: var(--ink); background: var(--accent); }
 .button:active { transform: scale(0.96); }
 
+.drawably-host { font-family: inherit; }
+.drawably-card > .drawably-svg { z-index: 1; }
+
+.drawably-section-divider {
+  width: 100%;
+  margin: 0;
+}
+
+.drawably-enhanced .section-intro,
+.drawably-enhanced .principle {
+  border: 0;
+}
+
+.nav-cta.drawably-button,
+.button.drawably-button {
+  border: 0;
+  background: none;
+}
+
+.site-header nav .nav-cta.drawably-button { border: 0; }
+
+.button.drawably-button { padding-inline: 18px; }
+
+.button-primary.drawably-button {
+  color: var(--paper);
+  background: none;
+}
+
+.button-primary.drawably-button:hover {
+  --drawably-fill: var(--accent);
+  --drawably-stroke: var(--accent);
+
+  color: var(--ink);
+  background: none;
+}
+
+.button-secondary.drawably-button:hover {
+  --drawably-stroke: color-mix(in srgb, var(--ink) 65%, var(--accent));
+
+  background: none;
+}
+
 .release-card {
+  --drawably-paper: var(--paper);
+  --drawably-stroke: var(--ink);
+
   align-self: end;
   border-block: 1px solid var(--ink);
   padding-block: 26px;
 }
+
+.release-card.drawably-card {
+  border-block: 0;
+  padding: 26px 18px;
+  font-family: inherit;
+}
+
+.release-card > .drawably-svg { z-index: 1; }
 
 .release-card h2 {
   margin-bottom: 8px;
@@ -208,6 +264,11 @@ figure { margin: 0; }
   border-radius: 20px;
   background: var(--paper-raised);
   box-shadow: 0 1px 0 rgb(255 255 255 / 70%) inset, 0 34px 90px -56px rgb(23 24 21 / 72%);
+}
+
+.product-frame.drawably-card {
+  border: 0;
+  padding: 3px;
 }
 
 .product-frame img {
@@ -255,8 +316,15 @@ figure { margin: 0; }
   border-block: 1px solid var(--line-strong);
 }
 
+.drawably-enhanced .capability-grid {
+  gap: 14px;
+  border: 0;
+}
+
 .capability-grid article { min-width: 0; padding: clamp(28px, 4vw, 48px); }
 .capability-grid article + article { border-inline-start: 1px solid var(--line); }
+.capability-grid article.drawably-card { padding: clamp(28px, 4vw, 48px); }
+.drawably-enhanced .capability-grid article + article { border: 0; }
 .capability-grid h3 { margin-bottom: 18px; font-size: 1.13rem; font-weight: 620; letter-spacing: -0.025em; }
 .capability-grid p { margin-bottom: 0; color: var(--muted); line-height: 1.58; text-wrap: pretty; }
 
@@ -284,10 +352,18 @@ figure { margin: 0; }
   background: var(--ink);
 }
 
+.docs-preview {
+  --drawably-fill: var(--paper);
+  --drawably-paper: var(--ink);
+  --drawably-stroke: var(--paper);
+}
+
 .docs-preview-copy h2 { max-width: 12ch; margin-bottom: 30px; }
 .docs-preview-copy p { margin-bottom: 34px; color: rgb(244 241 232 / 68%); }
 .button-light { border-color: var(--paper); color: var(--ink); background: var(--paper); }
 .button-light:hover { border-color: var(--accent); background: var(--accent); }
+.button-light.drawably-button { color: var(--ink); background: none; }
+.button-light.drawably-button:hover { --drawably-fill: var(--accent); --drawably-stroke: var(--accent); background: none; }
 
 .terminal-card {
   overflow: hidden;
@@ -295,6 +371,11 @@ figure { margin: 0; }
   border-radius: 16px;
   background: #20211e;
   box-shadow: 0 36px 80px -48px rgb(0 0 0 / 80%);
+}
+
+.terminal-card.drawably-card {
+  border: 0;
+  padding: 3px;
 }
 
 .terminal-title, .terminal-card dl > div { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
@@ -372,4 +453,10 @@ figure { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .button, .site-header nav a, .site-footer nav a { transition: none; }
+  .drawably-host .drawably-boil,
+  .drawably-host .drawably-boil[data-i='1'],
+  .drawably-host .drawably-boil[data-i='2'] { animation: none; }
+  .drawably-host .drawably-boil[data-i='0'] { opacity: 1; }
+  .drawably-host .drawably-boil[data-i='1'],
+  .drawably-host .drawably-boil[data-i='2'] { opacity: 0; }
 }

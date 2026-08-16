@@ -51,6 +51,16 @@ Build the Electron main process and renderer without starting Ernie:
 nub run build
 ```
 
+Build the Apple silicon release application and archive:
+
+```sh
+nub run package:mac
+```
+
+The archive and SHA-256 checksum appear in `.build/release/`. Local packages
+use ad hoc signing. See [Release Ernie for macOS](docs/releases.md) for the
+Developer ID, notarization, and GitHub release flow.
+
 ## Use the CLI
 
 The repository command builds the CLI before each invocation:
@@ -75,6 +85,6 @@ shell-automation behavior.
 
 ## Project status
 
-Ernie is an experimental learning environment, not a packaged public release.
-Compatibility can change while its harness and UI boundaries are still being
-studied.
+Ernie is an experimental learning environment with an Apple silicon macOS
+prerelease. Compatibility can change while its harness and UI boundaries are
+still being studied.

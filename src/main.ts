@@ -558,7 +558,7 @@ const createWindow = Effect.fn('Ernie.createWindow')(function* (
     backgroundColor: '#fcf9f3',
     icon: iconPath,
     show: false,
-    title: '+ electron',
+    title: 'Ernie',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

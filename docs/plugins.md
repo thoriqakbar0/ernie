@@ -23,8 +23,10 @@ their providers, so required services remain readable during consumer cleanup.
 Re-enabling a provider restores previously demanded consumers after every
 required provider becomes available. Never-demanded consumers remain inactive.
 
-These rules translate Cordis's provider-consumer idea into Ernie's vocabulary.
-Ernie does not depend on Cordis or implement its broader context framework.
+Ernie v0.1.0 uses a custom host. It borrows Cordis's provider-consumer idea but
+does not import Cordis or expose its context model. The
+[Cordis migration roadmap](roadmap.md) defines the evidence required before the
+custom host can be replaced.
 
 ## Package boundaries
 

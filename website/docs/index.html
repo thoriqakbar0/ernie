@@ -50,6 +50,7 @@
           <a href="#architecture">architecture</a>
           <a href="#cli">CLI control</a>
           <a href="#plugins">plugins</a>
+          <a href="#roadmap">roadmap</a>
           <a href="#release">release</a>
           <a href="#troubleshooting">troubleshooting</a>
           <a href="#boundaries">boundaries</a>
@@ -314,6 +315,52 @@ nub run cli -- ui sidebar width 320</code></pre>
               untrusted plugin execution remain out of scope.
             </p>
           </div>
+        </section>
+
+        <section id="roadmap">
+          <h2>port the plugin runtime to Cordis</h2>
+          <p>
+            this work is planned, not included in v0.1.0. Ernie will first pin
+            one Cordis version and prove its current behavior behind an
+            Ernie-owned adapter.
+          </p>
+
+          <ol>
+            <li>
+              <strong>freeze the contract.</strong> keep tests for service order,
+              provider loss, restart, rollback, and cleanup.
+            </li>
+            <li>
+              <strong>run a pinned spike.</strong> prove contexts, services,
+              fibers, and effects without changing the interface.
+            </li>
+            <li>
+              <strong>port one vertical slice.</strong> move a headless fixture,
+              then Browser, while preserving Electron cleanup.
+            </li>
+            <li>
+              <strong>move built-ins one at a time.</strong> port Browser, React
+              Grab, and Agentation behind the same boundary tests.
+            </li>
+            <li>
+              <strong>remove the custom host last.</strong> delete it only after
+              the Cordis path proves equivalent behavior.
+            </li>
+          </ol>
+
+          <div class="callout callout-warning">
+            <h3>Cordis is still unstable</h3>
+            <p>
+              as of Aug 16, 2026, upstream labels its API unstable. Ernie will
+              pin a verified version. the roadmap assigns no release date.
+            </p>
+          </div>
+
+          <p>
+            <a href="https://github.com/thoriqakbar0/ernie/blob/main/docs/roadmap.md">
+              read the complete Cordis migration roadmap
+            </a>
+          </p>
         </section>
 
         <section id="release">

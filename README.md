@@ -117,3 +117,13 @@ launch. The fixed desktop workspace works; task-specific interface composition
 remains a research direction.
 
 [Download Ernie v0.1.0 from GitHub Releases](https://github.com/thoriqakbar0/ernie/releases/tag/v0.1.0).
+
+## Roadmap
+
+The next architecture project is a staged port of the trusted built-in plugin
+runtime to Cordis. The port is planned, not implemented in v0.1.0. It will begin
+with a pinned compatibility spike and must preserve Ernie's current activation,
+service, recovery, and cleanup behavior before replacing the custom host.
+
+[Read the Cordis migration roadmap](docs/roadmap.md) for the phases, exit gates,
+and excluded work.

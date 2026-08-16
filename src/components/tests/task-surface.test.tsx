@@ -7,7 +7,7 @@ import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TaskSurface } from '@/components/task-surface';
-import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceController } from '@/packages/agent-workspace';
 
 Object.defineProperty(Element.prototype, 'getAnimations', {
   configurable: true,
@@ -20,7 +20,7 @@ Object.defineProperty(Element.prototype, 'animate', {
 
 afterEach(cleanup);
 
-function unavailableWorkspace(): PrimeAgentWorkspaceController {
+function unavailableWorkspace(): AgentWorkspaceController {
   return {
     busy: false,
     folders: [],

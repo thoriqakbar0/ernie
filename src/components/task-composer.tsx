@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceController } from '@/packages/agent-workspace';
 import { usePrimeAgentTask } from '@/hooks/use-prime-agent-task';
 import {
   createSkillSearch,
@@ -26,7 +26,7 @@ import {
 } from '@/packages/skill-search';
 
 type TaskComposerProps = Pick<
-  PrimeAgentWorkspaceController,
+  AgentWorkspaceController,
   | 'modelBusy'
   | 'models'
   | 'skills'

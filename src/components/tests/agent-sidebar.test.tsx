@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { AgentSidebar } from '@/components/agent-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { PrimeAgentFolderChoice } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceFolder } from '@/packages/agent-workspace';
 import type {
   PrimeAgentSavedSession,
   PrimeAgentSession,
@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 interface SidebarFixtureOverrides {
-  readonly folders?: readonly PrimeAgentFolderChoice[];
+  readonly folders?: readonly AgentWorkspaceFolder[];
   readonly importingSessionPath?: string | null;
   readonly primeAgentConnection?:
     | 'connecting'

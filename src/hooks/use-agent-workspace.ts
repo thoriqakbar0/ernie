@@ -1,7 +1,19 @@
-import { Effect, Fiber, Predicate } from 'effect';
+import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createAgentSessionViewCache } from '@/packages/ernie-daemon/session-view-cache';
+import {
+  agentWorkspaceName,
+  connectAgentWorkspaceSession,
+  createAgentWithTask as runAgentCreation,
+  projectAgentWorkspaceControls,
+  projectAgentWorkspaceFolders,
+  selectInitialAgentWorkspace,
+  type AgentWorkspaceController,
+  type AgentWorkspaceSelectedIdentity,
+  type AgentWorkspaceSpawnedTarget,
+  type CreateAgentWithTaskResult,
+} from '@/packages/agent-workspace';
 import {
   parsePrimeAgentGitBranchesResult,
   parsePrimeAgentGitWorkspaceResult,
@@ -17,12 +29,10 @@ import {
   parsePrimeAgentSessionRenameResult,
   parsePrimeAgentSessionResult,
   parsePrimeAgentSkillsResult,
-  parsePrimeAgentTaskReceiptResult,
   type PrimeAgentConfiguration,
   type PrimeAgentModel,
   type PrimeAgentSavedSession,
   type PrimeAgentSession,
-  type PrimeAgentSessionView,
   type PrimeAgentSessionRename,
   type PrimeAgentSkill,
   type PrimeAgentThinkingLevel,
@@ -39,97 +49,6 @@ import {
   type PrimeAgentSessionFeedState,
 } from '@/packages/prime-agent-daemon/events';
 import type { PrimeAgentWorkspaceConnection } from '@/packages/prime-agent-daemon/types';
-import { sessionNameFromFirstMessage } from '@/packages/session-name-hook';
-
-/** One folder choice derived from live Prime Agent sessions. */
-export interface PrimeAgentFolderChoice {
-  readonly branchName: string | null;
-  readonly label: string;
-  readonly repositoryCwd: string;
-  readonly value: string;
-}
-
-/** Result of creating an Agent and delivering its required first task. */
-export type CreateAgentWithTaskResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly message: string };
-
-/** One spawned Agent target selected from a parent conversation. */
-export interface PrimeAgentSpawnedSessionTarget {
-  readonly activeSessionId: string;
-  readonly name: string;
-  readonly number: number;
-}
-
-/** The Agent identity currently connected to Ernie's shared composer. */
-export type PrimeAgentSelectedIdentity =
-  | Readonly<{ kind: 'prime'; name: string }>
-  | Readonly<{ kind: 'spawned'; name: string; number: number }>;
-
-/** Live state and actions used by Ernie's task and environment controls. */
-export interface PrimeAgentWorkspaceController {
-  readonly busy: boolean;
-  readonly folders: readonly PrimeAgentFolderChoice[];
-  readonly gitBranch: string | null;
-  readonly gitBranchBusy: boolean;
-  readonly gitBranches: readonly string[];
-  readonly gitWorktreeError: string | null;
-  readonly creatingAgent: boolean;
-  readonly loadingWorkspace: boolean;
-  readonly loadingSavedSessions: boolean;
-  readonly loadingEarlierHistory: boolean;
-  readonly importingSessionPath: string | null;
-  readonly renamingSession: boolean;
-  readonly modelBusy: boolean;
-  readonly models: readonly PrimeAgentModel[];
-  readonly primeAgentConnection: PrimeAgentWorkspaceConnection;
-  readonly skills: readonly PrimeAgentSkill[];
-  readonly repoName: string;
-  readonly rlmMaxDepth: number;
-  readonly rlmMaxDepthBusy: boolean;
-  readonly selectedCwd: string | null;
-  readonly selectedModelKey: string | null;
-  readonly selectedThinkingLevel: PrimeAgentThinkingLevel | null;
-  readonly selectedAgentIdentity: PrimeAgentSelectedIdentity | null;
-  readonly selectedSessionId: string | null;
-  readonly selectedSessionView: PrimeAgentSessionView | null;
-  readonly selectedSessionRlmMaxDepth: number | null;
-  readonly selectedSessionRlmMaxDepthBusy: boolean;
-  readonly sessions: readonly PrimeAgentSession[];
-  readonly savedSessions: readonly PrimeAgentSavedSession[];
-  readonly status: string;
-  readonly thinkingLevelBusy: boolean;
-  readonly thinkingLevels: readonly PrimeAgentThinkingLevel[];
-  readonly changeFolder: (cwd: string | null) => void;
-  readonly startAgentDraft: (cwd: string) => void;
-  readonly createAgentWithTask: (
-    cwd: string,
-    message: string,
-  ) => Promise<CreateAgentWithTaskResult>;
-  readonly loadSavedSessions: () => void;
-  /** Load and prepend the next bounded page for the selected session. */
-  readonly loadEarlierSessionHistory: () => void;
-  readonly importSession: (sessionPath: string) => void;
-  readonly renameSession: (rename: PrimeAgentSessionRename) => void;
-  readonly selectSession: (activeSessionId: string) => void;
-  readonly openSpawnedSession: (target: PrimeAgentSpawnedSessionTarget) => void;
-  readonly chooseWorkspaceDirectory: () => void;
-  readonly addWorkspaceDirectory: () => Promise<string | null>;
-  readonly changeGitBranch: (name: string | null) => void;
-  readonly deleteGitBranch: (
-    name: string,
-    repositoryCwd?: string,
-    worktreeCwd?: string,
-  ) => void;
-  readonly initializeGitRepository: () => void;
-  readonly createGitWorktree: (branchName: string) => void;
-  readonly changeModel: (modelKey: string | null) => void;
-  readonly changeThinkingLevel: (thinkingLevel: string | null) => void;
-  readonly changeRlmMaxDepth: (maxDepth: string | null) => void;
-  readonly changeSelectedSessionRlmMaxDepth: (
-    maxDepth: string | null,
-  ) => void;
-}
 
 const defaultRlmMaxDepth = 1;
 const defaultThinkingLevel = 'medium' satisfies PrimeAgentThinkingLevel;
@@ -177,46 +96,8 @@ function parseWorkspaceDirectorySelection(
   return { ok: false };
 }
 
-function folderName(cwd: string): string {
-  const parts = cwd.split(/[\\/]/u).filter((part) => part.length > 0);
-  return parts.at(-1) ?? cwd;
-}
-
-function newestSession(
-  sessions: readonly PrimeAgentSession[],
-  cwd: string,
-): PrimeAgentSession | null {
-  return sessions.find((session) => session.cwd === cwd) ?? null;
-}
-
-function clampThinkingLevel(
-  requested: PrimeAgentThinkingLevel,
-  available: readonly PrimeAgentThinkingLevel[],
-): PrimeAgentThinkingLevel | null {
-  if (available.includes(requested)) return requested;
-  const levels = [
-    'off',
-    'minimal',
-    'low',
-    'medium',
-    'high',
-    'xhigh',
-    'max',
-  ] as const satisfies readonly PrimeAgentThinkingLevel[];
-  const requestedIndex = levels.indexOf(requested);
-  for (let index = requestedIndex + 1; index < levels.length; index += 1) {
-    const candidate = levels[index];
-    if (candidate !== undefined && available.includes(candidate)) return candidate;
-  }
-  for (let index = requestedIndex - 1; index >= 0; index -= 1) {
-    const candidate = levels[index];
-    if (candidate !== undefined && available.includes(candidate)) return candidate;
-  }
-  return null;
-}
-
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
-export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
+export function useAgentWorkspace(): AgentWorkspaceController {
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
   const [addedCwds, setAddedCwds] = useState<readonly string[]>([]);
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
@@ -224,7 +105,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     null,
   );
   const [selectedSpawnedSession, setSelectedSpawnedSession] =
-    useState<PrimeAgentSpawnedSessionTarget | null>(null);
+    useState<AgentWorkspaceSpawnedTarget | null>(null);
   const [selectedSessionFeed, setSelectedSessionFeedState] =
     useState<PrimeAgentSessionFeedState | null>(null);
   const [models, setModels] = useState<readonly PrimeAgentModel[]>([]);
@@ -345,28 +226,11 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
       }
 
       const nextWorkspace = item.workspace;
+      const initialSelection = selectInitialAgentWorkspace(nextWorkspace);
       setWorkspace(nextWorkspace);
       setLoadingWorkspace(false);
-      setSelectedCwd((current) => {
-        if (current !== null) return current;
-        return nextWorkspace.sessions.some(
-          (session) => session.cwd === nextWorkspace.currentCwd,
-        )
-          ? nextWorkspace.currentCwd
-          : (nextWorkspace.sessions[0]?.cwd ?? nextWorkspace.currentCwd);
-      });
-      setSelectedSessionId((current) => {
-        if (current !== null) return current;
-        const initialCwd = nextWorkspace.sessions.some(
-          (session) => session.cwd === nextWorkspace.currentCwd,
-        )
-          ? nextWorkspace.currentCwd
-          : (nextWorkspace.sessions[0]?.cwd ?? nextWorkspace.currentCwd);
-        return (
-          newestSession(nextWorkspace.sessions, initialCwd)?.activeSessionId ??
-          null
-        );
-      });
+      setSelectedCwd((current) => current ?? initialSelection.cwd);
+      setSelectedSessionId((current) => current ?? initialSelection.sessionId);
     });
     const loadInitialSavedSessions = Effect.fn(
       'Workspace.loadInitialSavedSessions',
@@ -710,22 +574,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   }, [workspacePaths]);
 
   const folders = useMemo(
-    () =>
-      workspacePaths.flatMap((cwd): readonly PrimeAgentFolderChoice[] => {
-        const identity = gitWorkspaces.get(cwd);
-        if (identity === undefined) return [];
-        const repositoryCwd = identity.repositoryCwd;
-        const branchName =
-          identity.cwd !== identity.repositoryCwd
-            ? identity.branchName
-            : null;
-        return [{
-          branchName,
-          label: branchName ?? folderName(cwd),
-          repositoryCwd,
-          value: cwd,
-        }];
-      }),
+    () => projectAgentWorkspaceFolders(workspacePaths, gitWorkspaces),
     [gitWorkspaces, workspacePaths],
   );
 
@@ -738,7 +587,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
   const selectedSession =
     agents.find((session) => session.activeSessionId === selectedSessionId) ??
     null;
-  const selectedAgentIdentity: PrimeAgentSelectedIdentity | null =
+  const selectedAgentIdentity: AgentWorkspaceSelectedIdentity | null =
     selectedSessionId === null
       ? null
       : selectedSpawnedSession?.activeSessionId === selectedSessionId
@@ -754,52 +603,21 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
               selectedSessionView?.sessionName ??
               'Untitled Agent',
           };
-  const newAgentModel =
-    models.find((model) => model.key === newAgentModelKey) ?? null;
-  const selectedModelKey =
-    selectedSessionId === null
-      ? newAgentModel?.key ?? null
-      : (models.find(
-          (model) => model.key === sessionConfiguration?.model.key,
-        )?.key ?? null);
-  const thinkingLevels =
-    selectedSessionId === null
-      ? (newAgentModel?.thinkingLevels ?? [])
-      : (sessionConfiguration?.availableThinkingLevels ?? []);
-  const selectedThinkingLevel =
-    selectedSessionId === null
-      ? clampThinkingLevel(newAgentThinkingLevel, thinkingLevels)
-      : (sessionConfiguration?.thinkingLevel ?? null);
-
-  function requestAgentSession(cwd: string) {
-    return Effect.tryPromise(() =>
-      window.ernie.createAgentSession({ cwd, rlmMaxDepth }),
-    ).pipe(Effect.map(parsePrimeAgentSessionResult));
-  }
+  const {
+    selectedModelKey,
+    selectedThinkingLevel,
+    thinkingLevels,
+  } = projectAgentWorkspaceControls({
+    configuration: sessionConfiguration,
+    draftModelKey: newAgentModelKey,
+    draftThinkingLevel: newAgentThinkingLevel,
+    models,
+    selectedSessionId,
+  });
+  const newAgentModel = models.find((model) => model.key === newAgentModelKey) ?? null;
 
   function connectAgentSession(session: PrimeAgentSession): void {
-    setWorkspace((current) => {
-      const daemonSession = current?.sessions.find(
-        (candidate) => candidate.activeSessionId === session.activeSessionId,
-      );
-      const connectedSession =
-        daemonSession === undefined
-          ? session
-          : {
-              ...daemonSession,
-              model: session.model ?? daemonSession.model,
-            };
-      return {
-        currentCwd: current?.currentCwd ?? session.cwd,
-        sessions: [
-          connectedSession,
-          ...(current?.sessions.filter(
-            (candidate) =>
-              candidate.activeSessionId !== session.activeSessionId,
-          ) ?? []),
-        ],
-      };
-    });
+    setWorkspace((current) => connectAgentWorkspaceSession(current, session));
     setSelectedCwd(session.cwd);
     setSelectedSessionId(session.activeSessionId);
   }
@@ -835,136 +653,38 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
         message: 'A new Agent is already starting.',
       });
     }
-    const requestedModel = newAgentModel;
-    const requestedThinkingLevel = selectedThinkingLevel;
-    let recoverableSession: PrimeAgentSession | null = null;
-    let appliedConfiguration: PrimeAgentConfiguration | null = null;
-    let unexpectedFailureMessage = 'Ernie could not create a new Agent.';
-
-    function rejectCreatedSession(
-      session: PrimeAgentSession,
-      failureMessage: string,
-    ): CreateAgentWithTaskResult {
-      connectAgentSession(session);
-      setSessionConfiguration(appliedConfiguration);
-      setStatus(failureMessage);
-      return { ok: false, message: failureMessage };
-    }
-
-    const create = Effect.fn('Workspace.createAgentWithTask')(function* () {
-      yield* Effect.sync(() => {
-        setCreatingAgent(true);
-        setStatus('Creating a new Agent…');
-      });
-      const result = yield* requestAgentSession(cwd);
-      if (!result.ok) {
-        return yield* Effect.sync(() => {
-          setStatus(result.error.message);
-          return { ok: false as const, message: result.error.message };
+    setCreatingAgent(true);
+    setStatus('Creating a new Agent…');
+    return runAgentCreation(
+      {
+        createSession: (request) => window.ernie.createAgentSession(request),
+        setModel: (request) => window.ernie.setAgentModel(request),
+        setThinkingLevel: (request) =>
+          window.ernie.setAgentThinkingLevel(request),
+        submitTask: (request) => window.ernie.submitAgentTask(request),
+      },
+      {
+        cwd,
+        message,
+        model: newAgentModel,
+        rlmMaxDepth,
+        thinkingLevel: selectedThinkingLevel,
+      },
+    ).then((outcome): CreateAgentWithTaskResult => {
+      setSessionConfiguration(outcome.configuration);
+      if (outcome.session !== null) connectAgentSession(outcome.session);
+      if (outcome.ok) {
+        setStatus('Task sent to Prime Agent.');
+        return { ok: true };
+      }
+      if (outcome.unexpected) {
+        console.error('New Agent setup failed.', {
+          name: outcome.causeName ?? 'NonError',
         });
       }
-
-      let createdSession = result.value;
-      recoverableSession = createdSession;
-      if (requestedModel !== null) {
-        unexpectedFailureMessage =
-          'Ernie created the Agent, but could not set its model.';
-        const rawModelResult = yield* Effect.tryPromise(() =>
-          window.ernie.setAgentModel({
-            activeSessionId: createdSession.activeSessionId,
-            provider: requestedModel.provider,
-            modelId: requestedModel.id,
-          }),
-        );
-        const modelResult = parsePrimeAgentConfigurationResult(rawModelResult);
-        if (!modelResult.ok) {
-          return yield* Effect.sync(() =>
-            rejectCreatedSession(createdSession, modelResult.error.message),
-          );
-        }
-        appliedConfiguration = modelResult.value;
-        createdSession = { ...createdSession, model: modelResult.value.model };
-        recoverableSession = createdSession;
-      }
-
-      if (requestedThinkingLevel !== null) {
-        unexpectedFailureMessage =
-          'Ernie created the Agent, but could not set its reasoning effort.';
-        const rawThinkingResult = yield* Effect.tryPromise(() =>
-          window.ernie.setAgentThinkingLevel({
-            activeSessionId: createdSession.activeSessionId,
-            thinkingLevel: requestedThinkingLevel,
-          }),
-        );
-        const thinkingResult =
-          parsePrimeAgentConfigurationResult(rawThinkingResult);
-        if (!thinkingResult.ok) {
-          return yield* Effect.sync(() =>
-            rejectCreatedSession(createdSession, thinkingResult.error.message),
-          );
-        }
-        appliedConfiguration = thinkingResult.value;
-        createdSession = {
-          ...createdSession,
-          model: thinkingResult.value.model,
-        };
-        recoverableSession = createdSession;
-      }
-
-      unexpectedFailureMessage =
-        'Ernie created the Agent, but could not send its first task.';
-      const rawTaskResult = yield* Effect.tryPromise(() =>
-        window.ernie.submitAgentTask({
-          activeSessionId: createdSession.activeSessionId,
-          message,
-        }),
-      );
-      const taskResult = parsePrimeAgentTaskReceiptResult(rawTaskResult);
-
-      return yield* Effect.sync(() => {
-        setSessionConfiguration(appliedConfiguration);
-        connectAgentSession(
-          taskResult.ok
-            ? {
-                ...createdSession,
-                activity: 'queued',
-                name:
-                  sessionNameFromFirstMessage(message) ?? createdSession.name,
-              }
-            : createdSession,
-        );
-        setStatus(
-          taskResult.ok ? 'Task sent to Prime Agent.' : taskResult.error.message,
-        );
-        return taskResult.ok
-          ? { ok: true as const }
-          : { ok: false as const, message: taskResult.error.message };
-      });
-    });
-
-    return Effect.runPromise(
-      create().pipe(
-        Effect.catch((cause) =>
-          Effect.sync(() => {
-            console.error('New Agent setup failed.', {
-              name: Predicate.isError(cause) ? cause.name : 'NonError',
-            });
-            if (recoverableSession !== null) {
-              return rejectCreatedSession(
-                recoverableSession,
-                unexpectedFailureMessage,
-              );
-            }
-            setStatus(unexpectedFailureMessage);
-            return {
-              ok: false as const,
-              message: unexpectedFailureMessage,
-            };
-          }),
-        ),
-        Effect.ensuring(Effect.sync(() => setCreatingAgent(false))),
-      ),
-    );
+      setStatus(outcome.message);
+      return { ok: false, message: outcome.message };
+    }).finally(() => setCreatingAgent(false));
   }
 
   function loadSavedSessions(): void {
@@ -1173,7 +893,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     setStatus('Connected to Prime Agent.');
   }
 
-  function openSpawnedSession(target: PrimeAgentSpawnedSessionTarget): void {
+  function openSpawnedSession(target: AgentWorkspaceSpawnedTarget): void {
     setSelectedSpawnedSession(target);
     setSelectedSessionId(target.activeSessionId);
     setSessionConfiguration(null);
@@ -1244,9 +964,16 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     if (model === undefined) return;
     if (selectedSessionId === null) {
       setNewAgentModelKey(model.key);
-      setNewAgentThinkingLevel((current) =>
-        clampThinkingLevel(current, model.thinkingLevels) ?? defaultThinkingLevel,
-      );
+      setNewAgentThinkingLevel((current) => {
+        const controls = projectAgentWorkspaceControls({
+          configuration: null,
+          draftModelKey: model.key,
+          draftThinkingLevel: current,
+          models: [model],
+          selectedSessionId: null,
+        });
+        return controls.selectedThinkingLevel ?? defaultThinkingLevel;
+      });
       setStatus(`Model set to ${model.name} for the next Agent.`);
       return;
     }
@@ -1673,7 +1400,7 @@ export function usePrimeAgentWorkspace(): PrimeAgentWorkspaceController {
     models,
     primeAgentConnection,
     skills,
-    repoName: selectedCwd === null ? 'work' : folderName(selectedCwd),
+    repoName: selectedCwd === null ? 'work' : agentWorkspaceName(selectedCwd),
     rlmMaxDepth,
     rlmMaxDepthBusy,
     selectedCwd,

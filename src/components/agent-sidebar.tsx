@@ -60,7 +60,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceController } from '@/packages/agent-workspace';
 import { useRepositoryNavigation } from '@/hooks/use-repository-navigation';
 import {
   projectRepositoryNavigation,
@@ -74,7 +74,7 @@ import {
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 type AgentSidebarProps = Pick<
-  PrimeAgentWorkspaceController,
+  AgentWorkspaceController,
   | 'creatingAgent'
   | 'folders'
   | 'importingSessionPath'

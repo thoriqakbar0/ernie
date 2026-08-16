@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { usePrimeAgentWorkspace } from '@/hooks/use-prime-agent-workspace';
+import { useAgentWorkspace } from '@/hooks/use-agent-workspace';
 import { createAgentationPluginModule } from '@/packages/agentation-plugin';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
@@ -93,7 +93,7 @@ export function ErnieShell({
   sidebarControlRequest,
   thinkingOrbState,
 }: ErnieShellProps): React.JSX.Element {
-  const workspace = usePrimeAgentWorkspace();
+  const workspace = useAgentWorkspace();
   const pluginHost = useMemo(() => {
     const created = createPluginHost(
       [

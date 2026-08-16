@@ -29,12 +29,12 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import type {
-  PrimeAgentFolderChoice,
-  PrimeAgentWorkspaceController,
-} from '@/hooks/use-prime-agent-workspace';
+  AgentWorkspaceFolder,
+  AgentWorkspaceController,
+} from '@/packages/agent-workspace';
 
 type CurrentWorkspaceProps = Pick<
-  PrimeAgentWorkspaceController,
+  AgentWorkspaceController,
   | 'busy'
   | 'gitBranch'
   | 'gitBranchBusy'
@@ -50,7 +50,7 @@ type CurrentWorkspaceProps = Pick<
   | 'createGitWorktree'
 > & {
   readonly disabled?: boolean;
-  readonly folders: readonly PrimeAgentFolderChoice[];
+  readonly folders: readonly AgentWorkspaceFolder[];
 };
 
 const executionTargets = [
@@ -147,7 +147,7 @@ export function CurrentWorkspace({
             </div>
             <ComboboxEmpty>No matching workspaces.</ComboboxEmpty>
             <ComboboxList className="max-h-52 overflow-y-auto overscroll-contain scroll-py-1 [scrollbar-gutter:stable]">
-              {(folder: PrimeAgentFolderChoice, index: number) => {
+              {(folder: AgentWorkspaceFolder, index: number) => {
                 const parentPath = compactParentPath(folder.value);
 
                 return (

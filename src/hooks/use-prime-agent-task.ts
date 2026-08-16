@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { CreateAgentWithTaskResult } from '@/hooks/use-prime-agent-workspace';
+import type { CreateAgentWithTaskResult } from '@/packages/agent-workspace';
 import {
   parsePrimeAgentRefinementReceiptResult,
   parsePrimeAgentTaskReceiptResult,

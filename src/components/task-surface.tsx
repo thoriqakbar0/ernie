@@ -5,13 +5,13 @@ import { CurrentWorkspace } from '@/components/current-workspace';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/trovecn/ui/button';
-import type { PrimeAgentWorkspaceController } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceController } from '@/packages/agent-workspace';
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 interface TaskSurfaceProps {
   readonly onRetryConnection: () => void;
   readonly thinkingOrbState: ThinkingOrbState;
-  readonly workspace: PrimeAgentWorkspaceController;
+  readonly workspace: AgentWorkspaceController;
 }
 
 /** Ernie's primary task input and its connected execution environment. */

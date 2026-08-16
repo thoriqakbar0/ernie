@@ -24,7 +24,7 @@ import * as Tooltip from '@/components/trovecn/ui/tooltip';
 import { Conversation } from '@/components/trovecn/ai-workbench/conversation';
 import { PromptComposer } from '@/components/trovecn/ai-workbench/prompt-composer';
 import { motionSafeProps } from '@/components/trovecn/lib/motion-safe-props';
-import type { PrimeAgentSpawnedSessionTarget } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceSpawnedTarget } from '@/packages/agent-workspace';
 
 afterEach(cleanup);
 
@@ -684,7 +684,7 @@ test('sending a follow-up keeps completed work collapsed', () => {
 });
 
 test('focused chat reveals a recursively indexed spawned Agent tree', () => {
-  const openedSessions: PrimeAgentSpawnedSessionTarget[] = [];
+  const openedSessions: AgentWorkspaceSpawnedTarget[] = [];
   render(
     <AgentChat
       onOpenSpawnedSession={(session) => openedSessions.push(session)}

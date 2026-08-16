@@ -13,7 +13,7 @@ import { ThinkingOrb } from 'thinking-orbs';
 
 import { ChatMarkdown } from '@/components/chat-markdown';
 import { Button } from '@/components/trovecn/ui/button';
-import type { PrimeAgentSpawnedSessionTarget } from '@/hooks/use-prime-agent-workspace';
+import type { AgentWorkspaceSpawnedTarget } from '@/packages/agent-workspace';
 import type {
   PrimeAgentSessionView,
   PrimeAgentSpawnedSession,
@@ -86,7 +86,7 @@ interface AgentChatProps {
   readonly loadingEarlierHistory?: boolean;
   readonly onLoadEarlierHistory?: () => void;
   readonly onOpenSpawnedSession?: (
-    target: PrimeAgentSpawnedSessionTarget,
+    target: AgentWorkspaceSpawnedTarget,
   ) => void;
   readonly sessionView: PrimeAgentSessionView;
   readonly thinkingOrbState?: ThinkingOrbState;
@@ -439,7 +439,7 @@ function SpawnedSessionBranch({
   >;
   readonly numberBySessionId: ReadonlyMap<string, number>;
   readonly onOpenSession:
-    | ((target: PrimeAgentSpawnedSessionTarget) => void)
+    | ((target: AgentWorkspaceSpawnedTarget) => void)
     | undefined;
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(true);

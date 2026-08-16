@@ -96,6 +96,7 @@ export function createPrimeAgentControlClient(
   let connection: Promise<PrimeAgentControlTransport> | null = null;
   let currentState: PrimeAgentControlState = 'cold';
   let closed = false;
+  let activeGeneration = 0;
   const readyWaiters = new Set<ReadyWaiter>();
   const listeners = new Set<(event: PrimeAgentControlEvent) => void>();
   let unsubscribeMessages: (() => void) | null = null;
@@ -117,8 +118,11 @@ export function createPrimeAgentControlClient(
     readyWaiters.clear();
   };
 
-  const onReconnectStatus = (status: PrimeAgentReconnectStatus): void => {
-    if (closed) return;
+  const onReconnectStatus = (
+    generation: number,
+    status: PrimeAgentReconnectStatus,
+  ): void => {
+    if (closed || generation !== activeGeneration) return;
     if (status.status === 'connected') {
       changeState('ready');
       resolveWaiters();
@@ -151,14 +155,17 @@ export function createPrimeAgentControlClient(
     }
 
     changeState('connecting');
+    activeGeneration += 1;
+    const generation = activeGeneration;
     const attempt = (async () => {
       await dependencies.recoverDaemon();
       const next = await dependencies.createTransport();
       const stopMessages = next.onMessage((message) => {
+        if (generation !== activeGeneration) return;
         for (const listener of listeners) listener({ kind: 'message', message });
       });
       next.enableAutoReconnect({
-        onStatus: onReconnectStatus,
+        onStatus: (status) => onReconnectStatus(generation, status),
         recoverDaemon: dependencies.recoverDaemon,
         timeoutMs: dependencies.reconnectTimeoutMs,
       });
@@ -175,9 +182,14 @@ export function createPrimeAgentControlClient(
         next.close();
         throw new PrimeAgentControlClosedError();
       }
+      const previousTransport = transport;
+      const stopPreviousMessages = unsubscribeMessages;
       transport = next;
-      unsubscribeMessages?.();
       unsubscribeMessages = stopMessages;
+      stopPreviousMessages?.();
+      if (previousTransport !== null && previousTransport !== next) {
+        previousTransport.close();
+      }
       changeState('ready');
       resolveWaiters();
       return next;
@@ -186,7 +198,10 @@ export function createPrimeAgentControlClient(
     try {
       return await attempt;
     } catch (cause) {
-      if (!closed) changeState('unavailable');
+      if (generation === activeGeneration) {
+        activeGeneration += 1;
+        if (!closed) changeState('unavailable');
+      }
       dependencies.reportFailure('Prime Agent connection failed.', cause);
       rejectWaiters(cause);
       throw cause;
@@ -199,6 +214,7 @@ export function createPrimeAgentControlClient(
     close(): void {
       if (closed) return;
       closed = true;
+      activeGeneration += 1;
       changeState('closed');
       unsubscribeMessages?.();
       unsubscribeMessages = null;

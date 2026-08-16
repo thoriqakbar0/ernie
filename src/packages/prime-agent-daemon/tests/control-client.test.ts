@@ -160,3 +160,41 @@ test('waits for Prime Agent recovery before sending a new command', async () => 
   assert.equal(client.state(), 'ready');
   client.close();
 });
+
+test('ignores reconnect callbacks and messages from a replaced transport', async () => {
+  const first = new FakeControlTransport();
+  const second = new FakeControlTransport();
+  const transports = [first, second];
+  const messages: string[] = [];
+  const client = createPrimeAgentControlClient({
+    connectTimeoutMs: 100,
+    createTransport: async () => {
+      const transport = transports.shift();
+      if (transport === undefined) throw new Error('Missing test transport.');
+      return transport;
+    },
+    recoverDaemon: async () => undefined,
+    reconnectTimeoutMs: 1_000,
+    reportFailure: () => undefined,
+  });
+  client.subscribe((event) => {
+    if (event.kind === 'message') messages.push(event.message.type);
+  });
+
+  await Effect.runPromise(client.request({ type: 'list' }, 100));
+  first.isConnected = false;
+  first.reconnectStatus?.({ status: 'failed', error: 'socket closed' });
+  await Effect.runPromise(client.request({ type: 'list' }, 100));
+
+  first.reconnectStatus?.({ status: 'failed', error: 'stale failure' });
+  first.messageListener?.({
+    activeSessionId: 'stale',
+    type: 'session_status',
+  } as DaemonOutbound);
+
+  assert.equal(client.state(), 'ready');
+  assert.deepEqual(messages, []);
+  assert.equal(first.closeCount, 1);
+  client.close();
+  assert.equal(second.closeCount, 1);
+});

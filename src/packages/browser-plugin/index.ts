@@ -53,7 +53,8 @@ export const browserPluginForwardCommand = 'ernie.browser.forward';
 export const browserPluginReloadCommand = 'ernie.browser.reload';
 
 /** The safe first page loaded when the Browser plugin opens. */
-export const browserPluginHomeUrl = 'https://www.google.com/';
+export const browserPluginHomeUrl =
+  'https://ta-0.com/blog/the-best-software-is-yet-to-be-made';
 
 /** Integer renderer coordinates used to place the native browser page. */
 export interface BrowserPluginBounds {

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   browserPluginAcquireChannel,
   browserPluginBackCommand,
+  browserPluginHomeUrl,
   browserPluginManifest,
   browserPluginReleaseChannel,
   browserPluginShowChannel,
@@ -39,6 +40,13 @@ const state = {
   canGoBack: false,
   canGoForward: false,
 };
+
+test('opens Ernie’s jellyware article as the Browser home page', () => {
+  assert.equal(
+    browserPluginHomeUrl,
+    'https://ta-0.com/blog/the-best-software-is-yet-to-be-made',
+  );
+});
 
 function successfulState() {
   return { ok: true, state } as const;

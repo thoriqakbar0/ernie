@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    alt="Ernie — a macOS workspace for Prime Agent"
+    alt="Ernie, a macOS workspace for Prime Agent"
     src="docs/design/ernie-github-social.png"
     width="960"
   />
@@ -9,8 +9,8 @@
 # Ernie
 
 Ernie is an experimental macOS workspace for Prime Agent. It places durable
-sessions beside their repositories and Git worktrees. Prime Agent—not Ernie—runs
-models and stores session history.
+sessions beside their repositories and Git worktrees. Prime Agent, not Ernie,
+runs models and stores session history.
 
 Ernie is also a small learning lab for the interface around an agent runtime.
 [The best software is yet to be made](https://ta-0.com/blog/the-best-software-is-yet-to-be-made)

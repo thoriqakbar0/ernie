@@ -45,6 +45,8 @@ jobs:
           sudo mkdir -p /Users/thor/work
           sudo chown -R "$USER" /Users/thor/work
           git clone --depth 1 https://github.com/thoriqakbar0/agentation.git /Users/thor/work/agentation
+          nub --cwd /Users/thor/work/agentation/package install --frozen-lockfile --ignore-scripts
+          nub --cwd /Users/thor/work/agentation/package run build
 
       - name: Validate release version
         env:

@@ -27,11 +27,8 @@ function readDrafts(): Record<string, string> {
   }
 }
 
-function writeDraft(key: string, draft: string): void {
+function writeDrafts(drafts: Readonly<Record<string, string>>): void {
   try {
-    const drafts = readDrafts();
-    if (draft.length === 0) delete drafts[key];
-    else drafts[key] = draft;
     window.localStorage.setItem(taskDraftStorageKey, JSON.stringify(drafts));
   } catch {
     // The mounted composer still owns the draft when storage is unavailable.
@@ -66,12 +63,32 @@ export function usePrimeAgentTask(
         : `agent:${activeSessionId}`,
     [activeSessionId, selectedCwd],
   );
-  const [draft, setDraft] = useState(() => readDrafts()[draftKey] ?? '');
+  const [drafts, setDrafts] = useState(readDrafts);
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const submissionInFlight = useRef(false);
+  const draft = drafts[draftKey] ?? '';
 
-  useEffect(() => writeDraft(draftKey, draft), [draft, draftKey]);
+  useEffect(() => writeDrafts(drafts), [drafts]);
+
+  const updateDraft = (key: string, message: string): void => {
+    setDrafts((current) => {
+      if ((current[key] ?? '') === message) return current;
+      const next = { ...current };
+      if (message.length === 0) delete next[key];
+      else next[key] = message;
+      return next;
+    });
+  };
+
+  const clearSubmittedDraft = (key: string, submittedDraft: string): void => {
+    setDrafts((current) => {
+      if ((current[key] ?? '') !== submittedDraft) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
 
   function submit(): void {
     const submittedDraft = draft;
@@ -101,10 +118,7 @@ export function usePrimeAgentTask(
         }
 
         yield* Effect.sync(() => {
-          writeDraft(draftKey, '');
-          setDraft((currentDraft) =>
-            currentDraft === submittedDraft ? '' : currentDraft,
-          );
+          clearSubmittedDraft(draftKey, submittedDraft);
           setStatus('Task sent to Prime Agent.');
         });
         return;
@@ -122,10 +136,7 @@ export function usePrimeAgentTask(
       }
 
       yield* Effect.sync(() => {
-        writeDraft(draftKey, '');
-        setDraft((currentDraft) =>
-          currentDraft === submittedDraft ? '' : currentDraft,
-        );
+        clearSubmittedDraft(draftKey, submittedDraft);
         setStatus('Task sent to Prime Agent.');
       });
     });
@@ -169,10 +180,7 @@ export function usePrimeAgentTask(
       }
 
       yield* Effect.sync(() => {
-        writeDraft(draftKey, '');
-        setDraft((currentDraft) =>
-          currentDraft === submittedDraft ? '' : currentDraft,
-        );
+        clearSubmittedDraft(draftKey, submittedDraft);
         setStatus('Prime Agent refined this session.');
       });
     });
@@ -201,7 +209,7 @@ export function usePrimeAgentTask(
     draft,
     status,
     submitting,
-    changeDraft: setDraft,
+    changeDraft: (message) => updateDraft(draftKey, message),
     refine,
     submit,
   };

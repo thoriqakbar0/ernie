@@ -560,3 +560,43 @@ test('restores a separate persisted draft for each space', async () => {
     'Ernie draft',
   );
 });
+
+test('keeps mounted drafts owned by their current target', async () => {
+  const user = userEvent.setup();
+  const taskComposer = (selectedCwd: string) => (
+    <TaskComposer
+      agentClient={defaultAgentClient}
+      {...newSessionDepthProps}
+      modelBusy={false}
+      models={[]}
+      skills={skills}
+      selectedCwd={selectedCwd}
+      selectedModelKey={null}
+      selectedSessionId={null}
+      changeModel={() => undefined}
+      createAgentWithTask={async () => ({ ok: true })}
+    />
+  );
+  const rendered = render(taskComposer('/workspace/ernie'));
+
+  const ernieComposer = within(document.body).getByRole('textbox');
+  await user.type(ernieComposer, 'Ernie draft');
+  rendered.rerender(taskComposer('/workspace/leslie'));
+
+  const leslieComposer = within(document.body).getByRole('textbox');
+  assert.equal((leslieComposer as HTMLTextAreaElement).value, '');
+  await user.type(leslieComposer, 'Leslie draft');
+  rendered.rerender(taskComposer('/workspace/ernie'));
+
+  assert.equal(
+    (within(document.body).getByRole('textbox') as HTMLTextAreaElement).value,
+    'Ernie draft',
+  );
+  assert.deepEqual(
+    JSON.parse(window.localStorage.getItem('ernie:task-drafts:v1') ?? '{}'),
+    {
+      'space:/workspace/ernie': 'Ernie draft',
+      'space:/workspace/leslie': 'Leslie draft',
+    },
+  );
+});

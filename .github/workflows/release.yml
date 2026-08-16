@@ -61,7 +61,6 @@ jobs:
       - name: Build release runtime dependencies
         run: |
           nub rebuild \
-            electron \
             prime-agent \
             zeromq \
             msgpackr-extract \

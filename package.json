@@ -18,7 +18,7 @@
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
     "build": "nub run build:main && nub run build:renderer",
-    "package:mac": "nub run build && nub --node scripts/package-macos.mjs",
+    "package:mac": "nub run build && nub --node node_modules/electron/install.js && nub --node scripts/package-macos.mjs",
     "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.main.json",
     "lint": "oxlint --config .oxlintrc.json src scripts tools/oxlint/anti-slop vite.config.mts",
     "lint:boundaries": "depcruise src",

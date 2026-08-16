@@ -203,6 +203,78 @@ test('prewarms visible Agent sessions before their first selection', () =>
     }),
   ));
 
+test('claims an active warmup before opening the selected session feed', () =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const warmupStarted = yield* Deferred.make<void>();
+      const warmupFinalized = yield* Deferred.make<void>();
+      let openedConnections = 0;
+      const view = {
+        activeSessionId: 'agent-one',
+        historyStart: 0,
+        isStreaming: false,
+        messages: [],
+        rlmMaxDepth: 1,
+        sessionName: 'Selected',
+        spawnedSessions: [],
+        transcript: [],
+      };
+      const daemon = createErnieDaemon({
+        harness: {
+          ...fakeHarness(),
+          sessionFeed: () => {
+            openedConnections += 1;
+            if (openedConnections === 1) {
+              return Stream.fromEffect(
+                Deferred.succeed(warmupStarted, undefined),
+              ).pipe(
+                Stream.flatMap(() => Stream.never),
+                Stream.ensuring(Deferred.succeed(warmupFinalized, undefined)),
+              );
+            }
+            return Stream.succeed({
+              kind: 'snapshot' as const,
+              previousHistoryStart: null,
+              view,
+            });
+          },
+          workspaceFeed: () =>
+            Stream.succeed({
+              kind: 'workspace-replaced' as const,
+              workspace: {
+                currentCwd: '/workspace',
+                sessions: [{
+                  activeSessionId: 'agent-one',
+                  activity: 'idle' as const,
+                  cwd: '/workspace',
+                  model: null,
+                  modifiedAt: null,
+                  name: 'Selected',
+                  sessionPath: null,
+                }],
+              },
+            }),
+        },
+      });
+
+      yield* daemon.workspaceFeed().pipe(Stream.runDrain);
+      yield* Deferred.await(warmupStarted).pipe(Effect.timeout('1 second'));
+      const selected = yield* daemon.sessionFeed('agent-one').pipe(
+        Stream.take(1),
+        Stream.runCollect,
+      );
+      yield* Deferred.await(warmupFinalized).pipe(Effect.timeout('1 second'));
+
+      assert.equal(openedConnections, 2);
+      assert.deepEqual(Array.from(selected), [{
+        kind: 'snapshot',
+        previousHistoryStart: null,
+        view,
+      }]);
+      daemon.close();
+    }),
+  ));
+
 test('finalizes an active warmup before closing its adapter', () =>
   Effect.runPromise(
     Effect.gen(function* () {

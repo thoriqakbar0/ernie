@@ -112,10 +112,6 @@ interface OwnedSessionWarmup {
   fiber: Fiber.Fiber<void> | null;
 }
 
-interface OwnedDaemonShutdown {
-  fiber: Fiber.Fiber<void> | null;
-}
-
 const maximumPrewarmedSessions = 24;
 const maximumConcurrentWarmups = 4;
 
@@ -152,8 +148,8 @@ export function createErnieDaemon(
   const harness = normalizedDescriptor(adapter.descriptor);
   const sessionViews = createAgentSessionViewCache();
   const pendingSessionWarmups = new Set<string>();
-  let activeSessionWarmup: OwnedSessionWarmup | null = null;
-  let activeShutdown: OwnedDaemonShutdown | null = null;
+  const activeSessionWarmups = new Map<string, OwnedSessionWarmup>();
+  const selectedSessionCounts = new Map<string, number>();
   let closed = false;
 
   const warmSession = (activeSessionId: string) =>
@@ -167,46 +163,67 @@ export function createErnieDaemon(
     );
 
   const startPendingSessionWarmups = (): void => {
-    if (closed || activeSessionWarmup !== null) return;
-    const activeSessionIds = [...pendingSessionWarmups].slice(
-      0,
-      maximumConcurrentWarmups,
-    );
-    if (activeSessionIds.length === 0) return;
-    for (const activeSessionId of activeSessionIds) {
+    while (
+      !closed &&
+      activeSessionWarmups.size < maximumConcurrentWarmups
+    ) {
+      const activeSessionId = pendingSessionWarmups.values().next().value;
+      if (activeSessionId === undefined) return;
       pendingSessionWarmups.delete(activeSessionId);
-    }
-
-    const owner: OwnedSessionWarmup = { fiber: null };
-    activeSessionWarmup = owner;
-    owner.fiber = Effect.runFork(
-      Effect.forEach(activeSessionIds, warmSession, {
-        concurrency: maximumConcurrentWarmups,
-        discard: true,
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (activeSessionWarmup !== owner) return;
-            activeSessionWarmup = null;
-            startPendingSessionWarmups();
-          }),
+      if (
+        selectedSessionCounts.has(activeSessionId) ||
+        sessionViews.peek(activeSessionId) !== null
+      ) {
+        continue;
+      }
+      const owner: OwnedSessionWarmup = { fiber: null };
+      activeSessionWarmups.set(activeSessionId, owner);
+      owner.fiber = Effect.runFork(
+        warmSession(activeSessionId).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              if (activeSessionWarmups.get(activeSessionId) === owner) {
+                activeSessionWarmups.delete(activeSessionId);
+              }
+              startPendingSessionWarmups();
+            }),
+          ),
         ),
-      ),
-    );
+      );
+    }
   };
 
   const prewarmSessionViews = (workspace: AgentWorkspace): void => {
-    for (const session of workspace.sessions.slice(0, maximumPrewarmedSessions)) {
-      if (sessionViews.peek(session.activeSessionId) === null) {
-        pendingSessionWarmups.add(session.activeSessionId);
+    const visibleSessionIds = new Set(
+      workspace.sessions
+        .slice(0, maximumPrewarmedSessions)
+        .map((session) => session.activeSessionId),
+    );
+    for (const activeSessionId of pendingSessionWarmups) {
+      if (!visibleSessionIds.has(activeSessionId)) {
+        pendingSessionWarmups.delete(activeSessionId);
+      }
+    }
+    for (const [activeSessionId, owner] of activeSessionWarmups) {
+      if (visibleSessionIds.has(activeSessionId)) continue;
+      if (owner.fiber !== null) Effect.runFork(Fiber.interrupt(owner.fiber));
+    }
+    for (const activeSessionId of visibleSessionIds) {
+      if (
+        !selectedSessionCounts.has(activeSessionId) &&
+        !activeSessionWarmups.has(activeSessionId) &&
+        sessionViews.peek(activeSessionId) === null
+      ) {
+        pendingSessionWarmups.add(activeSessionId);
       }
     }
     startPendingSessionWarmups();
   };
 
-  const sessionFeed = (activeSessionId: JsonValue) => {
-    const sessionId = normalizedSessionId(activeSessionId);
-    if (sessionId !== null) pendingSessionWarmups.delete(sessionId);
+  const liveSessionFeed = (
+    activeSessionId: JsonValue,
+    sessionId: string | null,
+  ) => {
     const cachedView = sessionId === null ? null : sessionViews.read(sessionId);
     const liveFeed = windowAgentSessionFeed(
       adapter.sessionFeed(activeSessionId),
@@ -230,6 +247,34 @@ export function createErnieDaemon(
         }).pipe(
           Stream.concat(liveFeed),
         );
+  };
+  const sessionFeed = (activeSessionId: JsonValue) => {
+    const sessionId = normalizedSessionId(activeSessionId);
+    if (sessionId === null) return liveSessionFeed(activeSessionId, null);
+
+    return Stream.unwrap(
+      Effect.gen(function* () {
+        selectedSessionCounts.set(
+          sessionId,
+          (selectedSessionCounts.get(sessionId) ?? 0) + 1,
+        );
+        pendingSessionWarmups.delete(sessionId);
+        const warmup = activeSessionWarmups.get(sessionId);
+        if (warmup !== undefined) {
+          if (warmup.fiber !== null) yield* Fiber.interrupt(warmup.fiber);
+        }
+        return liveSessionFeed(activeSessionId, sessionId).pipe(
+          Stream.ensuring(
+            Effect.sync(() => {
+              const remaining = (selectedSessionCounts.get(sessionId) ?? 1) - 1;
+              if (remaining === 0) selectedSessionCounts.delete(sessionId);
+              else selectedSessionCounts.set(sessionId, remaining);
+              startPendingSessionWarmups();
+            }),
+          ),
+        );
+      }).pipe(Effect.uninterruptible),
+    );
   };
   const workspaceFeed = () =>
     adapter.workspaceFeed().pipe(
@@ -283,27 +328,24 @@ export function createErnieDaemon(
       if (closed) return;
       closed = true;
       pendingSessionWarmups.clear();
-      const warmup = activeSessionWarmup;
-      activeSessionWarmup = null;
+      selectedSessionCounts.clear();
+      const warmupFibers = [...activeSessionWarmups.values()].flatMap((owner) =>
+        owner.fiber === null ? [] : [owner.fiber]
+      );
+      activeSessionWarmups.clear();
       const closeAdapter = Effect.sync(() => {
         sessionViews.clear();
         adapter.close();
       });
-      if (warmup?.fiber === null || warmup?.fiber === undefined) {
+      if (warmupFibers.length === 0) {
         Effect.runSync(closeAdapter);
         return;
       }
-      const shutdown: OwnedDaemonShutdown = { fiber: null };
-      activeShutdown = shutdown;
-      shutdown.fiber = Effect.runFork(
-        Fiber.interrupt(warmup.fiber).pipe(
-          Effect.andThen(closeAdapter),
-          Effect.ensuring(
-            Effect.sync(() => {
-              if (activeShutdown === shutdown) activeShutdown = null;
-            }),
-          ),
-        ),
+      Effect.runFork(
+        Effect.forEach(warmupFibers, Fiber.interrupt, {
+          concurrency: 'unbounded',
+          discard: true,
+        }).pipe(Effect.andThen(closeAdapter)),
       );
     },
     createSession: adapter.createSession,

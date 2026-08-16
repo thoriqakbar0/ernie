@@ -58,6 +58,18 @@ jobs:
       - name: Install dependencies
         run: nub install --frozen-lockfile
 
+      - name: Build release runtime dependencies
+        run: |
+          nub rebuild \
+            electron \
+            prime-agent \
+            zeromq \
+            msgpackr-extract \
+            cpu-features \
+            ssh2 \
+            protobufjs \
+            @google/genai
+
       - name: Run checks
         run: nub run check
 

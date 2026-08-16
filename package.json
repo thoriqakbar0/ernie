@@ -1,7 +1,7 @@
 {
   "name": "ernie",
   "productName": "Ernie",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An experimental macOS workspace for Prime Agent sessions.",
   "type": "module",
   "main": ".build/main/main.js",

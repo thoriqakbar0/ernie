@@ -17,6 +17,7 @@
     "build:lynx-natural-scroll": "nub --node scripts/build-lynx-natural-scroll.mjs",
     "build:main": "tsc --project tsconfig.main.json",
     "build:renderer": "vite build",
+    "build:website": "vite build --config website/vite.config.mts",
     "build": "nub run build:main && nub run build:renderer",
     "package:mac": "nub run build && nub --node node_modules/electron/install.js && nub --node scripts/package-macos.mjs",
     "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.main.json",

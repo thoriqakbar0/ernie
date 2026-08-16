@@ -1,3 +1,11 @@
+<p align="center">
+  <img
+    alt="Ernie — an interface that adapts to your work"
+    src="docs/design/ernie-github-social.png"
+    width="960"
+  />
+</p>
+
 # Ernie
 
 Ernie is a macOS desktop client and learning lab for Prime Agent. Prime Agent

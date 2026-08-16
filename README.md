@@ -8,24 +8,23 @@
 
 # Ernie
 
-Ernie is an experimental macOS workspace for Prime Agent. It groups durable
-sessions with repositories and Git worktrees. Prime Agent—not Ernie—runs models
-and stores session history.
+Ernie is an experimental macOS workspace for Prime Agent. It places durable
+sessions beside their repositories and Git worktrees. Prime Agent—not Ernie—runs
+models and stores session history.
 
-The project stays intentionally small. Its purpose is to make agent-runtime
-boundaries visible enough to build, observe, and explain.
+Ernie is also a small learning lab for the interface around an agent runtime.
+[The best software is yet to be made](https://ta-0.com/blog/the-best-software-is-yet-to-be-made)
+explains the interface research behind it.
 
 ## What Ernie does
 
-- Groups Prime Agent sessions with their repositories and Git worktrees.
 - Shows durable conversations, tool activity, queued work, and child Agents.
 - Reads and updates sessions through Prime Agent instead of storing a competing copy.
 - Hosts trusted built-in plugins, including the Browser plugin.
-- Tells each Prime Agent session that Ernie is its desktop host.
 - Exposes typed controls for window focus, light or dark theme, and sidebar state.
 
-Ernie does not implement its own model runtime. It connects its Electron main
-process to Prime Agent through a provider-owned daemon adapter.
+Ernie does not run models. Its Electron main process talks to Prime Agent
+through the Prime Agent daemon.
 
 ```text
 renderer -> Electron IPC -> Ernie daemon -> Prime Agent adapter -> daemon socket
@@ -106,6 +105,7 @@ shell-automation behavior.
 - [Website documentation](https://ernie.ta-0.com/docs/) covers setup, architecture,
   CLI control, plugins, releases, and troubleshooting.
 - [Ernie plugins](docs/plugins.md) documents the built-in plugin contract.
+- [Ernie roadmap](docs/roadmap.md) defines the evidence required for the Cordis port.
 - [Use the Ernie CLI](docs/ui-control.md) shows how to inspect and control the app.
 - [Lynx experiment](lynx/README.md) covers the separate native-renderer study.
 
@@ -113,17 +113,17 @@ shell-automation behavior.
 
 Ernie v0.1.0 is a public Apple silicon prerelease on GitHub. Its ZIP uses an
 ad-hoc signature and is not notarized by Apple, so macOS can block the first
-launch. The fixed desktop workspace works; task-specific interface composition
-remains a research direction.
+launch. v0.1.0 provides a fixed desktop workspace. Task-specific interface
+composition is not part of this release.
 
 [Download Ernie v0.1.0 from GitHub Releases](https://github.com/thoriqakbar0/ernie/releases/tag/v0.1.0).
 
 ## Roadmap
 
-The next architecture project is a staged port of the trusted built-in plugin
-runtime to Cordis. The port is planned, not implemented in v0.1.0. It will begin
-with a pinned compatibility spike and must preserve Ernie's current activation,
-service, recovery, and cleanup behavior before replacing the custom host.
+The roadmap proposes a staged port of the trusted built-in plugin runtime to
+Cordis. The port is not implemented in v0.1.0. The first phase is a pinned
+compatibility spike. The custom host stays until the new path preserves current
+activation, recovery, and cleanup behavior.
 
 [Read the Cordis migration roadmap](docs/roadmap.md) for the phases, exit gates,
 and excluded work.

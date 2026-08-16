@@ -31,3 +31,7 @@ _Avoid_: Side effect, plugin resource
 **Effect ledger**:
 The activation attempt's ordered record of armed plugin-effect cleanups. Recovery consumes each entry before invoking it once in reverse order.
 _Avoid_: Root disposable, cleanup bag
+
+**Repository navigation**:
+The visible hierarchy that organizes repositories, worktrees, and Agent conversations through selection, ordering, pins, archive, search, and disclosure.
+_Avoid_: Sidebar state, thread tree

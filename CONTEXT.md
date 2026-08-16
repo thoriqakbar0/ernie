@@ -35,3 +35,7 @@ _Avoid_: Root disposable, cleanup bag
 **Repository navigation**:
 The visible hierarchy that organizes repositories, worktrees, and Agent conversations through selection, ordering, pins, archive, search, and disclosure.
 _Avoid_: Sidebar state, thread tree
+
+**Agent conversation**:
+One visible body of work between a person and an Agent, whether active or saved.
+_Avoid_: Thread, Prime Agent session

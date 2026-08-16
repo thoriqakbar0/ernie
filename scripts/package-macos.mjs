@@ -280,7 +280,33 @@ async function createDirectoryLink(linkPath, targetPath) {
   await symlink(path.relative(path.dirname(linkPath), targetPath), linkPath);
 }
 
+function packagedRuntimeDependencyNames(packageJson) {
+  const names = packageJson.ernie?.packagedRuntimeDependencies;
+  if (
+    !Array.isArray(names) ||
+    names.length === 0 ||
+    names.some(
+      name =>
+        typeof name !== 'string' ||
+        name.trim() !== name ||
+        name.length === 0,
+    ) ||
+    new Set(names).size !== names.length
+  ) {
+    throw new Error(
+      'Ernie packaged runtime dependencies must be unique package names.',
+    );
+  }
+  for (const name of names) {
+    if (typeof packageJson.dependencies?.[name] !== 'string') {
+      throw new Error(`Packaged runtime dependency is not declared: ${name}`);
+    }
+  }
+  return names;
+}
+
 async function installRuntimeDependencies(packageJson) {
+  const rootNames = packagedRuntimeDependencyNames(packageJson);
   const packagedPackageJson = {
     name: packageJson.name,
     productName: packageJson.productName,
@@ -289,18 +315,15 @@ async function installRuntimeDependencies(packageJson) {
     type: packageJson.type,
     main: packageJson.main,
     license: packageJson.license,
-    dependencies: {
-      effect: packageJson.dependencies.effect,
-      'prime-agent': packageJson.dependencies['prime-agent'],
-      typebox: packageJson.dependencies.typebox,
-    },
+    dependencies: Object.fromEntries(
+      rootNames.map(name => [name, packageJson.dependencies[name]]),
+    ),
   };
 
   await writeFile(
     path.join(packagedSourcePath, 'package.json'),
     `${JSON.stringify(packagedPackageJson, null, 2)}\n`,
   );
-  const rootNames = Object.keys(packagedPackageJson.dependencies);
   const runtime = await collectRuntimePackages(rootNames);
   const nodeModulesPath = path.join(packagedSourcePath, 'node_modules');
   const storePath = path.join(nodeModulesPath, '.store');
@@ -457,6 +480,11 @@ async function main() {
   const packageJson = JSON.parse(
     await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'),
   );
+  if (process.argv.includes('--validate-runtime-dependencies')) {
+    const names = packagedRuntimeDependencyNames(packageJson);
+    console.log(`packaged runtime dependencies: ${names.join(', ')}`);
+    return;
+  }
   const architecture = process.arch;
   const archiveName = `${applicationName}-${packageJson.version}-mac-${architecture}.zip`;
   const archivePath = path.join(outputRoot, archiveName);

@@ -9,6 +9,13 @@
     "ernie": ".build/main/cli.js"
   },
   "private": true,
+  "ernie": {
+    "packagedRuntimeDependencies": [
+      "effect",
+      "prime-agent",
+      "typebox"
+    ]
+  },
   "scripts": {
     "start": "nub run build:main && nub run build:renderer && nub --node node_modules/electron/cli.js .",
     "cli": "nub run build:main && nub --node .build/main/cli.js",
@@ -19,12 +26,13 @@
     "build:renderer": "vite build",
     "build:website": "vite build --config website/vite.config.mts",
     "build": "nub run build:main && nub run build:renderer",
+    "check:package-runtime": "nub --node scripts/package-macos.mjs --validate-runtime-dependencies",
     "package:mac": "nub run build && nub --node node_modules/electron/install.js && nub --node scripts/package-macos.mjs",
     "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.main.json",
     "lint": "oxlint --config .oxlintrc.json src scripts tools/oxlint/anti-slop vite.config.mts",
     "lint:boundaries": "depcruise src",
     "test": "nub --test \"src/packages/**/tests/*.test.ts\" \"src/components/tests/*.test.tsx\"",
-    "check": "nub run typecheck && nub run lint && nub run lint:boundaries && nub run test"
+    "check": "nub run typecheck && nub run lint && nub run lint:boundaries && nub run test && nub run check:package-runtime"
   },
   "keywords": [],
   "author": {

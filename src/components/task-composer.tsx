@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { AgentWorkspaceController } from '@/packages/agent-workspace';
+import type { PrimeAgentRendererClient } from '@/packages/agent-renderer-client';
 import { usePrimeAgentTask } from '@/hooks/use-prime-agent-task';
 import {
   createSkillSearch,
@@ -40,6 +41,7 @@ type TaskComposerProps = Pick<
   | 'changeThinkingLevel'
   | 'createAgentWithTask'
 > & {
+  readonly agentClient: PrimeAgentRendererClient;
   readonly depth: number | null;
   readonly depthBusy: boolean;
   readonly disabled?: boolean;
@@ -49,6 +51,7 @@ type TaskComposerProps = Pick<
 
 /** Compose and submit one task without rerendering workspace controls. */
 export const TaskComposer = memo(function TaskComposer({
+  agentClient,
   disabled = false,
   depth,
   depthBusy,
@@ -68,6 +71,7 @@ export const TaskComposer = memo(function TaskComposer({
   onDepthChange,
 }: TaskComposerProps): React.JSX.Element {
   const task = usePrimeAgentTask(
+    agentClient,
     selectedSessionId,
     selectedCwd,
     createAgentWithTask,

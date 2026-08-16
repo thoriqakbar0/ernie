@@ -34,16 +34,6 @@ const configuration = {
   thinkingLevel: 'medium',
 } as const;
 
-const rawConfiguration = {
-  availableThinkingLevels: configuration.availableThinkingLevels,
-  model: {
-    id: model.id,
-    name: model.name,
-    provider: model.provider,
-  },
-  thinkingLevel: configuration.thinkingLevel,
-} as const;
-
 function creationPort(
   calls: string[],
   failure?: 'model' | 'thinking' | 'task' | 'throw-task',
@@ -57,13 +47,13 @@ function creationPort(
       calls.push('model');
       return failure === 'model'
         ? { ok: false, error: { code: 'request_failed', message: 'Model failed.' } }
-        : { ok: true, value: rawConfiguration };
+        : { ok: true, value: configuration };
     },
     setThinkingLevel: async () => {
       calls.push('thinking');
       return failure === 'thinking'
         ? { ok: false, error: { code: 'request_failed', message: 'Thinking failed.' } }
-        : { ok: true, value: rawConfiguration };
+        : { ok: true, value: configuration };
     },
     submitTask: async () => {
       calls.push('task');

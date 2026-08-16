@@ -7,6 +7,7 @@ import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TaskSurface } from '@/components/task-surface';
+import { createPrimeAgentRendererClientFixture } from '@/components/tests/prime-agent-renderer-client-fixture';
 import type { AgentWorkspaceController } from '@/packages/agent-workspace';
 
 Object.defineProperty(Element.prototype, 'getAnimations', {
@@ -19,6 +20,8 @@ Object.defineProperty(Element.prototype, 'animate', {
 });
 
 afterEach(cleanup);
+
+const agentClient = createPrimeAgentRendererClientFixture();
 
 function unavailableWorkspace(): AgentWorkspaceController {
   return {
@@ -82,6 +85,7 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
 
   render(
     <TaskSurface
+      agentClient={agentClient}
       workspace={unavailableWorkspace()}
       thinkingOrbState="working"
       onRetryConnection={() => {
@@ -120,6 +124,7 @@ test('unavailable Agent disables launch controls and offers one retry', async ()
 test('working Agent shows its hydrated conversation before a response', () => {
   render(
     <TaskSurface
+      agentClient={agentClient}
       workspace={{
         ...unavailableWorkspace(),
         primeAgentConnection: 'ready',
@@ -186,6 +191,7 @@ test('working Agent shows its hydrated conversation before a response', () => {
 test('settled Agent keeps its AI response visible', () => {
   render(
     <TaskSurface
+      agentClient={agentClient}
       workspace={{
         ...unavailableWorkspace(),
         primeAgentConnection: 'ready',

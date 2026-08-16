@@ -2,10 +2,7 @@ import { Effect } from 'effect';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { CreateAgentWithTaskResult } from '@/packages/agent-workspace';
-import {
-  parsePrimeAgentRefinementReceiptResult,
-  parsePrimeAgentTaskReceiptResult,
-} from '@/packages/prime-agent-daemon/client';
+import type { PrimeAgentRendererClient } from '@/packages/agent-renderer-client';
 import {
   isJsonRecord,
   isJsonString,
@@ -54,6 +51,7 @@ export interface PrimeAgentTaskController {
 
 /** Submit task drafts without rerendering the surrounding workspace controls. */
 export function usePrimeAgentTask(
+  agent: PrimeAgentRendererClient,
   activeSessionId: string | null,
   selectedCwd: string | null,
   createAgentWithTask: (
@@ -112,13 +110,12 @@ export function usePrimeAgentTask(
         return;
       }
 
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.submitAgentTask({
+      const result = yield* Effect.tryPromise(() =>
+        agent.submitTask({
           activeSessionId: target.activeSessionId,
           message,
         }),
       );
-      const result = parsePrimeAgentTaskReceiptResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -160,13 +157,12 @@ export function usePrimeAgentTask(
     setSubmitting(true);
     setStatus('Refining this Prime Agent session…');
     const refineSession = Effect.fn('Task.refine')(function* () {
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.refineAgentSession({
+      const result = yield* Effect.tryPromise(() =>
+        agent.refineSession({
           activeSessionId,
           instructions,
         }),
       );
-      const result = parsePrimeAgentRefinementReceiptResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;

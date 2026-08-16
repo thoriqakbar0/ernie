@@ -1,18 +1,16 @@
-import type { JsonValue } from '../json-value';
 import type { PrimeAgentGitWorkspace } from '../prime-agent-daemon/git-client';
-import {
-  parsePrimeAgentConfigurationResult,
-  parsePrimeAgentSessionResult,
-  parsePrimeAgentTaskReceiptResult,
-  type PrimeAgentConfiguration,
-  type PrimeAgentModel,
-  type PrimeAgentSavedSession,
-  type PrimeAgentSession,
-  type PrimeAgentSessionRename,
-  type PrimeAgentSessionView,
-  type PrimeAgentSkill,
-  type PrimeAgentThinkingLevel,
-  type PrimeAgentWorkspace,
+import type {
+  PrimeAgentConfiguration,
+  PrimeAgentModel,
+  PrimeAgentResult,
+  PrimeAgentSavedSession,
+  PrimeAgentSession,
+  PrimeAgentSessionRename,
+  PrimeAgentSessionView,
+  PrimeAgentSkill,
+  PrimeAgentTaskReceipt,
+  PrimeAgentThinkingLevel,
+  PrimeAgentWorkspace,
 } from '../prime-agent-daemon/client';
 import type { PrimeAgentWorkspaceConnection } from '../prime-agent-daemon/types';
 import { sessionNameFromFirstMessage } from '../session-name-hook';
@@ -133,20 +131,20 @@ export interface AgentCreationPort {
   readonly createSession: (request: Readonly<{
     cwd: string;
     rlmMaxDepth: number;
-  }>) => Promise<JsonValue>;
+  }>) => Promise<PrimeAgentResult<PrimeAgentSession>>;
   readonly setModel: (request: Readonly<{
     activeSessionId: string;
     modelId: string;
     provider: string;
-  }>) => Promise<JsonValue>;
+  }>) => Promise<PrimeAgentResult<PrimeAgentConfiguration>>;
   readonly setThinkingLevel: (request: Readonly<{
     activeSessionId: string;
     thinkingLevel: PrimeAgentThinkingLevel;
-  }>) => Promise<JsonValue>;
+  }>) => Promise<PrimeAgentResult<PrimeAgentConfiguration>>;
   readonly submitTask: (request: Readonly<{
     activeSessionId: string;
     message: string;
-  }>) => Promise<JsonValue>;
+  }>) => Promise<PrimeAgentResult<PrimeAgentTaskReceipt>>;
 }
 
 /** One fully specified request for creating and configuring an Agent. */
@@ -295,12 +293,10 @@ export async function createAgentWithTask(
   let unexpectedMessage = 'Ernie could not create a new Agent.';
 
   try {
-    const sessionResult = parsePrimeAgentSessionResult(
-      await port.createSession({
-        cwd: request.cwd,
-        rlmMaxDepth: request.rlmMaxDepth,
-      }),
-    );
+    const sessionResult = await port.createSession({
+      cwd: request.cwd,
+      rlmMaxDepth: request.rlmMaxDepth,
+    });
     if (!sessionResult.ok) {
       return {
         configuration,
@@ -316,13 +312,11 @@ export async function createAgentWithTask(
     recoverableSession = session;
     if (request.model !== null) {
       unexpectedMessage = 'Ernie created the Agent, but could not set its model.';
-      const modelResult = parsePrimeAgentConfigurationResult(
-        await port.setModel({
-          activeSessionId: session.activeSessionId,
-          modelId: request.model.id,
-          provider: request.model.provider,
-        }),
-      );
+      const modelResult = await port.setModel({
+        activeSessionId: session.activeSessionId,
+        modelId: request.model.id,
+        provider: request.model.provider,
+      });
       if (!modelResult.ok) {
         return {
           configuration,
@@ -341,12 +335,10 @@ export async function createAgentWithTask(
     if (request.thinkingLevel !== null) {
       unexpectedMessage =
         'Ernie created the Agent, but could not set its reasoning effort.';
-      const thinkingResult = parsePrimeAgentConfigurationResult(
-        await port.setThinkingLevel({
-          activeSessionId: session.activeSessionId,
-          thinkingLevel: request.thinkingLevel,
-        }),
-      );
+      const thinkingResult = await port.setThinkingLevel({
+        activeSessionId: session.activeSessionId,
+        thinkingLevel: request.thinkingLevel,
+      });
       if (!thinkingResult.ok) {
         return {
           configuration,
@@ -364,12 +356,10 @@ export async function createAgentWithTask(
 
     unexpectedMessage =
       'Ernie created the Agent, but could not send its first task.';
-    const taskResult = parsePrimeAgentTaskReceiptResult(
-      await port.submitTask({
-        activeSessionId: session.activeSessionId,
-        message: request.message,
-      }),
-    );
+    const taskResult = await port.submitTask({
+      activeSessionId: session.activeSessionId,
+      message: request.message,
+    });
     return taskResult.ok
       ? {
           configuration,

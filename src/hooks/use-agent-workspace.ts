@@ -2,6 +2,7 @@ import { Effect, Fiber } from 'effect';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createAgentSessionViewCache } from '@/packages/ernie-daemon/session-view-cache';
+import type { AgentRendererClients } from '@/packages/agent-renderer-client';
 import {
   agentWorkspaceName,
   connectAgentWorkspaceSession,
@@ -14,23 +15,11 @@ import {
   type AgentWorkspaceSpawnedTarget,
   type CreateAgentWithTaskResult,
 } from '@/packages/agent-workspace';
+import type { PrimeAgentGitWorkspace } from '@/packages/prime-agent-daemon/git-client';
 import {
-  parsePrimeAgentGitBranchesResult,
-  parsePrimeAgentGitWorkspaceResult,
-  parsePrimeAgentGitWorktreeResult,
-  type PrimeAgentGitWorkspace,
-} from '@/packages/prime-agent-daemon/git-client';
-import {
-  parsePrimeAgentConfigurationResult,
-  parsePrimeAgentModelsResult,
-  parsePrimeAgentRlmDepthResult,
-  parsePrimeAgentSavedSessionsResult,
-  parsePrimeAgentSessionHistoryPageResult,
-  parsePrimeAgentSessionRenameResult,
-  parsePrimeAgentSessionResult,
-  parsePrimeAgentSkillsResult,
   type PrimeAgentConfiguration,
   type PrimeAgentModel,
+  type PrimeAgentResult,
   type PrimeAgentSavedSession,
   type PrimeAgentSession,
   type PrimeAgentSessionRename,
@@ -40,8 +29,6 @@ import {
 } from '@/packages/prime-agent-daemon/client';
 import {
   createPrimeAgentSessionFeedState,
-  parsePrimeAgentSessionFeedEnvelope,
-  parsePrimeAgentWorkspaceFeedItem,
   primeAgentSessionFeedView,
   prependPrimeAgentSessionHistory,
   reducePrimeAgentSessionFeed,
@@ -75,29 +62,16 @@ function loadStoredRlmMaxDepth(): number {
   }
 }
 
-type WorkspaceDirectorySelection =
-  | { readonly ok: true; readonly value: string | null }
-  | { readonly ok: false };
-
 interface OwnedEarlierHistoryLoad {
   readonly activeSessionId: string;
   fiber: Fiber.Fiber<void> | null;
 }
 
-function parseWorkspaceDirectorySelection(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function parses the Electron IPC boundary value before use.
-  value: unknown,
-): WorkspaceDirectorySelection {
-  if (value === null) return { ok: true, value: null };
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- The boundary parser must distinguish the one accepted primitive.
-  if (typeof value === 'string' && value.trim().length > 0) {
-    return { ok: true, value };
-  }
-  return { ok: false };
-}
-
 /** Connect Ernie's task controls to the local Prime Agent daemon. */
-export function useAgentWorkspace(): AgentWorkspaceController {
+export function useAgentWorkspace(
+  clients: AgentRendererClients,
+): AgentWorkspaceController {
+  const { agent, localWorkspace } = clients;
   const [workspace, setWorkspace] = useState<PrimeAgentWorkspace | null>(null);
   const [addedCwds, setAddedCwds] = useState<readonly string[]>([]);
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
@@ -202,9 +176,8 @@ export function useAgentWorkspace(): AgentWorkspaceController {
   useEffect(() => {
     let active = true;
     setStatus('Connecting to Prime Agent…');
-    const subscriptionId = window.ernie.watchAgentWorkspace((rawItem) => {
+    const subscription = agent.watchWorkspace((result) => {
       if (!active) return;
-      const result = parsePrimeAgentWorkspaceFeedItem(rawItem);
       if (!result.ok) {
         setStatus(result.error.message);
         return;
@@ -236,11 +209,10 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       'Workspace.loadInitialSavedSessions',
     )(function* () {
       yield* Effect.sync(() => setLoadingSavedSessions(true));
-      const rawSavedSessions = yield* Effect.tryPromise(() =>
-        window.ernie.listAgentSavedSessions(),
+      const result = yield* Effect.tryPromise(() =>
+        agent.listSavedSessions(),
       );
       if (!active) return;
-      const result = parsePrimeAgentSavedSessionsResult(rawSavedSessions);
       if (result.ok) yield* Effect.sync(() => setSavedSessions(result.value));
     });
     const savedSessionsFiber = Effect.runFork(
@@ -256,10 +228,10 @@ export function useAgentWorkspace(): AgentWorkspaceController {
 
     return () => {
       active = false;
-      window.ernie.unwatchAgentWorkspace(subscriptionId);
+      subscription.close();
       Effect.runFork(Fiber.interrupt(savedSessionsFiber));
     };
-  }, []);
+  }, [agent]);
 
   useEffect(() => {
     if (selectedCwd === null) {
@@ -282,12 +254,10 @@ export function useAgentWorkspace(): AgentWorkspaceController {
           setGitBranchBusy(true);
           setStatus('Loading local Git branches…');
         });
-        const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.listGitBranches(cwd),
+        const result = yield* Effect.tryPromise(() =>
+          localWorkspace.listBranches(cwd),
         );
         if (!active) return;
-
-        const result = parsePrimeAgentGitBranchesResult(rawResult);
         if (!result.ok) {
           yield* Effect.sync(() => {
             setGitBranch(null);
@@ -336,7 +306,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [selectedCwd]);
+  }, [localWorkspace, selectedCwd]);
 
   useEffect(() => {
     if (selectedSessionId === null) {
@@ -354,20 +324,23 @@ export function useAgentWorkspace(): AgentWorkspaceController {
             : ({ kind: 'session', activeSessionId } as const);
         const loadSkills =
           activeSessionId === null
-            ? Effect.succeed({ ok: true, value: [] })
+            ? Effect.succeed<PrimeAgentResult<readonly PrimeAgentSkill[]>>({
+                ok: true,
+                value: [],
+              })
             : Effect.tryPromise(() =>
-                window.ernie.listAgentSkills(activeSessionId),
+                agent.listSkills(activeSessionId),
               );
         const loadConfiguration =
           activeSessionId === null
             ? Effect.succeed(null)
             : Effect.tryPromise(() =>
-                window.ernie.getAgentConfiguration(activeSessionId),
+                agent.getConfiguration(activeSessionId),
               );
-        const [rawModels, rawSkills, rawConfiguration] = yield* Effect.all(
+        const [modelResult, skillsResult, configurationResult] = yield* Effect.all(
           [
             Effect.tryPromise(() =>
-              window.ernie.listAgentModels(modelScope),
+              agent.listModels(modelScope),
             ),
             loadSkills,
             loadConfiguration,
@@ -375,13 +348,6 @@ export function useAgentWorkspace(): AgentWorkspaceController {
           { concurrency: 'unbounded' },
         );
         if (!active) return;
-
-        const modelResult = parsePrimeAgentModelsResult(rawModels);
-        const skillsResult = parsePrimeAgentSkillsResult(rawSkills);
-        const configurationResult =
-          rawConfiguration === null
-            ? null
-            : parsePrimeAgentConfigurationResult(rawConfiguration);
         yield* Effect.sync(() => {
           setModels(modelResult.ok ? modelResult.value : []);
           if (activeSessionId === null && modelResult.ok) {
@@ -427,7 +393,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [selectedSessionId, updateSelectedSessionFeed]);
+  }, [agent, selectedSessionId, updateSelectedSessionFeed]);
 
   useEffect(() => {
     cancelEarlierHistoryLoad();
@@ -439,10 +405,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
 
     const activeSessionId = selectedSessionId;
     sessionViewCache.read(activeSessionId);
-    const subscriptionId = window.ernie.watchAgentSession(
+    const subscription = agent.watchSession(
       activeSessionId,
-      (rawEnvelope) => {
-        const envelope = parsePrimeAgentSessionFeedEnvelope(rawEnvelope);
+      (envelope) => {
         if (!envelope.ok) {
           setStatus(envelope.error.message);
           return;
@@ -502,11 +467,11 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       },
     );
     updateSelectedSessionFeed(
-      () => createPrimeAgentSessionFeedState(subscriptionId, activeSessionId),
+      () => createPrimeAgentSessionFeedState(subscription.id, activeSessionId),
     );
 
     return () => {
-      window.ernie.unwatchAgentSession(subscriptionId);
+      subscription.close();
       const historyOwner = earlierHistoryLoadRef.current;
       if (historyOwner?.activeSessionId === activeSessionId) {
         cancelEarlierHistoryLoad();
@@ -514,6 +479,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
     };
   }, [
     cancelEarlierHistoryLoad,
+    agent,
     selectedSessionId,
     sessionViewCache,
     updateSelectedSessionFeed,
@@ -540,9 +506,8 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         const identified = yield* Effect.all(
           workspacePaths.map((cwd) =>
             Effect.tryPromise(() =>
-              window.ernie.readGitWorkspace(cwd),
+              localWorkspace.readWorkspace(cwd),
             ).pipe(
-              Effect.map(parsePrimeAgentGitWorkspaceResult),
               Effect.map((result) =>
                 result.ok ? ([cwd, result.value] as const) : null,
               ),
@@ -571,7 +536,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       active = false;
       Effect.runFork(Fiber.interrupt(fiber));
     };
-  }, [workspacePaths]);
+  }, [localWorkspace, workspacePaths]);
 
   const folders = useMemo(
     () => projectAgentWorkspaceFolders(workspacePaths, gitWorkspaces),
@@ -657,11 +622,10 @@ export function useAgentWorkspace(): AgentWorkspaceController {
     setStatus('Creating a new Agent…');
     return runAgentCreation(
       {
-        createSession: (request) => window.ernie.createAgentSession(request),
-        setModel: (request) => window.ernie.setAgentModel(request),
-        setThinkingLevel: (request) =>
-          window.ernie.setAgentThinkingLevel(request),
-        submitTask: (request) => window.ernie.submitAgentTask(request),
+        createSession: agent.createSession,
+        setModel: agent.setModel,
+        setThinkingLevel: agent.setThinkingLevel,
+        submitTask: agent.submitTask,
       },
       {
         cwd,
@@ -695,10 +659,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         setLoadingSavedSessions(true);
         setStatus('Loading saved Prime Agent sessions…');
       });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.listAgentSavedSessions(),
+      const result = yield* Effect.tryPromise(() =>
+        agent.listSavedSessions(),
       );
-      const result = parsePrimeAgentSavedSessionsResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -741,10 +704,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         setLoadingEarlierHistory(true);
         setStatus('Loading earlier Agent history…');
       });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.loadAgentSessionHistory({ activeSessionId, before }),
+      const result = yield* Effect.tryPromise(() =>
+        agent.loadHistory({ activeSessionId, before }),
       );
-      const result = parsePrimeAgentSessionHistoryPageResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -793,10 +755,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
           setImportingSessionPath(sessionPath);
           setStatus('Importing saved Prime Agent session…');
         });
-        const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.importAgentSession(sessionPath),
+        const result = yield* Effect.tryPromise(() =>
+          agent.importSession(sessionPath),
         );
-        const result = parsePrimeAgentSessionResult(rawResult);
         if (!result.ok) {
           yield* Effect.sync(() => setStatus(result.error.message));
           return;
@@ -829,10 +790,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         setRenamingSession(true);
         setStatus('Renaming Agent conversation…');
       });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.renameAgentSession(rename),
+      const result = yield* Effect.tryPromise(() =>
+        agent.renameSession(rename),
       );
-      const result = parsePrimeAgentSessionRenameResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -906,10 +866,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         setChoosingDirectory(true);
         setStatus('Choosing a workspace directory…');
       });
-      const rawSelection = yield* Effect.tryPromise(() =>
-        window.ernie.chooseWorkspaceDirectory(),
+      const selection = yield* Effect.tryPromise(() =>
+        localWorkspace.chooseDirectory(),
       );
-      const selection = parseWorkspaceDirectorySelection(rawSelection);
       if (!selection.ok) {
         yield* Effect.sync(() =>
           setStatus('Ernie received an invalid directory selection.'),
@@ -984,14 +943,13 @@ export function useAgentWorkspace(): AgentWorkspaceController {
 
     const updateModel = Effect.fn('Workspace.updateModel')(function* () {
       yield* Effect.sync(() => setSavingModel(true));
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.setAgentModel({
+      const result = yield* Effect.tryPromise(() =>
+        agent.setModel({
           activeSessionId,
           provider,
           modelId,
         }),
       );
-      const result = parsePrimeAgentConfigurationResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -1025,7 +983,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         Effect.ensuring(Effect.sync(() => setSavingModel(false))),
       ),
     );
-  }, [models, selectedSessionId]);
+  }, [agent, models, selectedSessionId]);
 
   const changeThinkingLevel = useCallback(function changeThinkingLevel(
     value: string | null,
@@ -1045,13 +1003,12 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       'Workspace.updateThinkingLevel',
     )(function* () {
       yield* Effect.sync(() => setSavingThinkingLevel(true));
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.setAgentThinkingLevel({
+      const result = yield* Effect.tryPromise(() =>
+        agent.setThinkingLevel({
           activeSessionId,
           thinkingLevel,
         }),
       );
-      const result = parsePrimeAgentConfigurationResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -1074,7 +1031,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         Effect.ensuring(Effect.sync(() => setSavingThinkingLevel(false))),
       ),
     );
-  }, [selectedSessionId, thinkingLevels]);
+  }, [agent, selectedSessionId, thinkingLevels]);
 
   function changeGitBranch(name: string | null): void {
     if (name === null || selectedCwd === null || name === gitBranch) return;
@@ -1088,13 +1045,12 @@ export function useAgentWorkspace(): AgentWorkspaceController {
           setGitWorktreeError(null);
           setStatus(`Switching to local Git branch ${branchName}…`);
         });
-        const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.switchGitBranch({
+        const result = yield* Effect.tryPromise(() =>
+          localWorkspace.switchBranch({
             cwd,
             name: branchName,
           }),
         );
-        const result = parsePrimeAgentGitBranchesResult(rawResult);
         if (!result.ok) {
           yield* Effect.sync(() => setStatus(result.error.message));
           return;
@@ -1139,13 +1095,12 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         setGitWorktreeError(null);
         setStatus(`Deleting local Git branch ${name}…`);
       });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.deleteGitBranch({
+      const result = yield* Effect.tryPromise(() =>
+        localWorkspace.deleteBranch({
           cwd,
           name,
         }),
       );
-      const result = parsePrimeAgentGitBranchesResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -1199,10 +1154,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
         setGitWorktreeError(null);
         setStatus('Initializing local Git repository with main…');
       });
-      const rawResult = yield* Effect.tryPromise(() =>
-        window.ernie.initializeGit(cwd),
+      const result = yield* Effect.tryPromise(() =>
+        localWorkspace.initializeGit(cwd),
       );
-      const result = parsePrimeAgentGitBranchesResult(rawResult);
       if (!result.ok) {
         yield* Effect.sync(() => setStatus(result.error.message));
         return;
@@ -1238,10 +1192,9 @@ export function useAgentWorkspace(): AgentWorkspaceController {
           setGitWorktreeError(null);
           setStatus(`Creating worktree for ${branchName}…`);
         });
-        const rawResult = yield* Effect.tryPromise(() =>
-          window.ernie.createGitWorktree({ cwd, branchName }),
+        const result = yield* Effect.tryPromise(() =>
+          localWorkspace.createWorktree({ cwd, branchName }),
         );
-        const result = parsePrimeAgentGitWorktreeResult(rawResult);
         if (!result.ok) {
           yield* Effect.sync(() => {
             setGitWorktreeError(result.error.message);
@@ -1319,13 +1272,12 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       const updateDepth = Effect.fn('Workspace.updateSessionRlmMaxDepth')(
         function* () {
           yield* Effect.sync(() => setSavingSessionRlmMaxDepth(true));
-          const rawResult = yield* Effect.tryPromise(() =>
-            window.ernie.setAgentRlmDepth({
+          const result = yield* Effect.tryPromise(() =>
+            agent.setRlmDepth({
               activeSessionId,
               maxDepth,
             }),
           );
-          const result = parsePrimeAgentRlmDepthResult(rawResult);
           if (!result.ok) {
             yield* Effect.sync(() => setStatus(result.error.message));
             return;
@@ -1364,6 +1316,7 @@ export function useAgentWorkspace(): AgentWorkspaceController {
       );
     },
     [
+      agent,
       selectedSessionId,
       selectedSessionView?.rlmMaxDepth,
       sessionViewCache,

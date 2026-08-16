@@ -7,6 +7,8 @@ import { cleanup, render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TaskComposer } from '@/components/task-composer';
+import { createPrimeAgentRendererClientFixture } from '@/components/tests/prime-agent-renderer-client-fixture';
+import type { PrimeAgentRendererClient } from '@/packages/agent-renderer-client';
 import type {
   PrimeAgentTaskSubmission,
 } from '@/packages/prime-agent-daemon/types';
@@ -75,14 +77,19 @@ const newSessionDepthProps = {
   thinkingLevels: [],
 } as const;
 
+const defaultAgentClient = createPrimeAgentRendererClientFixture();
+
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
 });
 
-function renderTaskComposer(): void {
+function renderTaskComposer(
+  agentClient: PrimeAgentRendererClient = defaultAgentClient,
+): void {
   render(
     <TaskComposer
+      agentClient={agentClient}
       {...activeSessionDepthProps}
       modelBusy={false}
       models={models}
@@ -148,6 +155,7 @@ test('working Agent keeps an editable follow-up queue', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      agentClient={defaultAgentClient}
       {...activeSessionDepthProps}
       isGenerating
       modelBusy={false}
@@ -192,17 +200,14 @@ test('working Agent keeps an editable follow-up queue', async () => {
 
 test('Enter sends a connected Agent task', async () => {
   const submittedTasks: PrimeAgentTaskSubmission[] = [];
-  Object.defineProperty(window, 'ernie', {
-    configurable: true,
-    value: {
-      submitAgentTask: async (submission: PrimeAgentTaskSubmission) => {
+  const agentClient = createPrimeAgentRendererClientFixture({
+    submitTask: async (submission: PrimeAgentTaskSubmission) => {
         submittedTasks.push(submission);
         return { ok: true, value: { accepted: true } };
-      },
     },
   });
   const user = userEvent.setup();
-  renderTaskComposer();
+  renderTaskComposer(agentClient);
 
   const composer = within(document.body).getByRole('textbox');
   await user.type(composer, 'Send this task');
@@ -220,18 +225,16 @@ test('Enter sends a connected Agent task', async () => {
 
 test('Option+Enter queues a working Agent follow-up', async () => {
   const submittedTasks: PrimeAgentTaskSubmission[] = [];
-  Object.defineProperty(window, 'ernie', {
-    configurable: true,
-    value: {
-      submitAgentTask: async (submission: PrimeAgentTaskSubmission) => {
+  const agentClient = createPrimeAgentRendererClientFixture({
+    submitTask: async (submission: PrimeAgentTaskSubmission) => {
         submittedTasks.push(submission);
         return { ok: true, value: { accepted: true } };
-      },
     },
   });
   const user = userEvent.setup();
   render(
     <TaskComposer
+      agentClient={agentClient}
       {...activeSessionDepthProps}
       isGenerating
       modelBusy={false}
@@ -283,6 +286,7 @@ test('Shift+Enter remains a newline before an Agent exists', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      agentClient={defaultAgentClient}
       {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
@@ -410,6 +414,7 @@ test('a new Agent draft can find a skill despite a typing mistake', async () => 
   const user = userEvent.setup();
   render(
     <TaskComposer
+      agentClient={defaultAgentClient}
       {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
@@ -437,6 +442,7 @@ test('a new Agent starts only after its first non-empty task', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      agentClient={defaultAgentClient}
       {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
@@ -488,6 +494,7 @@ test('a failed Agent start keeps the first task draft', async () => {
   const user = userEvent.setup();
   render(
     <TaskComposer
+      agentClient={defaultAgentClient}
       {...newSessionDepthProps}
       modelBusy={false}
       models={[]}
@@ -524,6 +531,7 @@ test('restores a separate persisted draft for each space', async () => {
   const renderSpace = (selectedCwd: string) =>
     render(
       <TaskComposer
+        agentClient={defaultAgentClient}
         {...newSessionDepthProps}
         modelBusy={false}
         models={[]}

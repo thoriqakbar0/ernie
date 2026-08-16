@@ -5,10 +5,12 @@ import { CurrentWorkspace } from '@/components/current-workspace';
 import { TaskComposer } from '@/components/task-composer';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/trovecn/ui/button';
+import type { PrimeAgentRendererClient } from '@/packages/agent-renderer-client';
 import type { AgentWorkspaceController } from '@/packages/agent-workspace';
 import type { ThinkingOrbState } from '@/thinking-orb-preference';
 
 interface TaskSurfaceProps {
+  readonly agentClient: PrimeAgentRendererClient;
   readonly onRetryConnection: () => void;
   readonly thinkingOrbState: ThinkingOrbState;
   readonly workspace: AgentWorkspaceController;
@@ -16,6 +18,7 @@ interface TaskSurfaceProps {
 
 /** Ernie's primary task input and its connected execution environment. */
 export function TaskSurface({
+  agentClient,
   onRetryConnection,
   thinkingOrbState,
   workspace,
@@ -92,6 +95,7 @@ export function TaskSurface({
           }
         >
           <TaskComposer
+            agentClient={agentClient}
             key={`${workspace.selectedCwd ?? 'no-workspace'}:${
               workspace.selectedSessionId ?? 'new'
             }`}

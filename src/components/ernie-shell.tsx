@@ -19,6 +19,7 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAgentWorkspace } from '@/hooks/use-agent-workspace';
 import { createAgentationPluginModule } from '@/packages/agentation-plugin';
+import { createAgentRendererClients } from '@/packages/agent-renderer-client';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
 import { isJsonString, parseJsonValue } from '@/packages/json-value';
 import { createPluginHost } from '@/packages/plugin-host';
@@ -93,7 +94,11 @@ export function ErnieShell({
   sidebarControlRequest,
   thinkingOrbState,
 }: ErnieShellProps): React.JSX.Element {
-  const workspace = useAgentWorkspace();
+  const rendererClients = useMemo(
+    () => createAgentRendererClients(window.ernie),
+    [],
+  );
+  const workspace = useAgentWorkspace(rendererClients);
   const pluginHost = useMemo(() => {
     const created = createPluginHost(
       [
@@ -327,6 +332,7 @@ export function ErnieShell({
               >
                 {agentsActive ? (
                   <TaskSurface
+                    agentClient={rendererClients.agent}
                     workspace={workspace}
                     onRetryConnection={onReload}
                     thinkingOrbState={thinkingOrbState}

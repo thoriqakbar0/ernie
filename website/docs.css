@@ -18,6 +18,8 @@
   padding-block: 8px;
 }
 
+.docs-menu.drawably-card { padding: 18px; }
+
 .docs-menu-title { margin-bottom: 16px; color: var(--faint); font-size: 0.78rem; font-weight: 600; }
 .docs-menu nav { display: grid; gap: 3px; }
 
@@ -32,6 +34,16 @@
 }
 
 .docs-menu a:hover { border-color: var(--ink); color: var(--ink); }
+.docs-menu a.drawably-button {
+  border: 0;
+  padding: 7px 10px;
+}
+
+.docs-menu a.drawably-button:hover {
+  --drawably-paper: var(--accent);
+
+  color: var(--ink);
+}
 .docs-content { min-width: 0; }
 .docs-hero { padding-bottom: clamp(64px, 9vw, 96px); }
 

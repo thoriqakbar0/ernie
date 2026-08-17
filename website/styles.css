@@ -196,6 +196,20 @@ h1, h2, h3, p { margin-top: 0; }
 
 .site-header nav .nav-cta.drawably-button { border: 0; }
 
+.site-header nav a.drawably-button {
+  padding: 8px 11px;
+  color: var(--muted);
+}
+
+.site-header nav a.drawably-button:hover {
+  --drawably-paper: var(--accent);
+  --drawably-stroke: var(--ink);
+
+  color: var(--ink);
+}
+
+.site-header nav .nav-cta.drawably-button { color: var(--ink); }
+
 .button.drawably-button { padding-inline: 18px; }
 
 .button-primary.drawably-button {
@@ -215,6 +229,11 @@ h1, h2, h3, p { margin-top: 0; }
   --drawably-stroke: color-mix(in srgb, var(--ink) 65%, var(--accent));
 
   background: none;
+}
+
+.hero-copy.drawably-card {
+  margin-inline-start: -24px;
+  padding: clamp(28px, 4vw, 48px) 24px;
 }
 
 .release-card {
@@ -256,6 +275,13 @@ h1, h2, h3, p { margin-top: 0; }
 .release-card dt { color: var(--faint); }
 .release-card dd { margin: 0; text-align: end; }
 .release-card > a, .text-link, .principle a { font-weight: 650; }
+.release-card > a.drawably-button,
+.text-link.drawably-button,
+.principle > a.drawably-button,
+.site-footer a.drawably-button {
+  display: inline-flex;
+  padding: 7px 10px;
+}
 figure { margin: 0; }
 
 .product-frame {
@@ -337,6 +363,10 @@ figure { margin: 0; }
 }
 
 .release-copy { position: sticky; inset-block-start: 116px; }
+.release-copy.drawably-card {
+  margin-inline: -24px;
+  padding: 28px 24px;
+}
 .release-copy h2 { margin-bottom: 28px; }
 .release-copy p + p { margin-top: 18px; }
 .release-copy .text-link { display: inline-block; margin-top: 30px; }
@@ -359,6 +389,7 @@ figure { margin: 0; }
 }
 
 .docs-preview-copy h2 { max-width: 12ch; margin-bottom: 30px; }
+.docs-preview-copy.drawably-card { padding: clamp(28px, 4vw, 48px); }
 .docs-preview-copy p { margin-bottom: 34px; color: rgb(244 241 232 / 68%); }
 .button-light { border-color: var(--paper); color: var(--ink); background: var(--paper); }
 .button-light:hover { border-color: var(--accent); background: var(--accent); }
@@ -406,6 +437,12 @@ figure { margin: 0; }
   padding-block: clamp(100px, 14vw, 210px);
 }
 
+.principle.drawably-card {
+  min-height: auto;
+  margin-block: clamp(100px, 14vw, 210px);
+  padding: clamp(48px, 7vw, 88px);
+}
+
 .principle h2 { max-width: 13ch; margin-bottom: 30px; }
 .principle p { margin-bottom: 28px; }
 
@@ -421,6 +458,8 @@ figure { margin: 0; }
 
 .site-footer > span:last-child { text-align: end; }
 
+.site-footer nav a.drawably-button { padding: 7px 10px; }
+
 @media (max-width: 900px) {
   .hero, .section-intro, .release, .docs-preview { grid-template-columns: 1fr; }
   .hero { min-height: auto; }
@@ -428,6 +467,7 @@ figure { margin: 0; }
   .capability-grid { grid-template-columns: 1fr; }
   .capability-grid article + article { border-block-start: 1px solid var(--line); border-inline-start: 0; }
   .release-copy { position: static; }
+  .release-copy.drawably-card { margin-inline: 0; }
   .docs-preview { grid-template-columns: minmax(0, 1fr); }
   .docs-preview-copy { max-width: 44rem; }
 }
@@ -438,6 +478,7 @@ figure { margin: 0; }
   .site-header nav a:first-child { display: none; }
   .hero { padding-block-start: 56px; }
   .hero h1 { font-size: clamp(5rem, 27vw, 8rem); }
+  .hero-copy.drawably-card { margin-inline: 0; }
   .hero-actions, .button { width: 100%; }
   .product-frame { border-radius: 12px; }
   .docs-preview { margin-inline: -14px; padding-inline: 14px; }

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAgentWorkspace } from '@/hooks/use-agent-workspace';
+import type { ColorThemePreference } from '@/color-theme';
 import { createAgentationPluginModule } from '@/packages/agentation-plugin';
 import { createAgentRendererClients } from '@/packages/agent-renderer-client';
 import { createBrowserPluginModule } from '@/packages/browser-plugin/view';
@@ -56,8 +57,10 @@ function storeDisabledPluginIds(pluginIds: readonly string[]): boolean {
 }
 
 type ErnieShellProps = {
-  darkModeEnabled: boolean;
-  onDarkModeEnabledChange: (enabled: boolean) => void;
+  accentColor: string | null;
+  colorThemePreference: ColorThemePreference;
+  onAccentColorChange: (color: string | null) => void;
+  onColorThemePreferenceChange: (preference: ColorThemePreference) => void;
   onReload: () => void;
   onThinkingOrbStateChange: (state: ThinkingOrbState) => void;
   sidebarControlRequest: ErnieUiSidebarRequest | null;
@@ -87,8 +90,10 @@ function SidebarControlBridge({
 }
 
 export function ErnieShell({
-  darkModeEnabled,
-  onDarkModeEnabledChange,
+  accentColor,
+  colorThemePreference,
+  onAccentColorChange,
+  onColorThemePreferenceChange,
   onReload,
   onThinkingOrbStateChange,
   sidebarControlRequest,
@@ -319,14 +324,18 @@ export function ErnieShell({
             {settingsOpen ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <SettingsPage
+                  accentColor={accentColor}
                   backLabel={
                     agentsActive
                       ? 'Back to Agent'
                       : `Back to ${activePluginView?.title ?? 'plugin'}`
                   }
-                  darkModeEnabled={darkModeEnabled}
+                  colorThemePreference={colorThemePreference}
                   onClose={() => setSettingsOpen(false)}
-                  onDarkModeEnabledChange={onDarkModeEnabledChange}
+                  onAccentColorChange={onAccentColorChange}
+                  onColorThemePreferenceChange={
+                    onColorThemePreferenceChange
+                  }
                   onOpenPlugins={() => setPluginManagerOpen(true)}
                   onReload={onReload}
                   onThinkingOrbStateChange={onThinkingOrbStateChange}

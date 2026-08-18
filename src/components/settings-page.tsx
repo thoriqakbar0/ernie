@@ -1,5 +1,6 @@
 import {
   ArrowLeftIcon,
+  MonitorIcon,
   MoonIcon,
   PuzzleIcon,
   RefreshCwIcon,
@@ -8,6 +9,10 @@ import {
 import { ThinkingOrb } from 'thinking-orbs';
 
 import { Button } from '@/components/trovecn/ui/button';
+import {
+  defaultAccentColor,
+  type ColorThemePreference,
+} from '@/color-theme';
 import {
   Select,
   SelectContent,
@@ -22,11 +27,15 @@ import {
 } from '@/thinking-orb-preference';
 
 interface SettingsPageProps {
+  readonly accentColor: string | null;
   readonly backLabel: string;
-  readonly darkModeEnabled: boolean;
+  readonly colorThemePreference: ColorThemePreference;
   readonly thinkingOrbState: ThinkingOrbState;
   readonly onClose: () => void;
-  readonly onDarkModeEnabledChange: (enabled: boolean) => void;
+  readonly onAccentColorChange: (color: string | null) => void;
+  readonly onColorThemePreferenceChange: (
+    preference: ColorThemePreference,
+  ) => void;
   readonly onOpenPlugins: () => void;
   readonly onReload: () => void;
   readonly onThinkingOrbStateChange: (state: ThinkingOrbState) => void;
@@ -34,11 +43,13 @@ interface SettingsPageProps {
 
 /** Show Ernie's application preferences and apply each change immediately. */
 export function SettingsPage({
+  accentColor,
   backLabel,
-  darkModeEnabled,
+  colorThemePreference,
   thinkingOrbState,
   onClose,
-  onDarkModeEnabledChange,
+  onAccentColorChange,
+  onColorThemePreferenceChange,
   onOpenPlugins,
   onReload,
   onThinkingOrbStateChange,
@@ -80,7 +91,7 @@ export function SettingsPage({
             Appearance
           </h3>
           <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-card shadow-sm">
-            <div className="flex items-center justify-between gap-6 px-4 py-4">
+            <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Color theme</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -94,23 +105,70 @@ export function SettingsPage({
               >
                 <Button
                   type="button"
-                  variant={darkModeEnabled ? 'ghost' : 'elevated'}
+                  variant={
+                    colorThemePreference === 'system' ? 'elevated' : 'ghost'
+                  }
                   size="sm"
-                  aria-pressed={!darkModeEnabled}
-                  onClick={() => onDarkModeEnabledChange(false)}
+                  aria-pressed={colorThemePreference === 'system'}
+                  onClick={() => onColorThemePreferenceChange('system')}
+                >
+                  <MonitorIcon aria-hidden="true" />
+                  System
+                </Button>
+                <Button
+                  type="button"
+                  variant={
+                    colorThemePreference === 'light' ? 'elevated' : 'ghost'
+                  }
+                  size="sm"
+                  aria-pressed={colorThemePreference === 'light'}
+                  onClick={() => onColorThemePreferenceChange('light')}
                 >
                   <SunIcon aria-hidden="true" />
                   Light
                 </Button>
                 <Button
                   type="button"
-                  variant={darkModeEnabled ? 'elevated' : 'ghost'}
+                  variant={
+                    colorThemePreference === 'dark' ? 'elevated' : 'ghost'
+                  }
                   size="sm"
-                  aria-pressed={darkModeEnabled}
-                  onClick={() => onDarkModeEnabledChange(true)}
+                  aria-pressed={colorThemePreference === 'dark'}
+                  onClick={() => onColorThemePreferenceChange('dark')}
                 >
                   <MoonIcon aria-hidden="true" />
                   Dark
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Accent color</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Personalize actions, selection, and focus throughout Ernie.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+                <label className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-2 font-mono text-xs uppercase">
+                  <input
+                    aria-label="Accent color"
+                    className="size-5 cursor-pointer appearance-none overflow-hidden rounded-full border-0 bg-transparent p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0"
+                    type="color"
+                    value={accentColor ?? defaultAccentColor}
+                    onChange={(event) =>
+                      onAccentColorChange(event.currentTarget.value)
+                    }
+                  />
+                  {accentColor ?? defaultAccentColor}
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={accentColor === null}
+                  onClick={() => onAccentColorChange(null)}
+                >
+                  Reset
                 </Button>
               </div>
             </div>

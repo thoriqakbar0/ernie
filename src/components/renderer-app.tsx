@@ -2,10 +2,14 @@ import { useCallback, useLayoutEffect, useState } from 'react';
 
 import { ErnieShell } from '@/components/ernie-shell';
 import {
+  applyAccentColor,
   applyColorTheme,
   parseColorTheme,
+  resolveColorTheme,
+  storeAccentColor,
   storeColorTheme,
   type ColorTheme,
+  type ColorThemePreference,
 } from '@/color-theme';
 import {
   parseErnieUiSidebarRequest,
@@ -19,7 +23,8 @@ import {
 } from '@/thinking-orb-preference';
 
 interface RendererAppProps {
-  readonly initialColorTheme: ColorTheme;
+  readonly initialAccentColor: string | null;
+  readonly initialColorThemePreference: ColorThemePreference;
 }
 
 /** Subscribe to valid CLI-driven color appearance requests. */
@@ -46,20 +51,30 @@ export function watchSidebarControlRequests(
 
 /** Own the renderer's interactive application state. */
 export function RendererApp({
-  initialColorTheme,
+  initialAccentColor,
+  initialColorThemePreference,
 }: RendererAppProps): React.JSX.Element {
-  const [colorTheme, setColorTheme] = useState(initialColorTheme);
+  const [accentColor, setAccentColor] = useState(initialAccentColor);
+  const [colorThemePreference, setColorThemePreference] = useState(
+    initialColorThemePreference,
+  );
   const [thinkingOrbState, setThinkingOrbState] = useState(
     readInitialThinkingOrbState,
   );
   const [sidebarControlRequest, setSidebarControlRequest] =
     useState<ErnieUiSidebarRequest | null>(null);
 
-  const selectColorTheme = useCallback((theme: ColorTheme): void => {
-    applyColorTheme(theme);
+  const selectColorTheme = useCallback((theme: ColorThemePreference): void => {
+    applyColorTheme(resolveColorTheme(theme));
     storeColorTheme(theme);
-    setColorTheme(theme);
+    setColorThemePreference(theme);
   }, []);
+
+  const selectAccentColor = (color: string | null): void => {
+    applyAccentColor(color);
+    storeAccentColor(color);
+    setAccentColor(color);
+  };
 
   useLayoutEffect(
     () => watchColorThemeRequests(window.ernie, selectColorTheme),
@@ -72,9 +87,16 @@ export function RendererApp({
     [],
   );
 
-  const changeDarkMode = (enabled: boolean): void => {
-    selectColorTheme(enabled ? 'dark' : 'light');
-  };
+  useLayoutEffect(() => {
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+    const applySystemTheme = (): void => {
+      if (colorThemePreference === 'system') {
+        applyColorTheme(systemTheme.matches ? 'dark' : 'light');
+      }
+    };
+    systemTheme.addEventListener('change', applySystemTheme);
+    return () => systemTheme.removeEventListener('change', applySystemTheme);
+  }, [colorThemePreference]);
 
   const changeThinkingOrbState = (state: ThinkingOrbState): void => {
     storeThinkingOrbState(state);
@@ -87,8 +109,10 @@ export function RendererApp({
 
   return (
     <ErnieShell
-      darkModeEnabled={colorTheme === 'dark'}
-      onDarkModeEnabledChange={changeDarkMode}
+      accentColor={accentColor}
+      colorThemePreference={colorThemePreference}
+      onAccentColorChange={selectAccentColor}
+      onColorThemePreferenceChange={selectColorTheme}
       onReload={reloadRenderer}
       sidebarControlRequest={sidebarControlRequest}
       thinkingOrbState={thinkingOrbState}

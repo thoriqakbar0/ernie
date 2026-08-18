@@ -387,8 +387,10 @@ test('repository plus opens a draft and the first message creates the Prime Agen
 
   render(
     <ErnieShell
-      darkModeEnabled
-      onDarkModeEnabledChange={() => undefined}
+      accentColor={null}
+      colorThemePreference="dark"
+      onAccentColorChange={() => undefined}
+      onColorThemePreferenceChange={() => undefined}
       onReload={() => undefined}
       onThinkingOrbStateChange={() => undefined}
       sidebarControlRequest={null}

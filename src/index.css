@@ -163,6 +163,33 @@ body,
   --sidebar-ring: oklch(0.78 0.11 265);
 }
 
+:root[data-custom-accent] {
+  --primary: var(--custom-primary-light);
+  --primary-foreground: white;
+  --accent: color-mix(in oklch, var(--custom-accent) 18%, var(--background));
+  --accent-foreground: var(--foreground);
+  --ring: var(--primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-settings: color-mix(
+    in oklch,
+    var(--custom-accent) 12%,
+    var(--sidebar)
+  );
+  --sidebar-accent: color-mix(
+    in oklch,
+    var(--custom-accent) 18%,
+    var(--sidebar)
+  );
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-ring: var(--primary);
+}
+
+:root.dark[data-custom-accent] {
+  --primary: var(--custom-primary-dark);
+  --primary-foreground: oklch(0.15 0.018 255);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

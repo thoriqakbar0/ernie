@@ -84,6 +84,8 @@ Dark mode reverses the lightness hierarchy instead of inventing a separate palet
 
 Keep semantic meaning stable between themes. Accent remains cobalt, success remains green, warning remains amber, and danger remains red.
 
+Users can replace the cobalt accent at runtime. Apply that color only through the existing accent, primary, ring, and sidebar semantic tokens. Derive separate light and dark primary values that preserve text contrast; customization must not replace Canvas, Surface, Ink, or status colors.
+
 Avoid translucent text. Use alpha only for borders, overlays, and derived interaction surfaces with a known background.
 
 ## Typography and density

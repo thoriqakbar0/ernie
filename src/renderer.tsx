@@ -2,7 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { RendererApp } from '@/components/renderer-app';
-import { applyColorTheme, readInitialColorTheme } from '@/color-theme';
+import {
+  applyAccentColor,
+  applyColorTheme,
+  readInitialAccentColor,
+  readInitialColorThemePreference,
+  resolveColorTheme,
+} from '@/color-theme';
 
 import './index.css';
 
@@ -34,13 +40,18 @@ if (container === null) {
 }
 const rendererContainer = container;
 
-const initialColorTheme = readInitialColorTheme();
-applyColorTheme(initialColorTheme);
+const initialColorThemePreference = readInitialColorThemePreference();
+const initialAccentColor = readInitialAccentColor();
+applyColorTheme(resolveColorTheme(initialColorThemePreference));
+applyAccentColor(initialAccentColor);
 
 function mountRenderer(): void {
   createRoot(rendererContainer).render(
     <StrictMode>
-      <RendererApp initialColorTheme={initialColorTheme} />
+      <RendererApp
+        initialAccentColor={initialAccentColor}
+        initialColorThemePreference={initialColorThemePreference}
+      />
     </StrictMode>,
   );
 

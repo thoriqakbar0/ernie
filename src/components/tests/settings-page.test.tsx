@@ -3,7 +3,7 @@ import '@happy-dom/global-registrator/register.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { cleanup, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { SettingsPage } from '@/components/settings-page';
@@ -11,7 +11,8 @@ import { SettingsPage } from '@/components/settings-page';
 afterEach(cleanup);
 
 test('settings apply appearance and tool actions immediately', async () => {
-  const themeChanges: boolean[] = [];
+  const accentChanges: Array<string | null> = [];
+  const themeChanges: string[] = [];
   const thinkingOrbChanges: string[] = [];
   let closeCount = 0;
   let openPluginsCount = 0;
@@ -20,13 +21,15 @@ test('settings apply appearance and tool actions immediately', async () => {
 
   render(
     <SettingsPage
+      accentColor="#336699"
       backLabel="Back to Agent"
-      darkModeEnabled
+      colorThemePreference="dark"
       thinkingOrbState="solving"
       onClose={() => {
         closeCount += 1;
       }}
-      onDarkModeEnabledChange={(enabled) => themeChanges.push(enabled)}
+      onAccentColorChange={(color) => accentChanges.push(color)}
+      onColorThemePreferenceChange={(theme) => themeChanges.push(theme)}
       onOpenPlugins={() => {
         openPluginsCount += 1;
       }}
@@ -52,6 +55,11 @@ test('settings apply appearance and tool actions immediately', async () => {
   );
 
   await user.click(within(settings).getByRole('button', { name: 'Light' }));
+  await user.click(within(settings).getByRole('button', { name: 'System' }));
+  fireEvent.change(within(settings).getByLabelText('Accent color'), {
+    target: { value: '#aabbcc' },
+  });
+  await user.click(within(settings).getByRole('button', { name: 'Reset' }));
   assert.ok(
     within(settings).getByRole('img', {
       name: 'Solving thinking animation preview',
@@ -102,7 +110,8 @@ test('settings apply appearance and tool actions immediately', async () => {
     within(settings).getByRole('button', { name: 'Back to Agent' }),
   );
 
-  assert.deepEqual(themeChanges, [false]);
+  assert.deepEqual(themeChanges, ['light', 'system']);
+  assert.deepEqual(accentChanges, ['#aabbcc', null]);
   assert.deepEqual(thinkingOrbChanges, ['searching']);
   assert.equal(reloadCount, 1);
   assert.equal(openPluginsCount, 1);

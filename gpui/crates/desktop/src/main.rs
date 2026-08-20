@@ -1,11 +1,11 @@
+use ernie_gpui_ui::RootView;
 use gpui::{
     actions, prelude::*, px, size, App, Bounds, KeyBinding, Menu, MenuItem, QuitMode,
     TitlebarOptions, WindowBackgroundAppearance, WindowBounds, WindowOptions,
 };
-use gpui_app_ui::RootView;
 use gpui_platform::application;
 
-actions!(gpui_app, [Quit]);
+actions!(ernie_gpui, [Quit]);
 
 fn main() {
     application()
@@ -16,7 +16,9 @@ fn main() {
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("ctrl-q", Quit, None),
             ]);
-            cx.set_menus([Menu::new("GPUI app").items([MenuItem::action("Quit GPUI app", Quit)])]);
+            cx.set_menus([
+                Menu::new("ernie-gpui").items([MenuItem::action("Quit ernie-gpui", Quit)])
+            ]);
 
             open_main_window(cx);
             cx.activate(true);
@@ -31,14 +33,14 @@ fn open_main_window(cx: &mut App) {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_min_size: Some(size(px(640.), px(420.))),
             window_background: WindowBackgroundAppearance::Opaque,
-            app_id: Some("com.thoriq.gpui".into()),
+            app_id: Some("com.thoriq.ernie-gpui".into()),
             titlebar: Some(TitlebarOptions {
-                title: Some("GPUI app".into()),
+                title: Some("ernie-gpui".into()),
                 ..Default::default()
             }),
             ..Default::default()
         },
         |_window, cx| cx.new(RootView::new),
     )
-    .expect("failed to open the GPUI app window");
+    .expect("failed to open the ernie-gpui window");
 }

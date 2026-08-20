@@ -1,17 +1,17 @@
 [package]
-name = "gpui-app-desktop"
+name = "ernie-gpui-desktop"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "gpui-app"
+name = "ernie-gpui"
 path = "src/main.rs"
 
 [dependencies]
 gpui.workspace = true
 gpui_platform = { workspace = true, features = ["font-kit"] }
-gpui-app-ui.workspace = true
+ernie-gpui-ui.workspace = true
 
 [lints]
 workspace = true

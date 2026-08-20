@@ -36,7 +36,7 @@ impl Render for RootView {
                         div()
                             .text_size(px(30.))
                             .font_weight(FontWeight::SEMIBOLD)
-                            .child("GPUI app"),
+                            .child("ernie-gpui"),
                     )
                     .child(div().text_color(rgb(0xaeb4bf)).child(status))
                     .child(

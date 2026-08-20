@@ -1,4 +1,4 @@
-# GPUI app
+# ernie-gpui
 
 A small, reproducible GPUI desktop application scaffold.
 
@@ -29,7 +29,7 @@ crates/
   ui/       application state and rendered interface
 ```
 
-The application ID `com.thoriq.gpui` is provisional. Replace it before a
+The application ID `com.thoriq.ernie-gpui` is provisional. Replace it before a
 signed distribution release.
 
 This scaffold supports macOS only. Packaging, signing, updates, durable data,

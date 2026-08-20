@@ -1,13 +1,13 @@
 set shell := ["zsh", "-fcu"]
 
 dev:
-    cargo run -p gpui-app-desktop
+    cargo run -p ernie-gpui-desktop
 
 run:
-    cargo run --release -p gpui-app-desktop
+    cargo run --release -p ernie-gpui-desktop
 
 build:
-    cargo build --release --locked -p gpui-app-desktop
+    cargo build --release --locked -p ernie-gpui-desktop
 
 check:
     cargo fmt --all -- --check

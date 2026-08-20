@@ -1,5 +1,5 @@
 [package]
-name = "gpui-app-ui"
+name = "ernie-gpui-ui"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

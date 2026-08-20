@@ -1448,6 +1448,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ernie-gpui-desktop"
+version = "0.1.0"
+dependencies = [
+ "ernie-gpui-ui",
+ "gpui",
+ "gpui_platform",
+]
+
+[[package]]
+name = "ernie-gpui-ui"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2021,22 +2037,6 @@ dependencies = [
  "zed-font-kit",
  "zed-scap",
  "ztracing",
-]
-
-[[package]]
-name = "gpui-app-desktop"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "gpui-app-ui",
- "gpui_platform",
-]
-
-[[package]]
-name = "gpui-app-ui"
-version = "0.1.0"
-dependencies = [
- "gpui",
 ]
 
 [[package]]

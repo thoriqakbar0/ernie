@@ -2,6 +2,7 @@
 
 mod client;
 mod discovery;
+mod manifest;
 mod protocol;
 
 use std::collections::BTreeSet;
@@ -9,7 +10,146 @@ use std::path::{Path, PathBuf};
 
 pub use client::DaemonClient;
 pub use discovery::DaemonEndpointSource;
+use serde::Serialize;
+use serde_json::{Map, Value};
 use thiserror::Error;
+
+/// Prime Agent source revision used for the pinned protocol inventory.
+pub const PRIME_AGENT_PROTOCOL_SOURCE: &str = manifest::SOURCE_COMMIT;
+/// Pinned Prime Agent daemon protocol version.
+pub const PRIME_AGENT_PROTOCOL_VERSION: u32 = manifest::PROTOCOL_VERSION;
+/// Pinned Prime Agent daemon schema revision.
+pub const PRIME_AGENT_SCHEMA_REVISION: u32 = manifest::SCHEMA_REVISION;
+
+/// One validated Prime Agent daemon command body.
+#[derive(Clone, Debug)]
+pub struct DaemonCommand {
+    name: String,
+    fields: Map<String, Value>,
+    mutating: bool,
+}
+
+impl DaemonCommand {
+    /// Creates a command whose name exists in the pinned Prime Agent protocol.
+    pub fn new(name: impl Into<String>) -> Result<Self, CommandBuildError> {
+        let name = name.into();
+        let Some(spec) = manifest::command(&name).filter(|_| name != "ack_result") else {
+            return Err(CommandBuildError::UnknownCommand(name));
+        };
+        Ok(Self {
+            name,
+            fields: Map::new(),
+            mutating: spec.mutating,
+        })
+    }
+
+    /// Adds one serializable command field.
+    pub fn with_field(
+        mut self,
+        name: impl Into<String>,
+        value: impl Serialize,
+    ) -> Result<Self, CommandBuildError> {
+        let name = name.into();
+        if matches!(name.as_str(), "type" | "id" | "protocol" | "clientId") {
+            return Err(CommandBuildError::ReservedField(name));
+        }
+        let value = serde_json::to_value(value).map_err(CommandBuildError::Serialize)?;
+        self.fields.insert(name, value);
+        Ok(self)
+    }
+
+    pub(crate) fn into_parts(self) -> (String, Map<String, Value>) {
+        (self.name, self.fields)
+    }
+
+    /// Reports whether Prime Agent journals this command as a mutation.
+    pub fn is_mutating(&self) -> bool {
+        self.mutating
+    }
+}
+
+/// A correlated successful command response.
+#[derive(Clone, Debug)]
+pub struct CommandResponse {
+    pub(crate) data: Option<Value>,
+}
+
+impl CommandResponse {
+    /// Returns the command-specific response document when one exists.
+    pub fn data(&self) -> Option<&Value> {
+        self.data.as_ref()
+    }
+
+    /// Consumes the response and returns its command-specific document.
+    pub fn into_data(self) -> Option<Value> {
+        self.data
+    }
+}
+
+/// One recognized asynchronous daemon record.
+#[derive(Clone, Debug)]
+pub struct DaemonEvent {
+    pub(crate) message_type: String,
+    pub(crate) payload: Value,
+}
+
+impl DaemonEvent {
+    /// Returns the Prime Agent outbound record type.
+    pub fn message_type(&self) -> &str {
+        &self.message_type
+    }
+
+    /// Returns the complete record for domain-specific decoding.
+    pub fn payload(&self) -> &Value {
+        &self.payload
+    }
+}
+
+/// Failure while constructing a daemon command.
+#[derive(Debug, Error)]
+pub enum CommandBuildError {
+    /// The pinned protocol does not contain this command.
+    #[error("unknown Prime Agent daemon command {0}")]
+    UnknownCommand(String),
+    /// The driver owns this envelope field.
+    #[error("Prime Agent daemon command field {0} is reserved")]
+    ReservedField(String),
+    /// A command field could not be encoded as JSON.
+    #[error("could not encode Prime Agent daemon command field: {0}")]
+    Serialize(serde_json::Error),
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::{CommandBuildError, DaemonCommand};
+
+    #[test]
+    fn commands_are_checked_against_the_pinned_inventory() {
+        let command = DaemonCommand::new("prompt").expect("prompt must be supported");
+
+        assert!(command.is_mutating());
+        assert!(matches!(
+            DaemonCommand::new("future_command"),
+            Err(CommandBuildError::UnknownCommand(name)) if name == "future_command"
+        ));
+        assert!(matches!(
+            DaemonCommand::new("ack_result"),
+            Err(CommandBuildError::UnknownCommand(name)) if name == "ack_result"
+        ));
+    }
+
+    #[test]
+    fn driver_owned_envelope_fields_cannot_be_overridden() {
+        let result = DaemonCommand::new("list")
+            .expect("list must be supported")
+            .with_field("clientId", "spoofed");
+
+        assert!(matches!(
+            result,
+            Err(CommandBuildError::ReservedField(name)) if name == "clientId"
+        ));
+    }
+}
 
 /// A validated local daemon endpoint.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -259,6 +399,9 @@ pub enum ConnectError {
 /// Failure while executing one daemon request.
 #[derive(Debug, Error)]
 pub enum RequestError {
+    /// The command could not be constructed.
+    #[error(transparent)]
+    Build(#[from] CommandBuildError),
     /// The driver connection closed before the request completed.
     #[error("the Prime Agent daemon connection closed")]
     ConnectionClosed,
@@ -292,6 +435,9 @@ pub enum ProtocolError {
     /// A JSONL frame was not valid UTF-8.
     #[error("the daemon sent a frame that was not valid UTF-8")]
     InvalidUtf8,
+    /// The daemon sent an outbound record outside the pinned protocol inventory.
+    #[error("the daemon sent unsupported outbound message {0}")]
+    UnknownOutbound(String),
     /// The daemon sent a message before its greeting.
     #[error("the daemon sent {0} before daemon_hello")]
     MessageBeforeHello(String),
@@ -323,7 +469,7 @@ pub enum ProtocolError {
         /// Correlation identifier.
         request_id: String,
         /// Expected command name.
-        expected: &'static str,
+        expected: String,
         /// Command name received from the daemon.
         actual: String,
     },

@@ -4,11 +4,14 @@ use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::time::{sleep_until, timeout};
 
-use crate::protocol::ProtocolCore;
-use crate::{ConnectError, DaemonEndpoint, RequestError, ServerInfo, SessionList};
+use crate::protocol::{parse_session_list, Inbound, ProtocolCore};
+use crate::{
+    CommandResponse, ConnectError, DaemonCommand, DaemonEndpoint, DaemonEvent, RequestError,
+    ServerInfo, SessionList,
+};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const HELLO_TIMEOUT: Duration = Duration::from_secs(3);
@@ -19,6 +22,7 @@ const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 #[derive(Clone)]
 pub struct DaemonClient {
     commands: mpsc::Sender<DriverCommand>,
+    events: broadcast::Sender<DaemonEvent>,
     server: Arc<ServerInfo>,
 }
 
@@ -26,17 +30,23 @@ impl DaemonClient {
     /// Connects to a local daemon and validates `daemon_hello` before returning.
     pub async fn connect(endpoint: DaemonEndpoint) -> Result<Self, ConnectError> {
         let (commands, receiver) = mpsc::channel(32);
+        let (events, _) = broadcast::channel(256);
         let (connected_tx, connected_rx) = oneshot::channel();
         std::thread::Builder::new()
             .name("prime-agent-client".to_owned())
-            .spawn(move || {
-                let runtime = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build();
-                match runtime {
-                    Ok(runtime) => runtime.block_on(run_driver(endpoint, receiver, connected_tx)),
-                    Err(_) => {
-                        let _ = connected_tx.send(Err(ConnectError::DriverStopped));
+            .spawn({
+                let events = events.clone();
+                move || {
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build();
+                    match runtime {
+                        Ok(runtime) => {
+                            runtime.block_on(run_driver(endpoint, receiver, connected_tx, events))
+                        }
+                        Err(_) => {
+                            let _ = connected_tx.send(Err(ConnectError::DriverStopped));
+                        }
                     }
                 }
             })
@@ -46,6 +56,7 @@ impl DaemonClient {
             .map_err(|_| ConnectError::DriverStopped)??;
         Ok(Self {
             commands,
+            events,
             server: Arc::new(server),
         })
     }
@@ -57,18 +68,31 @@ impl DaemonClient {
 
     /// Lists the daemon's resident sessions.
     pub async fn list_sessions(&self) -> Result<SessionList, RequestError> {
+        let command = DaemonCommand::new("list").map_err(RequestError::Build)?;
+        let response = self.execute(command).await?;
+        parse_session_list(response.into_data()).map_err(RequestError::from)
+    }
+
+    /// Executes any command in the pinned Prime Agent daemon inventory.
+    pub async fn execute(&self, command: DaemonCommand) -> Result<CommandResponse, RequestError> {
         let (reply, result) = oneshot::channel();
         self.commands
-            .send(DriverCommand::List { reply })
+            .send(DriverCommand::Execute { command, reply })
             .await
             .map_err(|_| RequestError::ConnectionClosed)?;
         result.await.map_err(|_| RequestError::ConnectionClosed)?
     }
+
+    /// Subscribes to recognized asynchronous daemon records.
+    pub fn subscribe(&self) -> broadcast::Receiver<DaemonEvent> {
+        self.events.subscribe()
+    }
 }
 
 enum DriverCommand {
-    List {
-        reply: oneshot::Sender<Result<SessionList, RequestError>>,
+    Execute {
+        command: DaemonCommand,
+        reply: oneshot::Sender<Result<CommandResponse, RequestError>>,
     },
 }
 
@@ -76,6 +100,7 @@ async fn run_driver(
     endpoint: DaemonEndpoint,
     mut commands: mpsc::Receiver<DriverCommand>,
     connected: oneshot::Sender<Result<ServerInfo, ConnectError>>,
+    events: broadcast::Sender<DaemonEvent>,
 ) {
     let stream = match timeout(CONNECT_TIMEOUT, UnixStream::connect(endpoint.path())).await {
         Ok(Ok(stream)) => stream,
@@ -116,8 +141,8 @@ async fn run_driver(
             command = commands.recv() => {
                 let Some(command) = command else { break };
                 match command {
-                    DriverCommand::List { reply } => {
-                        let issued = match core.issue_list(reply, Instant::now() + REQUEST_TIMEOUT) {
+                    DriverCommand::Execute { command, reply } => {
+                        let issued = match core.issue(command, reply, Instant::now() + REQUEST_TIMEOUT) {
                             Ok(issued) => issued,
                             Err(error) => {
                                 fail_pending_protocol(core, error);
@@ -147,8 +172,11 @@ async fn run_driver(
                     }
                 };
                 match core.receive_line(&line) {
-                    Ok(Some(completed)) => {
+                    Ok(Some(Inbound::Completed(completed))) => {
                         let _ = completed.completion.send(completed.result);
+                    }
+                    Ok(Some(Inbound::Event(event))) => {
+                        let _ = events.send(event);
                     }
                     Ok(None) => {}
                     Err(error) => {
@@ -217,14 +245,16 @@ where
         .map_err(|_| FrameReadError::Protocol(crate::ProtocolError::InvalidUtf8))
 }
 
-fn fail_pending_connection(core: ProtocolCore<oneshot::Sender<Result<SessionList, RequestError>>>) {
+fn fail_pending_connection(
+    core: ProtocolCore<oneshot::Sender<Result<CommandResponse, RequestError>>>,
+) {
     for reply in core.drain() {
         let _ = reply.send(Err(RequestError::ConnectionClosed));
     }
 }
 
 fn fail_pending_protocol(
-    core: ProtocolCore<oneshot::Sender<Result<SessionList, RequestError>>>,
+    core: ProtocolCore<oneshot::Sender<Result<CommandResponse, RequestError>>>,
     error: crate::ProtocolError,
 ) {
     for reply in core.drain() {

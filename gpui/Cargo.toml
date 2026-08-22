@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/desktop", "crates/plugin-runtime", "crates/ui"]
+members = ["crates/desktop", "crates/plugin-runtime", "crates/prime-agent-client", "crates/ui"]
 default-members = ["crates/desktop"]
 
 [workspace.package]
@@ -13,6 +13,11 @@ gpui = { git = "https://github.com/zed-industries/zed", rev = "101ca00a1352ed71e
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "101ca00a1352ed71ef398f21b47836565d1998e3" }
 ernie-gpui-ui = { path = "crates/ui" }
 ernie-plugin-runtime = { path = "crates/plugin-runtime" }
+prime-agent-client = { path = "crates/prime-agent-client" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

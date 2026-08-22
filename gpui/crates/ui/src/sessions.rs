@@ -144,6 +144,24 @@ pub(crate) struct SessionSelectionModel {
     selection: Selection,
     active_id: Option<ActiveSessionId>,
     state: Option<Arc<AttachmentState>>,
+    projection: Option<SessionAttachmentProjection>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SessionAttachmentProjection {
+    activity: SessionActivity,
+    message_count: usize,
+    local_revision: u64,
+}
+
+impl SessionAttachmentProjection {
+    pub(crate) fn activity(self) -> SessionActivity {
+        self.activity
+    }
+
+    pub(crate) fn message_count(self) -> usize {
+        self.message_count
+    }
 }
 
 impl SessionSelectionModel {
@@ -153,6 +171,7 @@ impl SessionSelectionModel {
         self.state = Some(Arc::new(AttachmentState::Attaching {
             active_session_id: active_id,
         }));
+        self.projection = None;
         self.selection
     }
 
@@ -160,7 +179,41 @@ impl SessionSelectionModel {
         if selection != self.selection {
             return false;
         }
+        match state.as_ref() {
+            AttachmentState::Ready(snapshot) => {
+                self.replace_projection(
+                    selection,
+                    SessionAttachmentProjection {
+                        activity: snapshot.activity(),
+                        message_count: snapshot.snapshot_message_count(),
+                        local_revision: snapshot.local_revision(),
+                    },
+                );
+            }
+            AttachmentState::Resyncing { .. } => {}
+            AttachmentState::Attaching { .. }
+            | AttachmentState::Detached { .. }
+            | AttachmentState::Closed { .. }
+            | AttachmentState::Unavailable { .. }
+            | AttachmentState::Superseded => self.projection = None,
+        }
         self.state = Some(state);
+        true
+    }
+
+    fn replace_projection(
+        &mut self,
+        selection: Selection,
+        projection: SessionAttachmentProjection,
+    ) -> bool {
+        if selection != self.selection
+            || self
+                .projection
+                .is_some_and(|current| current.local_revision > projection.local_revision)
+        {
+            return false;
+        }
+        self.projection = Some(projection);
         true
     }
 
@@ -178,6 +231,15 @@ impl SessionSelectionModel {
             AttachmentState::Unavailable { .. } => Some("Unavailable"),
             AttachmentState::Superseded => None,
         }
+    }
+
+    pub(crate) fn projection(
+        &self,
+        active_id: &ActiveSessionId,
+    ) -> Option<SessionAttachmentProjection> {
+        self.is_selected(active_id)
+            .then_some(self.projection)
+            .flatten()
     }
 }
 
@@ -222,8 +284,8 @@ mod tests {
     use std::sync::Arc;
 
     use super::{
-        Refresh, SessionListModel, SessionListPhase, SessionLoadError, SessionRow,
-        SessionSelectionModel,
+        Refresh, Selection, SessionAttachmentProjection, SessionListModel, SessionListPhase,
+        SessionLoadError, SessionRow, SessionSelectionModel,
     };
     use prime_agent_client::{
         ActiveSessionId, AttachmentState, EndpointError, SessionActivity, SessionLifecycle,
@@ -303,5 +365,51 @@ mod tests {
         ));
         assert!(model.is_selected(&second_id));
         assert_eq!(model.status(), Some("Resyncing"));
+    }
+
+    #[test]
+    fn resync_replaces_the_authoritative_selected_projection() {
+        let mut model = SessionSelectionModel::default();
+        let active_id = ActiveSessionId::parse("active-one").expect("valid id");
+        let selection = model.begin(active_id.clone());
+        assert!(model.replace_projection(
+            selection,
+            SessionAttachmentProjection {
+                activity: SessionActivity::Working,
+                message_count: 2,
+                local_revision: 1,
+            }
+        ));
+        assert!(model.apply(
+            selection,
+            Arc::new(AttachmentState::Resyncing {
+                active_session_id: active_id.clone(),
+            })
+        ));
+        assert!(model.replace_projection(
+            selection,
+            SessionAttachmentProjection {
+                activity: SessionActivity::Idle,
+                message_count: 5,
+                local_revision: 2,
+            }
+        ));
+
+        assert_eq!(
+            model.projection(&active_id),
+            Some(SessionAttachmentProjection {
+                activity: SessionActivity::Idle,
+                message_count: 5,
+                local_revision: 2,
+            })
+        );
+        assert!(!model.replace_projection(
+            Selection(selection.0.saturating_sub(1)),
+            SessionAttachmentProjection {
+                activity: SessionActivity::Working,
+                message_count: 1,
+                local_revision: 3,
+            }
+        ));
     }
 }

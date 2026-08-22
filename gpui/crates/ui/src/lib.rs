@@ -14,7 +14,8 @@ use gpui::{
 };
 use prime_agent_client::{ActiveSessionId, AttachmentError, AttachmentState, DaemonClient};
 use sessions::{
-    load_session_rows, SessionListModel, SessionListPhase, SessionRow, SessionSelectionModel,
+    load_session_rows, SessionAttachmentProjection, SessionListModel, SessionListPhase, SessionRow,
+    SessionSelectionModel,
 };
 
 pub struct RootView {
@@ -120,7 +121,10 @@ impl RootView {
                                 .then(|| self.selection.status())
                                 .flatten()
                         });
-                        render_session_row(row, status, cx)
+                        let projection = row
+                            .active_id()
+                            .and_then(|active_id| self.selection.projection(active_id));
+                        render_session_row(row, status, projection, cx)
                     })
                     .collect::<Vec<_>>();
                 div()
@@ -203,13 +207,23 @@ impl Render for RootView {
 fn render_session_row(
     row: &SessionRow,
     attachment_status: Option<&'static str>,
+    projection: Option<SessionAttachmentProjection>,
     cx: &mut Context<RootView>,
 ) -> AnyElement {
+    let status = projection
+        .map(|projection| match projection.activity() {
+            prime_agent_client::SessionActivity::Working => "Working",
+            prime_agent_client::SessionActivity::Idle => "Idle",
+        })
+        .unwrap_or_else(|| row.status());
+    let message_count = projection
+        .map(|projection| projection.message_count().to_string())
+        .unwrap_or_else(|| row.message_count().to_string());
     let mut detail = format!(
         "{} · {} · {} messages",
-        row.status(),
+        status,
         row.working_directory().display(),
-        row.message_count()
+        message_count
     );
     if let Some(status) = attachment_status {
         detail.push_str(" · ");

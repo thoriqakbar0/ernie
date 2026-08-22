@@ -2,63 +2,79 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
+mod sessions;
+
 use ernie_plugin_runtime::{
     Context as PluginRuntime, FiberState, LifecycleError, LifecycleReport, PluginId, ServiceKey,
 };
 use gpui::{
-    div, prelude::*, px, rgb, AccessibleAction, Context, FontWeight, KeyDownEvent, Role,
-    SharedString, Window,
+    div, prelude::*, px, rgb, AccessibleAction, AnyElement, Context, FontWeight, KeyDownEvent,
+    Role, SharedString, Task, Window,
 };
+use sessions::{load_session_rows, SessionListModel, SessionListPhase, SessionRow};
 
 pub struct RootView {
-    clicks: ClickCount,
     lifecycle: UiLifecycle,
+    sessions: SessionListModel,
+    session_task: Option<Task<()>>,
 }
 
 impl RootView {
-    pub fn new(_cx: &mut Context<Self>) -> Self {
-        Self {
-            clicks: ClickCount::default(),
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let mut view = Self {
             lifecycle: UiLifecycle::new().expect("built-in UI lifecycle must activate"),
-        }
+            sessions: SessionListModel::default(),
+            session_task: None,
+        };
+        view.refresh_sessions(cx);
+        view
     }
-}
 
-impl Render for RootView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let status: SharedString = self.clicks.label().into();
-        let lifecycle_status: SharedString = self.lifecycle.status().into();
-        let view = cx.entity();
+    fn refresh_sessions(&mut self, cx: &mut Context<Self>) {
+        let refresh = self.sessions.begin_refresh();
+        self.session_task = Some(cx.spawn(async move |view, cx| {
+            let result = load_session_rows().await;
+            let _ = view.update(cx, |view, cx| {
+                if view.sessions.finish(refresh, result) {
+                    cx.notify();
+                }
+            });
+        }));
+        cx.notify();
+    }
 
-        div()
-            .flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .bg(rgb(0x111318))
-            .text_color(rgb(0xf4f5f7))
-            .child(
+    fn render_session_state(&self, cx: &mut Context<Self>) -> AnyElement {
+        match self.sessions.phase() {
+            SessionListPhase::Loading => div()
+                .text_color(rgb(0xaeb4bf))
+                .child("Connecting to Prime Agent…")
+                .into_any_element(),
+            SessionListPhase::Ready(rows) if rows.is_empty() => div()
+                .text_color(rgb(0xaeb4bf))
+                .child("No Prime Agent sessions yet.")
+                .into_any_element(),
+            SessionListPhase::Ready(rows) => div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .children(rows.iter().map(render_session_row))
+                .into_any_element(),
+            SessionListPhase::Unavailable(message) => {
+                let view = cx.entity();
                 div()
                     .flex()
                     .flex_col()
-                    .items_center()
-                    .gap_4()
+                    .items_start()
+                    .gap_3()
+                    .child(div().text_color(rgb(0xffa0a0)).child(message.clone()))
                     .child(
                         div()
-                            .text_size(px(30.))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("ernie-gpui"),
-                    )
-                    .child(div().text_color(rgb(0xaeb4bf)).child(lifecycle_status))
-                    .child(div().text_color(rgb(0xaeb4bf)).child(status))
-                    .child(
-                        div()
-                            .id("increment")
+                            .id("retry-prime-agent")
                             .role(Role::Button)
-                            .aria_label("Increment counter")
+                            .aria_label("Retry Prime Agent connection")
                             .focusable()
-                            .px_5()
-                            .py_3()
+                            .px_4()
+                            .py_2()
                             .rounded_lg()
                             .bg(rgb(0x6d5efc))
                             .hover(|style| style.bg(rgb(0x7c70ff)))
@@ -67,24 +83,74 @@ impl Render for RootView {
                             .cursor_pointer()
                             .on_key_down(cx.listener(|view, event: &KeyDownEvent, _, cx| {
                                 if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-                                    view.clicks.increment();
-                                    cx.notify();
+                                    view.refresh_sessions(cx);
                                 }
                             }))
                             .on_a11y_action(AccessibleAction::Click, move |_, _, cx| {
-                                view.update(cx, |view, cx| {
-                                    view.clicks.increment();
-                                    cx.notify();
-                                });
+                                view.update(cx, |view, cx| view.refresh_sessions(cx));
                             })
-                            .on_click(cx.listener(|view, _, _, cx| {
-                                view.clicks.increment();
-                                cx.notify();
-                            }))
-                            .child("Increment"),
-                    ),
+                            .on_click(cx.listener(|view, _, _, cx| view.refresh_sessions(cx)))
+                            .child("Retry"),
+                    )
+                    .into_any_element()
+            }
+        }
+    }
+}
+
+impl Render for RootView {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let lifecycle_status: SharedString = self.lifecycle.status().into();
+
+        div()
+            .flex()
+            .size_full()
+            .justify_center()
+            .bg(rgb(0x111318))
+            .text_color(rgb(0xf4f5f7))
+            .p_8()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .w_full()
+                    .max_w(px(720.))
+                    .gap_4()
+                    .child(
+                        div()
+                            .text_size(px(30.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child("ernie-gpui"),
+                    )
+                    .child(div().text_color(rgb(0xaeb4bf)).child(lifecycle_status))
+                    .child(div().text_size(px(20.)).child("Prime Agent sessions"))
+                    .child(self.render_session_state(cx)),
             )
     }
+}
+
+fn render_session_row(row: &SessionRow) -> AnyElement {
+    let detail = format!(
+        "{} · {} · {} messages",
+        row.status(),
+        row.working_directory().display(),
+        row.message_count()
+    );
+    div()
+        .id(format!("prime-agent-session-{}", row.id()))
+        .flex()
+        .flex_col()
+        .gap_1()
+        .p_4()
+        .rounded_lg()
+        .bg(rgb(0x1a1d24))
+        .child(
+            div()
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(row.title().to_owned()),
+        )
+        .child(div().text_color(rgb(0xaeb4bf)).child(detail))
+        .into_any_element()
 }
 
 const APPLICATION_IDENTITY: ServiceKey<&str> = ServiceKey::new("ernie.application.identity");
@@ -173,36 +239,9 @@ impl fmt::Display for UiLifecycleError {
 
 impl std::error::Error for UiLifecycleError {}
 
-#[derive(Default)]
-struct ClickCount(u32);
-
-impl ClickCount {
-    fn increment(&mut self) {
-        self.0 = self.0.saturating_add(1);
-    }
-
-    fn label(&self) -> String {
-        match self.0 {
-            0 => "Ready".to_owned(),
-            1 => "Incremented once".to_owned(),
-            count => format!("Incremented {count} times"),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{ClickCount, UiLifecycle};
-
-    #[test]
-    fn increment_updates_the_visible_label() {
-        let mut count = ClickCount::default();
-
-        count.increment();
-        count.increment();
-
-        assert_eq!(count.label(), "Incremented 2 times");
-    }
+    use super::UiLifecycle;
 
     #[test]
     fn built_in_ui_plugin_activates_with_the_application_identity() {

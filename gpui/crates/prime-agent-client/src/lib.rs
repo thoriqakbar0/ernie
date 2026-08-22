@@ -1,17 +1,16 @@
 //! Native client for Prime Agent's local daemon protocol.
 
+mod attachment;
 mod client;
 mod discovery;
 mod manifest;
 mod protocol;
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+pub use attachment::{AttachedSession, Attachment, AttachmentState};
 pub use client::DaemonClient;
 pub use discovery::DaemonEndpointSource;
-use serde::Serialize;
-use serde_json::{Map, Value};
 use thiserror::Error;
 
 /// Prime Agent source revision used for the pinned protocol inventory.
@@ -20,136 +19,6 @@ pub const PRIME_AGENT_PROTOCOL_SOURCE: &str = manifest::SOURCE_COMMIT;
 pub const PRIME_AGENT_PROTOCOL_VERSION: u32 = manifest::PROTOCOL_VERSION;
 /// Pinned Prime Agent daemon schema revision.
 pub const PRIME_AGENT_SCHEMA_REVISION: u32 = manifest::SCHEMA_REVISION;
-
-/// One validated Prime Agent daemon command body.
-#[derive(Clone, Debug)]
-pub struct DaemonCommand {
-    name: String,
-    fields: Map<String, Value>,
-    mutating: bool,
-}
-
-impl DaemonCommand {
-    /// Creates a command whose name exists in the pinned Prime Agent protocol.
-    pub fn new(name: impl Into<String>) -> Result<Self, CommandBuildError> {
-        let name = name.into();
-        let Some(spec) = manifest::command(&name).filter(|_| name != "ack_result") else {
-            return Err(CommandBuildError::UnknownCommand(name));
-        };
-        Ok(Self {
-            name,
-            fields: Map::new(),
-            mutating: spec.mutating,
-        })
-    }
-
-    /// Adds one serializable command field.
-    pub fn with_field(
-        mut self,
-        name: impl Into<String>,
-        value: impl Serialize,
-    ) -> Result<Self, CommandBuildError> {
-        let name = name.into();
-        if matches!(name.as_str(), "type" | "id" | "protocol" | "clientId") {
-            return Err(CommandBuildError::ReservedField(name));
-        }
-        let value = serde_json::to_value(value).map_err(CommandBuildError::Serialize)?;
-        self.fields.insert(name, value);
-        Ok(self)
-    }
-
-    pub(crate) fn into_parts(self) -> (String, Map<String, Value>) {
-        (self.name, self.fields)
-    }
-
-    /// Reports whether Prime Agent journals this command as a mutation.
-    pub fn is_mutating(&self) -> bool {
-        self.mutating
-    }
-}
-
-/// A correlated successful command response.
-#[derive(Clone, Debug)]
-pub struct CommandResponse {
-    pub(crate) data: Option<Value>,
-}
-
-impl CommandResponse {
-    /// Returns the command-specific response document when one exists.
-    pub fn data(&self) -> Option<&Value> {
-        self.data.as_ref()
-    }
-
-    /// Consumes the response and returns its command-specific document.
-    pub fn into_data(self) -> Option<Value> {
-        self.data
-    }
-}
-
-/// One recognized asynchronous daemon record.
-#[derive(Clone, Debug)]
-pub struct DaemonEvent {
-    pub(crate) message_type: String,
-    pub(crate) payload: Value,
-}
-
-impl DaemonEvent {
-    /// Returns the Prime Agent outbound record type.
-    pub fn message_type(&self) -> &str {
-        &self.message_type
-    }
-
-    /// Returns the complete record for domain-specific decoding.
-    pub fn payload(&self) -> &Value {
-        &self.payload
-    }
-}
-
-/// Failure while constructing a daemon command.
-#[derive(Debug, Error)]
-pub enum CommandBuildError {
-    /// The pinned protocol does not contain this command.
-    #[error("unknown Prime Agent daemon command {0}")]
-    UnknownCommand(String),
-    /// The driver owns this envelope field.
-    #[error("Prime Agent daemon command field {0} is reserved")]
-    ReservedField(String),
-    /// A command field could not be encoded as JSON.
-    #[error("could not encode Prime Agent daemon command field: {0}")]
-    Serialize(serde_json::Error),
-}
-
-#[cfg(test)]
-mod command_tests {
-    use super::{CommandBuildError, DaemonCommand};
-
-    #[test]
-    fn commands_are_checked_against_the_pinned_inventory() {
-        let command = DaemonCommand::new("prompt").expect("prompt must be supported");
-
-        assert!(command.is_mutating());
-        assert!(matches!(
-            DaemonCommand::new("future_command"),
-            Err(CommandBuildError::UnknownCommand(name)) if name == "future_command"
-        ));
-        assert!(matches!(
-            DaemonCommand::new("ack_result"),
-            Err(CommandBuildError::UnknownCommand(name)) if name == "ack_result"
-        ));
-    }
-
-    #[test]
-    fn driver_owned_envelope_fields_cannot_be_overridden() {
-        let result = DaemonCommand::new("list")
-            .expect("list must be supported")
-            .with_field("clientId", "spoofed");
-
-        assert!(matches!(
-            result,
-            Err(CommandBuildError::ReservedField(name)) if name == "clientId"
-        ));
-    }
-}
 
 /// A validated local daemon endpoint.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -223,11 +92,15 @@ impl ServerInfo {
     pub fn unknown_capabilities(&self) -> impl ExactSizeIterator<Item = &str> {
         self.capabilities.unknown.iter().map(String::as_str)
     }
+
+    pub(crate) fn supports_name(&self, capability: &str) -> bool {
+        ServerCapability::parse(capability).is_some_and(|value| self.supports(value))
+    }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct ServerCapabilities {
-    known: BTreeSet<ServerCapability>,
+    known: std::collections::BTreeSet<ServerCapability>,
     unknown: Vec<String>,
 }
 
@@ -243,6 +116,69 @@ pub enum ServerCapability {
     ChunkedSnapshot,
     /// The daemon exposes its model catalog.
     ModelCatalog,
+    /// The daemon accepts extension UI responses.
+    ExtensionUi,
+    /// Attach replies omit duplicate legacy snapshot fields.
+    SlimAttach,
+    /// The client can own worker lifetime and recovery.
+    ClientOwnedSessions,
+    /// The daemon can delete RLM subagents.
+    DeleteRlmSubagent,
+    /// The daemon publishes heartbeat catalogs.
+    HeartbeatCatalog,
+    /// The daemon accepts heartbeat management commands.
+    HeartbeatManagement,
+    /// Side questions accept previous turns.
+    SideQuestionTranscript,
+    /// Bash requests accept transient run identity.
+    TransientBash,
+    /// The daemon owns prompt admission.
+    SessionInputAdmission,
+    /// Prompt admission can be cancelled.
+    PromptAdmissionCancellation,
+    /// Owned prompt admission can be cancelled.
+    OwnedPromptCancellation,
+    /// Queued messages can be mutated.
+    QueueMessageMutation,
+    /// Child rosters are authoritative.
+    AuthoritativeChildRoster,
+    /// Owned-session recovery context can be supplied.
+    OwnedSessionRecoveryContext,
+    /// Headless completion can wait for RLM quiescence.
+    RlmQuiescenceBarrier,
+    /// Session input can be paused with a lease.
+    SessionInputPause,
+    /// Connection-scoped ACP MCP servers can be replaced.
+    AcpMcpServers,
+}
+
+impl ServerCapability {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        Some(match value {
+            "attach_snapshot" => Self::AttachSnapshot,
+            "event_sequence" => Self::EventSequence,
+            "chunked_snapshot" => Self::ChunkedSnapshot,
+            "model_catalog" => Self::ModelCatalog,
+            "extension_ui" => Self::ExtensionUi,
+            "slim_attach" => Self::SlimAttach,
+            "client_owned_sessions" => Self::ClientOwnedSessions,
+            "delete_rlm_subagent" => Self::DeleteRlmSubagent,
+            "heartbeat_catalog" => Self::HeartbeatCatalog,
+            "heartbeat_management" => Self::HeartbeatManagement,
+            "side_question_transcript" => Self::SideQuestionTranscript,
+            "transient_bash" => Self::TransientBash,
+            "session_input_admission" => Self::SessionInputAdmission,
+            "prompt_admission_cancellation" => Self::PromptAdmissionCancellation,
+            "owned_prompt_cancellation" => Self::OwnedPromptCancellation,
+            "queue_message_mutation" => Self::QueueMessageMutation,
+            "authoritative_child_roster" => Self::AuthoritativeChildRoster,
+            "owned_session_recovery_context" => Self::OwnedSessionRecoveryContext,
+            "rlm_quiescence_barrier" => Self::RlmQuiescenceBarrier,
+            "session_input_pause" => Self::SessionInputPause,
+            "acp_mcp_servers" => Self::AcpMcpServers,
+            _ => return None,
+        })
+    }
 }
 
 /// A catalog returned by the daemon.
@@ -338,10 +274,27 @@ impl SessionId {
 pub struct ActiveSessionId(String);
 
 impl ActiveSessionId {
+    /// Creates a live session identifier from non-empty daemon text.
+    pub fn parse(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        if value.trim().is_empty() {
+            return Err(IdentifierError::Empty);
+        }
+        Ok(Self(value))
+    }
+
     /// Returns the identifier text.
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+/// Failure while constructing a daemon identifier.
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+pub enum IdentifierError {
+    /// The identifier was empty.
+    #[error("the Prime Agent daemon identifier must not be empty")]
+    Empty,
 }
 
 /// Durable session lifecycle.
@@ -399,15 +352,35 @@ pub enum ConnectError {
 /// Failure while executing one daemon request.
 #[derive(Debug, Error)]
 pub enum RequestError {
-    /// The command could not be constructed.
-    #[error(transparent)]
-    Build(#[from] CommandBuildError),
     /// The driver connection closed before the request completed.
     #[error("the Prime Agent daemon connection closed")]
     ConnectionClosed,
     /// The daemon did not complete the command before its deadline.
     #[error("timed out waiting for the Prime Agent daemon response")]
     TimedOut,
+    /// The connected daemon lacks a capability required by the command.
+    #[error("Prime Agent command {command} requires capability {capability}")]
+    CapabilityUnavailable {
+        /// Command that could not run.
+        command: &'static str,
+        /// Missing capability name.
+        capability: &'static str,
+    },
+    /// The connected daemon schema predates a required command field.
+    #[error(
+        "Prime Agent command {command} requires schema revision {required}, received {actual:?}"
+    )]
+    SchemaUnavailable {
+        /// Command that could not run.
+        command: &'static str,
+        /// Minimum schema revision.
+        required: u32,
+        /// Daemon schema revision when published.
+        actual: Option<u32>,
+    },
+    /// The daemon received a mutation but could not prove its result.
+    #[error("the Prime Agent daemon could not prove the mutation result")]
+    OutcomeUncertain,
     /// The daemon rejected the command.
     #[error("the Prime Agent daemon rejected {command}: {message}")]
     Remote {
@@ -435,6 +408,12 @@ pub enum ProtocolError {
     /// A JSONL frame was not valid UTF-8.
     #[error("the daemon sent a frame that was not valid UTF-8")]
     InvalidUtf8,
+    /// The client exhausted its monotonic command identifier space.
+    #[error("the Prime Agent client exhausted its command identifiers")]
+    CommandIdExhausted,
+    /// A private driver command could not be admitted.
+    #[error("the Prime Agent client could not admit a command: {0}")]
+    InternalCommand(String),
     /// The daemon sent an outbound record outside the pinned protocol inventory.
     #[error("the daemon sent unsupported outbound message {0}")]
     UnknownOutbound(String),

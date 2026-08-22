@@ -8,6 +8,48 @@ pub(crate) struct CommandSpec {
     pub(crate) mutating: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DeadlineClass {
+    Immediate,
+    Short,
+    Interactive,
+    Completion,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Compatibility {
+    pub(crate) min_schema_revision: Option<u32>,
+    pub(crate) capability: Option<&'static str>,
+}
+
+impl Compatibility {
+    const LEGACY: Self = Self {
+        min_schema_revision: None,
+        capability: None,
+    };
+
+    const fn schema(revision: u32) -> Self {
+        Self {
+            min_schema_revision: Some(revision),
+            capability: None,
+        }
+    }
+
+    const fn capability(capability: &'static str) -> Self {
+        Self {
+            min_schema_revision: None,
+            capability: Some(capability),
+        }
+    }
+
+    const fn schema_and_capability(revision: u32, capability: &'static str) -> Self {
+        Self {
+            min_schema_revision: Some(revision),
+            capability: Some(capability),
+        }
+    }
+}
+
 pub(crate) const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "ack_result",
@@ -447,6 +489,48 @@ pub(crate) fn command(name: &str) -> Option<CommandSpec> {
         .iter()
         .copied()
         .find(|command| command.name == name)
+}
+
+pub(crate) fn deadline(name: &str) -> DeadlineClass {
+    match name {
+        "abort" | "detach" | "ack_result" => DeadlineClass::Immediate,
+        "prompt_and_wait"
+        | "wait_for_idle"
+        | "wait_for_headless_completion"
+        | "execute_bash_and_wait" => DeadlineClass::Completion,
+        name if command(name).is_some_and(|spec| spec.mutating) => DeadlineClass::Interactive,
+        _ => DeadlineClass::Short,
+    }
+}
+
+pub(crate) fn compatibility(name: &str) -> Compatibility {
+    match name {
+        "get_rlm_max_depth_status" | "set_rlm_max_depth" => Compatibility::schema(11),
+        "prompt" | "prompt_and_wait" | "steer" | "follow_up" | "resume_queue" => {
+            Compatibility::capability("session_input_admission")
+        }
+        "cancel_prompt_admission" => {
+            Compatibility::schema_and_capability(8, "prompt_admission_cancellation")
+        }
+        "complete_owned_session" | "promote_owned_session" => {
+            Compatibility::capability("client_owned_sessions")
+        }
+        "delete_rlm_subagent" => Compatibility::capability("delete_rlm_subagent"),
+        "get_rlm_children" => {
+            Compatibility::schema_and_capability(17, "authoritative_child_roster")
+        }
+        "replace_acp_mcp_servers" => Compatibility::schema_and_capability(22, "acp_mcp_servers"),
+        "get_model_catalog" => Compatibility::capability("model_catalog"),
+        "mutate_queued_message" => {
+            Compatibility::schema_and_capability(15, "queue_message_mutation")
+        }
+        "acquire_session_input_pause" | "release_session_input_pause" => {
+            Compatibility::schema_and_capability(19, "session_input_pause")
+        }
+        "heartbeats_list" => Compatibility::capability("heartbeat_catalog"),
+        "heartbeat_manage" => Compatibility::capability("heartbeat_management"),
+        _ => Compatibility::LEGACY,
+    }
 }
 
 pub(crate) fn recognizes_outbound(name: &str) -> bool {

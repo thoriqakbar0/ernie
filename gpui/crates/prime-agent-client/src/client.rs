@@ -245,6 +245,7 @@ impl DriverState {
         let previous_target = self
             .selected
             .as_ref()
+            .filter(|selected| !selected.reducer.is_terminal())
             .map(|selected| selected.reducer.target().clone());
         let command = match previous_target.as_ref() {
             Some(previous) if previous != &active_session_id => {
@@ -529,11 +530,16 @@ impl DriverState {
                 bytes: Arc::clone(&debt.command.bytes),
             });
         }
-        let resume = self
+        let resume = self.selected.as_ref().and_then(|selected| {
+            (!selected.reducer.is_terminal())
+                .then(|| selected.reducer.resume_cursor().cloned())
+                .flatten()
+        });
+        let attachment_is_live = self
             .selected
             .as_ref()
-            .and_then(|selected| selected.reducer.resume_cursor().cloned());
-        if self.selected.is_some() {
+            .is_some_and(|selected| !selected.reducer.is_terminal());
+        if attachment_is_live {
             match self.issue_attachment(resume, now) {
                 Ok(frame) => writes.push(frame),
                 Err(error) => self.fail_attachment(error),
@@ -1451,6 +1457,13 @@ mod tests {
             list_result.try_recv(),
             Err(tokio::sync::oneshot::error::TryRecvError::Empty)
         ));
+        let later = state
+            .on_reconnected(
+                server_info(22, &["attach_snapshot", "event_sequence"]),
+                Instant::now(),
+            )
+            .expect("terminal attachment must not poison reconnect");
+        assert_eq!(later.len(), 1);
     }
 
     #[test]

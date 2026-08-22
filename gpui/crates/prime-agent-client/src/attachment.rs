@@ -166,6 +166,10 @@ impl AttachmentReducer {
         self.cursor.as_ref()
     }
 
+    pub(crate) fn is_terminal(&self) -> bool {
+        self.terminal
+    }
+
     pub(crate) fn start_command_attempt(&mut self) {
         if !self.terminal {
             self.awaiting_snapshot = true;

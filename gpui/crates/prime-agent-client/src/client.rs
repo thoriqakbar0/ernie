@@ -133,7 +133,7 @@ type ResponseSender = oneshot::Sender<Result<Option<Value>, RequestError>>;
 
 enum Completion {
     Response(Option<ResponseSender>),
-    Attach,
+    Attach(ActiveSessionId),
 }
 
 impl Completion {
@@ -146,7 +146,14 @@ impl Completion {
     }
 
     fn is_attach(&self) -> bool {
-        matches!(self, Self::Attach)
+        matches!(self, Self::Attach(_))
+    }
+
+    fn attachment_target(&self) -> Option<&ActiveSessionId> {
+        match self {
+            Self::Attach(target) => Some(target),
+            Self::Response(_) => None,
+        }
     }
 }
 
@@ -154,11 +161,11 @@ struct PendingRequest {
     command: FrozenCommand,
     completion: Completion,
     deadline: Option<Instant>,
+    transmitted: bool,
 }
 
 struct Tombstone {
     id: String,
-    command: &'static str,
     expires_at: Instant,
 }
 
@@ -177,6 +184,7 @@ struct DriverState {
     next_command: u64,
     server: ServerInfo,
     pending: HashMap<String, PendingRequest>,
+    pending_order: VecDeque<String>,
     tombstones: VecDeque<Tombstone>,
     acknowledgement_debt: VecDeque<AckDebt>,
     selected: Option<SelectedAttachment>,
@@ -189,6 +197,7 @@ impl DriverState {
             next_command: 0,
             server,
             pending: HashMap::new(),
+            pending_order: VecDeque::new(),
             tombstones: VecDeque::new(),
             acknowledgement_debt: VecDeque::new(),
             selected: None,
@@ -214,15 +223,17 @@ impl DriverState {
         let frozen = freeze_command(command, &self.client_id, id.clone())?;
         let deadline = frozen.deadline.map(|duration| now + duration);
         let bytes = Arc::clone(&frozen.bytes);
+        self.pending_order.push_back(id.clone());
         self.pending.insert(
-            id,
+            id.clone(),
             PendingRequest {
                 command: frozen,
                 completion,
                 deadline,
+                transmitted: false,
             },
         );
-        Ok(WriteFrame::Command(bytes))
+        Ok(WriteFrame::Command { id, bytes })
     }
 
     fn select(
@@ -231,6 +242,17 @@ impl DriverState {
         updates: watch::Sender<Arc<AttachmentState>>,
         now: Instant,
     ) -> Result<WriteFrame, RequestError> {
+        let previous_target = self
+            .selected
+            .as_ref()
+            .map(|selected| selected.reducer.target().clone());
+        let command = match previous_target.as_ref() {
+            Some(previous) if previous != &active_session_id => {
+                Command::reattach(previous, &active_session_id, &self.client_id)
+            }
+            _ => Command::attach(&active_session_id, &self.client_id, None),
+        };
+        command.check_compatibility(&self.server)?;
         if let Some(previous) = self.selected.take() {
             let _ = previous.updates.send(Arc::new(AttachmentState::Superseded));
         }
@@ -238,8 +260,10 @@ impl DriverState {
             reducer: AttachmentReducer::new(active_session_id.clone()),
             updates,
         });
-        let command = Command::attach(&active_session_id, &self.client_id, None);
-        match self.issue(command, Completion::Attach, now) {
+        if let Some(selected) = self.selected.as_mut() {
+            selected.reducer.start_command_attempt();
+        }
+        match self.issue(command, Completion::Attach(active_session_id.clone()), now) {
             Ok(frame) => Ok(frame),
             Err(error) => {
                 if let Some(selected) = self.selected.take() {
@@ -271,18 +295,10 @@ impl DriverState {
                 .iter()
                 .position(|tombstone| tombstone.id == id)
             {
-                let tombstone = self
-                    .tombstones
-                    .remove(index)
-                    .expect("located tombstone must exist");
-                if tombstone.command != response.command {
-                    return Err(ProtocolError::ResponseCommandMismatch {
-                        request_id: id,
-                        expected: tombstone.command.to_owned(),
-                        actual: response.command,
-                    }
-                    .into());
-                }
+                self.tombstones.remove(index);
+                return Ok(Vec::new());
+            }
+            if self.is_issued_command_id(&id) {
                 return Ok(Vec::new());
             }
             return Err(ProtocolError::UnknownResponseId(id).into());
@@ -296,8 +312,7 @@ impl DriverState {
             .into());
         }
         let mut pending = self
-            .pending
-            .remove(&id)
+            .take_pending(&id)
             .expect("checked pending request must still exist");
         let mut writes = Vec::new();
         if pending.command.mutation == MutationClass::Mutating {
@@ -315,13 +330,24 @@ impl DriverState {
             });
         }
         let result = response.into_result();
-        if pending.completion.is_attach() {
+        if let Some(target) = pending.completion.attachment_target() {
+            if self
+                .selected
+                .as_ref()
+                .is_none_or(|selected| selected.reducer.target() != target)
+            {
+                return Ok(writes);
+            }
             match result {
                 Ok(data) => match parse_attach_response(data) {
                     Ok(AttachResponse::Inline(snapshot)) => {
                         writes.extend(self.apply_attachment_snapshot(snapshot, now)?);
                     }
-                    Ok(AttachResponse::Streamed) => {}
+                    Ok(AttachResponse::Streamed) => {
+                        if let Some(selected) = self.selected.as_mut() {
+                            selected.reducer.on_streamed_response(now);
+                        }
+                    }
                     Err(_) => {
                         writes.extend(self.resync_attachment(now)?);
                     }
@@ -334,6 +360,19 @@ impl DriverState {
             pending.completion.resolve(result);
         }
         Ok(writes)
+    }
+
+    fn is_issued_command_id(&self, id: &str) -> bool {
+        id.strip_prefix(&self.client_id)
+            .and_then(|suffix| suffix.strip_prefix(':'))
+            .and_then(|counter| counter.parse::<u64>().ok())
+            .is_some_and(|counter| counter <= self.next_command)
+    }
+
+    fn take_pending(&mut self, id: &str) -> Option<PendingRequest> {
+        let pending = self.pending.remove(id)?;
+        self.pending_order.retain(|pending_id| pending_id != id);
+        Some(pending)
     }
 
     fn on_attachment_record(
@@ -394,7 +433,13 @@ impl DriverState {
         if !resync {
             return Ok(Vec::new());
         }
-        self.issue_attachment(None, now).map(|frame| vec![frame])
+        match self.issue_attachment(None, now) {
+            Ok(frame) => Ok(vec![frame]),
+            Err(error) => {
+                self.fail_attachment(error);
+                Ok(Vec::new())
+            }
+        }
     }
 
     fn issue_attachment(
@@ -402,18 +447,29 @@ impl DriverState {
         resume: Option<crate::protocol::EventCursor>,
         now: Instant,
     ) -> Result<WriteFrame, RequestError> {
-        self.pending
-            .retain(|_, pending| !pending.completion.is_attach());
-        let Some(selected) = self.selected.as_ref() else {
+        let Some(selected) = self.selected.as_mut() else {
             return Err(RequestError::ConnectionClosed);
         };
-        let command = Command::attach(selected.reducer.target(), &self.client_id, resume.as_ref());
-        self.issue(command, Completion::Attach, now)
+        let target = selected.reducer.target().clone();
+        selected.reducer.start_command_attempt();
+        let command = Command::attach(&target, &self.client_id, resume.as_ref());
+        self.issue(command, Completion::Attach(target), now)
     }
 
     fn on_transport_lost(&mut self) {
-        self.pending
-            .retain(|_, pending| !pending.completion.is_attach());
+        let attach_ids = self
+            .pending_order
+            .iter()
+            .filter(|id| {
+                self.pending
+                    .get(*id)
+                    .is_some_and(|pending| pending.completion.is_attach())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for id in attach_ids {
+            self.take_pending(&id);
+        }
         if let Some(selected) = self.selected.as_mut() {
             for effect in selected.reducer.on_transport_lost() {
                 if let ReducerEffect::Publish(state) = effect {
@@ -430,7 +486,7 @@ impl DriverState {
     ) -> Result<Vec<WriteFrame>, RequestError> {
         self.server = server;
         let mut writes = Vec::new();
-        let pending_ids = self.pending.keys().cloned().collect::<Vec<_>>();
+        let pending_ids = self.pending_order.iter().cloned().collect::<Vec<_>>();
         for id in pending_ids {
             let compatible = self
                 .pending
@@ -448,10 +504,20 @@ impl DriverState {
                             .command
                             .bytes,
                     );
-                    writes.push(WriteFrame::Command(bytes));
+                    writes.push(WriteFrame::Command {
+                        id: id.clone(),
+                        bytes,
+                    });
                 }
                 Err(error) => {
-                    if let Some(mut pending) = self.pending.remove(&id) {
+                    if let Some(mut pending) = self.take_pending(&id) {
+                        let error = if pending.transmitted
+                            && pending.command.mutation == MutationClass::Mutating
+                        {
+                            RequestError::OutcomeUncertain
+                        } else {
+                            error
+                        };
                         pending.completion.resolve(Err(error));
                     }
                 }
@@ -468,18 +534,40 @@ impl DriverState {
             .as_ref()
             .and_then(|selected| selected.reducer.resume_cursor().cloned());
         if self.selected.is_some() {
-            writes.push(self.issue_attachment(resume, now)?);
+            match self.issue_attachment(resume, now) {
+                Ok(frame) => writes.push(frame),
+                Err(error) => self.fail_attachment(error),
+            }
         }
         Ok(writes)
     }
 
     fn mark_written(&mut self, frame: &WriteFrame) {
-        if let WriteFrame::Acknowledgement {
-            result_command_id, ..
-        } = frame
-        {
-            self.acknowledgement_debt
-                .retain(|debt| debt.result_command_id != *result_command_id);
+        match frame {
+            WriteFrame::Command { id, .. } => {
+                if let Some(pending) = self.pending.get_mut(id) {
+                    pending.transmitted = true;
+                }
+            }
+            WriteFrame::Acknowledgement {
+                result_command_id, ..
+            } => {
+                self.acknowledgement_debt
+                    .retain(|debt| debt.result_command_id != *result_command_id);
+            }
+        }
+    }
+
+    fn fail_attachment(&mut self, error: RequestError) {
+        if let Some(selected) = self.selected.as_mut() {
+            for effect in selected
+                .reducer
+                .make_unavailable(AttachmentError::Request(error))
+            {
+                if let ReducerEffect::Publish(state) = effect {
+                    let _ = selected.updates.send(state);
+                }
+            }
         }
     }
 
@@ -515,11 +603,10 @@ impl DriverState {
                         .resolve(Err(RequestError::OutcomeUncertain));
                     pending.deadline = None;
                 }
-            } else if let Some(mut pending) = self.pending.remove(&id) {
+            } else if let Some(mut pending) = self.take_pending(&id) {
                 pending.completion.resolve(Err(RequestError::TimedOut));
                 self.push_tombstone(Tombstone {
                     id,
-                    command: pending.command.name,
                     expires_at: now + TOMBSTONE_TTL,
                 });
             }
@@ -568,7 +655,10 @@ impl DriverState {
 }
 
 enum WriteFrame {
-    Command(Arc<[u8]>),
+    Command {
+        id: String,
+        bytes: Arc<[u8]>,
+    },
     Acknowledgement {
         result_command_id: String,
         bytes: Arc<[u8]>,
@@ -578,7 +668,7 @@ enum WriteFrame {
 impl WriteFrame {
     fn bytes(&self) -> &[u8] {
         match self {
-            Self::Command(bytes) | Self::Acknowledgement { bytes, .. } => bytes,
+            Self::Command { bytes, .. } | Self::Acknowledgement { bytes, .. } => bytes,
         }
     }
 }
@@ -722,6 +812,10 @@ async fn run_driver(
                                 state.on_transport_lost();
                                 reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY);
                             }
+                        }
+                        Err(ConnectError::Protocol(error)) => {
+                            state.fail_all(Some(RequestError::Protocol(error)));
+                            return;
                         }
                         Err(_) => {
                             reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY);
@@ -881,7 +975,7 @@ mod tests {
     use std::net::Shutdown;
     use std::os::unix::net::{UnixListener, UnixStream as StdUnixStream};
     use std::path::PathBuf;
-    use std::sync::mpsc as std_mpsc;
+    use std::sync::{mpsc as std_mpsc, Arc};
     use std::time::{Duration, Instant};
 
     use serde_json::{Map, Value};
@@ -963,6 +1057,22 @@ mod tests {
         (stream, reader)
     }
 
+    fn server_info(schema_revision: u32, capabilities: &[&str]) -> crate::ServerInfo {
+        parse_hello(
+            &serde_json::json!({
+                "type": "daemon_hello",
+                "socketPath": "/tmp/fake.sock",
+                "protocol": {"name": "prime-agent.daemon", "version": 7},
+                "schemaId": "protocol-7-schema-22-4d515169dc6b",
+                "schemaRevision": schema_revision,
+                "clientId": "connection-one",
+                "serverCapabilities": capabilities,
+            })
+            .to_string(),
+        )
+        .expect("server greeting must parse")
+    }
+
     fn read_request(reader: &mut StdBufReader<StdUnixStream>) -> (String, Value) {
         let mut line = String::new();
         reader.read_line(&mut line).expect("command must read");
@@ -991,14 +1101,18 @@ mod tests {
     }
 
     fn snapshot(sequence: u64) -> Value {
+        snapshot_for("active-one", sequence)
+    }
+
+    fn snapshot_for(active_session_id: &str, sequence: u64) -> Value {
         serde_json::json!({
-            "activeSessionId": "active-one",
+            "activeSessionId": active_session_id,
             "summary": {
-                "id": "active-one",
+                "id": active_session_id,
                 "lifecycle": "live",
                 "activity": "idle",
-                "activeSessionId": "active-one",
-                "sessionId": "session-one",
+                "activeSessionId": active_session_id,
+                "sessionId": format!("session-{active_session_id}"),
                 "cwd": "/tmp/project",
                 "attachedClients": 1,
                 "messageCount": 1
@@ -1011,15 +1125,37 @@ mod tests {
     }
 
     fn attach_data(sequence: u64) -> Value {
+        attach_data_for("active-one", sequence)
+    }
+
+    fn attach_data_for(active_session_id: &str, sequence: u64) -> Value {
         serde_json::json!({
             "protocol": {"name": "prime-agent.daemon", "version": 7},
-            "activeSessionId": "active-one",
-            "snapshot": snapshot(sequence),
+            "activeSessionId": active_session_id,
+            "snapshot": snapshot_for(active_session_id, sequence),
             "replay": {"status": "complete", "toSequence": sequence},
             "lastEventSequence": sequence,
             "lastEventCursor": {"generation": "generation-one", "sequence": sequence},
             "client": {"id": "client", "capabilities": ["attach_snapshot", "event_sequence"]}
         })
+    }
+
+    async fn wait_until_ready(attachment: &crate::Attachment, active_session_id: &str) {
+        let mut updates = attachment.subscribe();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if matches!(
+                    updates.borrow().as_ref(),
+                    AttachmentState::Ready(view)
+                        if view.active_session_id().as_str() == active_session_id
+                ) {
+                    break;
+                }
+                updates.changed().await.expect("attachment must stay open");
+            }
+        })
+        .await
+        .expect("attachment must become ready");
     }
 
     fn rename_command() -> Command {
@@ -1191,6 +1327,166 @@ mod tests {
         assert_eq!(replay.len(), 1);
         state.mark_written(&writes[0]);
         assert!(state.acknowledgement_debt.is_empty());
+    }
+
+    #[test]
+    fn reconnect_replays_pending_commands_in_admission_order() {
+        let server = server_info(22, &["session_input_admission"]);
+        let mut state = super::DriverState::new(server.clone());
+        let now = Instant::now();
+        let (first, _) = oneshot::channel();
+        state
+            .issue(
+                Command::list(),
+                super::Completion::Response(Some(first)),
+                now,
+            )
+            .expect("first command must issue");
+        let (second, _) = oneshot::channel();
+        state
+            .issue(
+                rename_command(),
+                super::Completion::Response(Some(second)),
+                now,
+            )
+            .expect("second command must issue");
+        let (third, _) = oneshot::channel();
+        state
+            .issue(
+                Command::list(),
+                super::Completion::Response(Some(third)),
+                now,
+            )
+            .expect("third command must issue");
+
+        let writes = state
+            .on_reconnected(server, now)
+            .expect("reconnect must prepare replay");
+        let ids = writes
+            .iter()
+            .filter_map(|frame| match frame {
+                super::WriteFrame::Command { id, .. } => Some(id.as_str()),
+                super::WriteFrame::Acknowledgement { .. } => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(ids[0].ends_with(":1"));
+        assert!(ids[1].ends_with(":2"));
+        assert!(ids[2].ends_with(":3"));
+    }
+
+    #[test]
+    fn transmitted_mutation_becomes_uncertain_if_reconnect_loses_capability() {
+        let server = server_info(22, &["session_input_admission"]);
+        let mut state = super::DriverState::new(server);
+        let command = Command::checked(
+            "prompt",
+            Map::from_iter([(
+                "activeSessionId".to_owned(),
+                Value::String("active-one".to_owned()),
+            )]),
+        )
+        .expect("prompt must exist");
+        let (reply, mut result) = oneshot::channel();
+        let frame = state
+            .issue(
+                command,
+                super::Completion::Response(Some(reply)),
+                Instant::now(),
+            )
+            .expect("prompt must issue");
+        state.mark_written(&frame);
+
+        state
+            .on_reconnected(server_info(22, &[]), Instant::now())
+            .expect("compatibility loss must not stop reconnect");
+
+        assert!(matches!(
+            result.try_recv(),
+            Ok(Err(RequestError::OutcomeUncertain))
+        ));
+    }
+
+    #[test]
+    fn attachment_capability_loss_does_not_fail_unrelated_requests() {
+        let server = server_info(
+            22,
+            &["attach_snapshot", "event_sequence", "chunked_snapshot"],
+        );
+        let mut state = super::DriverState::new(server);
+        let (updates, state_rx) =
+            tokio::sync::watch::channel(Arc::new(AttachmentState::Attaching {
+                active_session_id: ActiveSessionId::parse("active-one").expect("valid id"),
+            }));
+        state
+            .select(
+                ActiveSessionId::parse("active-one").expect("valid id"),
+                updates,
+                Instant::now(),
+            )
+            .expect("attachment must issue");
+        state.on_transport_lost();
+        let (reply, mut list_result) = oneshot::channel();
+        state
+            .issue(
+                Command::list(),
+                super::Completion::Response(Some(reply)),
+                Instant::now(),
+            )
+            .expect("list must issue while reconnecting");
+
+        let writes = state
+            .on_reconnected(server_info(22, &[]), Instant::now())
+            .expect("attachment incompatibility must stay isolated");
+
+        assert_eq!(writes.len(), 1);
+        assert!(matches!(
+            state_rx.borrow().as_ref(),
+            AttachmentState::Unavailable {
+                error: crate::AttachmentError::Request(RequestError::CapabilityUnavailable { .. }),
+                ..
+            }
+        ));
+        assert!(matches!(
+            list_result.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+    }
+
+    #[test]
+    fn response_after_tombstone_expiry_is_ignored() {
+        let server = server_info(22, &[]);
+        let mut state = super::DriverState::new(server);
+        let now = Instant::now();
+        let (reply, _) = oneshot::channel();
+        state
+            .issue(
+                Command::list(),
+                super::Completion::Response(Some(reply)),
+                now,
+            )
+            .expect("list must issue");
+        let id = state
+            .pending_order
+            .front()
+            .expect("pending id must exist")
+            .clone();
+        state
+            .expire(now + Duration::from_secs(11))
+            .expect("read deadline must expire");
+        state.prune_tombstones(now + Duration::from_secs(72));
+        let response: WireResponse = serde_json::from_value(serde_json::json!({
+            "id": id,
+            "command": "unexpected_after_expiry",
+            "success": true,
+            "data": {}
+        }))
+        .expect("response must parse");
+
+        assert!(state
+            .on_response(response, now + Duration::from_secs(72))
+            .expect("stale response must be ignored")
+            .is_empty());
     }
 
     #[tokio::test]
@@ -1365,6 +1661,100 @@ mod tests {
             .list_sessions()
             .await
             .expect("ready observation must release the fake daemon");
+        daemon.wait();
+    }
+
+    #[tokio::test]
+    async fn selecting_a_new_session_uses_atomic_reattach() {
+        let daemon = ScriptedDaemon::start(|listener| {
+            let (mut stream, mut reader) = accept(
+                &listener,
+                22,
+                &["attach_snapshot", "event_sequence", "chunked_snapshot"],
+            );
+            let (_, first) = read_request(&mut reader);
+            assert_eq!(first["command"]["type"], "attach");
+            assert_eq!(first["command"]["activeSessionId"], "active-one");
+            respond(&mut stream, &first, true, attach_data_for("active-one", 1));
+
+            let (_, replacement) = read_request(&mut reader);
+            assert_eq!(replacement["command"]["type"], "reattach");
+            assert_eq!(replacement["command"]["activeSessionId"], "active-one");
+            assert_eq!(
+                replacement["command"]["targetActiveSessionId"],
+                "active-two"
+            );
+            respond(
+                &mut stream,
+                &replacement,
+                true,
+                attach_data_for("active-two", 2),
+            );
+
+            let (_, list) = read_request(&mut reader);
+            assert_eq!(list["command"]["type"], "list");
+            respond(&mut stream, &list, true, empty_list());
+        });
+        let client = DaemonClient::connect(daemon.endpoint.clone())
+            .await
+            .expect("client must connect");
+        let first = client
+            .attach_session(ActiveSessionId::parse("active-one").expect("valid id"))
+            .await
+            .expect("first attachment must register");
+        wait_until_ready(&first, "active-one").await;
+
+        let replacement = client
+            .attach_session(ActiveSessionId::parse("active-two").expect("valid id"))
+            .await
+            .expect("replacement attachment must register");
+        wait_until_ready(&replacement, "active-two").await;
+        assert!(matches!(
+            first.state().as_ref(),
+            AttachmentState::Superseded
+        ));
+        client
+            .list_sessions()
+            .await
+            .expect("ready observation must release the fake daemon");
+        daemon.wait();
+    }
+
+    #[tokio::test]
+    async fn incompatible_reconnect_greeting_stops_with_a_typed_failure() {
+        let daemon = ScriptedDaemon::start(|listener| {
+            let (first_stream, mut first_reader) = accept(&listener, 22, &[]);
+            read_request(&mut first_reader);
+            first_stream
+                .shutdown(Shutdown::Both)
+                .expect("first connection must close");
+            drop(first_stream);
+
+            let (mut second_stream, _) = listener.accept().expect("client must reconnect");
+            writeln!(
+                second_stream,
+                "{}",
+                serde_json::json!({
+                    "type": "daemon_hello",
+                    "socketPath": "/tmp/fake.sock",
+                    "protocol": {"name": "prime-agent.daemon", "version": 8},
+                    "schemaRevision": 22,
+                    "clientId": "connection-two",
+                    "serverCapabilities": []
+                })
+            )
+            .expect("incompatible greeting must write");
+        });
+        let client = DaemonClient::connect(daemon.endpoint.clone())
+            .await
+            .expect("initial greeting must connect");
+
+        assert!(matches!(
+            client.list_sessions().await,
+            Err(RequestError::Protocol(
+                ProtocolError::IncompatibleProtocol { version: 8, .. }
+            ))
+        ));
         daemon.wait();
     }
 

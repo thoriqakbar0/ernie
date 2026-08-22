@@ -128,11 +128,17 @@ pub(crate) struct AttachmentReducer {
     view: Option<AttachedSession>,
     early: VecDeque<Option<EventCursor>>,
     assembly: Option<SnapshotAssembly>,
+    attempt: AttachmentAttempt,
     awaiting_snapshot: bool,
-    resync_requested: bool,
     consecutive_resyncs: u8,
     revision: u64,
     terminal: bool,
+}
+
+enum AttachmentAttempt {
+    Idle,
+    Command,
+    Stream { deadline: Instant },
 }
 
 impl AttachmentReducer {
@@ -143,8 +149,8 @@ impl AttachmentReducer {
             view: None,
             early: VecDeque::new(),
             assembly: None,
+            attempt: AttachmentAttempt::Idle,
             awaiting_snapshot: true,
-            resync_requested: false,
             consecutive_resyncs: 0,
             revision: 0,
             terminal: false,
@@ -159,14 +165,47 @@ impl AttachmentReducer {
         self.cursor.as_ref()
     }
 
+    pub(crate) fn start_command_attempt(&mut self) {
+        if !self.terminal {
+            self.awaiting_snapshot = true;
+            self.attempt = AttachmentAttempt::Command;
+        }
+    }
+
+    pub(crate) fn on_streamed_response(&mut self, now: Instant) {
+        if !self.terminal {
+            self.awaiting_snapshot = true;
+            self.attempt = AttachmentAttempt::Stream {
+                deadline: now + SNAPSHOT_TIMEOUT,
+            };
+        }
+    }
+
+    pub(crate) fn make_unavailable(&mut self, error: AttachmentError) -> Vec<ReducerEffect> {
+        self.terminal = true;
+        self.attempt = AttachmentAttempt::Idle;
+        self.assembly = None;
+        self.early.clear();
+        vec![ReducerEffect::Publish(Arc::new(
+            AttachmentState::Unavailable {
+                active_session_id: self.target.clone(),
+                error,
+            },
+        ))]
+    }
+
     pub(crate) fn on_transport_lost(&mut self) -> Vec<ReducerEffect> {
         if self.terminal {
             return Vec::new();
         }
+        self.attempt = AttachmentAttempt::Idle;
         self.awaiting_snapshot = true;
-        self.resync_requested = true;
         self.assembly = None;
         self.early.clear();
+        self.consecutive_resyncs = self.consecutive_resyncs.saturating_add(1);
+        if self.consecutive_resyncs > MAX_CONSECUTIVE_RESYNCS {
+            return self.make_unavailable(AttachmentError::RecoveryLimit);
+        }
         vec![ReducerEffect::Publish(Arc::new(
             AttachmentState::Resyncing {
                 active_session_id: self.target.clone(),
@@ -203,7 +242,7 @@ impl AttachmentReducer {
             }
             AttachmentRecord::Snapshot { snapshot, .. } => match snapshot.validate() {
                 Ok(snapshot) => self.install(snapshot),
-                Err(_) => self.request_resync(),
+                Err(_) => self.retry_after_failure(),
             },
             AttachmentRecord::SnapshotBegin {
                 snapshot_id,
@@ -223,10 +262,13 @@ impl AttachmentReducer {
                 ) {
                     Ok(assembly) => {
                         self.awaiting_snapshot = true;
+                        self.attempt = AttachmentAttempt::Stream {
+                            deadline: assembly.deadline,
+                        };
                         self.assembly = Some(assembly);
                         Vec::new()
                     }
-                    Err(_) => self.request_resync(),
+                    Err(_) => self.retry_after_failure(),
                 }
             }
             AttachmentRecord::SnapshotChunk {
@@ -236,10 +278,10 @@ impl AttachmentReducer {
                 ..
             } => {
                 let Some(assembly) = self.assembly.as_mut() else {
-                    return self.request_resync();
+                    return self.retry_after_failure();
                 };
                 if assembly.add_chunk(&snapshot_id, index, messages).is_err() {
-                    return self.request_resync();
+                    return self.retry_after_failure();
                 }
                 Vec::new()
             }
@@ -251,7 +293,7 @@ impl AttachmentReducer {
                 ..
             } => {
                 let Some(assembly) = self.assembly.take() else {
-                    return self.request_resync();
+                    return self.retry_after_failure();
                 };
                 match assembly.finish(
                     &snapshot_id,
@@ -260,10 +302,10 @@ impl AttachmentReducer {
                     last_event_cursor,
                 ) {
                     Ok(snapshot) => self.install(snapshot),
-                    Err(_) => self.request_resync(),
+                    Err(_) => self.retry_after_failure(),
                 }
             }
-            AttachmentRecord::SnapshotFailed { .. } => self.request_resync(),
+            AttachmentRecord::SnapshotFailed { .. } => self.retry_after_failure(),
             AttachmentRecord::Detached { .. } => {
                 self.terminal = true;
                 vec![ReducerEffect::Publish(Arc::new(
@@ -287,16 +329,15 @@ impl AttachmentReducer {
     }
 
     pub(crate) fn next_deadline(&self) -> Option<Instant> {
-        self.assembly.as_ref().map(|assembly| assembly.deadline)
+        match self.attempt {
+            AttachmentAttempt::Stream { deadline } => Some(deadline),
+            AttachmentAttempt::Idle | AttachmentAttempt::Command => None,
+        }
     }
 
     pub(crate) fn expire(&mut self, now: Instant) -> Vec<ReducerEffect> {
-        if self
-            .assembly
-            .as_ref()
-            .is_some_and(|assembly| assembly.deadline <= now)
-        {
-            self.request_resync()
+        if self.next_deadline().is_some_and(|deadline| deadline <= now) {
+            self.retry_after_failure()
         } else {
             Vec::new()
         }
@@ -305,7 +346,7 @@ impl AttachmentReducer {
     fn on_cursor(&mut self, cursor: Option<EventCursor>) -> Vec<ReducerEffect> {
         if self.awaiting_snapshot {
             if self.early.len() == MAX_EARLY_EVENTS {
-                return self.request_resync();
+                return self.retry_after_failure();
             }
             self.early.push_back(cursor);
             return Vec::new();
@@ -315,7 +356,7 @@ impl AttachmentReducer {
 
     fn install(&mut self, snapshot: ValidatedSnapshot) -> Vec<ReducerEffect> {
         if snapshot.active_session_id != self.target.as_str() {
-            return self.request_resync();
+            return self.retry_after_failure();
         }
         self.revision = self.revision.saturating_add(1);
         let view = AttachedSession {
@@ -329,7 +370,7 @@ impl AttachmentReducer {
         self.cursor = Some(snapshot.cursor);
         self.view = Some(view.clone());
         self.awaiting_snapshot = false;
-        self.resync_requested = false;
+        self.attempt = AttachmentAttempt::Idle;
         self.consecutive_resyncs = 0;
         self.assembly = None;
         let mut effects = vec![ReducerEffect::Publish(Arc::new(AttachmentState::Ready(
@@ -369,23 +410,22 @@ impl AttachmentReducer {
     }
 
     fn request_resync(&mut self) -> Vec<ReducerEffect> {
+        if !matches!(self.attempt, AttachmentAttempt::Idle) {
+            return Vec::new();
+        }
+        self.retry_after_failure()
+    }
+
+    fn retry_after_failure(&mut self) -> Vec<ReducerEffect> {
         self.assembly = None;
         self.early.clear();
         self.awaiting_snapshot = true;
-        if self.resync_requested {
-            return Vec::new();
-        }
-        self.resync_requested = true;
+        self.attempt = AttachmentAttempt::Idle;
         self.consecutive_resyncs = self.consecutive_resyncs.saturating_add(1);
         if self.consecutive_resyncs > MAX_CONSECUTIVE_RESYNCS {
-            self.terminal = true;
-            return vec![ReducerEffect::Publish(Arc::new(
-                AttachmentState::Unavailable {
-                    active_session_id: self.target.clone(),
-                    error: AttachmentError::RecoveryLimit,
-                },
-            ))];
+            return self.make_unavailable(AttachmentError::RecoveryLimit);
         }
+        self.attempt = AttachmentAttempt::Command;
         vec![
             ReducerEffect::Publish(Arc::new(AttachmentState::Resyncing {
                 active_session_id: self.target.clone(),
@@ -569,5 +609,68 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn streamed_response_deadline_retries_and_stops_at_the_bound() {
+        let mut reducer = reducer();
+        let started = Instant::now();
+        reducer.start_command_attempt();
+        reducer.on_streamed_response(started);
+
+        let first = reducer.expire(started + SNAPSHOT_TIMEOUT);
+        assert!(first
+            .iter()
+            .any(|effect| matches!(effect, ReducerEffect::Resync)));
+
+        for _ in 1..MAX_CONSECUTIVE_RESYNCS {
+            let effects = reducer.on_record(
+                AttachmentRecord::SnapshotFailed {
+                    active_session_id: "active-one".to_owned(),
+                },
+                started,
+            );
+            assert!(effects
+                .iter()
+                .any(|effect| matches!(effect, ReducerEffect::Resync)));
+        }
+        let terminal = reducer.on_record(
+            AttachmentRecord::SnapshotFailed {
+                active_session_id: "active-one".to_owned(),
+            },
+            started,
+        );
+        assert!(matches!(
+            terminal.as_slice(),
+            [ReducerEffect::Publish(state)]
+                if matches!(state.as_ref(), AttachmentState::Unavailable {
+                    error: AttachmentError::RecoveryLimit,
+                    ..
+                })
+        ));
+    }
+
+    #[test]
+    fn repeated_transport_loss_advances_the_recovery_bound() {
+        let mut reducer = reducer();
+        for _ in 0..MAX_CONSECUTIVE_RESYNCS {
+            reducer.start_command_attempt();
+            let effects = reducer.on_transport_lost();
+            assert!(matches!(
+                effects.as_slice(),
+                [ReducerEffect::Publish(state)]
+                    if matches!(state.as_ref(), AttachmentState::Resyncing { .. })
+            ));
+        }
+        reducer.start_command_attempt();
+        let terminal = reducer.on_transport_lost();
+        assert!(matches!(
+            terminal.as_slice(),
+            [ReducerEffect::Publish(state)]
+                if matches!(state.as_ref(), AttachmentState::Unavailable {
+                    error: AttachmentError::RecoveryLimit,
+                    ..
+                })
+        ));
     }
 }

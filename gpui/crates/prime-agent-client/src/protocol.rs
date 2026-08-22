@@ -79,6 +79,45 @@ impl Command {
         command
     }
 
+    pub(crate) fn reattach(
+        active_id: &ActiveSessionId,
+        target_active_id: &ActiveSessionId,
+        client_id: &str,
+    ) -> Self {
+        let fields = Map::from_iter([
+            (
+                "activeSessionId".to_owned(),
+                Value::String(active_id.as_str().to_owned()),
+            ),
+            (
+                "targetActiveSessionId".to_owned(),
+                Value::String(target_active_id.as_str().to_owned()),
+            ),
+            ("clientId".to_owned(), Value::String(client_id.to_owned())),
+            (
+                "capabilities".to_owned(),
+                serde_json::json!([
+                    "attach_snapshot",
+                    "event_sequence",
+                    "slim_attach",
+                    "chunked_snapshot"
+                ]),
+            ),
+        ]);
+        let mut command = Self::from_fields("reattach", fields);
+        command.requirements.extend([
+            manifest::Compatibility {
+                min_schema_revision: None,
+                capability: Some("attach_snapshot"),
+            },
+            manifest::Compatibility {
+                min_schema_revision: None,
+                capability: Some("event_sequence"),
+            },
+        ]);
+        command
+    }
+
     pub(crate) fn acknowledgement(command_id: &str) -> Self {
         let fields =
             Map::from_iter([("commandId".to_owned(), Value::String(command_id.to_owned()))]);

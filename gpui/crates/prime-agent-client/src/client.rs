@@ -1301,6 +1301,9 @@ mod tests {
             )
             .expect("early event must write");
             respond(&mut stream, &attach, true, attach_data(1));
+            let (_, list) = read_request(&mut reader);
+            assert_eq!(list["command"]["type"], "list");
+            respond(&mut stream, &list, true, empty_list());
         });
         let client = DaemonClient::connect(daemon.endpoint.clone())
             .await
@@ -1324,6 +1327,10 @@ mod tests {
         })
         .await
         .expect("attachment must become ready");
+        client
+            .list_sessions()
+            .await
+            .expect("ready observation must release the fake daemon");
         daemon.wait();
     }
 
@@ -1356,7 +1363,9 @@ mod tests {
                 "generation-one"
             );
             respond(&mut second_stream, &resumed, true, attach_data(5));
-            std::thread::sleep(Duration::from_millis(100));
+            let (_, list) = read_request(&mut second_reader);
+            assert_eq!(list["command"]["type"], "list");
+            respond(&mut second_stream, &list, true, empty_list());
         });
         let client = DaemonClient::connect(daemon.endpoint.clone())
             .await
@@ -1366,11 +1375,25 @@ mod tests {
             .await
             .expect("attachment must register");
 
+        let mut updates = attachment.subscribe();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            let mut saw_resync = false;
+            loop {
+                match updates.borrow().as_ref() {
+                    AttachmentState::Resyncing { .. } => saw_resync = true,
+                    AttachmentState::Ready(_) if saw_resync => break,
+                    _ => {}
+                }
+                updates.changed().await.expect("attachment must stay open");
+            }
+        })
+        .await
+        .expect("resumed attachment must become ready");
+        client
+            .list_sessions()
+            .await
+            .expect("ready observation must release the fake daemon");
         daemon.wait();
-        assert!(matches!(
-            attachment.state().as_ref(),
-            AttachmentState::Ready(_)
-        ));
     }
 
     #[tokio::test]
@@ -1435,6 +1458,9 @@ mod tests {
                 })
             )
             .expect("snapshot end must write");
+            let (_, list) = read_request(&mut reader);
+            assert_eq!(list["command"]["type"], "list");
+            respond(&mut stream, &list, true, empty_list());
         });
         let client = DaemonClient::connect(daemon.endpoint.clone())
             .await
@@ -1458,6 +1484,10 @@ mod tests {
         })
         .await
         .expect("streamed snapshot must become ready");
+        client
+            .list_sessions()
+            .await
+            .expect("ready observation must release the fake daemon");
         daemon.wait();
     }
 

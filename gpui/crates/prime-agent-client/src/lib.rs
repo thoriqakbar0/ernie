@@ -262,6 +262,9 @@ pub enum RequestError {
     /// The driver connection closed before the request completed.
     #[error("the Prime Agent daemon connection closed")]
     ConnectionClosed,
+    /// The daemon did not complete the command before its deadline.
+    #[error("timed out waiting for the Prime Agent daemon response")]
+    TimedOut,
     /// The daemon rejected the command.
     #[error("the Prime Agent daemon rejected {command}: {message}")]
     Remote {
@@ -283,6 +286,12 @@ pub enum ProtocolError {
     /// A JSONL frame was not valid JSON.
     #[error("the daemon sent malformed JSON")]
     MalformedJson,
+    /// A JSONL frame exceeded the client's memory bound.
+    #[error("the daemon sent a frame larger than the supported limit")]
+    FrameTooLarge,
+    /// A JSONL frame was not valid UTF-8.
+    #[error("the daemon sent a frame that was not valid UTF-8")]
+    InvalidUtf8,
     /// The daemon sent a message before its greeting.
     #[error("the daemon sent {0} before daemon_hello")]
     MessageBeforeHello(String),

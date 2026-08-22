@@ -17,6 +17,8 @@ The caller receives daemon domain values. It never handles JSON, request identif
 
 `DaemonClient::connect` returns only after a valid `daemon_hello`. One private driver owns the Unix socket and every pending request. A synchronous `ProtocolCore<T>` owns greeting state, request identifiers, command expectations, and completion tokens. The driver performs asynchronous I/O and applies the core's deterministic decisions.
 
+The driver limits each JSONL frame to 4 MiB. It removes requests that exceed their three-second deadline and returns `RequestError::TimedOut` to the caller.
+
 The protocol boundary accepts `prime-agent.daemon` version 7. Schema identity and revision remain diagnostic compatibility metadata. Optional capabilities gate optional behavior. This follows Prime Agent's live protocol and keeps compatible older schema revisions usable.
 
 The first slice implements handshake, capability inspection, `list`, typed success and failure responses, request correlation, deterministic protocol tests, and a real-daemon test. It does not retry commands.
@@ -50,7 +52,6 @@ A public command handle and event subscription exposed lifetime coordination to 
 
 ## Open risks
 
-- The frame limit must cover normal catalog replies while rejecting unbounded input.
 - Attachment projections must remain smaller than Prime Agent's full wire snapshot.
 - Mutation recovery needs stable command identity and explicit uncertain-result handling before any retry.
 

@@ -79,6 +79,14 @@ Each attempt will carry an activation ticket containing its plugin identity, att
 
 The async contract tests will cover local non-`Send` activation, provisional and atomic provider publication, stale success, stale failure, rapid dependency changes, provider retirement order, generation-fixed cleanup references, and shutdown cleanup reporting. The existing synchronous lifecycle suite remains mandatory.
 
-## Next implementation step
+## Async milestone status
 
-Add the stale-success contract test first. Then introduce activation tickets and the local single-writer driver without changing the synchronous `Context`.
+The first async slice adds `AsyncContext` and the executor-neutral `LocalDriver` beside the synchronous `Context`. Each activation owns an `ActivationTicket`, an immutable service snapshot, and a private `ActivationDraft`.
+
+The driver revokes stale tickets and offers each activation a cooperative `Cancellation` signal. Compare-and-commit remains the correctness rule. Stale successes and failures drain their drafts before one retry starts against the latest complete dependency stamp.
+
+Async cleanup runs as a polled lifecycle transition. The driver continues to accept commands while cleanup waits. Dropping every `AsyncContext` starts orderly shutdown and returns the final `LifecycleReport` from `LocalDriver`.
+
+Eight async black-box tests cover the implemented slice. The existing 11 synchronous lifecycle tests remain green.
+
+Plugin-provided services remain outside this slice. The next slice will add private provider identities, atomic publication, and provider retirement order.

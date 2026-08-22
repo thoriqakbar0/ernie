@@ -97,6 +97,12 @@ impl<Value: 'static> Clone for ServiceRef<Value> {
     }
 }
 
+impl<Value: 'static> ServiceRef<Value> {
+    pub(crate) fn from_rc(value: Rc<Value>) -> Self {
+        Self(value)
+    }
+}
+
 impl<Value: 'static> Deref for ServiceRef<Value> {
     type Target = Value;
 

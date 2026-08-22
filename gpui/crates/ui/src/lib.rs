@@ -12,7 +12,7 @@ use gpui::{
     div, prelude::*, px, rgb, AccessibleAction, AnyElement, Context, FontWeight, KeyDownEvent,
     Role, SharedString, Task, Window,
 };
-use prime_agent_client::{ActiveSessionId, AttachmentState, DaemonClient};
+use prime_agent_client::{ActiveSessionId, AttachmentError, AttachmentState, DaemonClient};
 use sessions::{
     load_session_rows, SessionListModel, SessionListPhase, SessionRow, SessionSelectionModel,
 };
@@ -87,7 +87,7 @@ impl RootView {
                 Err(error) => {
                     let state = Arc::new(AttachmentState::Unavailable {
                         active_session_id,
-                        reason: error.to_string().into(),
+                        error: AttachmentError::Request(error),
                     });
                     let _ = view.update(cx, |view, cx| {
                         if view.selection.apply(selection, state) {

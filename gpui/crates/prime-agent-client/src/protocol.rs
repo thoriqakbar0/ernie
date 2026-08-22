@@ -599,11 +599,11 @@ pub(crate) fn parse_outbound(line: &str) -> Result<Outbound, ProtocolError> {
             active_session_id,
             snapshot_id,
             error,
-        } => Outbound::SnapshotFailed(AttachmentRecord::SnapshotFailed {
-            active_session_id,
-            snapshot_id,
-            error,
-        }),
+        } => {
+            drop(snapshot_id);
+            drop(error);
+            Outbound::SnapshotFailed(AttachmentRecord::SnapshotFailed { active_session_id })
+        }
         WireOutbound::SessionDetached { active_session_id } => {
             Outbound::SessionDetached(AttachmentRecord::Detached { active_session_id })
         }
@@ -691,8 +691,6 @@ pub(crate) enum AttachmentRecord {
     },
     SnapshotFailed {
         active_session_id: String,
-        snapshot_id: String,
-        error: String,
     },
     Detached {
         active_session_id: String,

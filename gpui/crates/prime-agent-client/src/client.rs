@@ -17,8 +17,8 @@ use crate::protocol::{
     AttachResponse, AttachmentRecord, Command, FrozenCommand, MutationClass, Outbound,
 };
 use crate::{
-    ActiveSessionId, Attachment, AttachmentState, ConnectError, DaemonEndpoint, ProtocolError,
-    RequestError, ServerInfo, SessionList,
+    ActiveSessionId, Attachment, AttachmentError, AttachmentState, ConnectError, DaemonEndpoint,
+    ProtocolError, RequestError, ServerInfo, SessionList,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -247,7 +247,7 @@ impl DriverState {
                         .updates
                         .send(Arc::new(AttachmentState::Unavailable {
                             active_session_id,
-                            reason: error.to_string().into(),
+                            error: AttachmentError::Request(error.clone()),
                         }));
                 }
                 Err(error)
@@ -322,12 +322,12 @@ impl DriverState {
                         writes.extend(self.apply_attachment_snapshot(snapshot, now)?);
                     }
                     Ok(AttachResponse::Streamed) => {}
-                    Err(error) => {
-                        writes.extend(self.resync_attachment(error.to_string(), now)?);
+                    Err(_) => {
+                        writes.extend(self.resync_attachment(now)?);
                     }
                 },
-                Err(error) => {
-                    writes.extend(self.resync_attachment(error.to_string(), now)?);
+                Err(_) => {
+                    writes.extend(self.resync_attachment(now)?);
                 }
             }
         } else {
@@ -362,18 +362,12 @@ impl DriverState {
         self.apply_reducer_effects(effects, now)
     }
 
-    fn resync_attachment(
-        &mut self,
-        reason: String,
-        now: Instant,
-    ) -> Result<Vec<WriteFrame>, RequestError> {
+    fn resync_attachment(&mut self, now: Instant) -> Result<Vec<WriteFrame>, RequestError> {
         let record = self
             .selected
             .as_ref()
             .map(|selected| AttachmentRecord::SnapshotFailed {
                 active_session_id: selected.reducer.target().as_str().to_owned(),
-                snapshot_id: "attach-response".to_owned(),
-                error: reason,
             });
         match record {
             Some(record) => self.on_attachment_record(record, now),
@@ -565,9 +559,9 @@ impl DriverState {
                 .updates
                 .send(Arc::new(AttachmentState::Unavailable {
                     active_session_id: selected.reducer.target().clone(),
-                    reason: error
-                        .map_or_else(|| "client closed".to_owned(), |error| error.to_string())
-                        .into(),
+                    error: AttachmentError::Request(
+                        error.unwrap_or(RequestError::ConnectionClosed),
+                    ),
                 }));
         }
     }

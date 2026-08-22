@@ -8,7 +8,7 @@ mod protocol;
 
 use std::path::{Path, PathBuf};
 
-pub use attachment::{AttachedSession, Attachment, AttachmentState};
+pub use attachment::{AttachedSession, Attachment, AttachmentError, AttachmentState};
 pub use client::DaemonClient;
 pub use discovery::DaemonEndpointSource;
 use thiserror::Error;

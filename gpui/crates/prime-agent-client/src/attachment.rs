@@ -3,10 +3,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use thiserror::Error;
 use tokio::sync::watch;
 
 use crate::protocol::{AttachmentRecord, EventCursor, ValidatedSnapshot, WireSnapshotHeader};
-use crate::{ActiveSessionId, ProtocolError, SessionActivity, SessionId};
+use crate::{ActiveSessionId, ProtocolError, RequestError, SessionActivity, SessionId};
 
 const MAX_EARLY_EVENTS: usize = 256;
 const MAX_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
@@ -56,11 +57,22 @@ pub enum AttachmentState {
     /// Recovery stopped after the bounded retry budget.
     Unavailable {
         active_session_id: ActiveSessionId,
-        /// Recovery failure description.
-        reason: Arc<str>,
+        /// Typed attachment failure.
+        error: AttachmentError,
     },
     /// A newer row selection replaced this attachment.
     Superseded,
+}
+
+/// Failure that made one selected attachment unavailable.
+#[derive(Clone, Debug, Error)]
+pub enum AttachmentError {
+    /// Recovery exceeded its bounded resync budget.
+    #[error("attachment recovery exceeded its retry limit")]
+    RecoveryLimit,
+    /// The client driver stopped the attachment.
+    #[error(transparent)]
+    Request(#[from] RequestError),
 }
 
 /// Typed projection of an authoritative Prime Agent attachment snapshot.
@@ -187,11 +199,11 @@ impl AttachmentReducer {
                 ..
             } => {
                 let _ = (state, messages, snapshot_follows, cursor);
-                self.request_resync("session replacement requires a complete snapshot")
+                self.request_resync()
             }
             AttachmentRecord::Snapshot { snapshot, .. } => match snapshot.validate() {
                 Ok(snapshot) => self.install(snapshot),
-                Err(error) => self.request_resync(&error.to_string()),
+                Err(_) => self.request_resync(),
             },
             AttachmentRecord::SnapshotBegin {
                 snapshot_id,
@@ -214,7 +226,7 @@ impl AttachmentReducer {
                         self.assembly = Some(assembly);
                         Vec::new()
                     }
-                    Err(error) => self.request_resync(&error.to_string()),
+                    Err(_) => self.request_resync(),
                 }
             }
             AttachmentRecord::SnapshotChunk {
@@ -224,10 +236,10 @@ impl AttachmentReducer {
                 ..
             } => {
                 let Some(assembly) = self.assembly.as_mut() else {
-                    return self.request_resync("snapshot chunk arrived before snapshot begin");
+                    return self.request_resync();
                 };
-                if let Err(error) = assembly.add_chunk(&snapshot_id, index, messages) {
-                    return self.request_resync(&error.to_string());
+                if assembly.add_chunk(&snapshot_id, index, messages).is_err() {
+                    return self.request_resync();
                 }
                 Vec::new()
             }
@@ -239,7 +251,7 @@ impl AttachmentReducer {
                 ..
             } => {
                 let Some(assembly) = self.assembly.take() else {
-                    return self.request_resync("snapshot end arrived before snapshot begin");
+                    return self.request_resync();
                 };
                 match assembly.finish(
                     &snapshot_id,
@@ -248,15 +260,10 @@ impl AttachmentReducer {
                     last_event_cursor,
                 ) {
                     Ok(snapshot) => self.install(snapshot),
-                    Err(error) => self.request_resync(&error.to_string()),
+                    Err(_) => self.request_resync(),
                 }
             }
-            AttachmentRecord::SnapshotFailed {
-                snapshot_id, error, ..
-            } => {
-                let _ = snapshot_id;
-                self.request_resync(&error)
-            }
+            AttachmentRecord::SnapshotFailed { .. } => self.request_resync(),
             AttachmentRecord::Detached { .. } => {
                 self.terminal = true;
                 vec![ReducerEffect::Publish(Arc::new(
@@ -289,7 +296,7 @@ impl AttachmentReducer {
             .as_ref()
             .is_some_and(|assembly| assembly.deadline <= now)
         {
-            self.request_resync("snapshot transfer timed out")
+            self.request_resync()
         } else {
             Vec::new()
         }
@@ -298,7 +305,7 @@ impl AttachmentReducer {
     fn on_cursor(&mut self, cursor: Option<EventCursor>) -> Vec<ReducerEffect> {
         if self.awaiting_snapshot {
             if self.early.len() == MAX_EARLY_EVENTS {
-                return self.request_resync("early event buffer overflowed");
+                return self.request_resync();
             }
             self.early.push_back(cursor);
             return Vec::new();
@@ -308,7 +315,7 @@ impl AttachmentReducer {
 
     fn install(&mut self, snapshot: ValidatedSnapshot) -> Vec<ReducerEffect> {
         if snapshot.active_session_id != self.target.as_str() {
-            return self.request_resync("snapshot targeted a different active session");
+            return self.request_resync();
         }
         self.revision = self.revision.saturating_add(1);
         let view = AttachedSession {
@@ -339,16 +346,16 @@ impl AttachmentReducer {
 
     fn apply_cursor(&mut self, next: Option<EventCursor>) -> Vec<ReducerEffect> {
         let Some(next) = next else {
-            return self.request_resync("session event omitted its continuity cursor");
+            return self.request_resync();
         };
         let Some(current) = self.cursor.as_ref() else {
-            return self.request_resync("session event arrived before a snapshot cursor");
+            return self.request_resync();
         };
         if next.generation == current.generation && next.sequence <= current.sequence {
             return Vec::new();
         }
         if next.generation != current.generation || next.sequence != current.sequence + 1 {
-            return self.request_resync("session event cursor was not contiguous");
+            return self.request_resync();
         }
         self.cursor = Some(next);
         self.revision = self.revision.saturating_add(1);
@@ -358,10 +365,10 @@ impl AttachmentReducer {
                 view.clone(),
             )))];
         }
-        self.request_resync("session view was absent after snapshot installation")
+        self.request_resync()
     }
 
-    fn request_resync(&mut self, reason: &str) -> Vec<ReducerEffect> {
+    fn request_resync(&mut self) -> Vec<ReducerEffect> {
         self.assembly = None;
         self.early.clear();
         self.awaiting_snapshot = true;
@@ -375,7 +382,7 @@ impl AttachmentReducer {
             return vec![ReducerEffect::Publish(Arc::new(
                 AttachmentState::Unavailable {
                     active_session_id: self.target.clone(),
-                    reason: reason.to_owned().into(),
+                    error: AttachmentError::RecoveryLimit,
                 },
             ))];
         }

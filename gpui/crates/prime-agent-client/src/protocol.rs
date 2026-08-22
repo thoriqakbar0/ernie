@@ -3,15 +3,16 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::{
-    ActiveSessionId, ProtocolError, RequestError, ServerCapabilities, ServerCapability, ServerInfo,
-    SessionActivity, SessionId, SessionLifecycle, SessionList, SessionSummary, WorkerState,
+    manifest, ActiveSessionId, CommandResponse, DaemonCommand, DaemonEvent, ProtocolError,
+    RequestError, ServerCapabilities, ServerCapability, ServerInfo, SessionActivity, SessionId,
+    SessionLifecycle, SessionList, SessionSummary, WorkerState,
 };
 
 const PROTOCOL_NAME: &str = "prime-agent.daemon";
-const PROTOCOL_VERSION: u32 = 7;
+const PROTOCOL_VERSION: u32 = manifest::PROTOCOL_VERSION;
 
 pub(crate) struct ProtocolCore<T> {
     state: CoreState,
@@ -26,7 +27,7 @@ enum CoreState {
 }
 
 struct Pending<T> {
-    command: &'static str,
+    command: String,
     completion: T,
     deadline: Instant,
 }
@@ -38,7 +39,12 @@ pub(crate) struct IssuedCommand {
 
 pub(crate) struct Completed<T> {
     pub(crate) completion: T,
-    pub(crate) result: Result<SessionList, RequestError>,
+    pub(crate) result: Result<CommandResponse, RequestError>,
+}
+
+pub(crate) enum Inbound<T> {
+    Completed(Completed<T>),
+    Event(DaemonEvent),
 }
 
 impl<T> ProtocolCore<T> {
@@ -113,8 +119,9 @@ impl<T> ProtocolCore<T> {
         Ok(server)
     }
 
-    pub(crate) fn issue_list(
+    pub(crate) fn issue(
         &mut self,
+        command: DaemonCommand,
         completion: T,
         deadline: Instant,
     ) -> Result<IssuedCommand, ProtocolError> {
@@ -123,6 +130,8 @@ impl<T> ProtocolCore<T> {
         }
         self.next_request = self.next_request.saturating_add(1);
         let request_id = format!("ernie-gpui:{}", self.next_request);
+        let (command_name, mut fields) = command.into_parts();
+        fields.insert("type".to_owned(), Value::String(command_name.clone()));
         let envelope = WireCommandEnvelope {
             message_type: "command",
             id: &request_id,
@@ -131,16 +140,14 @@ impl<T> ProtocolCore<T> {
                 version: PROTOCOL_VERSION,
             },
             client_id: &self.command_client_id,
-            command: WireListCommand {
-                message_type: "list",
-            },
+            command: fields,
         };
         let mut bytes = serde_json::to_vec(&envelope).map_err(|_| ProtocolError::MalformedJson)?;
         bytes.push(b'\n');
         self.pending.insert(
             request_id.clone(),
             Pending {
-                command: "list",
+                command: command_name,
                 completion,
                 deadline,
             },
@@ -171,10 +178,7 @@ impl<T> ProtocolCore<T> {
             .collect()
     }
 
-    pub(crate) fn receive_line(
-        &mut self,
-        line: &str,
-    ) -> Result<Option<Completed<T>>, ProtocolError> {
+    pub(crate) fn receive_line(&mut self, line: &str) -> Result<Option<Inbound<T>>, ProtocolError> {
         let value: Value = serde_json::from_str(line).map_err(|_| ProtocolError::MalformedJson)?;
         let message_type =
             value
@@ -188,7 +192,13 @@ impl<T> ProtocolCore<T> {
             return Err(ProtocolError::DuplicateHello);
         }
         if message_type != "response" {
-            return Ok(None);
+            if !manifest::recognizes_outbound(message_type) {
+                return Err(ProtocolError::UnknownOutbound(message_type.to_owned()));
+            }
+            return Ok(Some(Inbound::Event(DaemonEvent {
+                message_type: message_type.to_owned(),
+                payload: value,
+            })));
         }
         let response: WireResponse =
             serde_json::from_value(value).map_err(|_| ProtocolError::InvalidField {
@@ -206,7 +216,7 @@ impl<T> ProtocolCore<T> {
         if response.command != pending.command {
             return Err(ProtocolError::ResponseCommandMismatch {
                 request_id,
-                expected: pending.command,
+                expected: pending.command.clone(),
                 actual: response.command,
             });
         }
@@ -215,7 +225,9 @@ impl<T> ProtocolCore<T> {
             .remove(&request_id)
             .ok_or_else(|| ProtocolError::UnknownResponseId(request_id.clone()))?;
         let result = if response.success {
-            parse_session_list(response.data).map_err(RequestError::from)
+            Ok(CommandResponse {
+                data: response.data,
+            })
         } else {
             Err(RequestError::Remote {
                 command: response.command,
@@ -227,10 +239,10 @@ impl<T> ProtocolCore<T> {
                     .and_then(|info| info.get("code").and_then(Value::as_str).map(str::to_owned)),
             })
         };
-        Ok(Some(Completed {
+        Ok(Some(Inbound::Completed(Completed {
             completion: pending.completion,
             result,
-        }))
+        })))
     }
 
     pub(crate) fn drain(self) -> impl Iterator<Item = T> {
@@ -238,7 +250,7 @@ impl<T> ProtocolCore<T> {
     }
 }
 
-fn parse_session_list(data: Option<Value>) -> Result<SessionList, ProtocolError> {
+pub(crate) fn parse_session_list(data: Option<Value>) -> Result<SessionList, ProtocolError> {
     let data = data.ok_or(ProtocolError::InvalidResponseData("list"))?;
     let list: WireSessionList =
         serde_json::from_value(data).map_err(|_| ProtocolError::InvalidResponseData("list"))?;
@@ -290,19 +302,13 @@ struct WireCommandEnvelope<'a> {
     protocol: WireProtocol<'a>,
     #[serde(rename = "clientId")]
     client_id: &'a str,
-    command: WireListCommand,
+    command: Map<String, Value>,
 }
 
 #[derive(Serialize)]
 struct WireProtocol<'a> {
     name: &'a str,
     version: u32,
-}
-
-#[derive(Serialize)]
-struct WireListCommand {
-    #[serde(rename = "type")]
-    message_type: &'static str,
 }
 
 #[derive(Deserialize)]
@@ -395,8 +401,8 @@ impl From<WireWorkerState> for WorkerState {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use super::ProtocolCore;
-    use crate::{ProtocolError, ServerCapability};
+    use super::{Inbound, ProtocolCore};
+    use crate::{DaemonCommand, ProtocolError, ServerCapability};
 
     fn hello(capabilities: &str) -> String {
         format!(
@@ -424,20 +430,84 @@ mod tests {
         let mut core = ProtocolCore::new("ernie".to_owned());
         core.accept_hello(&hello("")).expect("greeting must parse");
         let issued = core
-            .issue_list(41, Instant::now() + Duration::from_secs(1))
+            .issue(
+                DaemonCommand::new("list").expect("command must build"),
+                41,
+                Instant::now() + Duration::from_secs(1),
+            )
             .expect("list must issue");
         let line = format!(
             r#"{{"type":"response","id":"{}","command":"list","success":true,"data":{{"sessions":[]}}}}"#,
             issued.request_id
         );
 
-        let completed = core
+        let Inbound::Completed(completed) = core
             .receive_line(&line)
             .expect("response must parse")
-            .expect("response must complete a request");
+            .expect("response must complete a request")
+        else {
+            panic!("response must complete a request");
+        };
 
         assert_eq!(completed.completion, 41);
-        assert_eq!(completed.result.expect("list must succeed").iter().len(), 0);
+        assert_eq!(
+            completed.result.expect("list must succeed").data(),
+            Some(&serde_json::json!({ "sessions": [] }))
+        );
+    }
+
+    #[test]
+    fn generic_command_fields_are_written_inside_the_exact_envelope() {
+        let mut core = ProtocolCore::new("ernie".to_owned());
+        core.accept_hello(&hello("")).expect("greeting must parse");
+        let command = DaemonCommand::new("get_messages")
+            .expect("command must build")
+            .with_field("activeSessionId", "active-one")
+            .expect("field must encode");
+
+        let issued = core
+            .issue(command, 1, Instant::now() + Duration::from_secs(1))
+            .expect("command must issue");
+        let envelope: serde_json::Value =
+            serde_json::from_slice(&issued.bytes).expect("envelope must be JSON");
+
+        assert_eq!(envelope["type"], "command");
+        assert_eq!(envelope["protocol"]["name"], "prime-agent.daemon");
+        assert_eq!(envelope["protocol"]["version"], 7);
+        assert_eq!(envelope["clientId"], "ernie");
+        assert_eq!(envelope["command"]["type"], "get_messages");
+        assert_eq!(envelope["command"]["activeSessionId"], "active-one");
+    }
+
+    #[test]
+    fn recognized_events_are_forwarded_without_losing_fields() {
+        let mut core = ProtocolCore::<usize>::new("ernie".to_owned());
+        core.accept_hello(&hello("")).expect("greeting must parse");
+
+        let Inbound::Event(event) = core
+            .receive_line(
+                r#"{"type":"session_event","activeSessionId":"active-one","event":{"type":"idle"}}"#,
+            )
+            .expect("event must parse")
+            .expect("event must be returned")
+        else {
+            panic!("record must be an event");
+        };
+
+        assert_eq!(event.message_type(), "session_event");
+        assert_eq!(event.payload()["activeSessionId"], "active-one");
+        assert_eq!(event.payload()["event"]["type"], "idle");
+    }
+
+    #[test]
+    fn unknown_outbound_records_are_rejected() {
+        let mut core = ProtocolCore::<usize>::new("ernie".to_owned());
+        core.accept_hello(&hello("")).expect("greeting must parse");
+
+        assert!(matches!(
+            core.receive_line(r#"{"type":"future_event"}"#),
+            Err(ProtocolError::UnknownOutbound(name)) if name == "future_event"
+        ));
     }
 
     #[test]
@@ -445,7 +515,11 @@ mod tests {
         let mut core = ProtocolCore::new("ernie".to_owned());
         core.accept_hello(&hello("")).expect("greeting must parse");
         let issued = core
-            .issue_list(1, Instant::now() + Duration::from_secs(1))
+            .issue(
+                DaemonCommand::new("list").expect("command must build"),
+                1,
+                Instant::now() + Duration::from_secs(1),
+            )
             .expect("list must issue");
         let line = format!(
             r#"{{"type":"response","id":"{}","command":"attach","success":true,"data":{{}}}}"#,
@@ -463,7 +537,12 @@ mod tests {
         let now = Instant::now();
         let mut core = ProtocolCore::new("ernie".to_owned());
         core.accept_hello(&hello("")).expect("greeting must parse");
-        core.issue_list(7, now).expect("list must issue");
+        core.issue(
+            DaemonCommand::new("list").expect("command must build"),
+            7,
+            now,
+        )
+        .expect("list must issue");
 
         assert_eq!(core.expire(now), [7]);
         assert!(core.next_deadline().is_none());

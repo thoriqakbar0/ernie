@@ -1,60 +1,89 @@
 # Prime Agent client design
 
-## Problem
+## Purpose
 
-Ernie GPUI needs a native Rust client for Prime Agent's local daemon. Prime Agent owns session state and lifetime. The client must validate every JSONL message, finish the daemon greeting before commands, correlate concurrent responses, and later recover attached sessions from authoritative snapshots. The current Ernie TypeScript adapter is not a design source.
+Ernie uses one native Rust client for Prime Agent's local daemon. Prime Agent owns session state and worker lifetime. The client owns connection recovery, request identity, response correlation, and one selected-session projection.
 
-## Usage
+The protocol contract comes from Prime Agent commit `e319a66d7351c75abe7f040d02d9a8d6e25028e9`. The current contract uses protocol version 7 and schema revision 22. Ernie does not use its TypeScript adapter as a design source.
+
+## Public use
+
+The public API exposes typed operations for current Ernie behavior.
 
 ```rust
-let client = DaemonClient::connect(DaemonEndpoint::at(socket_path)?).await?;
+let client = DaemonClient::connect(DaemonEndpoint::discover()?.0).await?;
 let sessions = client.list_sessions().await?;
+
+let active_id = sessions
+    .iter()
+    .find_map(|session| session.active_id())
+    .cloned()
+    .ok_or(AppError::NoLiveSession)?;
+let attachment = client.attach_session(active_id).await?;
+let mut updates = attachment.subscribe();
 ```
 
-The caller receives daemon domain values. It never handles JSON, request identifiers, socket ownership, protocol envelopes, or response routing.
+`DaemonCommand`, raw command responses, daemon events, command identifiers, and cursors stay private. Callers cannot send `ack_result` or bypass compatibility checks.
 
-## Shape
+## Ownership
 
-`DaemonClient::connect` returns only after a valid `daemon_hello`. One private driver owns the Unix socket and every pending request. A synchronous `ProtocolCore<T>` owns greeting state, request identifiers, command expectations, and completion tokens. The driver performs asynchronous I/O and applies the core's deterministic decisions.
+One driver actor owns these values:
 
-The driver limits each JSONL frame to 4 MiB. It removes requests that exceed their three-second deadline and returns `RequestError::TimedOut` to the caller.
+- The random client UUID and the monotonic command counter.
+- The Unix socket and the accepted `daemon_hello`.
+- Frozen command envelopes and their callers.
+- Late-response tombstones.
+- Best-effort acknowledgement debt.
+- The selected attachment reducer.
 
-The protocol boundary accepts `prime-agent.daemon` version 7. Schema identity and revision remain diagnostic compatibility metadata. Optional capabilities gate optional behavior. This follows Prime Agent's live protocol and keeps compatible older schema revisions usable.
+No request task or GPUI entity writes the actor's maps. `AttachmentReducer` is a synchronous state machine. The actor applies its publish and resync effects.
 
-The first slice implements handshake, capability inspection, `list`, typed success and failure responses, request correlation, deterministic protocol tests, and a real-daemon test. It does not retry commands.
+`RootView` retains `DaemonClient` for its lifetime. A row selection starts one retained attachment task. `SessionSelectionModel` rejects updates whose selection token is stale.
 
-Future attachment support stays behind `DaemonClient::attach_session`. The driver will own the cursor, install one observation before sending attach, buffer early events until the authoritative snapshot arrives, and force snapshot replacement after gaps, generation changes, replay failure, or bounded queue overflow.
+## Commands and recovery
 
-## Module map
+Each client uses `ernie-gpui:<uuid>` as its `clientId`. Each admitted command uses the next checked counter under that client identity. A reconnect preserves both values.
 
-- `lib.rs` owns the public domain values and typed errors.
-- `client.rs` owns `DaemonClient` and the private socket driver.
-- `protocol.rs` owns private wire records, parsing, validation, correlation, and later cursor transitions.
+The actor serializes an envelope once and stores its bytes before the first socket write. After a transport loss, it rechecks compatibility against the new greeting and writes the same bytes. It never rebuilds a retained mutation with a new identifier.
 
-One request crosses at most these three files. No GPUI type enters the crate.
+Read commands use bounded deadlines. Immediate commands use 3 seconds, normal reads use 10 seconds, and interactive mutations use 30 seconds. Completion commands have no client deadline. A timed-out read leaves a bounded 60-second tombstone, so its late response does not stop the driver. A timed-out mutation reports `RequestError::OutcomeUncertain` and remains eligible for exact replay.
 
-## Synthesis decision
+The daemon error code `command_result_uncertain` maps to the same typed outcome. A terminal mutation response creates a private `ack_result` envelope. Prime Agent sends no response for `ack_result`. The actor clears acknowledgement debt only after the local socket write succeeds. Protocol version 7 cannot prove that the daemon persisted the acknowledgement.
 
-The pure protocol core with one private driver won the architecture arena. It scored highest because deterministic tests cover the hardest protocol rules while callers retain one small client.
+## Compatibility
 
-The synthesis keeps the split candidate's late-response and bounded-delivery rules. It keeps the actor candidate's attach buffering and single-attachment rule. It rejects the split public handle pair, public cursors, multi-session feed maps, exact schema equality, and matching the daemon-assigned greeting client ID against the command client ID.
+The private command registry checks static protocol, schema, and capability requirements before each write and replay. It also checks the five field-sensitive rules in the pinned contract:
 
-## Tradeoffs accepted
+- `recoveryConfig` requires schema 17 and `owned_session_recovery_context`.
+- `telemetryDisabled` requires schema 14.
+- `admissionId` requires schema 8 and `prompt_admission_cancellation`.
+- `waitForRlmQuiescence` requires schema 18 and `rlm_quiescence_barrier`.
+- `cancelOwned` requires schema 20 and `owned_prompt_cancellation`.
 
-- We accept one private driver thread in exchange for runtime independence and one mutable-state owner.
-- We accept a small session projection in exchange for insulation from unrelated daemon fields.
-- We accept terminal protocol errors in exchange for never returning miscorrelated data.
-- We accept no retry in the first slice in exchange for honest command outcomes.
+A missing optional capability rejects only the affected operation. It does not stop connection startup or unrelated commands.
 
-## Alternatives considered
+Run the contract checker against a Prime Agent checkout:
 
-A public command handle and event subscription exposed lifetime coordination to callers. A monolithic actor without a pure core made protocol correlation harder to test without I/O. A public typestate client exposed handshake mechanics that `connect` can hide completely.
+```sh
+just check-prime-agent-protocol /path/to/prime-agent
+```
 
-## Open risks
+The checker reads the pinned file through `git show`. It compares the protocol version, schema revision, 102 command names, 20 outbound records, and the five conditional gate markers. It does not run Prime Agent TypeScript.
 
-- Attachment projections must remain smaller than Prime Agent's full wire snapshot.
-- Mutation recovery needs stable command identity and explicit uncertain-result handling before any retry.
+## Attachment continuity
 
-## Next implementation step
+The actor registers the selected reducer before it writes `attach`. Events that arrive before the response enter a 256-record buffer.
 
-Implement greeting and correlated `list` through the pure core and prove both against a real Prime Agent daemon.
+The reducer accepts either an inline snapshot or a chunked snapshot. Chunked assembly checks the snapshot identity, unique and contiguous chunk indexes, declared chunk count, message count, a 16 MiB total size, and a 30-second transfer deadline.
+
+After snapshot installation, the reducer accepts duplicate cursors without changing state. It accepts only the next sequence in the current generation. A gap, a generation change, a malformed stream, a missing cursor, or an early-buffer overflow requests one coalesced full snapshot. Three consecutive failed resyncs make the attachment unavailable.
+
+After reconnect, the actor sends `attach` with the last accepted `resumeCursor`. It never sends `reattach`. If the reducer has no accepted cursor, the actor requests a full attachment snapshot.
+
+`AttachedSession` is an Ernie projection. It contains the session identity, activity, working directory, snapshot message count, and a local revision. Opaque Prime Agent state and transcript values remain private. A contiguous event advances the revision. The next authoritative snapshot replaces the projected fields.
+
+## Verification
+
+Fake-daemon tests cover random client identity, monotonic command identifiers, byte-identical mutation replay, late responses, uncertain outcomes, response-less acknowledgements, compatibility rejection, early events, inline snapshots, streamed snapshots, and reconnect attachment cursors.
+
+The ignored live test needs `PRIME_AGENT_DAEMON_SOCKET` to name a running protocol 7 daemon. Full restart verification remains blocked when no live daemon socket is available.

@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::FileTypeExt;
 use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
@@ -13,6 +13,7 @@ use serde_json::Value;
 enum FakeResponse {
     Catalog,
     MismatchedCommand,
+    NoResponse,
 }
 
 impl FakeResponse {
@@ -20,6 +21,7 @@ impl FakeResponse {
         match self {
             Self::Catalog => "catalog",
             Self::MismatchedCommand => "mismatch",
+            Self::NoResponse => "no-response",
         }
     }
 }
@@ -60,6 +62,10 @@ impl FakeDaemon {
                 .read_line(&mut line)
                 .expect("command must read");
             let request: Value = serde_json::from_str(&line).expect("command must be JSON");
+            if matches!(response, FakeResponse::NoResponse) {
+                let _ = stream.read_to_end(&mut Vec::new());
+                return;
+            }
             let id = request["id"].as_str().expect("command must carry id");
             let sessions = if matches!(response, FakeResponse::Catalog) {
                 serde_json::json!([{
@@ -154,6 +160,21 @@ async fn client_reports_response_mismatch_as_a_protocol_error() {
         error,
         RequestError::Protocol(ProtocolError::ResponseCommandMismatch { .. })
     ));
+}
+
+#[tokio::test]
+async fn client_times_out_when_daemon_does_not_respond() {
+    let daemon = FakeDaemon::start(FakeResponse::NoResponse);
+    let client = DaemonClient::connect(daemon.endpoint())
+        .await
+        .expect("client must connect");
+
+    let error = client
+        .list_sessions()
+        .await
+        .expect_err("list must time out");
+
+    assert!(matches!(error, RequestError::TimedOut));
 }
 
 #[tokio::test]

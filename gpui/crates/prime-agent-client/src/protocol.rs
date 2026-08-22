@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -27,6 +28,7 @@ enum CoreState {
 struct Pending<T> {
     command: &'static str,
     completion: T,
+    deadline: Instant,
 }
 
 pub(crate) struct IssuedCommand {
@@ -111,7 +113,11 @@ impl<T> ProtocolCore<T> {
         Ok(server)
     }
 
-    pub(crate) fn issue_list(&mut self, completion: T) -> Result<IssuedCommand, ProtocolError> {
+    pub(crate) fn issue_list(
+        &mut self,
+        completion: T,
+        deadline: Instant,
+    ) -> Result<IssuedCommand, ProtocolError> {
         if !matches!(self.state, CoreState::Ready) {
             return Err(ProtocolError::MessageBeforeHello("list command".to_owned()));
         }
@@ -136,6 +142,7 @@ impl<T> ProtocolCore<T> {
             Pending {
                 command: "list",
                 completion,
+                deadline,
             },
         );
         Ok(IssuedCommand { request_id, bytes })
@@ -145,6 +152,23 @@ impl<T> ProtocolCore<T> {
         self.pending
             .remove(request_id)
             .map(|pending| pending.completion)
+    }
+
+    pub(crate) fn next_deadline(&self) -> Option<Instant> {
+        self.pending.values().map(|pending| pending.deadline).min()
+    }
+
+    pub(crate) fn expire(&mut self, now: Instant) -> Vec<T> {
+        let expired = self
+            .pending
+            .iter()
+            .filter(|(_, pending)| pending.deadline <= now)
+            .map(|(request_id, _)| request_id.clone())
+            .collect::<Vec<_>>();
+        expired
+            .into_iter()
+            .filter_map(|request_id| self.cancel(&request_id))
+            .collect()
     }
 
     pub(crate) fn receive_line(
@@ -369,6 +393,8 @@ impl From<WireWorkerState> for WorkerState {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use super::ProtocolCore;
     use crate::{ProtocolError, ServerCapability};
 
@@ -397,7 +423,9 @@ mod tests {
     fn response_is_correlated_by_id_and_command() {
         let mut core = ProtocolCore::new("ernie".to_owned());
         core.accept_hello(&hello("")).expect("greeting must parse");
-        let issued = core.issue_list(41).expect("list must issue");
+        let issued = core
+            .issue_list(41, Instant::now() + Duration::from_secs(1))
+            .expect("list must issue");
         let line = format!(
             r#"{{"type":"response","id":"{}","command":"list","success":true,"data":{{"sessions":[]}}}}"#,
             issued.request_id
@@ -416,7 +444,9 @@ mod tests {
     fn mismatched_response_command_is_rejected() {
         let mut core = ProtocolCore::new("ernie".to_owned());
         core.accept_hello(&hello("")).expect("greeting must parse");
-        let issued = core.issue_list(1).expect("list must issue");
+        let issued = core
+            .issue_list(1, Instant::now() + Duration::from_secs(1))
+            .expect("list must issue");
         let line = format!(
             r#"{{"type":"response","id":"{}","command":"attach","success":true,"data":{{}}}}"#,
             issued.request_id
@@ -426,5 +456,16 @@ mod tests {
             core.receive_line(&line),
             Err(ProtocolError::ResponseCommandMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn expired_request_is_removed_from_pending_commands() {
+        let now = Instant::now();
+        let mut core = ProtocolCore::new("ernie".to_owned());
+        core.accept_hello(&hello("")).expect("greeting must parse");
+        core.issue_list(7, now).expect("list must issue");
+
+        assert_eq!(core.expire(now), [7]);
+        assert!(core.next_deadline().is_none());
     }
 }

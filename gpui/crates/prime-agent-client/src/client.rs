@@ -1,16 +1,19 @@
+use std::future::pending;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::sync::{mpsc, oneshot};
-use tokio::time::timeout;
+use tokio::time::{sleep_until, timeout};
 
 use crate::protocol::ProtocolCore;
 use crate::{ConnectError, DaemonEndpoint, RequestError, ServerInfo, SessionList};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const HELLO_TIMEOUT: Duration = Duration::from_secs(3);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 
 /// A connected and protocol-compatible Prime Agent daemon client.
 #[derive(Clone)]
@@ -86,13 +89,14 @@ async fn run_driver(
         }
     };
     let (reader, mut writer) = stream.into_split();
-    let mut lines = BufReader::new(reader).lines();
+    let mut reader = BufReader::new(reader);
     let command_client_id = format!("ernie-gpui:{}", std::process::id());
     let mut core = ProtocolCore::new(command_client_id);
-    let hello = match timeout(HELLO_TIMEOUT, lines.next_line()).await {
+    let hello = match timeout(HELLO_TIMEOUT, read_frame(&mut reader)).await {
         Ok(Ok(Some(line))) => core.accept_hello(&line).map_err(ConnectError::from),
         Ok(Ok(None)) => Err(ConnectError::DriverStopped),
-        Ok(Err(error)) => Err(ConnectError::Io(error)),
+        Ok(Err(FrameReadError::Io(error))) => Err(ConnectError::Io(error)),
+        Ok(Err(FrameReadError::Protocol(error))) => Err(ConnectError::Protocol(error)),
         Err(_) => Err(ConnectError::TimedOut),
     };
     let server = match hello {
@@ -107,12 +111,13 @@ async fn run_driver(
     }
 
     loop {
+        let next_deadline = core.next_deadline();
         tokio::select! {
             command = commands.recv() => {
                 let Some(command) = command else { break };
                 match command {
                     DriverCommand::List { reply } => {
-                        let issued = match core.issue_list(reply) {
+                        let issued = match core.issue_list(reply, Instant::now() + REQUEST_TIMEOUT) {
                             Ok(issued) => issued,
                             Err(error) => {
                                 fail_pending_protocol(core, error);
@@ -129,11 +134,15 @@ async fn run_driver(
                     }
                 }
             }
-            line = lines.next_line() => {
+            line = read_frame(&mut reader) => {
                 let line = match line {
                     Ok(Some(line)) => line,
-                    Ok(None) | Err(_) => {
+                    Ok(None) | Err(FrameReadError::Io(_)) => {
                         fail_pending_connection(core);
+                        return;
+                    }
+                    Err(FrameReadError::Protocol(error)) => {
+                        fail_pending_protocol(core, error);
                         return;
                     }
                 };
@@ -148,9 +157,64 @@ async fn run_driver(
                     }
                 }
             }
+            _ = wait_for_deadline(next_deadline) => {
+                for reply in core.expire(Instant::now()) {
+                    let _ = reply.send(Err(RequestError::TimedOut));
+                }
+            }
         }
     }
     fail_pending_connection(core);
+}
+
+async fn wait_for_deadline(deadline: Option<Instant>) {
+    match deadline {
+        Some(deadline) => sleep_until(deadline.into()).await,
+        None => pending().await,
+    }
+}
+
+#[derive(Debug)]
+enum FrameReadError {
+    Io(std::io::Error),
+    Protocol(crate::ProtocolError),
+}
+
+async fn read_frame<R>(reader: &mut R) -> Result<Option<String>, FrameReadError>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let mut frame = Vec::new();
+    let mut received_frame = false;
+    loop {
+        let available = reader.fill_buf().await.map_err(FrameReadError::Io)?;
+        if available.is_empty() {
+            break;
+        }
+        let newline = available.iter().position(|byte| *byte == b'\n');
+        let consumed = newline.map_or(available.len(), |index| index + 1);
+        let content = newline.map_or(available, |index| &available[..index]);
+        if frame.len() + content.len() > MAX_FRAME_BYTES {
+            return Err(FrameReadError::Protocol(
+                crate::ProtocolError::FrameTooLarge,
+            ));
+        }
+        frame.extend_from_slice(content);
+        reader.consume(consumed);
+        if newline.is_some() {
+            received_frame = true;
+            break;
+        }
+    }
+    if frame.is_empty() && !received_frame {
+        return Ok(None);
+    }
+    if frame.last() == Some(&b'\r') {
+        frame.pop();
+    }
+    String::from_utf8(frame)
+        .map(Some)
+        .map_err(|_| FrameReadError::Protocol(crate::ProtocolError::InvalidUtf8))
 }
 
 fn fail_pending_connection(core: ProtocolCore<oneshot::Sender<Result<SessionList, RequestError>>>) {
@@ -165,5 +229,26 @@ fn fail_pending_protocol(
 ) {
     for reply in core.drain() {
         let _ = reply.send(Err(RequestError::Protocol(error.clone())));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::io::BufReader;
+
+    use super::{read_frame, FrameReadError, MAX_FRAME_BYTES};
+    use crate::ProtocolError;
+
+    #[tokio::test]
+    async fn oversized_frame_is_rejected_before_json_parsing() {
+        let input = vec![b'x'; MAX_FRAME_BYTES + 1];
+        let mut reader = BufReader::new(input.as_slice());
+
+        let error = read_frame(&mut reader).await.expect_err("frame must fail");
+
+        assert!(matches!(
+            error,
+            FrameReadError::Protocol(ProtocolError::FrameTooLarge)
+        ));
     }
 }

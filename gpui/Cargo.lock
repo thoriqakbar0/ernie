@@ -1460,8 +1460,13 @@ dependencies = [
 name = "ernie-gpui-ui"
 version = "0.1.0"
 dependencies = [
+ "ernie-plugin-runtime",
  "gpui",
 ]
+
+[[package]]
+name = "ernie-plugin-runtime"
+version = "0.1.0"
 
 [[package]]
 name = "errno"

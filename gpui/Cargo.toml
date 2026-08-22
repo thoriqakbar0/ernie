@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/desktop", "crates/ui"]
+members = ["crates/desktop", "crates/plugin-runtime", "crates/ui"]
 default-members = ["crates/desktop"]
 
 [workspace.package]
@@ -12,6 +12,7 @@ rust-version = "1.95"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "101ca00a1352ed71ef398f21b47836565d1998e3" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "101ca00a1352ed71ef398f21b47836565d1998e3" }
 ernie-gpui-ui = { path = "crates/ui" }
+ernie-plugin-runtime = { path = "crates/plugin-runtime" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

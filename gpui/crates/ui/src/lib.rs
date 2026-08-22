@@ -1,22 +1,33 @@
+use std::cell::RefCell;
+use std::fmt;
+use std::rc::Rc;
+
+use ernie_plugin_runtime::{
+    Context as PluginRuntime, FiberState, LifecycleError, LifecycleReport, PluginId, ServiceKey,
+};
 use gpui::{
     div, prelude::*, px, rgb, AccessibleAction, Context, FontWeight, KeyDownEvent, Role,
     SharedString, Window,
 };
 
-#[derive(Default)]
 pub struct RootView {
     clicks: ClickCount,
+    lifecycle: UiLifecycle,
 }
 
 impl RootView {
     pub fn new(_cx: &mut Context<Self>) -> Self {
-        Self::default()
+        Self {
+            clicks: ClickCount::default(),
+            lifecycle: UiLifecycle::new().expect("built-in UI lifecycle must activate"),
+        }
     }
 }
 
 impl Render for RootView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let status: SharedString = self.clicks.label().into();
+        let lifecycle_status: SharedString = self.lifecycle.status().into();
         let view = cx.entity();
 
         div()
@@ -38,6 +49,7 @@ impl Render for RootView {
                             .font_weight(FontWeight::SEMIBOLD)
                             .child("ernie-gpui"),
                     )
+                    .child(div().text_color(rgb(0xaeb4bf)).child(lifecycle_status))
                     .child(div().text_color(rgb(0xaeb4bf)).child(status))
                     .child(
                         div()
@@ -75,6 +87,92 @@ impl Render for RootView {
     }
 }
 
+const APPLICATION_IDENTITY: ServiceKey<&str> = ServiceKey::new("ernie.application.identity");
+
+struct UiLifecycle {
+    _runtime: PluginRuntime,
+    status: Rc<RefCell<String>>,
+}
+
+impl UiLifecycle {
+    fn new() -> Result<Self, UiLifecycleError> {
+        let status = Rc::new(RefCell::new("plugin runtime waiting".to_owned()));
+        let observed_status = Rc::clone(&status);
+        let plugin = PluginId::new("ernie.ui.status");
+        let mut runtime = PluginRuntime::new();
+
+        let report = runtime.install(plugin.clone(), [APPLICATION_IDENTITY.id()], move |cx| {
+            let application = cx.service(APPLICATION_IDENTITY)?;
+            *observed_status.borrow_mut() = format!("plugin runtime active for {}", *application);
+
+            let cleanup_status = Rc::clone(&observed_status);
+            cx.acquire((), move || {
+                *cleanup_status.borrow_mut() = "plugin runtime waiting".to_owned();
+                Ok(())
+            });
+            Ok(())
+        })?;
+        Self::require_clean(report)?;
+
+        let report = runtime.provide(APPLICATION_IDENTITY, "ernie-gpui")?;
+        Self::require_clean(report)?;
+
+        let state = runtime.state(&plugin);
+        if state != Some(FiberState::Active) {
+            return Err(UiLifecycleError::UnexpectedState(state));
+        }
+
+        Ok(Self {
+            _runtime: runtime,
+            status,
+        })
+    }
+
+    fn status(&self) -> String {
+        self.status.borrow().clone()
+    }
+
+    fn require_clean(report: LifecycleReport) -> Result<(), UiLifecycleError> {
+        if report == LifecycleReport::default() {
+            Ok(())
+        } else {
+            Err(UiLifecycleError::Reconciliation(report))
+        }
+    }
+}
+
+#[derive(Debug)]
+enum UiLifecycleError {
+    Lifecycle(LifecycleError),
+    Reconciliation(LifecycleReport),
+    UnexpectedState(Option<FiberState>),
+}
+
+impl From<LifecycleError> for UiLifecycleError {
+    fn from(error: LifecycleError) -> Self {
+        Self::Lifecycle(error)
+    }
+}
+
+impl fmt::Display for UiLifecycleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lifecycle(error) => write!(formatter, "lifecycle boundary failed: {error}"),
+            Self::Reconciliation(report) => write!(
+                formatter,
+                "lifecycle reconciliation reported {} activation and {} cleanup failures",
+                report.activations.len(),
+                report.cleanups.len()
+            ),
+            Self::UnexpectedState(state) => {
+                write!(formatter, "built-in UI plugin entered {state:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for UiLifecycleError {}
+
 #[derive(Default)]
 struct ClickCount(u32);
 
@@ -94,7 +192,7 @@ impl ClickCount {
 
 #[cfg(test)]
 mod tests {
-    use super::ClickCount;
+    use super::{ClickCount, UiLifecycle};
 
     #[test]
     fn increment_updates_the_visible_label() {
@@ -104,5 +202,12 @@ mod tests {
         count.increment();
 
         assert_eq!(count.label(), "Incremented 2 times");
+    }
+
+    #[test]
+    fn built_in_ui_plugin_activates_with_the_application_identity() {
+        let lifecycle = UiLifecycle::new().expect("built-in lifecycle must activate");
+
+        assert_eq!(lifecycle.status(), "plugin runtime active for ernie-gpui");
     }
 }

@@ -1,0 +1,10 @@
+[package]
+name = "ernie-plugin-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Ernie's synchronous runtime for reversible, Cordis-inspired plugin lifecycles."
+license = "MIT"
+
+[lints]
+workspace = true

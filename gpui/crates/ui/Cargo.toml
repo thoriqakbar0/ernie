@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+ernie-plugin-runtime.workspace = true
 gpui.workspace = true
 
 [lints]

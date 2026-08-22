@@ -1502,6 +1502,42 @@ mod tests {
             .is_empty());
     }
 
+    #[test]
+    fn response_after_tombstone_eviction_is_ignored() {
+        let server = server_info(22, &[]);
+        let mut state = super::DriverState::new(server);
+        let now = Instant::now();
+        for _ in 0..=super::MAX_TOMBSTONES {
+            let (reply, _) = oneshot::channel();
+            state
+                .issue(
+                    Command::list(),
+                    super::Completion::Response(Some(reply)),
+                    now,
+                )
+                .expect("list must issue");
+        }
+        state
+            .expire(now + Duration::from_secs(11))
+            .expect("read deadlines must expire");
+        let evicted_id = (1..=state.next_command)
+            .map(|counter| format!("{}:{counter}", state.client_id))
+            .find(|id| !state.tombstones.iter().any(|tombstone| tombstone.id == *id))
+            .expect("bounded tombstones must evict one id");
+        let response: WireResponse = serde_json::from_value(serde_json::json!({
+            "id": evicted_id,
+            "command": "list",
+            "success": true,
+            "data": empty_list()
+        }))
+        .expect("response must parse");
+
+        assert!(state
+            .on_response(response, now + Duration::from_secs(11))
+            .expect("evicted response must be ignored")
+            .is_empty());
+    }
+
     #[tokio::test]
     async fn late_read_response_consumes_a_tombstone_and_the_driver_stays_live() {
         let daemon = ScriptedDaemon::start(|listener| {

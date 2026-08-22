@@ -1,8 +1,9 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use prime_agent_client::{
-    DaemonClient, DaemonEndpoint, EndpointError, RequestError, SessionActivity, SessionLifecycle,
-    SessionList, SessionSummary,
+    ActiveSessionId, AttachmentState, DaemonClient, DaemonEndpoint, EndpointError, RequestError,
+    SessionActivity, SessionLifecycle, SessionList, SessionSummary,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -25,6 +26,7 @@ pub(crate) enum SessionListPhase {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct SessionRow {
     id: String,
+    active_id: Option<ActiveSessionId>,
     title: String,
     working_directory: PathBuf,
     lifecycle: SessionLifecycle,
@@ -39,6 +41,10 @@ impl SessionRow {
 
     pub(crate) fn title(&self) -> &str {
         &self.title
+    }
+
+    pub(crate) fn active_id(&self) -> Option<&ActiveSessionId> {
+        self.active_id.as_ref()
     }
 
     pub(crate) fn working_directory(&self) -> &std::path::Path {
@@ -87,10 +93,23 @@ impl SessionListModel {
     }
 }
 
-pub(crate) async fn load_session_rows() -> Result<Vec<SessionRow>, SessionLoadError> {
-    let (endpoint, _) = DaemonEndpoint::discover()?;
-    let client = DaemonClient::connect(endpoint).await?;
-    Ok(project_sessions(client.list_sessions().await?))
+pub(crate) struct SessionLoad {
+    pub(crate) client: DaemonClient,
+    pub(crate) rows: Vec<SessionRow>,
+}
+
+pub(crate) async fn load_session_rows(
+    client: Option<DaemonClient>,
+) -> Result<SessionLoad, SessionLoadError> {
+    let client = match client {
+        Some(client) => client,
+        None => {
+            let (endpoint, _) = DaemonEndpoint::discover()?;
+            DaemonClient::connect(endpoint).await?
+        }
+    };
+    let rows = project_sessions(client.list_sessions().await?);
+    Ok(SessionLoad { client, rows })
 }
 
 fn project_sessions(sessions: SessionList) -> Vec<SessionRow> {
@@ -107,11 +126,57 @@ impl From<SessionSummary> for SessionRow {
         let title = session.name().unwrap_or(&id).to_owned();
         Self {
             id,
+            active_id: session.active_id().cloned(),
             title,
             working_directory: session.working_directory().to_owned(),
             lifecycle: session.lifecycle(),
             activity: session.activity(),
             message_count: session.message_count(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Selection(u64);
+
+#[derive(Debug, Default)]
+pub(crate) struct SessionSelectionModel {
+    selection: Selection,
+    active_id: Option<ActiveSessionId>,
+    state: Option<Arc<AttachmentState>>,
+}
+
+impl SessionSelectionModel {
+    pub(crate) fn begin(&mut self, active_id: ActiveSessionId) -> Selection {
+        self.selection.0 = self.selection.0.saturating_add(1);
+        self.active_id = Some(active_id.clone());
+        self.state = Some(Arc::new(AttachmentState::Attaching {
+            active_session_id: active_id,
+        }));
+        self.selection
+    }
+
+    pub(crate) fn apply(&mut self, selection: Selection, state: Arc<AttachmentState>) -> bool {
+        if selection != self.selection {
+            return false;
+        }
+        self.state = Some(state);
+        true
+    }
+
+    pub(crate) fn is_selected(&self, active_id: &ActiveSessionId) -> bool {
+        self.active_id.as_ref() == Some(active_id)
+    }
+
+    pub(crate) fn status(&self) -> Option<&'static str> {
+        match self.state.as_deref()? {
+            AttachmentState::Attaching { .. } => Some("Attaching"),
+            AttachmentState::Ready(_) => Some("Attached"),
+            AttachmentState::Resyncing { .. } => Some("Resyncing"),
+            AttachmentState::Detached { .. } => Some("Detached"),
+            AttachmentState::Closed { .. } => Some("Closed"),
+            AttachmentState::Unavailable { .. } => Some("Unavailable"),
+            AttachmentState::Superseded => None,
         }
     }
 }
@@ -154,13 +219,20 @@ impl std::fmt::Display for SessionLoadError {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
-    use super::{Refresh, SessionListModel, SessionListPhase, SessionLoadError, SessionRow};
-    use prime_agent_client::{EndpointError, SessionActivity, SessionLifecycle};
+    use super::{
+        Refresh, SessionListModel, SessionListPhase, SessionLoadError, SessionRow,
+        SessionSelectionModel,
+    };
+    use prime_agent_client::{
+        ActiveSessionId, AttachmentState, EndpointError, SessionActivity, SessionLifecycle,
+    };
 
     fn row(id: &str) -> SessionRow {
         SessionRow {
             id: id.to_owned(),
+            active_id: ActiveSessionId::parse(id).ok(),
             title: id.to_owned(),
             working_directory: PathBuf::from("/tmp"),
             lifecycle: SessionLifecycle::Live,
@@ -207,5 +279,29 @@ mod tests {
             model.phase(),
             SessionListPhase::Ready(rows) if rows.as_slice() == [row("three")]
         ));
+    }
+
+    #[test]
+    fn stale_attachment_update_does_not_replace_the_current_selection() {
+        let mut model = SessionSelectionModel::default();
+        let first_id = ActiveSessionId::parse("first").expect("valid id");
+        let stale = model.begin(first_id.clone());
+        let second_id = ActiveSessionId::parse("second").expect("valid id");
+        let current = model.begin(second_id.clone());
+
+        assert!(!model.apply(
+            stale,
+            Arc::new(AttachmentState::Detached {
+                active_session_id: first_id,
+            })
+        ));
+        assert!(model.apply(
+            current,
+            Arc::new(AttachmentState::Resyncing {
+                active_session_id: second_id.clone(),
+            })
+        ));
+        assert!(model.is_selected(&second_id));
+        assert_eq!(model.status(), Some("Resyncing"));
     }
 }

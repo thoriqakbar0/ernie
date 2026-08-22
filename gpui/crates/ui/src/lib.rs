@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
+use std::sync::Arc;
 
 mod sessions;
 
@@ -11,12 +12,18 @@ use gpui::{
     div, prelude::*, px, rgb, AccessibleAction, AnyElement, Context, FontWeight, KeyDownEvent,
     Role, SharedString, Task, Window,
 };
-use sessions::{load_session_rows, SessionListModel, SessionListPhase, SessionRow};
+use prime_agent_client::{ActiveSessionId, AttachmentState, DaemonClient};
+use sessions::{
+    load_session_rows, SessionListModel, SessionListPhase, SessionRow, SessionSelectionModel,
+};
 
 pub struct RootView {
     lifecycle: UiLifecycle,
     sessions: SessionListModel,
     session_task: Option<Task<()>>,
+    prime_agent: Option<DaemonClient>,
+    selection: SessionSelectionModel,
+    attachment_task: Option<Task<()>>,
 }
 
 impl RootView {
@@ -25,6 +32,9 @@ impl RootView {
             lifecycle: UiLifecycle::new().expect("built-in UI lifecycle must activate"),
             sessions: SessionListModel::default(),
             session_task: None,
+            prime_agent: None,
+            selection: SessionSelectionModel::default(),
+            attachment_task: None,
         };
         view.refresh_sessions(cx);
         view
@@ -32,13 +42,60 @@ impl RootView {
 
     fn refresh_sessions(&mut self, cx: &mut Context<Self>) {
         let refresh = self.sessions.begin_refresh();
+        let client = self.prime_agent.clone();
         self.session_task = Some(cx.spawn(async move |view, cx| {
-            let result = load_session_rows().await;
+            let result = load_session_rows(client).await;
             let _ = view.update(cx, |view, cx| {
+                let result = match result {
+                    Ok(load) => {
+                        view.prime_agent = Some(load.client);
+                        Ok(load.rows)
+                    }
+                    Err(error) => Err(error),
+                };
                 if view.sessions.finish(refresh, result) {
                     cx.notify();
                 }
             });
+        }));
+        cx.notify();
+    }
+
+    fn select_session(&mut self, active_session_id: ActiveSessionId, cx: &mut Context<Self>) {
+        let Some(client) = self.prime_agent.clone() else {
+            return;
+        };
+        let selection = self.selection.begin(active_session_id.clone());
+        self.attachment_task = Some(cx.spawn(async move |view, cx| {
+            match client.attach_session(active_session_id.clone()).await {
+                Ok(attachment) => {
+                    let mut updates = attachment.subscribe();
+                    loop {
+                        let state = updates.borrow_and_update().clone();
+                        let applied = view
+                            .update(cx, |view, cx| {
+                                if view.selection.apply(selection, state) {
+                                    cx.notify();
+                                }
+                            })
+                            .is_ok();
+                        if !applied || updates.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(error) => {
+                    let state = Arc::new(AttachmentState::Unavailable {
+                        active_session_id,
+                        reason: error.to_string().into(),
+                    });
+                    let _ = view.update(cx, |view, cx| {
+                        if view.selection.apply(selection, state) {
+                            cx.notify();
+                        }
+                    });
+                }
+            }
         }));
         cx.notify();
     }
@@ -53,12 +110,26 @@ impl RootView {
                 .text_color(rgb(0xaeb4bf))
                 .child("No Prime Agent sessions yet.")
                 .into_any_element(),
-            SessionListPhase::Ready(rows) => div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .children(rows.iter().map(render_session_row))
-                .into_any_element(),
+            SessionListPhase::Ready(rows) => {
+                let elements = rows
+                    .iter()
+                    .map(|row| {
+                        let status = row.active_id().and_then(|active_id| {
+                            self.selection
+                                .is_selected(active_id)
+                                .then(|| self.selection.status())
+                                .flatten()
+                        });
+                        render_session_row(row, status, cx)
+                    })
+                    .collect::<Vec<_>>();
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .children(elements)
+                    .into_any_element()
+            }
             SessionListPhase::Unavailable(message) => {
                 let view = cx.entity();
                 div()
@@ -129,28 +200,59 @@ impl Render for RootView {
     }
 }
 
-fn render_session_row(row: &SessionRow) -> AnyElement {
-    let detail = format!(
+fn render_session_row(
+    row: &SessionRow,
+    attachment_status: Option<&'static str>,
+    cx: &mut Context<RootView>,
+) -> AnyElement {
+    let mut detail = format!(
         "{} · {} · {} messages",
         row.status(),
         row.working_directory().display(),
         row.message_count()
     );
-    div()
+    if let Some(status) = attachment_status {
+        detail.push_str(" · ");
+        detail.push_str(status);
+    }
+    let mut element = div()
         .id(format!("prime-agent-session-{}", row.id()))
         .flex()
         .flex_col()
         .gap_1()
         .p_4()
         .rounded_lg()
-        .bg(rgb(0x1a1d24))
+        .bg(if attachment_status.is_some() {
+            rgb(0x25213d)
+        } else {
+            rgb(0x1a1d24)
+        })
         .child(
             div()
                 .font_weight(FontWeight::SEMIBOLD)
                 .child(row.title().to_owned()),
         )
-        .child(div().text_color(rgb(0xaeb4bf)).child(detail))
-        .into_any_element()
+        .child(div().text_color(rgb(0xaeb4bf)).child(detail));
+    if let Some(active_session_id) = row.active_id().cloned() {
+        element = element
+            .role(Role::Button)
+            .aria_label(format!("Attach to {}", row.title()))
+            .focusable()
+            .cursor_pointer()
+            .hover(|style| style.bg(rgb(0x242834)))
+            .on_key_down(cx.listener({
+                let active_session_id = active_session_id.clone();
+                move |view, event: &KeyDownEvent, _, cx| {
+                    if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                        view.select_session(active_session_id.clone(), cx);
+                    }
+                }
+            }))
+            .on_click(cx.listener(move |view, _, _, cx| {
+                view.select_session(active_session_id.clone(), cx);
+            }));
+    }
+    element.into_any_element()
 }
 
 const APPLICATION_IDENTITY: ServiceKey<&str> = ServiceKey::new("ernie.application.identity");

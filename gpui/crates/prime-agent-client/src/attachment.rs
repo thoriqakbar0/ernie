@@ -135,6 +135,7 @@ pub(crate) struct AttachmentReducer {
     terminal: bool,
 }
 
+#[derive(Clone, Copy)]
 enum AttachmentAttempt {
     Idle,
     Command,
@@ -262,9 +263,15 @@ impl AttachmentReducer {
                 ) {
                     Ok(assembly) => {
                         self.awaiting_snapshot = true;
-                        self.attempt = AttachmentAttempt::Stream {
-                            deadline: assembly.deadline,
+                        let deadline = match self.attempt {
+                            AttachmentAttempt::Stream { deadline } => {
+                                deadline.min(assembly.deadline)
+                            }
+                            AttachmentAttempt::Idle | AttachmentAttempt::Command => {
+                                assembly.deadline
+                            }
                         };
+                        self.attempt = AttachmentAttempt::Stream { deadline };
                         self.assembly = Some(assembly);
                         Vec::new()
                     }

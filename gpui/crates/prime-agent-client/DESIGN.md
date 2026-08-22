@@ -44,9 +44,9 @@ No request task or GPUI entity writes the actor's maps. `AttachmentReducer` is a
 
 Each client uses `ernie-gpui:<uuid>` as its `clientId`. Each admitted command uses the next checked counter under that client identity. A reconnect preserves both values.
 
-The actor serializes an envelope once and stores its bytes before the first socket write. After a transport loss, it rechecks compatibility against the new greeting and writes the same bytes. It never rebuilds a retained mutation with a new identifier.
+The actor serializes an envelope once and stores its bytes before the first socket write. After a transport loss, it rechecks compatibility against the new greeting and writes retained envelopes in admission order. It never rebuilds a retained mutation with a new identifier. If a transmitted mutation becomes incompatible, its caller receives `OutcomeUncertain`.
 
-Read commands use bounded deadlines. Immediate commands use 3 seconds, normal reads use 10 seconds, and interactive mutations use 30 seconds. Completion commands have no client deadline. A timed-out read leaves a bounded 60-second tombstone, so its late response does not stop the driver. A timed-out mutation reports `RequestError::OutcomeUncertain` and remains eligible for exact replay.
+Read commands use bounded deadlines. Immediate commands use 3 seconds, normal reads use 10 seconds, and interactive mutations use 30 seconds. Completion commands have no client deadline. A timed-out read leaves a bounded 60-second tombstone. A response for any older identifier issued by this client remains stale after tombstone expiry or eviction. It cannot stop the driver or reach a caller. A timed-out mutation reports `RequestError::OutcomeUncertain` and remains eligible for exact replay.
 
 The daemon error code `command_result_uncertain` maps to the same typed outcome. A terminal mutation response creates a private `ack_result` envelope. Prime Agent sends no response for `ack_result`. The actor clears acknowledgement debt only after the local socket write succeeds. Protocol version 7 cannot prove that the daemon persisted the acknowledgement.
 
@@ -60,7 +60,7 @@ The private command registry checks static protocol, schema, and capability requ
 - `waitForRlmQuiescence` requires schema 18 and `rlm_quiescence_barrier`.
 - `cancelOwned` requires schema 20 and `owned_prompt_cancellation`.
 
-A missing optional capability rejects only the affected operation. It does not stop connection startup or unrelated commands.
+A missing optional capability rejects only the affected operation. It does not stop connection startup or unrelated commands. An incompatible protocol greeting during reconnect stops the actor with a typed terminal failure.
 
 Run the contract checker against a Prime Agent checkout:
 
@@ -74,16 +74,16 @@ The checker reads the pinned file through `git show`. It compares the protocol v
 
 The actor registers the selected reducer before it writes `attach`. Events that arrive before the response enter a 256-record buffer.
 
-The reducer accepts either an inline snapshot or a chunked snapshot. Chunked assembly checks the snapshot identity, unique and contiguous chunk indexes, declared chunk count, message count, a 16 MiB total size, and a 30-second transfer deadline.
+The reducer accepts either an inline snapshot or a chunked snapshot. Chunked assembly checks the snapshot identity, unique and contiguous chunk indexes, declared chunk count, message count, a 16 MiB total size, and a 30-second transfer deadline. The deadline starts when a streamed attach response arrives, before `session_snapshot_begin`.
 
-After snapshot installation, the reducer accepts duplicate cursors without changing state. It accepts only the next sequence in the current generation. A gap, a generation change, a malformed stream, a missing cursor, or an early-buffer overflow requests one coalesced full snapshot. Three consecutive failed resyncs make the attachment unavailable.
+After snapshot installation, the reducer accepts duplicate cursors without changing state. It accepts only the next sequence in the current generation. A gap, a generation change, a malformed stream, a missing cursor, or an early-buffer overflow requests one coalesced full snapshot. The reducer tracks each command or stream attempt explicitly. Three failed resync attempts make the attachment unavailable.
 
-After reconnect, the actor sends `attach` with the last accepted `resumeCursor`. It never sends `reattach`. If the reducer has no accepted cursor, the actor requests a full attachment snapshot.
+After reconnect, the actor sends `attach` with the last accepted `resumeCursor`. It does not use `reattach` for transport recovery. If the reducer has no accepted cursor, the actor requests a full attachment snapshot. A new row selection uses Prime Agent's atomic `reattach` command with the old and target active session identifiers.
 
-`AttachedSession` is an Ernie projection. It contains the session identity, activity, working directory, snapshot message count, and a local revision. Opaque Prime Agent state and transcript values remain private. A contiguous event advances the revision. The next authoritative snapshot replaces the projected fields.
+`AttachedSession` is an Ernie projection. It contains the session identity, activity, working directory, snapshot message count, and a local revision. Opaque Prime Agent state and transcript values remain private. A contiguous event advances the revision. The next authoritative snapshot replaces the projected fields. GPUI uses the selected projection's activity and message count while retaining the last complete values during resync.
 
 ## Verification
 
-Fake-daemon tests cover random client identity, monotonic command identifiers, byte-identical mutation replay, late responses, uncertain outcomes, response-less acknowledgements, compatibility rejection, early events, inline snapshots, streamed snapshots, and reconnect attachment cursors.
+Fake-daemon and reducer tests cover random client identity, monotonic command identifiers, ordered byte-identical replay, stale responses after tombstone expiry, uncertain outcomes, response-less acknowledgements, compatibility isolation, terminal reconnect greetings, atomic selection replacement, bounded recovery, early events, inline snapshots, streamed snapshots, and reconnect attachment cursors.
 
 The ignored live test needs `PRIME_AGENT_DAEMON_SOCKET` to name a running protocol 7 daemon. Full restart verification remains blocked when no live daemon socket is available.

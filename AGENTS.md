@@ -1,3 +1,5 @@
+The active development target is the Rust workspace in [`gpui/`](./gpui). Treat the Electron and TypeScript implementation as reference material unless the user explicitly asks to change it. Follow [`gpui/AGENTS.md`](./gpui/AGENTS.md) for Rust work and run its commands from `gpui/`.
+
 Packages are deep modules — see [src/packages/README.md](./src/packages/README.md) before adding or importing one.
 
 Follow [STYLE.md](./STYLE.md) for source file names and code style.

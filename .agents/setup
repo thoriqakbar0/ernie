@@ -4,6 +4,40 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mise_bin="$HOME/.local/bin/mise"
 
+system_packages=(
+  build-essential
+  clang
+  cmake
+  curl
+  elfutils
+  gcc
+  gettext-base
+  git
+  g++
+  jq
+  libasound2-dev
+  libfontconfig-dev
+  libgit2-dev
+  libglib2.0-dev
+  libsqlite3-dev
+  libssl-dev
+  libstdc++-12-dev
+  libva-dev
+  libvulkan1
+  libwayland-dev
+  libx11-xcb-dev
+  libxkbcommon-x11-dev
+  libzstd-dev
+  lld
+  llvm
+  make
+  musl-dev
+  musl-tools
+  pipewire
+  xdg-desktop-portal
+  zsh
+)
+
 run_step() {
   local label="$1"
   shift
@@ -12,6 +46,24 @@ run_step() {
   printf '\n==> %s\n' "$label"
   "$@"
   printf '<== %s (%ss)\n' "$label" "$((SECONDS - started_at))"
+}
+
+install_system_packages() {
+  local missing=()
+  local package
+
+  for package in "${system_packages[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -Fq 'install ok installed'; then
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#missing[@]} == 0)); then
+    return
+  fi
+
+  sudo apt-get update
+  sudo apt-get install -y "${missing[@]}"
 }
 
 install_mise() {
@@ -41,29 +93,12 @@ EOF
   fi
 }
 
-prepare_agentation() {
-  local agentation_root=/Users/thor/work/agentation
-
-  if [[ ! -d "$agentation_root/.git" ]]; then
-    if [[ ! -w / ]]; then
-      sudo mkdir -p /Users/thor/work
-      sudo chown -R "$USER" /Users/thor
-    else
-      mkdir -p /Users/thor/work
-    fi
-    git clone --depth 1 https://github.com/thoriqakbar0/agentation.git "$agentation_root"
-  fi
-
-  "$mise_bin" exec -- nub --cwd "$agentation_root/package" install \
-    --frozen-lockfile --ignore-scripts
-  "$mise_bin" exec -- nub --cwd "$agentation_root/package" run build
-}
-
+run_step 'Install GPUI system dependencies' install_system_packages
 run_step 'Install Mise' install_mise
 run_step 'Configure login-shell tool activation' configure_login_shell
-run_step 'Install pinned Node and Nub versions' "$mise_bin" install --locked
-run_step 'Prepare the local Agentation dependency' prepare_agentation
-run_step 'Install Ernie dependencies' \
-  "$mise_bin" exec -- nub --cwd "$repo_root" install --frozen-lockfile
+run_step 'Install pinned development tools' "$mise_bin" install --locked
+run_step 'Fetch locked Rust dependencies' \
+  "$mise_bin" exec -- cargo fetch --locked \
+  --manifest-path "$repo_root/gpui/Cargo.toml"
 
 printf '\nOrb setup complete.\n'

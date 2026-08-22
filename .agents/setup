@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+mise_bin="$HOME/.local/bin/mise"
+
+run_step() {
+  local label="$1"
+  shift
+  local started_at=$SECONDS
+
+  printf '\n==> %s\n' "$label"
+  "$@"
+  printf '<== %s (%ss)\n' "$label" "$((SECONDS - started_at))"
+}
+
+install_mise() {
+  if command -v mise >/dev/null 2>&1; then
+    mise_bin="$(command -v mise)"
+    return
+  fi
+
+  if [[ ! -x "$mise_bin" ]]; then
+    curl --fail --location --silent --show-error https://mise.run | sh
+  fi
+}
+
+configure_login_shell() {
+  local profile="$HOME/.bash_profile"
+  local marker='# Ernie mise activation'
+
+  touch "$profile"
+  if ! grep -Fqx "$marker" "$profile"; then
+    cat >> "$profile" <<'EOF'
+
+# Ernie mise activation
+if [[ -x "$HOME/.local/bin/mise" ]]; then
+  eval "$("$HOME/.local/bin/mise" activate bash)"
+fi
+EOF
+  fi
+}
+
+prepare_agentation() {
+  local agentation_root=/Users/thor/work/agentation
+
+  if [[ ! -d "$agentation_root/.git" ]]; then
+    if [[ ! -w / ]]; then
+      sudo mkdir -p /Users/thor/work
+      sudo chown -R "$USER" /Users/thor
+    else
+      mkdir -p /Users/thor/work
+    fi
+    git clone --depth 1 https://github.com/thoriqakbar0/agentation.git "$agentation_root"
+  fi
+
+  "$mise_bin" exec -- nub --cwd "$agentation_root/package" install \
+    --frozen-lockfile --ignore-scripts
+  "$mise_bin" exec -- nub --cwd "$agentation_root/package" run build
+}
+
+run_step 'Install Mise' install_mise
+run_step 'Configure login-shell tool activation' configure_login_shell
+run_step 'Install pinned Node and Nub versions' "$mise_bin" install --locked
+run_step 'Prepare the local Agentation dependency' prepare_agentation
+run_step 'Install Ernie dependencies' \
+  "$mise_bin" exec -- nub --cwd "$repo_root" install --frozen-lockfile
+
+printf '\nOrb setup complete.\n'

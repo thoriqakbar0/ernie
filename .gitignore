@@ -17,6 +17,7 @@ report.*.json
 *.pid
 *.pid.lock
 .DS_Store
+.amp/portals/*
 
 # Environment files
 .env

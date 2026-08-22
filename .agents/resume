@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ernie has no backing services or tunnels to repair when an orb resumes.
+printf 'Orb resume complete; no services require repair.\n'

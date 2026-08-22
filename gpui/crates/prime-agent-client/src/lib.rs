@@ -1,12 +1,14 @@
 //! Native client for Prime Agent's local daemon protocol.
 
 mod client;
+mod discovery;
 mod protocol;
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 pub use client::DaemonClient;
+pub use discovery::DaemonEndpointSource;
 use thiserror::Error;
 
 /// A validated local daemon endpoint.
@@ -21,6 +23,11 @@ impl DaemonEndpoint {
             return Err(EndpointError::Empty);
         }
         Ok(Self(path))
+    }
+
+    /// Discovers Ernie's configured or the current user's default daemon endpoint.
+    pub fn discover() -> Result<(Self, DaemonEndpointSource), EndpointError> {
+        discovery::discover()
     }
 
     fn path(&self) -> &Path {

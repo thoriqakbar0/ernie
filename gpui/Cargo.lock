@@ -1462,6 +1462,7 @@ version = "0.1.0"
 dependencies = [
  "ernie-plugin-runtime",
  "gpui",
+ "prime-agent-client",
 ]
 
 [[package]]
@@ -3950,6 +3951,7 @@ dependencies = [
 name = "prime-agent-client"
 version = "0.1.0"
 dependencies = [
+ "rustix 1.1.4",
  "serde",
  "serde_json",
  "thiserror 2.0.20",

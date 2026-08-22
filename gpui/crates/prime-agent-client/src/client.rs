@@ -65,7 +65,7 @@ impl DaemonClient {
     }
 
     /// Returns facts accepted from the initial daemon greeting.
-    pub fn server(&self) -> &ServerInfo {
+    pub fn initial_server_info(&self) -> &ServerInfo {
         &self.server
     }
 
@@ -259,7 +259,7 @@ impl DriverState {
         &mut self,
         mut response: crate::protocol::WireResponse,
         now: Instant,
-    ) -> Result<Vec<WriteFrame>, ProtocolError> {
+    ) -> Result<Vec<WriteFrame>, RequestError> {
         self.prune_tombstones(now);
         let id = response.id.take().ok_or(ProtocolError::InvalidField {
             message_type: "response",
@@ -280,18 +280,20 @@ impl DriverState {
                         request_id: id,
                         expected: tombstone.command.to_owned(),
                         actual: response.command,
-                    });
+                    }
+                    .into());
                 }
                 return Ok(Vec::new());
             }
-            return Err(ProtocolError::UnknownResponseId(id));
+            return Err(ProtocolError::UnknownResponseId(id).into());
         };
         if pending.command.name != response.command {
             return Err(ProtocolError::ResponseCommandMismatch {
                 request_id: id,
                 expected: pending.command.name.to_owned(),
                 actual: response.command,
-            });
+            }
+            .into());
         }
         let mut pending = self
             .pending
@@ -338,7 +340,7 @@ impl DriverState {
         &mut self,
         record: AttachmentRecord,
         now: Instant,
-    ) -> Result<Vec<WriteFrame>, ProtocolError> {
+    ) -> Result<Vec<WriteFrame>, RequestError> {
         let effects = self
             .selected
             .as_mut()
@@ -351,7 +353,7 @@ impl DriverState {
         &mut self,
         snapshot: crate::protocol::ValidatedSnapshot,
         now: Instant,
-    ) -> Result<Vec<WriteFrame>, ProtocolError> {
+    ) -> Result<Vec<WriteFrame>, RequestError> {
         let effects = self
             .selected
             .as_mut()
@@ -364,7 +366,7 @@ impl DriverState {
         &mut self,
         reason: String,
         now: Instant,
-    ) -> Result<Vec<WriteFrame>, ProtocolError> {
+    ) -> Result<Vec<WriteFrame>, RequestError> {
         let record = self
             .selected
             .as_ref()
@@ -383,7 +385,7 @@ impl DriverState {
         &mut self,
         effects: Vec<ReducerEffect>,
         now: Instant,
-    ) -> Result<Vec<WriteFrame>, ProtocolError> {
+    ) -> Result<Vec<WriteFrame>, RequestError> {
         let mut resync = false;
         if let Some(selected) = self.selected.as_ref() {
             for effect in effects {
@@ -398,9 +400,7 @@ impl DriverState {
         if !resync {
             return Ok(Vec::new());
         }
-        self.issue_attachment(None, now)
-            .map(|frame| vec![frame])
-            .map_err(request_error_to_protocol)
+        self.issue_attachment(None, now).map(|frame| vec![frame])
     }
 
     fn issue_attachment(
@@ -433,7 +433,7 @@ impl DriverState {
         &mut self,
         server: ServerInfo,
         now: Instant,
-    ) -> Result<Vec<WriteFrame>, ProtocolError> {
+    ) -> Result<Vec<WriteFrame>, RequestError> {
         self.server = server;
         let mut writes = Vec::new();
         let pending_ids = self.pending.keys().cloned().collect::<Vec<_>>();
@@ -474,10 +474,7 @@ impl DriverState {
             .as_ref()
             .and_then(|selected| selected.reducer.resume_cursor().cloned());
         if self.selected.is_some() {
-            writes.push(
-                self.issue_attachment(resume, now)
-                    .map_err(request_error_to_protocol)?,
-            );
+            writes.push(self.issue_attachment(resume, now)?);
         }
         Ok(writes)
     }
@@ -504,7 +501,7 @@ impl DriverState {
             .min()
     }
 
-    fn expire(&mut self, now: Instant) -> Result<Vec<WriteFrame>, ProtocolError> {
+    fn expire(&mut self, now: Instant) -> Result<Vec<WriteFrame>, RequestError> {
         self.prune_tombstones(now);
         let expired = self
             .pending
@@ -558,11 +555,9 @@ impl DriverState {
         }
     }
 
-    fn fail_all(mut self, protocol: Option<ProtocolError>) {
+    fn fail_all(mut self, error: Option<RequestError>) {
         for pending in self.pending.values_mut() {
-            let error = protocol
-                .clone()
-                .map_or(RequestError::ConnectionClosed, RequestError::Protocol);
+            let error = error.clone().unwrap_or(RequestError::ConnectionClosed);
             pending.completion.resolve(Err(error));
         }
         if let Some(selected) = self.selected {
@@ -570,18 +565,11 @@ impl DriverState {
                 .updates
                 .send(Arc::new(AttachmentState::Unavailable {
                     active_session_id: selected.reducer.target().clone(),
-                    reason: protocol
+                    reason: error
                         .map_or_else(|| "client closed".to_owned(), |error| error.to_string())
                         .into(),
                 }));
         }
-    }
-}
-
-fn request_error_to_protocol(error: RequestError) -> ProtocolError {
-    match error {
-        RequestError::Protocol(error) => error,
-        _ => ProtocolError::InternalCommand(error.to_string()),
     }
 }
 
@@ -680,7 +668,7 @@ async fn run_driver(
                             continue;
                         }
                         Err(FrameReadError::Protocol(error)) => {
-                            state.fail_all(Some(error));
+                            state.fail_all(Some(error.into()));
                             return;
                         }
                     };
@@ -761,21 +749,11 @@ fn admit_request(
     state: &mut DriverState,
     request: ClientRequest,
     now: Instant,
-) -> Result<Option<WriteFrame>, ProtocolError> {
+) -> Result<Option<WriteFrame>, RequestError> {
     match request {
-        ClientRequest::List { reply } => {
-            match state.issue(Command::list(), Completion::Response(Some(reply)), now) {
-                Ok(frame) => Ok(Some(frame)),
-                Err(error) => {
-                    if let RequestError::CapabilityUnavailable { .. }
-                    | RequestError::SchemaUnavailable { .. } = error
-                    {
-                        return Err(request_error_to_protocol(error));
-                    }
-                    Err(request_error_to_protocol(error))
-                }
-            }
-        }
+        ClientRequest::List { reply } => state
+            .issue(Command::list(), Completion::Response(Some(reply)), now)
+            .map(Some),
         ClientRequest::Attach {
             active_session_id,
             updates,
@@ -798,7 +776,7 @@ fn admit_request(
             }
             match state.issue(command, Completion::Response(Some(reply)), now) {
                 Ok(frame) => Ok(Some(frame)),
-                Err(error) => Err(request_error_to_protocol(error)),
+                Err(error) => Err(error),
             }
         }
     }
@@ -808,10 +786,10 @@ fn handle_line(
     state: &mut DriverState,
     line: &str,
     now: Instant,
-) -> Result<Vec<WriteFrame>, ProtocolError> {
+) -> Result<Vec<WriteFrame>, RequestError> {
     match parse_outbound(line)? {
         Outbound::Response(response) => state.on_response(response, now),
-        Outbound::DaemonHello => Err(ProtocolError::DuplicateHello),
+        Outbound::DaemonHello => Err(ProtocolError::DuplicateHello.into()),
         Outbound::DaemonClosing => Ok(Vec::new()),
         Outbound::SessionEvent(record)
         | Outbound::SessionStatus(record)
@@ -1318,7 +1296,7 @@ mod tests {
             loop {
                 if matches!(
                     updates.borrow().as_ref(),
-                    AttachmentState::Ready(view) if view.revision() == 2
+                    AttachmentState::Ready(view) if view.local_revision() == 2
                 ) {
                     break;
                 }

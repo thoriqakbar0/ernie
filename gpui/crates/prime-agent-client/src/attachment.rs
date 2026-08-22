@@ -40,34 +40,23 @@ impl Attachment {
 #[derive(Clone, Debug)]
 pub enum AttachmentState {
     /// The client registered the selection and awaits an authoritative snapshot.
-    Attaching {
-        /// Requested live session.
-        active_session_id: ActiveSessionId,
-    },
+    Attaching { active_session_id: ActiveSessionId },
     /// The client holds a complete snapshot and a contiguous event cursor.
     Ready(AttachedSession),
     /// The client retained the selection and requested a replacement snapshot.
-    Resyncing {
-        /// Requested live session.
-        active_session_id: ActiveSessionId,
-    },
+    Resyncing { active_session_id: ActiveSessionId },
     /// The daemon detached the selected client.
-    Detached {
-        /// Detached live session.
-        active_session_id: ActiveSessionId,
-    },
+    Detached { active_session_id: ActiveSessionId },
     /// The selected session closed.
     Closed {
-        /// Closed live session.
         active_session_id: ActiveSessionId,
         /// Daemon close reason.
         reason: Arc<str>,
     },
     /// Recovery stopped after the bounded retry budget.
     Unavailable {
-        /// Unavailable live session.
         active_session_id: ActiveSessionId,
-        /// Safe failure description.
+        /// Recovery failure description.
         reason: Arc<str>,
     },
     /// A newer row selection replaced this attachment.
@@ -86,7 +75,6 @@ pub struct AttachedSession {
 }
 
 impl AttachedSession {
-    /// Returns the attached live session identifier.
     pub fn active_session_id(&self) -> &ActiveSessionId {
         &self.active_session_id
     }
@@ -112,7 +100,7 @@ impl AttachedSession {
     }
 
     /// Returns the local replacement revision.
-    pub fn revision(&self) -> u64 {
+    pub fn local_revision(&self) -> u64 {
         self.revision
     }
 }
@@ -537,7 +525,7 @@ mod tests {
         assert!(matches!(
             effects.last(),
             Some(ReducerEffect::Publish(state))
-                if matches!(state.as_ref(), AttachmentState::Ready(view) if view.revision() == 2)
+                if matches!(state.as_ref(), AttachmentState::Ready(view) if view.local_revision() == 2)
         ));
     }
 

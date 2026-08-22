@@ -130,10 +130,15 @@ async fn client_validates_hello_and_correlates_list_response() {
         .expect("client must connect");
     let sessions = client.list_sessions().await.expect("list must succeed");
 
-    assert_eq!(client.server().protocol_version(), 7);
-    assert!(client.server().supports(ServerCapability::AttachSnapshot));
+    assert_eq!(client.initial_server_info().protocol_version(), 7);
+    assert!(client
+        .initial_server_info()
+        .supports(ServerCapability::AttachSnapshot));
     assert_eq!(
-        client.server().unknown_capabilities().collect::<Vec<_>>(),
+        client
+            .initial_server_info()
+            .unknown_capabilities()
+            .collect::<Vec<_>>(),
         ["future_capability"]
     );
     assert_eq!(

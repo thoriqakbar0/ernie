@@ -292,7 +292,6 @@ impl ActiveSessionId {
 /// Failure while constructing a daemon identifier.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum IdentifierError {
-    /// The identifier was empty.
     #[error("the Prime Agent daemon identifier must not be empty")]
     Empty,
 }
@@ -350,7 +349,7 @@ pub enum ConnectError {
 }
 
 /// Failure while executing one daemon request.
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum RequestError {
     /// The driver connection closed before the request completed.
     #[error("the Prime Agent daemon connection closed")]
@@ -361,9 +360,7 @@ pub enum RequestError {
     /// The connected daemon lacks a capability required by the command.
     #[error("Prime Agent command {command} requires capability {capability}")]
     CapabilityUnavailable {
-        /// Command that could not run.
         command: &'static str,
-        /// Missing capability name.
         capability: &'static str,
     },
     /// The connected daemon schema predates a required command field.
@@ -371,7 +368,6 @@ pub enum RequestError {
         "Prime Agent command {command} requires schema revision {required}, received {actual:?}"
     )]
     SchemaUnavailable {
-        /// Command that could not run.
         command: &'static str,
         /// Minimum schema revision.
         required: u32,
@@ -411,9 +407,6 @@ pub enum ProtocolError {
     /// The client exhausted its monotonic command identifier space.
     #[error("the Prime Agent client exhausted its command identifiers")]
     CommandIdExhausted,
-    /// A private driver command could not be admitted.
-    #[error("the Prime Agent client could not admit a command: {0}")]
-    InternalCommand(String),
     /// The daemon sent an outbound record outside the pinned protocol inventory.
     #[error("the daemon sent unsupported outbound message {0}")]
     UnknownOutbound(String),

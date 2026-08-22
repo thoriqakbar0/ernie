@@ -187,10 +187,7 @@ impl AttachmentReducer {
     }
 
     pub(crate) fn make_unavailable(&mut self, error: AttachmentError) -> Vec<ReducerEffect> {
-        self.terminal = true;
-        self.attempt = AttachmentAttempt::Idle;
-        self.assembly = None;
-        self.early.clear();
+        self.enter_terminal();
         vec![ReducerEffect::Publish(Arc::new(
             AttachmentState::Unavailable {
                 active_session_id: self.target.clone(),
@@ -318,7 +315,7 @@ impl AttachmentReducer {
             }
             AttachmentRecord::SnapshotFailed { .. } => self.retry_after_failure(),
             AttachmentRecord::Detached { .. } => {
-                self.terminal = true;
+                self.enter_terminal();
                 vec![ReducerEffect::Publish(Arc::new(
                     AttachmentState::Detached {
                         active_session_id: self.target.clone(),
@@ -326,7 +323,7 @@ impl AttachmentReducer {
                 ))]
             }
             AttachmentRecord::Closed { reason, .. } => {
-                self.terminal = true;
+                self.enter_terminal();
                 vec![ReducerEffect::Publish(Arc::new(AttachmentState::Closed {
                     active_session_id: self.target.clone(),
                     reason: reason.into(),
@@ -347,11 +344,22 @@ impl AttachmentReducer {
     }
 
     pub(crate) fn expire(&mut self, now: Instant) -> Vec<ReducerEffect> {
+        if self.terminal {
+            return Vec::new();
+        }
         if self.next_deadline().is_some_and(|deadline| deadline <= now) {
             self.retry_after_failure()
         } else {
             Vec::new()
         }
+    }
+
+    fn enter_terminal(&mut self) {
+        self.terminal = true;
+        self.attempt = AttachmentAttempt::Idle;
+        self.awaiting_snapshot = false;
+        self.assembly = None;
+        self.early.clear();
     }
 
     fn on_cursor(&mut self, cursor: Option<EventCursor>) -> Vec<ReducerEffect> {
@@ -683,5 +691,29 @@ mod tests {
                     ..
                 })
         ));
+    }
+
+    #[test]
+    fn terminal_records_cancel_stream_expiry() {
+        let started = Instant::now();
+        for record in [
+            AttachmentRecord::Detached {
+                active_session_id: "active-one".to_owned(),
+            },
+            AttachmentRecord::Closed {
+                active_session_id: "active-one".to_owned(),
+                reason: "finished".to_owned(),
+            },
+        ] {
+            let mut reducer = reducer();
+            reducer.start_command_attempt();
+            reducer.on_streamed_response(started);
+
+            let effects = reducer.on_record(record, started);
+
+            assert_eq!(effects.len(), 1);
+            assert!(reducer.next_deadline().is_none());
+            assert!(reducer.expire(started + SNAPSHOT_TIMEOUT).is_empty());
+        }
     }
 }

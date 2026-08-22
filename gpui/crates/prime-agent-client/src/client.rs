@@ -133,7 +133,16 @@ type ResponseSender = oneshot::Sender<Result<Option<Value>, RequestError>>;
 
 enum Completion {
     Response(Option<ResponseSender>),
-    Attach(ActiveSessionId),
+    Attach {
+        target: ActiveSessionId,
+        role: AttachmentRole,
+    },
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum AttachmentRole {
+    Recovery,
+    Selection,
 }
 
 impl Completion {
@@ -146,12 +155,19 @@ impl Completion {
     }
 
     fn is_attach(&self) -> bool {
-        matches!(self, Self::Attach(_))
+        matches!(self, Self::Attach { .. })
     }
 
     fn attachment_target(&self) -> Option<&ActiveSessionId> {
         match self {
-            Self::Attach(target) => Some(target),
+            Self::Attach { target, .. } => Some(target),
+            Self::Response(_) => None,
+        }
+    }
+
+    fn attachment_role(&self) -> Option<AttachmentRole> {
+        match self {
+            Self::Attach { role, .. } => Some(*role),
             Self::Response(_) => None,
         }
     }
@@ -161,7 +177,14 @@ struct PendingRequest {
     command: FrozenCommand,
     completion: Completion,
     deadline: Option<Instant>,
-    transmitted: bool,
+    write_state: CommandWriteState,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum CommandWriteState {
+    NeverAttempted,
+    WriteAttempted,
+    Written,
 }
 
 struct Tombstone {
@@ -188,6 +211,9 @@ struct DriverState {
     tombstones: VecDeque<Tombstone>,
     acknowledgement_debt: VecDeque<AckDebt>,
     selected: Option<SelectedAttachment>,
+    selecting: Option<SelectedAttachment>,
+    selection_queue: VecDeque<SelectedAttachment>,
+    confirmed_attachment: Option<ActiveSessionId>,
 }
 
 impl DriverState {
@@ -201,6 +227,9 @@ impl DriverState {
             tombstones: VecDeque::new(),
             acknowledgement_debt: VecDeque::new(),
             selected: None,
+            selecting: None,
+            selection_queue: VecDeque::new(),
+            confirmed_attachment: None,
         }
     }
 
@@ -230,7 +259,7 @@ impl DriverState {
                 command: frozen,
                 completion,
                 deadline,
-                transmitted: false,
+                write_state: CommandWriteState::NeverAttempted,
             },
         );
         Ok(WriteFrame::Command { id, bytes })
@@ -241,43 +270,74 @@ impl DriverState {
         active_session_id: ActiveSessionId,
         updates: watch::Sender<Arc<AttachmentState>>,
         now: Instant,
-    ) -> Result<WriteFrame, RequestError> {
-        let previous_target = self
-            .selected
-            .as_ref()
-            .filter(|selected| !selected.reducer.is_terminal())
-            .map(|selected| selected.reducer.target().clone());
-        let command = match previous_target.as_ref() {
-            Some(previous) if previous != &active_session_id => {
-                Command::reattach(previous, &active_session_id, &self.client_id)
-            }
-            _ => Command::attach(&active_session_id, &self.client_id, None),
-        };
-        command.check_compatibility(&self.server)?;
-        if let Some(previous) = self.selected.take() {
-            let _ = previous.updates.send(Arc::new(AttachmentState::Superseded));
-        }
-        self.selected = Some(SelectedAttachment {
+    ) -> Result<Option<WriteFrame>, RequestError> {
+        Command::attach(&active_session_id, &self.client_id, None)
+            .check_compatibility(&self.server)?;
+        let requested = SelectedAttachment {
             reducer: AttachmentReducer::new(active_session_id.clone()),
             updates,
-        });
-        if let Some(selected) = self.selected.as_mut() {
-            selected.reducer.start_command_attempt();
+        };
+        if self.selecting.is_some() {
+            self.selection_queue.push_back(requested);
+            return Ok(None);
         }
-        match self.issue(command, Completion::Attach(active_session_id.clone()), now) {
-            Ok(frame) => Ok(frame),
+        self.selecting = Some(requested);
+        match self.begin_selection(now) {
+            Ok(frame) => Ok(Some(frame)),
             Err(error) => {
-                if let Some(selected) = self.selected.take() {
-                    let _ = selected
-                        .updates
-                        .send(Arc::new(AttachmentState::Unavailable {
-                            active_session_id,
-                            error: AttachmentError::Request(error.clone()),
-                        }));
-                }
+                self.fail_selecting(error.clone());
                 Err(error)
             }
         }
+    }
+
+    fn begin_selection(&mut self, now: Instant) -> Result<WriteFrame, RequestError> {
+        let Some(selecting) = self.selecting.as_mut() else {
+            return Err(RequestError::ConnectionClosed);
+        };
+        let target = selecting.reducer.target().clone();
+        selecting.reducer.start_command_attempt();
+        let command = match self.confirmed_attachment.as_ref() {
+            Some(previous) if previous != &target => {
+                Command::reattach(previous, &target, &self.client_id)
+            }
+            _ => Command::attach(&target, &self.client_id, None),
+        };
+        self.issue(
+            command,
+            Completion::Attach {
+                target,
+                role: AttachmentRole::Selection,
+            },
+            now,
+        )
+    }
+
+    fn fail_selecting(&mut self, error: RequestError) {
+        if let Some(mut selecting) = self.selecting.take() {
+            for effect in selecting
+                .reducer
+                .make_unavailable(AttachmentError::Request(error))
+            {
+                if let ReducerEffect::Publish(state) = effect {
+                    let _ = selecting.updates.send(state);
+                }
+            }
+        }
+    }
+
+    fn start_next_selection(&mut self, now: Instant) -> Vec<WriteFrame> {
+        while self.selecting.is_none() {
+            let Some(next) = self.selection_queue.pop_front() else {
+                break;
+            };
+            self.selecting = Some(next);
+            match self.begin_selection(now) {
+                Ok(frame) => return vec![frame],
+                Err(error) => self.fail_selecting(error),
+            }
+        }
+        Vec::new()
     }
 
     fn on_response(
@@ -331,30 +391,38 @@ impl DriverState {
             });
         }
         let result = response.into_result();
-        if let Some(target) = pending.completion.attachment_target() {
-            if self
-                .selected
-                .as_ref()
-                .is_none_or(|selected| selected.reducer.target() != target)
-            {
+        if let Some(target) = pending.completion.attachment_target().cloned() {
+            let role = pending
+                .completion
+                .attachment_role()
+                .expect("attachment target must have a role");
+            if self.attachment_for_target_mut(&target).is_none() {
                 return Ok(writes);
             }
             match result {
-                Ok(data) => match parse_attach_response(data) {
-                    Ok(AttachResponse::Inline(snapshot)) => {
-                        writes.extend(self.apply_attachment_snapshot(snapshot, now)?);
-                    }
-                    Ok(AttachResponse::Streamed) => {
-                        if let Some(selected) = self.selected.as_mut() {
-                            selected.reducer.on_streamed_response(now);
+                Ok(data) => {
+                    self.confirmed_attachment = Some(target.clone());
+                    match parse_attach_response(data) {
+                        Ok(AttachResponse::Inline(snapshot)) => {
+                            writes.extend(self.apply_attachment_snapshot(&target, snapshot, now)?);
+                        }
+                        Ok(AttachResponse::Streamed) => {
+                            if let Some(attachment) = self.attachment_for_target_mut(&target) {
+                                attachment.reducer.on_streamed_response(now);
+                            }
+                        }
+                        Err(_) => {
+                            writes.extend(self.resync_attachment(&target, now)?);
                         }
                     }
-                    Err(_) => {
-                        writes.extend(self.resync_attachment(now)?);
+                }
+                Err(error) => {
+                    if role == AttachmentRole::Selection {
+                        self.fail_selecting(error);
+                        writes.extend(self.start_next_selection(now));
+                    } else {
+                        writes.extend(self.resync_attachment(&target, now)?);
                     }
-                },
-                Err(_) => {
-                    writes.extend(self.resync_attachment(now)?);
                 }
             }
         } else {
@@ -381,80 +449,146 @@ impl DriverState {
         record: AttachmentRecord,
         now: Instant,
     ) -> Result<Vec<WriteFrame>, RequestError> {
+        let target =
+            ActiveSessionId::parse(record.active_session_id().to_owned()).map_err(|_| {
+                ProtocolError::InvalidField {
+                    message_type: "attachment",
+                    field: "activeSessionId",
+                }
+            })?;
         let effects = self
-            .selected
-            .as_mut()
-            .map(|selected| selected.reducer.on_record(record, now))
+            .attachment_for_target_mut(&target)
+            .map(|attachment| attachment.reducer.on_record(record, now))
             .unwrap_or_default();
-        self.apply_reducer_effects(effects, now)
+        self.apply_reducer_effects(&target, effects, now)
     }
 
     fn apply_attachment_snapshot(
         &mut self,
+        target: &ActiveSessionId,
         snapshot: crate::protocol::ValidatedSnapshot,
         now: Instant,
     ) -> Result<Vec<WriteFrame>, RequestError> {
         let effects = self
-            .selected
-            .as_mut()
-            .map(|selected| selected.reducer.install_inline(snapshot))
+            .attachment_for_target_mut(target)
+            .map(|attachment| attachment.reducer.install_inline(snapshot))
             .unwrap_or_default();
-        self.apply_reducer_effects(effects, now)
+        self.apply_reducer_effects(target, effects, now)
     }
 
-    fn resync_attachment(&mut self, now: Instant) -> Result<Vec<WriteFrame>, RequestError> {
-        let record = self
-            .selected
-            .as_ref()
-            .map(|selected| AttachmentRecord::SnapshotFailed {
-                active_session_id: selected.reducer.target().as_str().to_owned(),
-            });
-        match record {
-            Some(record) => self.on_attachment_record(record, now),
-            None => Ok(Vec::new()),
-        }
+    fn resync_attachment(
+        &mut self,
+        target: &ActiveSessionId,
+        now: Instant,
+    ) -> Result<Vec<WriteFrame>, RequestError> {
+        self.on_attachment_record(
+            AttachmentRecord::SnapshotFailed {
+                active_session_id: target.as_str().to_owned(),
+            },
+            now,
+        )
     }
 
     fn apply_reducer_effects(
         &mut self,
+        target: &ActiveSessionId,
         effects: Vec<ReducerEffect>,
         now: Instant,
     ) -> Result<Vec<WriteFrame>, RequestError> {
         let mut resync = false;
-        if let Some(selected) = self.selected.as_ref() {
+        let mut ready = false;
+        let mut terminal = false;
+        if let Some(attachment) = self.attachment_for_target_mut(target) {
             for effect in effects {
                 match effect {
                     ReducerEffect::Publish(state) => {
-                        let _ = selected.updates.send(state);
+                        ready |= matches!(state.as_ref(), AttachmentState::Ready(_));
+                        terminal |= matches!(
+                            state.as_ref(),
+                            AttachmentState::Detached { .. }
+                                | AttachmentState::Closed { .. }
+                                | AttachmentState::Unavailable { .. }
+                        );
+                        let _ = attachment.updates.send(state);
                     }
                     ReducerEffect::Resync => resync = true,
                 }
             }
         }
-        if !resync {
-            return Ok(Vec::new());
-        }
-        match self.issue_attachment(None, now) {
-            Ok(frame) => Ok(vec![frame]),
-            Err(error) => {
-                self.fail_attachment(error);
-                Ok(Vec::new())
+        let is_selecting = self
+            .selecting
+            .as_ref()
+            .is_some_and(|selecting| selecting.reducer.target() == target);
+        let mut writes = Vec::new();
+        if ready && is_selecting {
+            self.promote_selecting();
+            writes.extend(self.start_next_selection(now));
+        } else if terminal {
+            if self.confirmed_attachment.as_ref() == Some(target) {
+                self.confirmed_attachment = None;
+            }
+            if is_selecting {
+                self.selecting.take();
+                writes.extend(self.start_next_selection(now));
             }
         }
+        if resync {
+            match self.issue_attachment(target, None, now) {
+                Ok(frame) => writes.push(frame),
+                Err(error) => {
+                    writes.extend(self.fail_attachment(target, error, now));
+                }
+            }
+        }
+        Ok(writes)
     }
 
     fn issue_attachment(
         &mut self,
+        target: &ActiveSessionId,
         resume: Option<crate::protocol::EventCursor>,
         now: Instant,
     ) -> Result<WriteFrame, RequestError> {
-        let Some(selected) = self.selected.as_mut() else {
+        let Some(attachment) = self.attachment_for_target_mut(target) else {
             return Err(RequestError::ConnectionClosed);
         };
-        let target = selected.reducer.target().clone();
-        selected.reducer.start_command_attempt();
+        attachment.reducer.start_command_attempt();
+        let target = target.clone();
         let command = Command::attach(&target, &self.client_id, resume.as_ref());
-        self.issue(command, Completion::Attach(target), now)
+        self.issue(
+            command,
+            Completion::Attach {
+                target,
+                role: AttachmentRole::Recovery,
+            },
+            now,
+        )
+    }
+
+    fn attachment_for_target_mut(
+        &mut self,
+        target: &ActiveSessionId,
+    ) -> Option<&mut SelectedAttachment> {
+        if self
+            .selecting
+            .as_ref()
+            .is_some_and(|selecting| selecting.reducer.target() == target)
+        {
+            return self.selecting.as_mut();
+        }
+        self.selected
+            .as_mut()
+            .filter(|selected| selected.reducer.target() == target)
+    }
+
+    fn promote_selecting(&mut self) {
+        let Some(replacement) = self.selecting.take() else {
+            return;
+        };
+        if let Some(previous) = self.selected.take() {
+            let _ = previous.updates.send(Arc::new(AttachmentState::Superseded));
+        }
+        self.selected = Some(replacement);
     }
 
     fn on_transport_lost(&mut self) {
@@ -471,10 +605,12 @@ impl DriverState {
         for id in attach_ids {
             self.take_pending(&id);
         }
-        if let Some(selected) = self.selected.as_mut() {
-            for effect in selected.reducer.on_transport_lost() {
+        self.confirmed_attachment = None;
+        let recovering = self.selecting.as_mut().or(self.selected.as_mut());
+        if let Some(recovering) = recovering {
+            for effect in recovering.reducer.on_transport_lost() {
                 if let ReducerEffect::Publish(state) = effect {
-                    let _ = selected.updates.send(state);
+                    let _ = recovering.updates.send(state);
                 }
             }
         }
@@ -512,7 +648,7 @@ impl DriverState {
                 }
                 Err(error) => {
                     if let Some(mut pending) = self.take_pending(&id) {
-                        let error = if pending.transmitted
+                        let error = if pending.write_state != CommandWriteState::NeverAttempted
                             && pending.command.mutation == MutationClass::Mutating
                         {
                             RequestError::OutcomeUncertain
@@ -530,19 +666,33 @@ impl DriverState {
                 bytes: Arc::clone(&debt.command.bytes),
             });
         }
-        let resume = self.selected.as_ref().and_then(|selected| {
-            (!selected.reducer.is_terminal())
-                .then(|| selected.reducer.resume_cursor().cloned())
-                .flatten()
-        });
-        let attachment_is_live = self
-            .selected
+        if self
+            .selecting
             .as_ref()
-            .is_some_and(|selected| !selected.reducer.is_terminal());
-        if attachment_is_live {
-            match self.issue_attachment(resume, now) {
+            .is_some_and(|attachment| attachment.reducer.is_terminal())
+        {
+            self.selecting.take();
+            writes.extend(self.start_next_selection(now));
+        }
+        let recovering = self
+            .selecting
+            .as_ref()
+            .filter(|attachment| !attachment.reducer.is_terminal())
+            .or_else(|| {
+                self.selected
+                    .as_ref()
+                    .filter(|attachment| !attachment.reducer.is_terminal())
+            })
+            .map(|attachment| {
+                (
+                    attachment.reducer.target().clone(),
+                    attachment.reducer.resume_cursor().cloned(),
+                )
+            });
+        if let Some((target, resume)) = recovering {
+            match self.issue_attachment(&target, resume, now) {
                 Ok(frame) => writes.push(frame),
-                Err(error) => self.fail_attachment(error),
+                Err(error) => writes.extend(self.fail_attachment(&target, error, now)),
             }
         }
         Ok(writes)
@@ -552,7 +702,7 @@ impl DriverState {
         match frame {
             WriteFrame::Command { id, .. } => {
                 if let Some(pending) = self.pending.get_mut(id) {
-                    pending.transmitted = true;
+                    pending.write_state = CommandWriteState::Written;
                 }
             }
             WriteFrame::Acknowledgement {
@@ -564,17 +714,42 @@ impl DriverState {
         }
     }
 
-    fn fail_attachment(&mut self, error: RequestError) {
-        if let Some(selected) = self.selected.as_mut() {
-            for effect in selected
+    fn mark_write_attempted(&mut self, frame: &WriteFrame) {
+        if let WriteFrame::Command { id, .. } = frame {
+            if let Some(pending) = self.pending.get_mut(id) {
+                pending.write_state = CommandWriteState::WriteAttempted;
+            }
+        }
+    }
+
+    fn fail_attachment(
+        &mut self,
+        target: &ActiveSessionId,
+        error: RequestError,
+        now: Instant,
+    ) -> Vec<WriteFrame> {
+        if let Some(attachment) = self.attachment_for_target_mut(target) {
+            for effect in attachment
                 .reducer
                 .make_unavailable(AttachmentError::Request(error))
             {
                 if let ReducerEffect::Publish(state) = effect {
-                    let _ = selected.updates.send(state);
+                    let _ = attachment.updates.send(state);
                 }
             }
         }
+        if self.confirmed_attachment.as_ref() == Some(target) {
+            self.confirmed_attachment = None;
+        }
+        if self
+            .selecting
+            .as_ref()
+            .is_some_and(|selecting| selecting.reducer.target() == target)
+        {
+            self.selecting.take();
+            return self.start_next_selection(now);
+        }
+        Vec::new()
     }
 
     fn next_deadline(&self) -> Option<Instant> {
@@ -582,8 +757,9 @@ impl DriverState {
             .values()
             .filter_map(|pending| pending.deadline)
             .chain(
-                self.selected
+                self.selecting
                     .iter()
+                    .chain(self.selected.iter())
                     .filter_map(|selected| selected.reducer.next_deadline()),
             )
             .min()
@@ -617,12 +793,19 @@ impl DriverState {
                 });
             }
         }
+        let target = self
+            .selecting
+            .as_ref()
+            .or(self.selected.as_ref())
+            .map(|attachment| attachment.reducer.target().clone());
+        let Some(target) = target else {
+            return Ok(Vec::new());
+        };
         let effects = self
-            .selected
-            .as_mut()
-            .map(|selected| selected.reducer.expire(now))
+            .attachment_for_target_mut(&target)
+            .map(|attachment| attachment.reducer.expire(now))
             .unwrap_or_default();
-        self.apply_reducer_effects(effects, now)
+        self.apply_reducer_effects(&target, effects, now)
     }
 
     fn push_tombstone(&mut self, tombstone: Tombstone) {
@@ -647,14 +830,21 @@ impl DriverState {
             let error = error.clone().unwrap_or(RequestError::ConnectionClosed);
             pending.completion.resolve(Err(error));
         }
-        if let Some(selected) = self.selected {
+        let attachment_error = error.clone().unwrap_or(RequestError::ConnectionClosed);
+        for selected in self.selecting.into_iter().chain(self.selected) {
             let _ = selected
                 .updates
                 .send(Arc::new(AttachmentState::Unavailable {
                     active_session_id: selected.reducer.target().clone(),
-                    error: AttachmentError::Request(
-                        error.unwrap_or(RequestError::ConnectionClosed),
-                    ),
+                    error: AttachmentError::Request(attachment_error.clone()),
+                }));
+        }
+        for selected in self.selection_queue {
+            let _ = selected
+                .updates
+                .send(Arc::new(AttachmentState::Unavailable {
+                    active_session_id: selected.reducer.target().clone(),
+                    error: AttachmentError::Request(attachment_error.clone()),
                 }));
         }
     }
@@ -855,7 +1045,7 @@ fn admit_request(
         } => match state.select(active_session_id, updates, now) {
             Ok(frame) => {
                 let _ = admitted.send(Ok(()));
-                Ok(Some(frame))
+                Ok(frame)
             }
             Err(error) => {
                 let _ = admitted.send(Err(error));
@@ -910,6 +1100,7 @@ async fn write_frame(
     state: &mut DriverState,
     frame: &WriteFrame,
 ) -> std::io::Result<()> {
+    state.mark_write_attempted(frame);
     transport.writer.write_all(frame.bytes()).await?;
     state.mark_written(frame);
     Ok(())
@@ -1382,7 +1573,7 @@ mod tests {
     }
 
     #[test]
-    fn transmitted_mutation_becomes_uncertain_if_reconnect_loses_capability() {
+    fn attempted_mutation_becomes_uncertain_if_reconnect_loses_capability() {
         let server = server_info(22, &["session_input_admission"]);
         let mut state = super::DriverState::new(server);
         let command = Command::checked(
@@ -1401,7 +1592,7 @@ mod tests {
                 Instant::now(),
             )
             .expect("prompt must issue");
-        state.mark_written(&frame);
+        state.mark_write_attempted(&frame);
 
         state
             .on_reconnected(server_info(22, &[]), Instant::now())
@@ -1739,7 +1930,6 @@ mod tests {
                 true,
                 attach_data_for("active-two", 2),
             );
-
             let (_, list) = read_request(&mut reader);
             assert_eq!(list["command"]["type"], "list");
             respond(&mut stream, &list, true, empty_list());
@@ -1766,6 +1956,130 @@ mod tests {
             .list_sessions()
             .await
             .expect("ready observation must release the fake daemon");
+        daemon.wait();
+    }
+
+    #[tokio::test]
+    async fn failed_reattach_preserves_the_confirmed_attachment() {
+        let daemon = ScriptedDaemon::start(|listener| {
+            let (mut stream, mut reader) = accept(
+                &listener,
+                22,
+                &["attach_snapshot", "event_sequence", "chunked_snapshot"],
+            );
+            let (_, first) = read_request(&mut reader);
+            respond(&mut stream, &first, true, attach_data_for("active-one", 1));
+
+            let (_, replacement) = read_request(&mut reader);
+            assert_eq!(replacement["command"]["type"], "reattach");
+            writeln!(
+                stream,
+                "{}",
+                serde_json::json!({
+                    "type": "response",
+                    "id": replacement["id"],
+                    "command": "reattach",
+                    "success": false,
+                    "error": "target unavailable"
+                })
+            )
+            .expect("failed reattach response must write");
+
+            let (_, list) = read_request(&mut reader);
+            respond(&mut stream, &list, true, empty_list());
+        });
+        let client = DaemonClient::connect(daemon.endpoint.clone())
+            .await
+            .expect("client must connect");
+        let first = client
+            .attach_session(ActiveSessionId::parse("active-one").expect("valid id"))
+            .await
+            .expect("first attachment must register");
+        wait_until_ready(&first, "active-one").await;
+        let replacement = client
+            .attach_session(ActiveSessionId::parse("active-two").expect("valid id"))
+            .await
+            .expect("replacement attachment must register");
+        let mut replacement_updates = replacement.subscribe();
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if matches!(
+                    replacement.state().as_ref(),
+                    AttachmentState::Unavailable { .. }
+                ) {
+                    break;
+                }
+                replacement_updates
+                    .changed()
+                    .await
+                    .expect("attachment must stay open");
+            }
+        })
+        .await
+        .expect("failed replacement must become unavailable");
+        assert!(matches!(first.state().as_ref(), AttachmentState::Ready(_)));
+        client
+            .list_sessions()
+            .await
+            .expect("driver must remain usable");
+        daemon.wait();
+    }
+
+    #[tokio::test]
+    async fn overlapping_selections_are_serialized_through_reattach() {
+        let (release_first, released_first) = std_mpsc::channel();
+        let daemon = ScriptedDaemon::start(move |listener| {
+            let (mut stream, mut reader) = accept(
+                &listener,
+                22,
+                &["attach_snapshot", "event_sequence", "chunked_snapshot"],
+            );
+            let (_, first) = read_request(&mut reader);
+            assert_eq!(first["command"]["type"], "attach");
+            released_first
+                .recv_timeout(Duration::from_secs(2))
+                .expect("test must queue the replacement");
+            respond(&mut stream, &first, true, attach_data_for("active-one", 1));
+
+            let (_, replacement) = read_request(&mut reader);
+            assert_eq!(replacement["command"]["type"], "reattach");
+            assert_eq!(replacement["command"]["activeSessionId"], "active-one");
+            assert_eq!(
+                replacement["command"]["targetActiveSessionId"],
+                "active-two"
+            );
+            respond(
+                &mut stream,
+                &replacement,
+                true,
+                attach_data_for("active-two", 2),
+            );
+            let (_, list) = read_request(&mut reader);
+            respond(&mut stream, &list, true, empty_list());
+        });
+        let client = DaemonClient::connect(daemon.endpoint.clone())
+            .await
+            .expect("client must connect");
+        let first = client
+            .attach_session(ActiveSessionId::parse("active-one").expect("valid id"))
+            .await
+            .expect("first attachment must register");
+        let replacement = client
+            .attach_session(ActiveSessionId::parse("active-two").expect("valid id"))
+            .await
+            .expect("replacement attachment must queue");
+        release_first.send(()).expect("first response must release");
+
+        wait_until_ready(&replacement, "active-two").await;
+        assert!(matches!(
+            first.state().as_ref(),
+            AttachmentState::Superseded
+        ));
+        client
+            .list_sessions()
+            .await
+            .expect("driver must remain usable");
         daemon.wait();
     }
 

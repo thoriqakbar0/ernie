@@ -44,9 +44,11 @@ impl RootView {
 
     fn refresh_sessions(&mut self, cx: &mut Context<Self>) {
         let refresh = self.sessions.begin_refresh();
-        let client = self.prime_agent.clone();
+        self.attachment_tasks.clear();
+        self.selection = SessionSelectionModel::default();
+        self.prime_agent = None;
         self.session_task = Some(cx.spawn(async move |view, cx| {
-            let result = load_session_rows(client).await;
+            let result = load_session_rows().await;
             let _ = view.update(cx, |view, cx| {
                 let result = match result {
                     Ok(load) => {

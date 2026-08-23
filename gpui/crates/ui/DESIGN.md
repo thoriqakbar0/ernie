@@ -6,7 +6,7 @@ Ernie must show the sessions owned by the Prime Agent daemon. The daemon remains
 
 ## Caller view
 
-`RootView::new` starts one session load. The view shows a loading message, the complete returned catalog, an empty message, or a retryable error. Retry starts a new load and rejects any older completion.
+`RootView::new` starts one session load. The view shows a loading message, the complete returned catalog, an empty message, or a retryable error. Retry drops the old local client, rediscovers the daemon socket, starts a new connection, and rejects any older completion.
 
 ## Shape
 
@@ -26,7 +26,7 @@ The rejected app-wide service added another lifetime for one window. The rejecte
 
 ## Tradeoffs
 
-- The first slice uses a static snapshot and manual retry. Live events need cursor and reconnect design.
+- Live attachment events trigger one coalesced authoritative snapshot refresh. The UI retains the confirmed projection while another selection is pending.
 - Ernie defines `PRIME_AGENT_DAEMON_SOCKET` as its explicit override contract.
 - The UI keeps a private display projection for stable row identity and text.
 

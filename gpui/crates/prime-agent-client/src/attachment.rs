@@ -227,11 +227,11 @@ impl AttachmentReducer {
         match record {
             AttachmentRecord::Event { event, cursor, .. } => {
                 let _ = event;
-                self.on_cursor(cursor)
+                self.on_invalidation(cursor)
             }
             AttachmentRecord::Status { recap, cursor, .. } => {
                 let _ = recap;
-                self.on_cursor(cursor)
+                self.on_invalidation(cursor)
             }
             AttachmentRecord::Replaced {
                 state,
@@ -363,7 +363,7 @@ impl AttachmentReducer {
         self.early.clear();
     }
 
-    fn on_cursor(&mut self, cursor: Option<EventCursor>) -> Vec<ReducerEffect> {
+    fn on_invalidation(&mut self, cursor: Option<EventCursor>) -> Vec<ReducerEffect> {
         if self.awaiting_snapshot {
             if self.early.len() == MAX_EARLY_EVENTS {
                 return self.retry_after_failure();
@@ -371,7 +371,14 @@ impl AttachmentReducer {
             self.early.push_back(cursor);
             return Vec::new();
         }
-        self.apply_cursor(cursor)
+        if cursor.as_ref().is_some_and(|next| {
+            self.cursor.as_ref().is_some_and(|current| {
+                next.generation == current.generation && next.sequence <= current.sequence
+            })
+        }) {
+            return Vec::new();
+        }
+        self.request_resync()
     }
 
     fn install(&mut self, snapshot: ValidatedSnapshot) -> Vec<ReducerEffect> {
@@ -396,37 +403,20 @@ impl AttachmentReducer {
         let mut effects = vec![ReducerEffect::Publish(Arc::new(AttachmentState::Ready(
             view,
         )))];
-        while let Some(cursor) = self.early.pop_front() {
-            effects.extend(self.apply_cursor(cursor));
-            if self.awaiting_snapshot {
-                break;
-            }
+        let invalidated = self.early.drain(..).any(|cursor| {
+            let Some(cursor) = cursor else {
+                return true;
+            };
+            let current = self
+                .cursor
+                .as_ref()
+                .expect("installed snapshots have cursors");
+            cursor.generation != current.generation || cursor.sequence > current.sequence
+        });
+        if invalidated {
+            effects.extend(self.request_resync());
         }
         effects
-    }
-
-    fn apply_cursor(&mut self, next: Option<EventCursor>) -> Vec<ReducerEffect> {
-        let Some(next) = next else {
-            return self.request_resync();
-        };
-        let Some(current) = self.cursor.as_ref() else {
-            return self.request_resync();
-        };
-        if next.generation == current.generation && next.sequence <= current.sequence {
-            return Vec::new();
-        }
-        if next.generation != current.generation || next.sequence != current.sequence + 1 {
-            return self.request_resync();
-        }
-        self.cursor = Some(next);
-        self.revision = self.revision.saturating_add(1);
-        if let Some(view) = self.view.as_mut() {
-            view.revision = self.revision;
-            return vec![ReducerEffect::Publish(Arc::new(AttachmentState::Ready(
-                view.clone(),
-            )))];
-        }
-        self.request_resync()
     }
 
     fn request_resync(&mut self) -> Vec<ReducerEffect> {
@@ -567,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn early_events_apply_after_the_inline_snapshot() {
+    fn early_events_request_one_follow_up_snapshot() {
         let mut reducer = reducer();
         let event = parse_outbound(
             r#"{"type":"session_event","activeSessionId":"active-one","event":{"type":"idle"},"meta":{"cursor":{"generation":"generation-one","sequence":2}}}"#,
@@ -590,10 +580,17 @@ mod tests {
         let effects = reducer.install_inline(snapshot.validate().expect("valid snapshot"));
 
         assert!(matches!(
-            effects.last(),
+            effects.first(),
             Some(ReducerEffect::Publish(state))
-                if matches!(state.as_ref(), AttachmentState::Ready(view) if view.local_revision() == 2)
+                if matches!(state.as_ref(), AttachmentState::Ready(view) if view.local_revision() == 1)
         ));
+        assert_eq!(
+            effects
+                .iter()
+                .filter(|effect| matches!(effect, ReducerEffect::Resync))
+                .count(),
+            1
+        );
     }
 
     #[test]

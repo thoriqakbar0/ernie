@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::future::pending;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -34,6 +34,26 @@ const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 pub struct DaemonClient {
     commands: mpsc::Sender<ClientRequest>,
     server: Arc<ServerInfo>,
+    _driver: Arc<DriverOwner>,
+}
+
+struct DriverOwner {
+    shutdown: watch::Sender<bool>,
+    thread: Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+
+impl Drop for DriverOwner {
+    fn drop(&mut self) {
+        let _ = self.shutdown.send(true);
+        let Some(thread) = self.thread.lock().ok().and_then(|mut thread| thread.take()) else {
+            return;
+        };
+        let _ = std::thread::Builder::new()
+            .name("prime-agent-client-reaper".to_owned())
+            .spawn(move || {
+                let _ = thread.join();
+            });
+    }
 }
 
 impl DaemonClient {
@@ -41,32 +61,52 @@ impl DaemonClient {
     pub async fn connect(endpoint: DaemonEndpoint) -> Result<Self, ConnectError> {
         let (commands, receiver) = mpsc::channel(32);
         let (connected_tx, connected_rx) = oneshot::channel();
-        std::thread::Builder::new()
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let thread = std::thread::Builder::new()
             .name("prime-agent-client".to_owned())
             .spawn(move || {
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build();
                 match runtime {
-                    Ok(runtime) => runtime.block_on(run_driver(endpoint, receiver, connected_tx)),
+                    Ok(runtime) => {
+                        runtime.block_on(run_driver(endpoint, receiver, connected_tx, shutdown_rx))
+                    }
                     Err(_) => {
                         let _ = connected_tx.send(Err(ConnectError::DriverStopped));
                     }
                 }
             })
             .map_err(|_| ConnectError::DriverStopped)?;
-        let server = connected_rx
-            .await
-            .map_err(|_| ConnectError::DriverStopped)??;
+        let server = match connected_rx.await {
+            Ok(Ok(server)) => server,
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                return Err(error);
+            }
+            Err(_) => {
+                let _ = thread.join();
+                return Err(ConnectError::DriverStopped);
+            }
+        };
         Ok(Self {
             commands,
             server: Arc::new(server),
+            _driver: Arc::new(DriverOwner {
+                shutdown: shutdown_tx,
+                thread: Mutex::new(Some(thread)),
+            }),
         })
     }
 
     /// Returns facts accepted from the initial daemon greeting.
     pub fn initial_server_info(&self) -> &ServerInfo {
         &self.server
+    }
+
+    /// Returns whether the local client driver has stopped accepting requests.
+    pub fn is_closed(&self) -> bool {
+        self.commands.is_closed()
     }
 
     /// Lists the daemon's resident sessions.
@@ -907,6 +947,7 @@ async fn run_driver(
     endpoint: DaemonEndpoint,
     mut commands: mpsc::Receiver<ClientRequest>,
     connected: oneshot::Sender<Result<ServerInfo, ConnectError>>,
+    mut shutdown: watch::Receiver<bool>,
 ) {
     let transport = match connect_transport(&endpoint).await {
         Ok(transport) => transport,
@@ -926,6 +967,12 @@ async fn run_driver(
         if let Some(active) = transport.as_mut() {
             let deadline = state.next_deadline();
             tokio::select! {
+                result = shutdown.changed() => {
+                    if result.is_err() || *shutdown.borrow() {
+                        state.fail_all(None);
+                        return;
+                    }
+                }
                 request = commands.recv() => {
                     let Some(request) = request else {
                         state.fail_all(None);
@@ -987,6 +1034,12 @@ async fn run_driver(
         } else {
             let deadline = state.next_deadline();
             tokio::select! {
+                result = shutdown.changed() => {
+                    if result.is_err() || *shutdown.borrow() {
+                        state.fail_all(None);
+                        return;
+                    }
+                }
                 request = commands.recv() => {
                     let Some(request) = request else {
                         state.fail_all(None);
@@ -1258,6 +1311,30 @@ mod tests {
         .expect("greeting must write");
         let reader = StdBufReader::new(stream.try_clone().expect("stream must clone"));
         (stream, reader)
+    }
+
+    #[tokio::test]
+    async fn final_client_drop_stops_and_joins_the_local_driver() {
+        let daemon = ScriptedDaemon::start(|listener| {
+            let (_stream, mut reader) = accept(&listener, 22, &[]);
+            let mut line = String::new();
+            assert_eq!(
+                reader
+                    .read_line(&mut line)
+                    .expect("socket read must finish"),
+                0
+            );
+        });
+        let client = DaemonClient::connect(daemon.endpoint.clone())
+            .await
+            .expect("client must connect");
+        let retained = client.clone();
+
+        drop(client);
+        assert!(!retained.is_closed());
+        drop(retained);
+
+        daemon.wait();
     }
 
     fn server_info(schema_revision: u32, capabilities: &[&str]) -> crate::ServerInfo {
@@ -1805,6 +1882,9 @@ mod tests {
             )
             .expect("early event must write");
             respond(&mut stream, &attach, true, attach_data(1));
+            let (_, refresh) = read_request(&mut reader);
+            assert_eq!(refresh["command"]["type"], "attach");
+            respond(&mut stream, &refresh, true, attach_data(2));
             let (_, list) = read_request(&mut reader);
             assert_eq!(list["command"]["type"], "list");
             respond(&mut stream, &list, true, empty_list());

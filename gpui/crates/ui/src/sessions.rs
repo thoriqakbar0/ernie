@@ -98,16 +98,9 @@ pub(crate) struct SessionLoad {
     pub(crate) rows: Vec<SessionRow>,
 }
 
-pub(crate) async fn load_session_rows(
-    client: Option<DaemonClient>,
-) -> Result<SessionLoad, SessionLoadError> {
-    let client = match client {
-        Some(client) => client,
-        None => {
-            let (endpoint, _) = DaemonEndpoint::discover()?;
-            DaemonClient::connect(endpoint).await?
-        }
-    };
+pub(crate) async fn load_session_rows() -> Result<SessionLoad, SessionLoadError> {
+    let (endpoint, _) = DaemonEndpoint::discover()?;
+    let client = DaemonClient::connect(endpoint).await?;
     let rows = project_sessions(client.list_sessions().await?);
     Ok(SessionLoad { client, rows })
 }
@@ -143,6 +136,7 @@ pub(crate) struct Selection(u64);
 pub(crate) struct SessionSelectionModel {
     selection: Selection,
     requested_id: Option<ActiveSessionId>,
+    confirmed_selection: Option<Selection>,
     confirmed_id: Option<ActiveSessionId>,
     state: Option<Arc<AttachmentState>>,
     projection: Option<SessionAttachmentProjection>,
@@ -176,13 +170,18 @@ impl SessionSelectionModel {
     }
 
     pub(crate) fn apply(&mut self, selection: Selection, state: Arc<AttachmentState>) -> bool {
-        if selection != self.selection {
+        let is_requested = selection == self.selection;
+        let is_confirmed = self.confirmed_selection == Some(selection);
+        if !is_requested && !is_confirmed {
             return false;
         }
         match state.as_ref() {
             AttachmentState::Ready(snapshot) => {
-                self.confirmed_id = Some(snapshot.active_session_id().clone());
-                self.requested_id = None;
+                if is_requested {
+                    self.confirmed_selection = Some(selection);
+                    self.confirmed_id = Some(snapshot.active_session_id().clone());
+                    self.requested_id = None;
+                }
                 self.replace_projection(
                     selection,
                     SessionAttachmentProjection {
@@ -196,14 +195,25 @@ impl SessionSelectionModel {
             AttachmentState::Attaching { .. }
             | AttachmentState::Detached { .. }
             | AttachmentState::Closed { .. } => {
-                self.requested_id = None;
-                self.confirmed_id = None;
-                self.projection = None;
+                if is_confirmed {
+                    self.confirmed_selection = None;
+                    self.confirmed_id = None;
+                    self.projection = None;
+                }
+                if is_requested {
+                    self.requested_id = None;
+                }
             }
-            AttachmentState::Unavailable { .. } => self.requested_id = None,
+            AttachmentState::Unavailable { .. } => {
+                if is_requested {
+                    self.requested_id = None;
+                }
+            }
             AttachmentState::Superseded => {}
         }
-        self.state = Some(state);
+        if is_requested {
+            self.state = Some(state);
+        }
         true
     }
 
@@ -212,7 +222,7 @@ impl SessionSelectionModel {
         selection: Selection,
         projection: SessionAttachmentProjection,
     ) -> bool {
-        if selection != self.selection
+        if selection != self.selection && self.confirmed_selection != Some(selection)
             || self
                 .projection
                 .is_some_and(|current| current.local_revision > projection.local_revision)
@@ -381,6 +391,7 @@ mod tests {
         let mut model = SessionSelectionModel::default();
         let active_id = ActiveSessionId::parse("active-one").expect("valid id");
         let selection = model.begin(active_id.clone());
+        model.confirmed_selection = Some(selection);
         model.confirmed_id = Some(active_id.clone());
         assert!(model.replace_projection(
             selection,
@@ -428,6 +439,7 @@ mod tests {
         let mut model = SessionSelectionModel::default();
         let first_id = ActiveSessionId::parse("first").expect("valid id");
         let first = model.begin(first_id.clone());
+        model.confirmed_selection = Some(first);
         model.confirmed_id = Some(first_id.clone());
         assert!(model.replace_projection(
             first,
@@ -441,6 +453,13 @@ mod tests {
         let second_id = ActiveSessionId::parse("second").expect("valid id");
         let second = model.begin(second_id.clone());
         assert!(model.apply(
+            first,
+            Arc::new(AttachmentState::Resyncing {
+                active_session_id: first_id.clone(),
+            })
+        ));
+        assert_eq!(model.status(&second_id), Some("Attaching"));
+        assert!(model.apply(
             second,
             Arc::new(AttachmentState::Unavailable {
                 active_session_id: second_id,
@@ -451,11 +470,19 @@ mod tests {
         ));
 
         assert_eq!(model.status(&first_id), Some("Attached"));
+        assert!(model.replace_projection(
+            first,
+            SessionAttachmentProjection {
+                activity: SessionActivity::Idle,
+                message_count: 4,
+                local_revision: 2,
+            }
+        ));
         assert_eq!(
             model
                 .projection(&first_id)
                 .map(|value| value.message_count()),
-            Some(3)
+            Some(4)
         );
     }
 }

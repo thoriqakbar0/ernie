@@ -27,7 +27,7 @@ let mut updates = attachment.subscribe();
 
 ## Ownership
 
-One driver actor owns these values:
+One shared owner retains the local driver thread and stops it when the final client clone drops. The driver actor owns these values:
 
 - The random client UUID and the monotonic command counter.
 - The Unix socket and the accepted `daemon_hello`.
@@ -38,7 +38,7 @@ One driver actor owns these values:
 
 No request task or GPUI entity writes the actor's maps. `AttachmentReducer` is a synchronous state machine. The actor applies its publish and resync effects.
 
-`RootView` retains `DaemonClient` for its lifetime. A row selection starts one retained attachment task. `SessionSelectionModel` rejects updates whose selection token is stale.
+`RootView` retains `DaemonClient` for its lifetime. A row selection starts one retained attachment task. `SessionSelectionModel` accepts updates for the confirmed selection while another selection is pending, then rejects the old token after promotion.
 
 ## Commands and recovery
 
@@ -80,7 +80,7 @@ After snapshot installation, the reducer accepts duplicate cursors without chang
 
 After reconnect, the actor sends `attach` with the last accepted `resumeCursor`. It does not use `reattach` for transport recovery. If the reducer has no accepted cursor, the actor requests a full attachment snapshot. A new row selection uses Prime Agent's atomic `reattach` command with the old and target active session identifiers.
 
-`AttachedSession` is an Ernie projection. It contains the session identity, activity, working directory, snapshot message count, and a local revision. Opaque Prime Agent state and transcript values remain private. A contiguous event advances the revision. The next authoritative snapshot replaces the projected fields. GPUI uses the selected projection's activity and message count while retaining the last complete values during resync.
+`AttachedSession` is an Ernie projection. It contains the session identity, activity, working directory, snapshot message count, and a local revision. Opaque Prime Agent state, events, and transcript values remain private. A new event invalidates the projection and requests one coalesced authoritative snapshot. Events received during that snapshot cause at most one follow-up request. GPUI retains the last complete values during resync.
 
 ## Verification
 

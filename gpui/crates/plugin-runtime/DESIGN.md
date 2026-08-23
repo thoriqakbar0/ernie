@@ -67,12 +67,26 @@ Public `Loading`, `Unloading`, and `Disposed` states were also rejected. Synchro
 
 An explicit provider lease made stale capabilities unrepresentable, but that failure mode requires async or independently owned provider work. A public state reducer exposed transition plans and commit ordering to callers. A service-name-only registry could not detect provider replacement and therefore failed the central lifecycle contract.
 
-## Open questions and risks
+## Async milestone
 
-- Should the async milestone use Tokio with `Arc<dyn Any + Send + Sync>`, or preserve a local executor option?
-- Should plugin-provided services live in the same activation effect scope or in a distinct provider fiber?
-- Which cancellation rule prevents stale async activation from publishing effects after its dependency stamp changes?
+The async runtime will preserve a local executor path. The core will return a local driver future without depending on Tokio or GPUI. This keeps `Rc` services and non-`Send` plugin futures valid. The existing synchronous `Context` remains available beside the new async runtime.
 
-## Next implementation step
+One driver will own the service registry, fibers, provider generations, and lifecycle transitions. Each activation task will receive an immutable service snapshot and a private draft containing provisional effects and services. Activation tasks will never mutate authoritative runtime state directly.
 
-Add an async lifecycle milestone only after these synchronous black-box contracts remain green.
+Plugin-provided services will use distinct internal provider identities owned by their committed activation. These provider records are not independent tasks or public fibers. A successful activation will publish its complete provider set atomically. Retirement will remove those providers, unload and clean their dependents, then drain the provider activation's remaining effects.
+
+Each attempt will carry an activation ticket containing its plugin identity, attempt identity, and dependency stamp. A completion may commit only when the fiber is loading that exact ticket, the current dependency stamp still matches, and the ticket has not been revoked. Cancellation reduces wasted work but does not establish correctness. A stale success or failure will drain its private draft exactly once without publishing services, attaching effects, or replacing newer state.
+
+The async contract tests will cover local non-`Send` activation, provisional and atomic provider publication, stale success, stale failure, rapid dependency changes, provider retirement order, generation-fixed cleanup references, and shutdown cleanup reporting. The existing synchronous lifecycle suite remains mandatory.
+
+## Async milestone status
+
+The first async slice adds `AsyncContext` and the executor-neutral `LocalDriver` beside the synchronous `Context`. Each activation owns an `ActivationTicket`, an immutable service snapshot, and a private `ActivationDraft`.
+
+The driver revokes stale tickets and offers each activation a cooperative `Cancellation` signal. Compare-and-commit remains the correctness rule. Stale successes and failures drain their drafts before one retry starts against the latest complete dependency stamp.
+
+Async cleanup runs as a polled lifecycle transition. The driver continues to accept commands while cleanup waits. Dropping every `AsyncContext` starts orderly shutdown and returns the final `LifecycleReport` from `LocalDriver`.
+
+Eight async black-box tests cover the implemented slice. The existing 11 synchronous lifecycle tests remain green.
+
+Plugin-provided services remain outside this slice. The next slice will add private provider identities, atomic publication, and provider retirement order.

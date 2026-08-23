@@ -1467,6 +1467,9 @@ dependencies = [
 [[package]]
 name = "ernie-plugin-runtime"
 version = "0.1.0"
+dependencies = [
+ "futures",
+]
 
 [[package]]
 name = "errno"

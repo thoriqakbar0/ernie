@@ -24,10 +24,11 @@ pub struct RootView {
     session_task: Option<Task<()>>,
     prime_agent: Option<DaemonClient>,
     selection: SessionSelectionModel,
-    attachment_task: Option<Task<()>>,
+    attachment_tasks: Vec<Task<()>>,
 }
 
 impl RootView {
+    /// Creates the root view and starts loading Prime Agent sessions.
     pub fn new(cx: &mut Context<Self>) -> Self {
         let mut view = Self {
             lifecycle: UiLifecycle::new().expect("built-in UI lifecycle must activate"),
@@ -35,7 +36,7 @@ impl RootView {
             session_task: None,
             prime_agent: None,
             selection: SessionSelectionModel::default(),
-            attachment_task: None,
+            attachment_tasks: Vec::new(),
         };
         view.refresh_sessions(cx);
         view
@@ -67,7 +68,7 @@ impl RootView {
             return;
         };
         let selection = self.selection.begin(active_session_id.clone());
-        self.attachment_task = Some(cx.spawn(async move |view, cx| {
+        self.attachment_tasks.push(cx.spawn(async move |view, cx| {
             match client.attach_session(active_session_id.clone()).await {
                 Ok(attachment) => {
                     let mut updates = attachment.subscribe();
@@ -115,12 +116,9 @@ impl RootView {
                 let elements = rows
                     .iter()
                     .map(|row| {
-                        let status = row.active_id().and_then(|active_id| {
-                            self.selection
-                                .is_selected(active_id)
-                                .then(|| self.selection.status())
-                                .flatten()
-                        });
+                        let status = row
+                            .active_id()
+                            .and_then(|active_id| self.selection.status(active_id));
                         let projection = row
                             .active_id()
                             .and_then(|active_id| self.selection.projection(active_id));

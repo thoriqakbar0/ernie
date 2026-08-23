@@ -142,7 +142,8 @@ pub(crate) struct Selection(u64);
 #[derive(Debug, Default)]
 pub(crate) struct SessionSelectionModel {
     selection: Selection,
-    active_id: Option<ActiveSessionId>,
+    requested_id: Option<ActiveSessionId>,
+    confirmed_id: Option<ActiveSessionId>,
     state: Option<Arc<AttachmentState>>,
     projection: Option<SessionAttachmentProjection>,
 }
@@ -167,11 +168,10 @@ impl SessionAttachmentProjection {
 impl SessionSelectionModel {
     pub(crate) fn begin(&mut self, active_id: ActiveSessionId) -> Selection {
         self.selection.0 = self.selection.0.saturating_add(1);
-        self.active_id = Some(active_id.clone());
+        self.requested_id = Some(active_id.clone());
         self.state = Some(Arc::new(AttachmentState::Attaching {
             active_session_id: active_id,
         }));
-        self.projection = None;
         self.selection
     }
 
@@ -181,6 +181,8 @@ impl SessionSelectionModel {
         }
         match state.as_ref() {
             AttachmentState::Ready(snapshot) => {
+                self.confirmed_id = Some(snapshot.active_session_id().clone());
+                self.requested_id = None;
                 self.replace_projection(
                     selection,
                     SessionAttachmentProjection {
@@ -193,9 +195,13 @@ impl SessionSelectionModel {
             AttachmentState::Resyncing { .. } => {}
             AttachmentState::Attaching { .. }
             | AttachmentState::Detached { .. }
-            | AttachmentState::Closed { .. }
-            | AttachmentState::Unavailable { .. }
-            | AttachmentState::Superseded => self.projection = None,
+            | AttachmentState::Closed { .. } => {
+                self.requested_id = None;
+                self.confirmed_id = None;
+                self.projection = None;
+            }
+            AttachmentState::Unavailable { .. } => self.requested_id = None,
+            AttachmentState::Superseded => {}
         }
         self.state = Some(state);
         true
@@ -217,11 +223,15 @@ impl SessionSelectionModel {
         true
     }
 
-    pub(crate) fn is_selected(&self, active_id: &ActiveSessionId) -> bool {
-        self.active_id.as_ref() == Some(active_id)
-    }
-
-    pub(crate) fn status(&self) -> Option<&'static str> {
+    pub(crate) fn status(&self, active_id: &ActiveSessionId) -> Option<&'static str> {
+        if self.confirmed_id.as_ref() == Some(active_id)
+            && self.requested_id.as_ref() != Some(active_id)
+        {
+            return Some("Attached");
+        }
+        if self.requested_id.as_ref() != Some(active_id) {
+            return None;
+        }
         match self.state.as_deref()? {
             AttachmentState::Attaching { .. } => Some("Attaching"),
             AttachmentState::Ready(_) => Some("Attached"),
@@ -237,7 +247,7 @@ impl SessionSelectionModel {
         &self,
         active_id: &ActiveSessionId,
     ) -> Option<SessionAttachmentProjection> {
-        self.is_selected(active_id)
+        (self.confirmed_id.as_ref() == Some(active_id))
             .then_some(self.projection)
             .flatten()
     }
@@ -363,8 +373,7 @@ mod tests {
                 active_session_id: second_id.clone(),
             })
         ));
-        assert!(model.is_selected(&second_id));
-        assert_eq!(model.status(), Some("Resyncing"));
+        assert_eq!(model.status(&second_id), Some("Resyncing"));
     }
 
     #[test]
@@ -372,6 +381,7 @@ mod tests {
         let mut model = SessionSelectionModel::default();
         let active_id = ActiveSessionId::parse("active-one").expect("valid id");
         let selection = model.begin(active_id.clone());
+        model.confirmed_id = Some(active_id.clone());
         assert!(model.replace_projection(
             selection,
             SessionAttachmentProjection {
@@ -411,5 +421,41 @@ mod tests {
                 local_revision: 3,
             }
         ));
+    }
+
+    #[test]
+    fn failed_switch_preserves_the_confirmed_projection() {
+        let mut model = SessionSelectionModel::default();
+        let first_id = ActiveSessionId::parse("first").expect("valid id");
+        let first = model.begin(first_id.clone());
+        model.confirmed_id = Some(first_id.clone());
+        assert!(model.replace_projection(
+            first,
+            SessionAttachmentProjection {
+                activity: SessionActivity::Working,
+                message_count: 3,
+                local_revision: 1,
+            }
+        ));
+
+        let second_id = ActiveSessionId::parse("second").expect("valid id");
+        let second = model.begin(second_id.clone());
+        assert!(model.apply(
+            second,
+            Arc::new(AttachmentState::Unavailable {
+                active_session_id: second_id,
+                error: prime_agent_client::AttachmentError::Request(
+                    prime_agent_client::RequestError::ConnectionClosed,
+                ),
+            })
+        ));
+
+        assert_eq!(model.status(&first_id), Some("Attached"));
+        assert_eq!(
+            model
+                .projection(&first_id)
+                .map(|value| value.message_count()),
+            Some(3)
+        );
     }
 }

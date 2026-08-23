@@ -827,7 +827,13 @@ impl DriverState {
 
     fn fail_all(mut self, error: Option<RequestError>) {
         for pending in self.pending.values_mut() {
-            let error = error.clone().unwrap_or(RequestError::ConnectionClosed);
+            let error = if pending.command.mutation == MutationClass::Mutating
+                && pending.write_state != CommandWriteState::NeverAttempted
+            {
+                RequestError::OutcomeUncertain
+            } else {
+                error.clone().unwrap_or(RequestError::ConnectionClosed)
+            };
             pending.completion.resolve(Err(error));
         }
         let attachment_error = error.clone().unwrap_or(RequestError::ConnectionClosed);
@@ -1605,7 +1611,7 @@ mod tests {
     }
 
     #[test]
-    fn attachment_capability_loss_does_not_fail_unrelated_requests() {
+    fn optional_attachment_capabilities_do_not_block_reconnect() {
         let server = server_info(
             22,
             &["attach_snapshot", "event_sequence", "chunked_snapshot"],
@@ -1634,27 +1640,17 @@ mod tests {
 
         let writes = state
             .on_reconnected(server_info(22, &[]), Instant::now())
-            .expect("attachment incompatibility must stay isolated");
+            .expect("optional capability loss must not block reconnect");
 
-        assert_eq!(writes.len(), 1);
+        assert_eq!(writes.len(), 2);
         assert!(matches!(
             state_rx.borrow().as_ref(),
-            AttachmentState::Unavailable {
-                error: crate::AttachmentError::Request(RequestError::CapabilityUnavailable { .. }),
-                ..
-            }
+            AttachmentState::Resyncing { .. }
         ));
         assert!(matches!(
             list_result.try_recv(),
             Err(tokio::sync::oneshot::error::TryRecvError::Empty)
         ));
-        let later = state
-            .on_reconnected(
-                server_info(22, &["attach_snapshot", "event_sequence"]),
-                Instant::now(),
-            )
-            .expect("terminal attachment must not poison reconnect");
-        assert_eq!(later.len(), 1);
     }
 
     #[test]

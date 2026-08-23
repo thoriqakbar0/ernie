@@ -87,6 +87,7 @@ pub struct AttachedSession {
 }
 
 impl AttachedSession {
+    /// Returns the daemon's identifier for this live session instance.
     pub fn active_session_id(&self) -> &ActiveSessionId {
         &self.active_session_id
     }

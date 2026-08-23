@@ -65,18 +65,7 @@ impl Command {
                 }),
             );
         }
-        let mut command = Self::from_fields("attach", fields);
-        command.requirements.extend([
-            manifest::Compatibility {
-                min_schema_revision: None,
-                capability: Some("attach_snapshot"),
-            },
-            manifest::Compatibility {
-                min_schema_revision: None,
-                capability: Some("event_sequence"),
-            },
-        ]);
-        command
+        Self::from_fields("attach", fields)
     }
 
     pub(crate) fn reattach(
@@ -104,18 +93,7 @@ impl Command {
                 ]),
             ),
         ]);
-        let mut command = Self::from_fields("reattach", fields);
-        command.requirements.extend([
-            manifest::Compatibility {
-                min_schema_revision: None,
-                capability: Some("attach_snapshot"),
-            },
-            manifest::Compatibility {
-                min_schema_revision: None,
-                capability: Some("event_sequence"),
-            },
-        ]);
-        command
+        Self::from_fields("reattach", fields)
     }
 
     pub(crate) fn acknowledgement(command_id: &str) -> Self {

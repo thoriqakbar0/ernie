@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 mod sessions;
+mod shell;
 
 use ernie_plugin_runtime::{
     Context as PluginRuntime, FiberState, LifecycleError, LifecycleReport, PluginId, ServiceKey,
@@ -17,6 +18,7 @@ use sessions::{
     load_session_rows, SessionAttachmentProjection, SessionListModel, SessionListPhase, SessionRow,
     SessionSelectionModel,
 };
+use shell::WorkspaceShell;
 
 pub struct RootView {
     lifecycle: UiLifecycle,
@@ -171,36 +173,66 @@ impl RootView {
             }
         }
     }
-}
 
-impl Render for RootView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_sidebar(&self, cx: &mut Context<Self>) -> AnyElement {
         let lifecycle_status: SharedString = self.lifecycle.status().into();
 
         div()
             .flex()
-            .size_full()
-            .justify_center()
-            .bg(rgb(0x111318))
-            .text_color(rgb(0xf4f5f7))
-            .p_8()
+            .flex_col()
+            .gap_4()
             .child(
                 div()
-                    .flex()
-                    .flex_col()
-                    .w_full()
-                    .max_w(px(720.))
-                    .gap_4()
-                    .child(
-                        div()
-                            .text_size(px(30.))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("ernie-gpui"),
-                    )
-                    .child(div().text_color(rgb(0xaeb4bf)).child(lifecycle_status))
-                    .child(div().text_size(px(20.)).child("Prime Agent sessions"))
-                    .child(self.render_session_state(cx)),
+                    .text_size(px(22.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child("ernie-gpui"),
             )
+            .child(div().text_color(rgb(0xaeb4bf)).child(lifecycle_status))
+            .child(
+                div()
+                    .text_size(px(15.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child("Prime Agent sessions"),
+            )
+            .child(self.render_session_state(cx))
+            .into_any_element()
+    }
+
+    fn render_refresh_action(&self, cx: &mut Context<Self>) -> AnyElement {
+        let view = cx.entity();
+
+        div()
+            .id("refresh-prime-agent-sessions")
+            .role(Role::Button)
+            .aria_label("Refresh Prime Agent sessions")
+            .focusable()
+            .px_3()
+            .py_2()
+            .rounded_lg()
+            .border_1()
+            .border_color(rgb(0x3b414d))
+            .bg(rgb(0x242936))
+            .hover(|style| style.bg(rgb(0x303746)))
+            .active(|style| style.bg(rgb(0x1b202a)))
+            .focus(|style| style.border_2().border_color(rgb(0x9caeff)))
+            .cursor_pointer()
+            .on_key_down(cx.listener(|view, event: &KeyDownEvent, _, cx| {
+                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                    view.refresh_sessions(cx);
+                }
+            }))
+            .on_a11y_action(AccessibleAction::Click, move |_, _, cx| {
+                view.update(cx, |view, cx| view.refresh_sessions(cx));
+            })
+            .on_click(cx.listener(|view, _, _, cx| view.refresh_sessions(cx)))
+            .child("Refresh")
+            .into_any_element()
+    }
+}
+
+impl Render for RootView {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        WorkspaceShell::new(self.render_sidebar(cx), self.render_refresh_action(cx))
     }
 }
 
@@ -243,6 +275,9 @@ fn render_session_row(
         })
         .child(
             div()
+                .w_full()
+                .min_w_0()
+                .truncate()
                 .font_weight(FontWeight::SEMIBOLD)
                 .child(row.title().to_owned()),
         )

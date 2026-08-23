@@ -111,6 +111,8 @@ fn stale_failure_cannot_replace_the_latest_activation_state() {
     let activation_attempts = Rc::clone(&attempts);
     let observed = Rc::new(Cell::new(0));
     let activation_observed = Rc::clone(&observed);
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let activation_events = Rc::clone(&events);
     let (release, wait) = oneshot::channel();
     let wait = Rc::new(RefCell::new(Some(wait)));
 
@@ -118,14 +120,21 @@ fn stale_failure_cannot_replace_the_latest_activation_state() {
         let attempt = activation_attempts.get() + 1;
         activation_attempts.set(attempt);
         let observed = Rc::clone(&activation_observed);
+        let events = Rc::clone(&activation_events);
         let wait =
             (attempt == 1).then(|| wait.borrow_mut().take().expect("first attempt owns gate"));
         async move {
             let clock = ctx.service(CLOCK)?;
             if let Some(wait) = wait {
+                let cleanup_events = Rc::clone(&events);
+                ctx.acquire((), move || async move {
+                    cleanup_events.borrow_mut().push("cleanup 1".to_owned());
+                    Ok(())
+                });
                 wait.await.map_err(|_| PluginError::new("gate dropped"))?;
                 return Err(PluginError::new("stale failure"));
             }
+            events.borrow_mut().push("activate 2".to_owned());
             observed.set(*clock);
             Ok(())
         }
@@ -140,11 +149,47 @@ fn stale_failure_cannot_replace_the_latest_activation_state() {
     wait_for_state(&mut pool, &context, &plugin, FiberState::Active);
     assert_eq!(attempts.get(), 2);
     assert_eq!(observed.get(), 2);
+    assert_eq!(*events.borrow(), ["cleanup 1", "activate 2"]);
     assert_eq!(
         pool.run_until(context.failure(&plugin))
             .expect("driver is running"),
         None
     );
+}
+
+#[test]
+fn replacement_cleanup_reads_the_previous_provider_generation() {
+    let (mut pool, context) = spawn_runtime();
+    let plugin = PluginId::new("consumer");
+    let observed = Rc::new(Cell::new(0));
+    let activation_observed = Rc::clone(&observed);
+    let cleaned = Rc::new(RefCell::new(Vec::new()));
+    let activation_cleaned = Rc::clone(&cleaned);
+
+    pool.run_until(context.install(plugin.clone(), [CLOCK.id()], move |ctx| {
+        let observed = Rc::clone(&activation_observed);
+        let cleaned = Rc::clone(&activation_cleaned);
+        async move {
+            let clock = ctx.service(CLOCK)?;
+            observed.set(*clock);
+            ctx.acquire((), move || async move {
+                cleaned.borrow_mut().push(*clock);
+                Ok(())
+            });
+            Ok(())
+        }
+    }))
+    .expect("plugin id is unique");
+    pool.run_until(context.provide(CLOCK, 1))
+        .expect("clock type is stable");
+    wait_for_state(&mut pool, &context, &plugin, FiberState::Active);
+
+    pool.run_until(context.provide(CLOCK, 2))
+        .expect("replacement is accepted");
+    wait_for_state(&mut pool, &context, &plugin, FiberState::Active);
+
+    assert_eq!(observed.get(), 2);
+    assert_eq!(*cleaned.borrow(), [1]);
 }
 
 #[test]

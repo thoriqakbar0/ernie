@@ -33,7 +33,7 @@ Every accepted `provide` creates a provider generation. Replacement drains the o
 
 ## Shape
 
-`Context` is the only public lifecycle coordinator. It owns stable service slots, provider generations, fibers, dependency stamps, activation failures, and effect stacks. Callers install plugins, provide or remove typed services, then inspect stable fiber state. Generations and reconciliation remain private.
+`Context` and `AsyncContext` are the public lifecycle coordinators. Each owns its service slots, provider generations, fibers, dependency stamps, failures, and effect stacks. `Context` applies synchronous transitions directly. `AsyncContext` sends commands to its `LocalDriver`, which owns asynchronous transitions. Both coordinators let callers install plugins, change typed services, and inspect stable fiber state. Generations and reconciliation remain private.
 
 An internal fiber state enum couples `Active` with its dependency stamp and effect scope. It couples `Failed` with the stamp that failed. This prevents an active fiber without cleanup ownership and prevents automatic retry against the same broken inputs.
 
@@ -42,10 +42,12 @@ Stable service slots retain their Rust `TypeId` after removal. A later provider 
 Cleanup uses consuming `FnOnce` entries. Draining removes entries in reverse acquisition order. Returned errors and panics become `CleanupFailure` values, so one broken cleanup cannot stop older cleanup or later fibers.
 
 ```text
-src/lib.rs         crate documentation and public re-exports
-src/types.rs       public identifiers, states, errors, and reports
-src/runtime.rs     services, fibers, effects, and reconciliation
-tests/lifecycle.rs black-box lifecycle contracts
+src/lib.rs                  crate documentation and public re-exports
+src/types.rs                public identifiers, states, errors, and reports
+src/runtime.rs              synchronous services, fibers, effects, and reconciliation
+src/async_runtime.rs        asynchronous services, fibers, effects, and driver
+tests/lifecycle.rs          black-box synchronous lifecycle contracts
+tests/async_lifecycle.rs    black-box asynchronous lifecycle contracts
 ```
 
 ## Synthesis decision

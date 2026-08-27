@@ -11,6 +11,7 @@
     "publish:source": "zen publish:source",
     "link": "zen link",
     "db:generate": "zen db generate",
+    "doctor": "nub dlx react-doctor@0.9.12 . --no-supply-chain",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
     "check": "zen link && tsc --noEmit && nub run lint:boundaries && zen build:source"
@@ -19,6 +20,7 @@
     "@tailwindcss/vite": "^4.2.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@zenbujs/core": "0.0.24",
+    "agentation": "link:/Users/thor/work/agentation/package",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.2.0",

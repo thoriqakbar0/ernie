@@ -15,7 +15,11 @@ Run the local checks:
 
 ```sh
 nub run check
+nub run doctor
 ```
+
+Development builds load Agentation from `/Users/thor/work/agentation/package`.
+React Doctor scans the renderer for React correctness and maintainability issues.
 
 Electron builds use `thoriqakbar0/ernie` on `main` as the installed source mirror.
 Initialize that mirror only during an explicitly authorized release.

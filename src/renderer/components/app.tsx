@@ -1,3 +1,4 @@
+import { Agentation } from "agentation"
 import { Titlebar } from "./titlebar"
 import { Home } from "./home"
 
@@ -7,6 +8,7 @@ export function App() {
     <div className="flex flex-col min-h-screen">
       <Titlebar />
       <Home />
+      {import.meta.env.DEV ? <Agentation /> : null}
     </div>
   )
 }

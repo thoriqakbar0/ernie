@@ -40,6 +40,7 @@ export default defineConfig({
       "tsconfig.json",
       "zenbu.config.ts",
       "vite.config.ts",
+      "doctor.config.json",
     ],
     ignore: [
       "src/**/*.test.ts",

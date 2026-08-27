@@ -1,21 +1,26 @@
 {
-  "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "target": "ESNext",
     "module": "ESNext",
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    },
-    "noEmit": true
+      "@/*": [
+        "./src/renderer/*"
+      ],
+      "#registry/*": [
+        "./types/*"
+      ]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.mts"],
-  "exclude": [
-    "src/main.ts",
-    "src/lynx-host.ts",
-    "src/packages/ernie-agent-interaction/index.ts",
-    "src/packages/prime-agent-daemon/daemon-runner.ts",
-    "src/packages/session-name-hook/index.ts"
+  "include": [
+    "src",
+    "types",
+    "./.zenbu/types/zenbu-register.ts"
   ]
 }

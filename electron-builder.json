@@ -1,0 +1,12 @@
+{
+  "appId": "dev.zenbu.ernie",
+  "productName": "Ernie",
+  "asar": false,
+  "directories": {
+    "output": "dist"
+  },
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "target": ["zip"]
+  }
+}

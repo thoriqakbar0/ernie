@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://ernie.ta-0.com/sitemap.xml

@@ -12,7 +12,8 @@
     "link": "zen link",
     "db:generate": "zen db generate",
     "typecheck": "tsc --noEmit",
-    "check": "zen link && tsc --noEmit && zen build:source"
+    "lint:boundaries": "depcruise src/packages",
+    "check": "zen link && tsc --noEmit && nub run lint:boundaries && zen build:source"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.0",
@@ -28,6 +29,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "dependency-cruiser": "^18.2.0",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.0",
     "typescript": "^5.9.3"

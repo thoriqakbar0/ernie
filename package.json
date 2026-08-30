@@ -9,9 +9,11 @@
     "build:source": "zen build:source",
     "build:electron": "zen build:electron",
     "publish:source": "zen publish:source",
+    "prepare": "husky",
     "link": "zen link",
     "db:generate": "zen db generate",
     "doctor": "nub dlx react-doctor@0.9.12 . --no-supply-chain",
+    "lint:debt": "debtmap validate . --summary --semantic-off",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
     "check": "zen link && tsc --noEmit && nub run lint:boundaries && zen build:source"
@@ -34,6 +36,7 @@
     "dependency-cruiser": "^18.2.0",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.0",
+    "husky": "^9.1.7",
     "typescript": "^5.9.3"
   },
   "repository": {

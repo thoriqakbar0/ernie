@@ -1,12 +1,31 @@
 import { Service } from "@zenbujs/core/runtime"
-import { WindowService } from "@zenbujs/core/services"
+import {
+  RendererHostService,
+  ViewRegistryService,
+  WindowService,
+} from "@zenbujs/core/services"
+import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
 
 export class InitService extends Service.create({
   key: "init",
-  deps: { window: WindowService },
+  deps: {
+    rendererHost: RendererHostService,
+    viewRegistry: ViewRegistryService,
+    window: WindowService,
+  },
 }) {
-  /** Opens the renderer after Zenbu activates the host plugin. */
   async evaluate() {
+    this.setup("sidebar-view", () => {
+      this.ctx.viewRegistry.registerAlias({
+        type: SIDEBAR_VIEW_TYPE,
+        reloaderId: "app",
+        pathPrefix: "",
+        meta: { kind: "sidebar", label: "Sidebar" },
+      })
+
+      return () => this.ctx.viewRegistry.unregister(SIDEBAR_VIEW_TYPE)
+    })
+
     await this.ctx.window.openView({ type: "entrypoint" })
   }
 }

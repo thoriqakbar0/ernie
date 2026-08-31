@@ -1,0 +1,238 @@
+import type {
+  AttachSessionRequest,
+  CreateSessionRequest,
+  PrimeAgentModelClient,
+  PrimeSessionChange,
+  PrimeSessionEventListener,
+  PrimeSessionMessage,
+  PrimeSessionSnapshot,
+  PrimeSessionSnapshotEnvelope,
+  PrimeSessionSummary,
+  PromptAdmission,
+  PromptRequest,
+  SessionAction,
+  SessionTextAction,
+} from "./index"
+
+/** Prime Agent mock used by Ernie's local interactive preview. */
+export interface MockPrimeAgentClient extends PrimeAgentModelClient {
+  /** Releases timers, listeners, and pending idle waits. */
+  dispose(): void
+}
+
+type MockSession = {
+  summary: PrimeSessionSummary
+  messages: PrimeSessionMessage[]
+  generation: string
+  revision: number
+  readonly listeners: Set<PrimeSessionEventListener>
+  readonly timers: Set<ReturnType<typeof setTimeout>>
+  readonly idleWaiters: Set<() => void>
+}
+
+const initialSession: MockSession = {
+  summary: {
+    id: "mock-session-1",
+    cwd: "/Users/thor/work/ernie",
+    name: "Build the chat workspace",
+    lifecycle: "live",
+    state: "idle",
+    model: { id: "gpt-5", provider: "openai", label: "GPT-5" },
+  },
+  messages: [
+    {
+      id: "mock-assistant-1",
+      role: "assistant",
+      content: "I’m the local Prime Agent mock. Send a message and I’ll exercise Ernie’s real session boundary.",
+    },
+  ],
+  generation: "mock-generation-1",
+  revision: 1,
+  listeners: new Set(),
+  timers: new Set(),
+  idleWaiters: new Set(),
+}
+
+/** Creates an in-memory Prime Agent whose sessions retain independent state. */
+export function createMockPrimeAgentClient(): MockPrimeAgentClient {
+  const sessions = new Map<string, MockSession>([[initialSession.summary.id, cloneSession(initialSession)]])
+
+  const getSession = (sessionId: string) => {
+    const session = sessions.get(sessionId)
+    if (!session) throw new Error(`Unknown mock Prime Agent session: ${sessionId}`)
+    return session
+  }
+
+  const emitChange = (
+    session: MockSession,
+    change: PrimeSessionChange,
+  ) => {
+    session.revision += 1
+    for (const listener of session.listeners) {
+      listener({
+        type: "change",
+        envelope: {
+          sessionId: session.summary.id,
+          generation: session.generation,
+          revision: session.revision,
+          change,
+        },
+      })
+    }
+  }
+
+  const setState = (session: MockSession, state: PrimeSessionSummary["state"]) => {
+    session.summary = { ...session.summary, state }
+    emitChange(session, { type: "session", session: session.summary })
+    if (state === "idle") {
+      for (const resolve of session.idleWaiters) resolve()
+      session.idleWaiters.clear()
+    }
+  }
+
+  const appendMessage = (
+    session: MockSession,
+    role: PrimeSessionMessage["role"],
+    content: string,
+  ) => {
+    if (role === "user" && session.summary.lifecycle === "draft") {
+      session.summary = { ...session.summary, lifecycle: "live" }
+    }
+    const message = {
+      id: `${session.summary.id}-message-${session.revision + 1}`,
+      role,
+      content,
+    }
+    session.messages = [...session.messages, message]
+    emitChange(session, { type: "message", message })
+  }
+
+  const scheduleReply = (session: MockSession, content: string) => {
+    const timer = setTimeout(() => {
+      session.timers.delete(timer)
+      appendMessage(session, "assistant", `Mock Prime Agent received: ${content}`)
+      setState(session, "idle")
+    }, 450)
+    session.timers.add(timer)
+  }
+
+  const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
+    session: session.summary,
+    messages: session.messages,
+    transport: { status: "connected" },
+  })
+
+  const snapshotEnvelope = (session: MockSession): PrimeSessionSnapshotEnvelope => ({
+    sessionId: session.summary.id,
+    generation: session.generation,
+    revision: session.revision,
+    snapshot: snapshot(session),
+  })
+
+  return {
+    listSessions: () => Promise.resolve([...sessions.values()].map(({ summary }) => summary)),
+
+    createSession(request: CreateSessionRequest) {
+      const summary: PrimeSessionSummary = {
+        id: `mock-session-${crypto.randomUUID()}`,
+        cwd: request.cwd,
+        name: request.name,
+        lifecycle: "draft",
+        state: "idle",
+        model: { id: "gpt-5", provider: "openai", label: "GPT-5" },
+      }
+      sessions.set(summary.id, {
+        summary,
+        messages: [],
+        generation: `mock-generation-${crypto.randomUUID()}`,
+        revision: 0,
+        listeners: new Set(),
+        timers: new Set(),
+        idleWaiters: new Set(),
+      })
+      return Promise.resolve(summary)
+    },
+
+    attachSession(request: AttachSessionRequest) {
+      return Promise.resolve(snapshotEnvelope(getSession(request.sessionId)))
+    },
+
+    subscribeSession(sessionId, listener) {
+      const session = getSession(sessionId)
+      session.listeners.add(listener)
+      return () => session.listeners.delete(listener)
+    },
+
+    prompt(request: PromptRequest): Promise<PromptAdmission> {
+      const session = getSession(request.sessionId)
+      setState(session, "working")
+      appendMessage(session, "user", request.content)
+      scheduleReply(session, request.content)
+      return Promise.resolve({
+        admissionId: request.admissionId,
+        commandId: request.commandId,
+      })
+    },
+
+    followUp(request: SessionTextAction) {
+      const session = getSession(request.sessionId)
+      appendMessage(session, "user", request.content)
+      scheduleReply(session, request.content)
+      return Promise.resolve()
+    },
+
+    abort(request: SessionAction) {
+      const session = getSession(request.sessionId)
+      for (const timer of session.timers) clearTimeout(timer)
+      session.timers.clear()
+      setState(session, "idle")
+      return Promise.resolve()
+    },
+
+    waitForIdle(request: SessionAction) {
+      const session = getSession(request.sessionId)
+      if (session.summary.state === "idle") return Promise.resolve()
+      return new Promise<void>((resolve) => session.idleWaiters.add(resolve))
+    },
+
+    getModels() {
+      return Promise.resolve([
+        { id: "gpt-5", provider: "openai", label: "GPT-5" },
+        { id: "gpt-5-mini", provider: "openai", label: "GPT-5 mini" },
+        { id: "o3", provider: "openai", label: "o3" },
+        { id: "claude-sonnet-4", provider: "anthropic", label: "Claude Sonnet 4" },
+      ])
+    },
+
+    setModel(request) {
+      const session = getSession(request.sessionId)
+      const model = { id: request.modelId, provider: request.provider, label: request.modelId }
+      session.summary = { ...session.summary, model }
+      emitChange(session, { type: "session", session: session.summary })
+      return Promise.resolve()
+    },
+
+    dispose() {
+      for (const session of sessions.values()) {
+        for (const timer of session.timers) clearTimeout(timer)
+        session.timers.clear()
+        session.listeners.clear()
+        for (const resolve of session.idleWaiters) resolve()
+        session.idleWaiters.clear()
+      }
+      sessions.clear()
+    },
+  }
+}
+
+function cloneSession(session: MockSession): MockSession {
+  return {
+    summary: { ...session.summary },
+    messages: [...session.messages],
+    generation: session.generation,
+    revision: session.revision,
+    listeners: new Set(),
+    timers: new Set(),
+    idleWaiters: new Set(),
+  }
+}

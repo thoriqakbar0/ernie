@@ -13,16 +13,25 @@
     "link": "zen link",
     "db:generate": "zen db generate",
     "doctor": "nub dlx react-doctor@0.9.12 . --no-supply-chain",
+    "test:e2e": "nub --node cypress/run.ts",
+    "test:e2e:open": "nub --node cypress/run.ts --open",
+    "test": "nub --test src/main/prime-agent/*.test.ts src/packages/*/tests/*.test.ts src/renderer/tests/*.test.tsx",
+    "test:integration": "nub --test src/integration/*.integration.test.ts",
     "lint:debt": "debtmap validate . --summary --semantic-off",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
-    "check": "zen link && tsc --noEmit && nub run lint:boundaries && zen build:source"
+    "check": "zen link && tsc --noEmit && nub run test && nub run lint:boundaries && zen build:source"
   },
   "dependencies": {
+    "@earendil-works/pi-agent-core": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.1/prime-agent-core-0.7.1.tgz",
+    "@earendil-works/pi-ai": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.1/prime-agent-ai-0.7.1.tgz",
+    "@earendil-works/pi-tui": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.1/prime-agent-tui-0.7.1.tgz",
     "@tailwindcss/vite": "^4.2.0",
+    "@tanstack/react-query": "^5.102.8",
     "@vitejs/plugin-react": "^5.0.0",
     "@zenbujs/core": "0.0.24",
     "agentation": "link:/Users/thor/work/agentation/package",
+    "prime-agent": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.1/prime-agent-0.7.1.tgz",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.2.0",
@@ -30,12 +39,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "dependency-cruiser": "^18.2.0",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.0",
+    "global-jsdom": "^29.0.0",
     "husky": "^9.1.7",
     "typescript": "^5.9.3"
   },

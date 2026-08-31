@@ -3,8 +3,16 @@ import {
   definePlugin,
   defineBuildConfig,
 } from "@zenbujs/core/config"
+import { isAbsolute } from "node:path"
+
+const dbOverride = process.env.ERNIE_ZENBU_DB
+if (dbOverride && !isAbsolute(dbOverride)) {
+  throw new Error("ERNIE_ZENBU_DB must be an absolute path")
+}
 
 export default defineConfig({
+  db: dbOverride ?? "./.zenbu/db",
+
   // Boot-window HTML. The single ui entrypoint for the whole app.
   uiEntrypoint: "./src/renderer",
 
@@ -13,7 +21,11 @@ export default defineConfig({
   plugins: [
     definePlugin({
       name: "app",
-      services: ["./src/main/services/*.ts"],
+      services: [
+        "./src/main/services/*.ts",
+        "./src/main/prime-agent/service.ts",
+      ],
+      events: "./src/main/events.ts",
     }),
   ],
 
@@ -35,6 +47,7 @@ export default defineConfig({
     include: [
       "src/**/*",
       ".gitignore",
+      ".npmrc",
       "package.json",
       "pnpm-lock.yaml",
       "tsconfig.json",

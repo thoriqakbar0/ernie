@@ -1,0 +1,8 @@
+{
+  "name": "@ernie/cypress-tests",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "cypress": "^15.21.1"
+  }
+}

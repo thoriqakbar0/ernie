@@ -6,6 +6,12 @@ Use Nub for dependency installation, TypeScript execution, and package scripts.
 Use Nub's `--node` mode when starting Electron directly.
 The Zenbu build embeds pnpm for installed apps because Zenbu.js does not support Nub there yet.
 
+## Frog
+
+- Run `nub dlx frog list` before work to see known friction.
+- Log project papercuts with `nub dlx frog log` when you encounter them.
+- Do not log global, system, or internal friction.
+
 # Overview
 Source: https://zenbulabs.mintlify.app/api-reference/overview
 

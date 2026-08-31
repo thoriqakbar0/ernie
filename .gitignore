@@ -6,3 +6,6 @@ tsconfig.local.json
 .env
 .env.*
 !.env.example
+cypress/downloads/
+cypress/screenshots/
+cypress/videos/

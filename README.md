@@ -11,6 +11,21 @@ nub install
 nub run dev
 ```
 
+Run the isolated Electron browser test:
+
+```sh
+nub run test:e2e
+```
+
+Open Cypress for interactive browser testing:
+
+```sh
+nub run test:e2e:open
+```
+
+The launcher starts a real Zenbu Electron process with isolated database, agent, socket, and profile directories.
+It discovers the renderer through a private dynamic debugging port and removes its temporary files when Cypress exits.
+
 Run the local checks:
 
 ```sh

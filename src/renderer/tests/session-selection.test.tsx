@@ -8,7 +8,7 @@ import {
   PrimeAgentStateProvider,
   type PrimeSessionSelectionChannel,
 } from "../prime-agent-state"
-import { createMockPrimeAgentClient } from "../../packages/prime-agent/mock"
+import { createMockPrimeAgentClient } from "../../dev-only/prime-agent/mock"
 
 const cleanupDom = globalJsdom()
 const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react")

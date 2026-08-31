@@ -21,7 +21,9 @@
   },
   "include": [
     "src",
+    "scripts",
     "types",
-    "./.zenbu/types/zenbu-register.ts"
+    "./.zenbu/types/zenbu-register.ts",
+    "vite.ui-lab.config.ts"
   ]
 }

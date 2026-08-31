@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { createServer } from "node:net"
 import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
 
 type DevtoolsTarget = Readonly<{
@@ -16,6 +16,11 @@ const cypressDirectory = dirname(fileURLToPath(import.meta.url))
 const projectDirectory = dirname(cypressDirectory)
 const require = createRequire(import.meta.url)
 const electronModule: unknown = require("electron")
+const primeAgentEntry = fileURLToPath(import.meta.resolve("prime-agent"))
+const daemonLaunchModule: unknown = await import(pathToFileURL(
+  join(dirname(primeAgentEntry), "cli", "daemon-launch.js"),
+).href)
+const shutdownDaemonAndWait = readShutdownDaemonAndWait(daemonLaunchModule)
 
 if (typeof electronModule !== "string") {
   throw new Error("Electron did not resolve to an executable path")
@@ -24,11 +29,17 @@ if (typeof electronModule !== "string") {
 const electronExecutable = electronModule
 const ownedChildren = new Set<ChildProcess>()
 const temporaryRoot = await mkdtemp(join(tmpdir(), "ernie-cypress-"))
+const daemonSocketPath = join(temporaryRoot, "prime-agent.sock")
 let cleanupPromise: Promise<void> | undefined
 
 const cleanup = () => {
-  cleanupPromise ??= Promise.all([...ownedChildren].map((child) => terminate(child)))
-    .then(() => rm(temporaryRoot, { force: true, recursive: true }))
+  cleanupPromise ??= (async () => {
+    await Promise.all([...ownedChildren].map((child) => terminate(child)))
+    if (!await shutdownDaemonAndWait(daemonSocketPath, 10_000)) {
+      throw new Error(`Prime Agent daemon stayed active on ${daemonSocketPath}`)
+    }
+    await rm(temporaryRoot, { force: true, recursive: true })
+  })()
   return cleanupPromise
 }
 
@@ -59,7 +70,7 @@ try {
   delete electronEnvironment.NODE_OPTIONS
   Object.assign(electronEnvironment, {
     ERNIE_PRIME_AGENT_AGENT_DIR: agentDirectory,
-    ERNIE_PRIME_AGENT_SOCKET: join(temporaryRoot, "prime-agent.sock"),
+    ERNIE_PRIME_AGENT_SOCKET: daemonSocketPath,
     ERNIE_ZENBU_DB: databaseDirectory,
     VITE_ERNIE_CYPRESS: "1",
   })
@@ -89,6 +100,19 @@ try {
   process.removeListener("SIGINT", handleSignal)
   process.removeListener("SIGTERM", handleSignal)
   await cleanup()
+}
+
+type ShutdownDaemonAndWait = (socketPath: string, timeoutMs?: number) => Promise<boolean>
+
+function readShutdownDaemonAndWait(input: unknown): ShutdownDaemonAndWait {
+  if (!input || typeof input !== "object") {
+    throw new Error("Prime Agent daemon launcher did not load")
+  }
+  const shutdown = (input as Record<string, unknown>).shutdownDaemonAndWait
+  if (typeof shutdown !== "function") {
+    throw new Error("Prime Agent does not expose daemon shutdown")
+  }
+  return shutdown as ShutdownDaemonAndWait
 }
 
 function startOwned(
@@ -188,14 +212,11 @@ function isMainRenderer(target: DevtoolsTarget) {
 }
 
 async function terminate(child: ChildProcess) {
-  if (child.exitCode !== null || child.pid === undefined) return
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return
 
-  sendSignal(child, "SIGTERM")
-  await Promise.race([once(child, "exit"), delay(3_000)])
-  if (child.exitCode === null) {
-    sendSignal(child, "SIGKILL")
-    await once(child, "exit").catch(() => undefined)
-  }
+  const exited = once(child, "exit").catch(() => undefined)
+  sendSignal(child, "SIGKILL")
+  await Promise.race([exited, delay(3_000)])
 }
 
 function sendSignal(child: ChildProcess, signal: NodeJS.Signals) {

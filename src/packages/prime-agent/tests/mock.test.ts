@@ -1,8 +1,53 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { createMockPrimeAgentClient } from "../mock"
+import { createMockPrimeAgentClient } from "../../../dev-only/prime-agent/mock"
 import { createPrimeWorkspace } from "../../prime-workspace"
+
+test("authoritative seeds define the mock session list and transport", async () => {
+  const client = createMockPrimeAgentClient({
+    initialSnapshots: [{
+      session: {
+        id: "seeded-session",
+        cwd: "/workspace/seeded",
+        name: "Seeded session",
+        lifecycle: "live",
+        state: "recovering",
+      },
+      messages: [{ id: "seeded-message", role: "assistant", content: "Still here" }],
+      transport: { status: "failed", error: "Seeded failure" },
+    }],
+  })
+
+  assert.deepEqual(await client.listSessions(), [{
+    id: "seeded-session",
+    cwd: "/workspace/seeded",
+    name: "Seeded session",
+    lifecycle: "live",
+    state: "recovering",
+  }])
+  assert.deepEqual(
+    (await client.attachSession({ sessionId: "seeded-session" })).snapshot,
+    {
+      session: {
+        id: "seeded-session",
+        cwd: "/workspace/seeded",
+        name: "Seeded session",
+        lifecycle: "live",
+        state: "recovering",
+      },
+      messages: [{ id: "seeded-message", role: "assistant", content: "Still here" }],
+      transport: { status: "failed", error: "Seeded failure" },
+    },
+  )
+  client.dispose()
+})
+
+test("an explicit empty seed creates an empty mock", async () => {
+  const client = createMockPrimeAgentClient({ initialSnapshots: [] })
+  assert.deepEqual(await client.listSessions(), [])
+  client.dispose()
+})
 
 test("creating a session preserves every existing session", async () => {
   const client = createMockPrimeAgentClient()

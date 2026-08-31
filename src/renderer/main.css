@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source ".";
 
 .app-titlebar {
   -webkit-app-region: drag;

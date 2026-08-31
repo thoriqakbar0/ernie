@@ -4,9 +4,9 @@ import type {
   PrimeSessionSnapshot,
   PrimeSessionSummary,
 } from "../../packages/prime-agent"
-import { z } from "zod"
+import { Option, Schema } from "effect"
 
-const recordSchema = z.record(z.string(), z.unknown())
+const recordSchema = Schema.Record(Schema.String, Schema.Unknown)
 
 /** Projects an unknown Prime Agent connection snapshot into Ernie's JSON contract. */
 export function projectPrimeSessionSnapshot(
@@ -134,8 +134,7 @@ function readRecord(value: unknown, label: string) {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  const parsed = recordSchema.safeParse(value)
-  return parsed.success ? parsed.data : undefined
+  return Option.getOrUndefined(Schema.decodeUnknownOption(recordSchema)(value))
 }
 
 function readString(value: unknown) {

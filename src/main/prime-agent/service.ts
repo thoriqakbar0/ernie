@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Service } from "@zenbujs/core/runtime"
 import { RpcService } from "@zenbujs/core/services"
+import { Option, Schema } from "effect"
 import {
   DaemonAgentConnection,
   DaemonClient,
@@ -12,7 +13,6 @@ import {
   type DaemonCommand,
   type DaemonResponse,
 } from "prime-agent"
-import { z } from "zod"
 
 import type {
   PrimeModel,
@@ -59,7 +59,7 @@ type SessionAttachment = {
 
 const STREAM_REFRESH_INTERVAL_MS = 50
 const CREATE_SESSION_TIMEOUT_MS = 60_000
-const recordSchema = z.record(z.string(), z.unknown())
+const recordSchema = Schema.Record(Schema.String, Schema.Unknown)
 
 /** Owns Ernie's shared Prime Agent daemon client and logical session attachments. */
 export class PrimeAgentService extends Service.create({
@@ -672,8 +672,7 @@ function readRecord(value: unknown, label: string) {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  const parsed = recordSchema.safeParse(value)
-  return parsed.success ? parsed.data : undefined
+  return Option.getOrUndefined(Schema.decodeUnknownOption(recordSchema)(value))
 }
 
 function readString(value: unknown) {

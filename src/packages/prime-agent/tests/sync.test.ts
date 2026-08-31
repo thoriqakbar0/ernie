@@ -81,11 +81,26 @@ test("rejects malformed payloads and mismatched session identities", () => {
     ...changeEnvelope(1, { type: "session", session: baseSnapshot.session }),
     sessionId: "another-session",
   })
+  const duplicateMessages = parsePrimeSessionSnapshotEnvelope({
+    ...snapshotEnvelope(0),
+    snapshot: {
+      ...baseSnapshot,
+      messages: [baseSnapshot.messages[0], baseSnapshot.messages[0]],
+    },
+  })
+  const excessProperty = parsePrimeSessionChangeEnvelope({
+    ...changeEnvelope(1, { type: "transport", transport: { status: "connected" } }),
+    unexpected: true,
+  })
 
   assert.equal(malformed.ok, false)
   assert.equal(malformed.error._tag, "PrimeSessionProtocolError")
   assert.equal(mismatched.ok, false)
   assert.equal(mismatched.error._tag, "PrimeSessionProtocolError")
+  assert.equal(duplicateMessages.ok, false)
+  assert.equal(duplicateMessages.error._tag, "PrimeSessionProtocolError")
+  assert.equal(excessProperty.ok, false)
+  assert.equal(excessProperty.error._tag, "PrimeSessionProtocolError")
 })
 
 test("buffers an early change and applies it after the attachment snapshot", () => {

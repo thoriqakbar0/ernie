@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { Option, Schema } from "effect"
 
 import type {
   PrimeSessionChange,
@@ -7,97 +7,106 @@ import type {
   PrimeSessionSnapshotEnvelope,
 } from "./index"
 
-const modelSchema = z.object({
-  id: z.string().min(1),
-  provider: z.string().min(1),
-  label: z.string().min(1),
-}).strict().readonly()
+const strictParseOptions = { onExcessProperty: "error" } as const
 
-const sessionSummarySchema = z.object({
-  id: z.string().min(1),
-  cwd: z.string().min(1),
-  name: z.string().min(1).optional(),
-  lifecycle: z.enum(["archived", "draft", "live"]),
-  state: z.enum(["idle", "working", "recovering"]),
-  model: modelSchema.optional(),
-}).strict().readonly()
-
-const sessionMessageSchema = z.object({
-  id: z.string().min(1),
-  role: z.enum(["assistant", "system", "user"]),
-  content: z.string(),
-}).strict().readonly()
-
-const sessionMessagesSchema = z.array(sessionMessageSchema).readonly().superRefine((messages, context) => {
-  const ids = new Set<string>()
-  for (const [index, message] of messages.entries()) {
-    if (!ids.has(message.id)) {
-      ids.add(message.id)
-      continue
-    }
-    context.addIssue({
-      code: "custom",
-      message: "message ids must be unique",
-      path: [index, "id"],
-    })
-  }
+const modelSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  provider: Schema.NonEmptyString,
+  label: Schema.NonEmptyString,
 })
 
-const transportSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("connected") }).strict().readonly(),
-  z.object({
-    status: z.literal("reconnecting"),
-    error: z.string().min(1).optional(),
-  }).strict().readonly(),
-  z.object({
-    status: z.literal("failed"),
-    error: z.string().min(1),
-  }).strict().readonly(),
-])
+const sessionSummarySchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  cwd: Schema.NonEmptyString,
+  name: Schema.optionalKey(Schema.NonEmptyString),
+  lifecycle: Schema.Literals(["archived", "draft", "live"]),
+  state: Schema.Literals(["idle", "working", "recovering"]),
+  model: Schema.optionalKey(modelSchema),
+})
 
-const sessionSnapshotSchema = z.object({
+const sessionMessageSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  role: Schema.Literals(["assistant", "system", "user"]),
+  content: Schema.String,
+})
+
+const sessionMessagesSchema = Schema.Array(sessionMessageSchema).check(
+  Schema.makeFilter((messages) => {
+    const ids = new Set<string>()
+    const issues: Schema.FilterIssue[] = []
+    for (const [index, message] of messages.entries()) {
+      if (!ids.has(message.id)) {
+        ids.add(message.id)
+        continue
+      }
+      issues.push({
+        issue: "message ids must be unique",
+        path: [index, "id"],
+      })
+    }
+    return issues
+  }),
+)
+
+const transportSchema = Schema.Union(
+  [
+    Schema.Struct({ status: Schema.Literal("connected") }),
+    Schema.Struct({
+      status: Schema.Literal("reconnecting"),
+      error: Schema.optionalKey(Schema.NonEmptyString),
+    }),
+    Schema.Struct({
+      status: Schema.Literal("failed"),
+      error: Schema.NonEmptyString,
+    }),
+  ],
+)
+
+const sessionSnapshotSchema = Schema.Struct({
   session: sessionSummarySchema,
   messages: sessionMessagesSchema,
   transport: transportSchema,
-}).strict().readonly()
+})
 
-const sessionChangeSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("session"), session: sessionSummarySchema }).strict().readonly(),
-  z.object({ type: z.literal("message"), message: sessionMessageSchema }).strict().readonly(),
-  z.object({ type: z.literal("messages"), messages: sessionMessagesSchema }).strict().readonly(),
-  z.object({ type: z.literal("transport"), transport: transportSchema }).strict().readonly(),
-])
+const sessionChangeSchema = Schema.Union(
+  [
+    Schema.Struct({ type: Schema.Literal("session"), session: sessionSummarySchema }),
+    Schema.Struct({ type: Schema.Literal("message"), message: sessionMessageSchema }),
+    Schema.Struct({ type: Schema.Literal("messages"), messages: sessionMessagesSchema }),
+    Schema.Struct({ type: Schema.Literal("transport"), transport: transportSchema }),
+  ],
+)
 
 const envelopeFields = {
-  sessionId: z.string().min(1),
-  generation: z.string().min(1),
-  revision: z.number().int().nonnegative(),
+  sessionId: Schema.NonEmptyString,
+  generation: Schema.NonEmptyString,
+  revision: Schema.Natural,
 }
 
-const snapshotEnvelopeSchema = z.object({
+const snapshotEnvelopeSchema = Schema.Struct({
   ...envelopeFields,
   snapshot: sessionSnapshotSchema,
-}).strict().superRefine((envelope, context) => {
-  if (envelope.sessionId === envelope.snapshot.session.id) return
-  context.addIssue({
-    code: "custom",
-    message: "snapshot session id must match its envelope",
-    path: ["snapshot", "session", "id"],
-  })
-}).readonly()
+}).check(
+  Schema.makeFilter((envelope) => envelope.sessionId === envelope.snapshot.session.id
+    ? undefined
+    : {
+        issue: "snapshot session id must match its envelope",
+        path: ["snapshot", "session", "id"],
+      }),
+)
 
-const changeEnvelopeSchema = z.object({
+const changeEnvelopeSchema = Schema.Struct({
   ...envelopeFields,
   change: sessionChangeSchema,
-}).strict().superRefine((envelope, context) => {
-  if (envelope.change.type !== "session") return
-  if (envelope.sessionId === envelope.change.session.id) return
-  context.addIssue({
-    code: "custom",
-    message: "changed session id must match its envelope",
-    path: ["change", "session", "id"],
-  })
-}).readonly()
+}).check(
+  Schema.makeFilter((envelope) => envelope.change.type !== "session" ||
+      envelope.sessionId === envelope.change.session.id
+    ? undefined
+    : {
+        issue: "changed session id must match its envelope",
+        path: ["change", "session", "id"],
+      }),
+)
 
 /** Safe failure returned when a cross-process session payload is invalid. */
 export class PrimeSessionProtocolError extends Error {
@@ -119,9 +128,9 @@ export type PrimeSessionParseResult<Value> =
 export function parsePrimeSessionSnapshotEnvelope(
   input: unknown,
 ): PrimeSessionParseResult<PrimeSessionSnapshotEnvelope> {
-  const parsed = snapshotEnvelopeSchema.safeParse(input)
-  return parsed.success
-    ? { ok: true, value: parsed.data }
+  const parsed = Schema.decodeUnknownOption(snapshotEnvelopeSchema, strictParseOptions)(input)
+  return Option.isSome(parsed)
+    ? { ok: true, value: parsed.value }
     : { ok: false, error: new PrimeSessionProtocolError("snapshot") }
 }
 
@@ -129,9 +138,9 @@ export function parsePrimeSessionSnapshotEnvelope(
 export function parsePrimeSessionChangeEnvelope(
   input: unknown,
 ): PrimeSessionParseResult<PrimeSessionChangeEnvelope> {
-  const parsed = changeEnvelopeSchema.safeParse(input)
-  return parsed.success
-    ? { ok: true, value: parsed.data }
+  const parsed = Schema.decodeUnknownOption(changeEnvelopeSchema, strictParseOptions)(input)
+  return Option.isSome(parsed)
+    ? { ok: true, value: parsed.value }
     : { ok: false, error: new PrimeSessionProtocolError("change") }
 }
 

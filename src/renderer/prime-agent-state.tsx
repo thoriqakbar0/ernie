@@ -8,7 +8,7 @@ import {
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { PropsWithChildren } from "react"
 import { useEvents, useRpc } from "@zenbujs/core/react"
-import { z } from "zod"
+import { Option, Schema } from "effect"
 import type { PrimeAgentModelClient, PrimeSessionSnapshot } from "../packages/prime-agent"
 import { createZenbuPrimeAgentClient } from "../packages/prime-agent/zenbu"
 import {
@@ -21,6 +21,8 @@ const sessionKeys = {
   snapshot: (sessionId: string) => ["prime-agent", "session", sessionId] as const,
   workspacePath: ["app", "workspace-path"] as const,
 }
+
+const sessionSelectionSchema = Schema.Struct({ sessionId: Schema.NonEmptyString })
 
 class PrimeAgentRuntime {
   private readonly workspace
@@ -176,8 +178,8 @@ function LivePrimeAgentState({ children }: PropsWithChildren) {
     get: () => rpc.app.sessionSelection.get(),
     select: (sessionId) => rpc.app.sessionSelection.select({ sessionId }),
     subscribe: (listener) => events.app.primeSessionSelected.subscribe((input) => {
-      const parsed = z.object({ sessionId: z.string().min(1) }).safeParse(input)
-      if (parsed.success) listener(parsed.data.sessionId)
+      const parsed = Schema.decodeUnknownOption(sessionSelectionSchema)(input)
+      if (Option.isSome(parsed)) listener(parsed.value.sessionId)
     }),
   }))
 

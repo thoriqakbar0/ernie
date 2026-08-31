@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { Option, Schema } from "effect"
 
 import type { PrimeSessionSnapshot } from "../../packages/prime-agent"
 
@@ -32,16 +32,16 @@ export type UiLabRoute =
 /** Stable workspace shown by every UI lab fixture. */
 export const UI_LAB_WORKSPACE_PATH = "/projects/ernie"
 
-const scenarioSchema = z.enum(UI_LAB_SCENARIOS)
+const scenarioSchema = Schema.Literals(UI_LAB_SCENARIOS)
 const sessionId = "ui-lab-session"
 const model = { id: "gpt-5", provider: "openai", label: "GPT-5" }
 
 /** Parses the scenario query once before React mounts. */
 export function parseUiLabRoute(search: string): UiLabRoute {
   const received = new URLSearchParams(search).get("scenario") ?? "draft"
-  const parsed = scenarioSchema.safeParse(received)
-  return parsed.success
-    ? { tag: "ready", fixture: getUiLabFixture(parsed.data) }
+  const parsed = Schema.decodeUnknownOption(scenarioSchema)(received)
+  return Option.isSome(parsed)
+    ? { tag: "ready", fixture: getUiLabFixture(parsed.value) }
     : { tag: "invalid", received }
 }
 

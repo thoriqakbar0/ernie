@@ -12,10 +12,10 @@ import {
   type AgentConnectionEvent,
   type DaemonResponse,
 } from "prime-agent"
-import { z } from "zod"
+import { Schema } from "effect"
 
-const createdSessionSchema = z.object({
-  activeSessionId: z.string().min(1),
+const createdSessionSchema = Schema.Struct({
+  activeSessionId: Schema.NonEmptyString,
 })
 
 test("one daemon client isolates two logical session attachments", { timeout: 30_000 }, async (t) => {
@@ -154,7 +154,7 @@ async function createSession(
     lifecycle: "resident",
   })
   const data = requireSuccess(response)
-  return createdSessionSchema.parse(data).activeSessionId
+  return Schema.decodeUnknownSync(createdSessionSchema)(data).activeSessionId
 }
 
 function requireSuccess(response: DaemonResponse) {

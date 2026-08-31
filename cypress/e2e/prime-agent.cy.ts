@@ -11,7 +11,7 @@ describe("Prime Agent first session", () => {
     cy.contains("h2", "Start a conversation").should("be.visible")
     cy.get('[data-cy="prime-empty-create"]').should("be.enabled").click()
 
-    cy.contains("h1", "New Prime Agent session").should("be.visible")
+    cy.contains("h1", "New Prime Agent session", { timeout: 75_000 }).should("be.visible")
     cy.get("#chat-message")
       .should("be.enabled")
       .and("have.attr", "placeholder", "Ask Prime Agent to build something...")

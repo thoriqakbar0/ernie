@@ -58,6 +58,7 @@ type SessionAttachment = {
 }
 
 const STREAM_REFRESH_INTERVAL_MS = 50
+const CREATE_SESSION_TIMEOUT_MS = 60_000
 const recordSchema = z.record(z.string(), z.unknown())
 
 /** Owns Ernie's shared Prime Agent daemon client and logical session attachments. */
@@ -91,12 +92,15 @@ export class PrimeAgentService extends Service.create({
   /** Creates one resident Prime Agent session without attaching a renderer. */
   async createSession(input: { cwd: string; name?: string }) {
     const name = chooseAvailableSessionName(input.name, await this.listSessions())
-    const data = await this.request({
-      type: "create",
-      name,
-      config: { cwd: input.cwd },
-      lifecycle: "resident",
-    })
+    const data = await this.request(
+      {
+        type: "create",
+        name,
+        config: { cwd: input.cwd },
+        lifecycle: "resident",
+      },
+      CREATE_SESSION_TIMEOUT_MS,
+    )
     const session = toSessionSummary(readRecord(data, "create response"))
     this.summaries.set(session.id, session)
     return session

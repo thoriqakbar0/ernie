@@ -8,11 +8,12 @@ import type {
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
   PrimeSessionSummary,
+  PrimeSessionTransport,
   PromptAdmission,
   PromptRequest,
   SessionAction,
   SessionTextAction,
-} from "./index"
+} from "../../packages/prime-agent"
 
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
@@ -23,6 +24,7 @@ export interface MockPrimeAgentClient extends PrimeAgentModelClient {
 type MockSession = {
   summary: PrimeSessionSummary
   messages: PrimeSessionMessage[]
+  transport: PrimeSessionTransport
   generation: string
   revision: number
   readonly listeners: Set<PrimeSessionEventListener>
@@ -46,6 +48,7 @@ const initialSession: MockSession = {
       content: "I’m the local Prime Agent mock. Send a message and I’ll exercise Ernie’s real session boundary.",
     },
   ],
+  transport: { status: "connected" },
   generation: "mock-generation-1",
   revision: 1,
   listeners: new Set(),
@@ -53,9 +56,21 @@ const initialSession: MockSession = {
   idleWaiters: new Set(),
 }
 
+/** Selects the authoritative snapshots available when a mock client starts. */
+export type MockPrimeAgentClientOptions = Readonly<{
+  initialSnapshots?: readonly PrimeSessionSnapshot[]
+}>
+
 /** Creates an in-memory Prime Agent whose sessions retain independent state. */
-export function createMockPrimeAgentClient(): MockPrimeAgentClient {
-  const sessions = new Map<string, MockSession>([[initialSession.summary.id, cloneSession(initialSession)]])
+export function createMockPrimeAgentClient(
+  options: MockPrimeAgentClientOptions = {},
+): MockPrimeAgentClient {
+  const seededSessions = options.initialSnapshots === undefined
+    ? [cloneSession(initialSession)]
+    : options.initialSnapshots.map(createSeededSession)
+  const sessions = new Map<string, MockSession>(
+    seededSessions.map((session) => [session.summary.id, session]),
+  )
 
   const getSession = (sessionId: string) => {
     const session = sessions.get(sessionId)
@@ -119,7 +134,7 @@ export function createMockPrimeAgentClient(): MockPrimeAgentClient {
   const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
     session: session.summary,
     messages: session.messages,
-    transport: { status: "connected" },
+    transport: session.transport,
   })
 
   const snapshotEnvelope = (session: MockSession): PrimeSessionSnapshotEnvelope => ({
@@ -144,6 +159,7 @@ export function createMockPrimeAgentClient(): MockPrimeAgentClient {
       sessions.set(summary.id, {
         summary,
         messages: [],
+        transport: { status: "connected" },
         generation: `mock-generation-${crypto.randomUUID()}`,
         revision: 0,
         listeners: new Set(),
@@ -229,8 +245,25 @@ function cloneSession(session: MockSession): MockSession {
   return {
     summary: { ...session.summary },
     messages: [...session.messages],
+    transport: { ...session.transport },
     generation: session.generation,
     revision: session.revision,
+    listeners: new Set(),
+    timers: new Set(),
+    idleWaiters: new Set(),
+  }
+}
+
+function createSeededSession(
+  snapshot: PrimeSessionSnapshot,
+  index: number,
+): MockSession {
+  return {
+    summary: { ...snapshot.session },
+    messages: [...snapshot.messages],
+    transport: { ...snapshot.transport },
+    generation: `mock-seed-generation-${index + 1}`,
+    revision: 1,
     listeners: new Set(),
     timers: new Set(),
     idleWaiters: new Set(),

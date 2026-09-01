@@ -16,14 +16,8 @@ describe("Prime Agent first session", () => {
       .should("be.enabled")
       .and("have.attr", "placeholder", "Ask Prime Agent to build something...")
 
-    cy.get('aside[aria-label="Sidebar"] iframe')
+    cy.get('[data-zenbu-view="app/sidebar"] button[aria-current="page"]')
       .should("be.visible")
-      .its("0.contentDocument.body")
-      .should("not.be.empty")
-      .then((body) => {
-        cy.wrap(body)
-          .find('button[aria-current="page"]')
-          .should("contain.text", "New Prime Agent session")
-      })
+      .and("contain.text", "New Prime Agent session")
   })
 })

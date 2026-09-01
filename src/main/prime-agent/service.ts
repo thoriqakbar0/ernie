@@ -30,6 +30,8 @@ import {
   projectPrimeSessionSnapshot,
 } from "./projection"
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
+import { projectCurrentPrimeSessionRefresh } from "./refresh"
+import { enrichPrimeSessionSnapshot } from "./snapshot"
 import { chooseAvailableSessionName } from "./session-name"
 
 type CommandBody = DaemonCommand extends infer Command
@@ -53,12 +55,25 @@ type SessionAttachment = {
   unsubscribe: () => void
   refreshTimer: ReturnType<typeof setTimeout> | undefined
   refreshTail: Promise<void>
+  refreshFailureCount: number
   needsRefresh: boolean
   disposed: boolean
 }
 
 const STREAM_REFRESH_INTERVAL_MS = 50
+const MAX_REFRESH_FAILURES = 2
 const CREATE_SESSION_TIMEOUT_MS = 60_000
+const PRIME_AGENT_DAEMON_WORKER_ENV = [
+  "PRIME_AGENT_INTERNAL_DAEMON_WORKER",
+  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN",
+  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_ACTIVE_SESSION_ID",
+  "PRIME_AGENT_INTERNAL_DAEMON_SUPERVISOR_SOCKET",
+  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_RECOVERY_JOURNAL",
+  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_STARTUP_GATE_FD",
+  "PRIME_AGENT_INTERNAL_ORPHAN_PROCESS_JOURNAL",
+  "PRIME_AGENT_INTERNAL_SESSION_LEASES",
+  "PRIME_AGENT_INTERNAL_SESSION_LEASE_OWNER_ID",
+] as const
 const recordSchema = Schema.Record(Schema.String, Schema.Unknown)
 
 /** Owns Ernie's shared Prime Agent daemon client and logical session attachments. */
@@ -226,7 +241,7 @@ export class PrimeAgentService extends Service.create({
     try {
       await connection.attach()
       const snapshot = projectPrimeSessionSnapshot(
-        await connection.getInitialSnapshot(),
+        enrichPrimeSessionSnapshot({ snapshot: await connection.getInitialSnapshot() }),
         previousSession,
       )
       if (snapshot.session.id !== sessionId) {
@@ -241,6 +256,7 @@ export class PrimeAgentService extends Service.create({
         unsubscribe,
         refreshTimer: undefined,
         refreshTail: Promise.resolve(),
+        refreshFailureCount: 0,
         needsRefresh: eventBeforeReady,
         disposed: false,
       }
@@ -295,7 +311,10 @@ export class PrimeAgentService extends Service.create({
     input: unknown,
   ) {
     try {
-      const snapshot = projectPrimeSessionSnapshot(input, attachment.snapshot.session)
+      const snapshot = projectPrimeSessionSnapshot(
+        enrichPrimeSessionSnapshot({ snapshot: input, previous: attachment.snapshot }),
+        attachment.snapshot.session,
+      )
       attachment.generation = crypto.randomUUID()
       attachment.revision = 0
       attachment.snapshot = snapshot
@@ -320,7 +339,20 @@ export class PrimeAgentService extends Service.create({
     const refresh = () => {
       attachment.refreshTimer = undefined
       const run = attachment.refreshTail.then(() => this.refreshAttachment(attachment))
-      attachment.refreshTail = run.catch(() => this.failAttachment(attachment))
+      attachment.refreshTail = run.then(
+        () => {
+          attachment.refreshFailureCount = 0
+        },
+        () => {
+          attachment.refreshFailureCount += 1
+          if (attachment.refreshFailureCount <= MAX_REFRESH_FAILURES) {
+            this.scheduleRefresh(attachment, false)
+          } else {
+            attachment.refreshFailureCount = 0
+            this.beginRecovery()
+          }
+        },
+      )
     }
     if (immediate) {
       refresh()
@@ -330,17 +362,29 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async refreshAttachment(attachment: SessionAttachment) {
+    const connection = attachment.connection
     if (
       attachment.disposed ||
       this.attachments.get(attachment.sessionId) !== attachment ||
-      !attachment.connection
+      !connection
     ) {
       return
     }
-    const snapshot = projectPrimeSessionSnapshot(
-      await attachment.connection.getInitialSnapshot(),
-      attachment.snapshot.session,
-    )
+
+    const generation = attachment.generation
+    const snapshot = await projectCurrentPrimeSessionRefresh({
+      readSnapshot: async () => enrichPrimeSessionSnapshot({
+        snapshot: await connection.getInitialSnapshot(),
+        previous: attachment.snapshot,
+      }),
+      previousSession: attachment.snapshot.session,
+      isCurrent: () =>
+        !attachment.disposed &&
+        this.attachments.get(attachment.sessionId) === attachment &&
+        attachment.connection === connection &&
+        attachment.generation === generation,
+    })
+    if (!snapshot) return
     this.updateProjectedSnapshot(attachment, snapshot)
   }
 
@@ -555,6 +599,7 @@ function failedAttachment(previous: SessionAttachment): SessionAttachment {
     unsubscribe: () => {},
     refreshTimer: undefined,
     refreshTail: Promise.resolve(),
+    refreshFailureCount: 0,
     needsRefresh: false,
     disposed: false,
   }
@@ -576,11 +621,12 @@ function startDaemon(config: PrimeAgentConfig) {
   mkdirSync(dirname(config.socketPath), { recursive: true })
   const packageEntry = import.meta.resolve("prime-agent")
   const cliPath = fileURLToPath(new URL("./bundle/cli.js", packageEntry))
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
     ...(config.agentDir ? { PRIME_AGENT_CODING_AGENT_DIR: config.agentDir } : {}),
   }
+  for (const name of PRIME_AGENT_DAEMON_WORKER_ENV) delete env[name]
   const child = spawn(
     config.executablePath,
     [cliPath, "--mode", "daemon", "--daemon-socket", config.socketPath],
@@ -608,7 +654,7 @@ function readPrimeAgentConfig(): PrimeAgentConfig {
       "Library",
       "Application Support",
       "Ernie",
-      "prime-agent-v0.7.1.sock",
+      "prime-agent-v0.8.1.sock",
     ),
     agentDir,
     executablePath,

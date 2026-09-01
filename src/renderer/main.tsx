@@ -1,8 +1,6 @@
 import { createRoot } from "react-dom/client"
-import { ZenbuProvider } from "@zenbujs/core/react"
-import { SIDEBAR_VIEW_TYPE } from "../packages/view-types"
+import { View, ZenbuProvider } from "@zenbujs/core/react"
 import { App } from "./components/app"
-import { Sidebar } from "./components/sidebar"
 import { PrimeAgentStateProvider } from "./prime-agent-state"
 import "./main.css"
 
@@ -12,8 +10,8 @@ if (rootElement === null) {
   throw new Error("Missing #root renderer mount.")
 }
 
-const viewType = new URLSearchParams(window.location.search).get("type")
-const content = viewType === SIDEBAR_VIEW_TYPE ? <Sidebar /> : <App />
+const route = new URLSearchParams(window.location.search).get("route")
+const content = route === null ? <App /> : <View name={route} />
 
 createRoot(rootElement).render(
   <ZenbuProvider>

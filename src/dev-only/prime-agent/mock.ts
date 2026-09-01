@@ -14,6 +14,7 @@ import type {
   SessionAction,
   SessionTextAction,
 } from "../../packages/prime-agent"
+import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixtures"
 
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
@@ -134,6 +135,7 @@ export function createMockPrimeAgentClient(
   const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
     session: session.summary,
     messages: session.messages,
+    useful: createPrimeUsefulSessionFixture(session.summary, session.messages),
     transport: session.transport,
   })
 

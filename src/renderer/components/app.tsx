@@ -10,7 +10,7 @@ export function App() {
       <Titlebar />
       <main className="grid min-h-0 flex-1 grid-cols-[236px_minmax(0,1fr)]">
         <aside aria-label="Sidebar" className="min-h-0">
-          <View className="h-full w-full" type={SIDEBAR_VIEW_TYPE} />
+          <View className="h-full w-full" name={SIDEBAR_VIEW_TYPE} />
         </aside>
         <ChatWorkspace />
       </main>

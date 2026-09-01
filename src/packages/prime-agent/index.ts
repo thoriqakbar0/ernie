@@ -11,11 +11,126 @@ export type PrimeSessionSummary = Readonly<{
 /** One model Prime Agent exposes to an attached session. */
 export type PrimeModel = Readonly<{ id: string; provider: string; label: string }>
 
+/** One JSON value that can safely cross Ernie's process boundary. */
+export type PrimeJsonValue =
+  | boolean
+  | null
+  | number
+  | string
+  | readonly PrimeJsonValue[]
+  | Readonly<{ [key: string]: PrimeJsonValue }>
+
 /** One transcript message in an attached Prime Agent session. */
 export type PrimeSessionMessage = Readonly<{
   id: string
   role: "assistant" | "system" | "user"
   content: string
+}>
+
+/** One JSON-safe structured Prime Agent transcript message. */
+export type PrimeStructuredMessage = Readonly<{ [key: string]: PrimeJsonValue }>
+
+/** One queued or active action owned by the Prime Agent session. */
+export type PrimeSessionActions = Readonly<{
+  queuedCount: number
+  steering: readonly string[]
+  followUps: readonly string[]
+  active?: Readonly<{
+    kind: "session_command" | "turn"
+    phase: "committing" | "preparing" | "running"
+    label?: string
+  }>
+}>
+
+/** One live RLM child known to the attached Prime Agent session. */
+export type PrimeRlmChild = Readonly<{
+  id: string
+  parentId?: string
+  activeSessionId?: string
+  sessionName?: string
+  model?: string
+  label: string
+  status: "cancelled" | "done" | "error" | "queued" | "running"
+  durationMs?: number
+  answerPreview?: string
+  repliedSinceTask?: boolean
+  toolUseCount?: number
+  tokenCount?: number
+  recap?: string
+  sessionDir: string
+  activity?: Readonly<{
+    kind: "executing" | "waiting" | "writing"
+    toolName?: string
+  }>
+  error?: string
+}>
+
+/** Prime Agent's useful authoritative state for one attached session. */
+export type PrimeUsefulSessionState = Readonly<{
+  activeSessionId?: string
+  sessionId: string
+  cwd: string
+  sessionName?: string
+  sessionFile?: string
+  sessionDir?: string
+  leafId: string | null
+  model?: PrimeModel
+  thinkingLevel: string
+  serviceTier: string
+  availableThinkingLevels: readonly string[]
+  isStreaming: boolean
+  isCompacting: boolean
+  isBashRunning: boolean
+  retryAttempt: number
+  steeringMode: "all" | "one-at-a-time"
+  followUpMode: "all" | "one-at-a-time"
+  autoCompactionEnabled: boolean
+  messageCount: number
+  sessionActions: PrimeSessionActions
+  compactionCount: number
+  goal: PrimeJsonValue
+  heartbeat?: PrimeJsonValue | null
+  scopedModels: readonly Readonly<{
+    model: PrimeModel
+    thinkingLevel?: string
+  }>[]
+  activeToolNames: readonly string[]
+  contextUsage: PrimeJsonValue
+  recap?: string
+}>
+
+/** Prime Agent's useful structured context and RLM topology. */
+export type PrimeUsefulSessionContext = Readonly<{
+  state: PrimeUsefulSessionState
+  structuredMessages: readonly PrimeStructuredMessage[]
+  streamingMessage?: PrimeStructuredMessage
+  sessionContext?: Readonly<{
+    messages: readonly PrimeStructuredMessage[]
+    thinkingLevel: string
+    serviceTier: string
+    model: Readonly<{ provider: string; modelId: string }> | null
+  }>
+  sessionTree?: Readonly<{
+    tree: PrimeJsonValue
+    leafId: string | null
+  }>
+  parent?: Readonly<{
+    activeSessionId?: string
+    sessionId?: string
+    nodeId?: string
+    childId?: string
+  }>
+  children: readonly PrimeRlmChild[]
+  lastEventSequence?: number
+  lastEventCursor?: Readonly<{ generation: string; sequence: number }>
+  replay?: Readonly<{
+    status: "complete" | "partial" | "unavailable"
+    fromSequence?: number
+    toSequence: number
+    fromCursor?: Readonly<{ generation: string; sequence: number }>
+    toCursor?: Readonly<{ generation: string; sequence: number }>
+    reason?: string
+  }>
 }>
 
 /** Current health of Ernie's transport to one Prime Agent session. */
@@ -28,6 +143,7 @@ export type PrimeSessionTransport =
 export type PrimeSessionSnapshot = Readonly<{
   session: PrimeSessionSummary
   messages: readonly PrimeSessionMessage[]
+  useful: PrimeUsefulSessionContext
   transport: PrimeSessionTransport
 }>
 
@@ -36,6 +152,28 @@ export type PrimeSessionChange =
   | Readonly<{ type: "session"; session: PrimeSessionSummary }>
   | Readonly<{ type: "message"; message: PrimeSessionMessage }>
   | Readonly<{ type: "messages"; messages: readonly PrimeSessionMessage[] }>
+  | Readonly<{
+      type: "structured"
+      structuredMessages: readonly PrimeStructuredMessage[]
+      streamingMessage?: PrimeStructuredMessage
+    }>
+  | Readonly<{ type: "usefulState"; state: PrimeUsefulSessionState }>
+  | Readonly<{
+      type: "sessionContext"
+      sessionContext?: PrimeUsefulSessionContext["sessionContext"]
+    }>
+  | Readonly<{
+      type: "family"
+      parent?: PrimeUsefulSessionContext["parent"]
+      sessionTree?: PrimeUsefulSessionContext["sessionTree"]
+      children: readonly PrimeRlmChild[]
+    }>
+  | Readonly<{
+      type: "eventPosition"
+      lastEventSequence?: number
+      lastEventCursor?: PrimeUsefulSessionContext["lastEventCursor"]
+      replay?: PrimeUsefulSessionContext["replay"]
+    }>
   | Readonly<{ type: "transport"; transport: PrimeSessionTransport }>
 
 /** One authoritative projected snapshot at a specific service revision. */

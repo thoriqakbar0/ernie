@@ -3,40 +3,34 @@ import test from "node:test"
 
 import { createMockPrimeAgentClient } from "../../../dev-only/prime-agent/mock"
 import { createPrimeWorkspace } from "../../prime-workspace"
+import { createPrimeUsefulSessionFixture } from "../fixtures"
 
 test("authoritative seeds define the mock session list and transport", async () => {
+  const session = {
+    id: "seeded-session",
+    cwd: "/workspace/seeded",
+    name: "Seeded session",
+    lifecycle: "live" as const,
+    state: "recovering" as const,
+  }
+  const messages = [{ id: "seeded-message", role: "assistant" as const, content: "Still here" }]
+  const useful = createPrimeUsefulSessionFixture(session, messages)
   const client = createMockPrimeAgentClient({
     initialSnapshots: [{
-      session: {
-        id: "seeded-session",
-        cwd: "/workspace/seeded",
-        name: "Seeded session",
-        lifecycle: "live",
-        state: "recovering",
-      },
-      messages: [{ id: "seeded-message", role: "assistant", content: "Still here" }],
+      session,
+      messages,
+      useful,
       transport: { status: "failed", error: "Seeded failure" },
     }],
   })
 
-  assert.deepEqual(await client.listSessions(), [{
-    id: "seeded-session",
-    cwd: "/workspace/seeded",
-    name: "Seeded session",
-    lifecycle: "live",
-    state: "recovering",
-  }])
+  assert.deepEqual(await client.listSessions(), [session])
   assert.deepEqual(
     (await client.attachSession({ sessionId: "seeded-session" })).snapshot,
     {
-      session: {
-        id: "seeded-session",
-        cwd: "/workspace/seeded",
-        name: "Seeded session",
-        lifecycle: "live",
-        state: "recovering",
-      },
-      messages: [{ id: "seeded-message", role: "assistant", content: "Still here" }],
+      session,
+      messages,
+      useful,
       transport: { status: "failed", error: "Seeded failure" },
     },
   )

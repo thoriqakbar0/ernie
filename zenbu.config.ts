@@ -1,6 +1,5 @@
 import {
   defineConfig,
-  definePlugin,
   defineBuildConfig,
 } from "@zenbujs/core/config"
 import { isAbsolute } from "node:path"
@@ -16,21 +15,10 @@ export default defineConfig({
   // Boot-window HTML. The single ui entrypoint for the whole app.
   uiEntrypoint: "./src/renderer",
 
-  // Plugins are pure main-process: services + optional schema/preload/events.
-  // The "host plugin" is just the first entry by convention.
-  plugins: [
-    definePlugin({
-      name: "app",
-      services: [
-        "./src/main/services/*.ts",
-        "./src/main/prime-agent/service.ts",
-      ],
-      events: "./src/main/events.ts",
-    }),
-  ],
+  pluginsFiles: "./zenbu.plugins.jsonc",
 
   // Build pipeline for `zen build:source` (mirror staging) and
-  // `zen build:electron` (signed .app via electron-builder). Set
+  // `zen build:electron` (packaged .app via electron-builder). Set
   // `mirror.target` to "<owner>/<repo>" before shipping.
   build: defineBuildConfig({
     // Zenbu embeds this toolchain in built apps. Local development uses Nub.
@@ -52,6 +40,8 @@ export default defineConfig({
       "pnpm-lock.yaml",
       "tsconfig.json",
       "zenbu.config.ts",
+      "zenbu.plugin.ts",
+      "zenbu.plugins.jsonc",
       "vite.config.ts",
       "doctor.config.json",
     ],

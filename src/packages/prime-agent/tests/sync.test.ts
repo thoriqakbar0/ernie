@@ -16,16 +16,21 @@ import {
   reducePrimeSessionChange,
   reducePrimeSessionSnapshot,
 } from "../sync"
+import { createPrimeUsefulSessionFixture } from "../fixtures"
+
+const baseSession = {
+  id: "session-1",
+  cwd: "/workspace/ernie",
+  name: "Ernie",
+  lifecycle: "live" as const,
+  state: "idle" as const,
+}
+const baseMessages = [{ id: "message-1", role: "user" as const, content: "hello" }]
 
 const baseSnapshot: PrimeSessionSnapshot = {
-  session: {
-    id: "session-1",
-    cwd: "/workspace/ernie",
-    name: "Ernie",
-    lifecycle: "live",
-    state: "idle",
-  },
-  messages: [{ id: "message-1", role: "user", content: "hello" }],
+  session: baseSession,
+  messages: baseMessages,
+  useful: createPrimeUsefulSessionFixture(baseSession, baseMessages),
   transport: { status: "connected" },
 }
 

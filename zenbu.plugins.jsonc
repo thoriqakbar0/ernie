@@ -1,0 +1,8 @@
+{
+  "plugins": [
+    {
+      "path": "./zenbu.plugin.ts",
+      "enabled": true
+    }
+  ]
+}

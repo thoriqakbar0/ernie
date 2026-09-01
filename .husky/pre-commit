@@ -1,1 +1,4 @@
+nub exec lint-staged
+nub run typecheck
+nub run test
 nub run lint:debt

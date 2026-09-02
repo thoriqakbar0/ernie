@@ -1614,3 +1614,9 @@ Add a `schema: "./src/main/schema.ts"` field to the plugin when you're ready to 
 - always use <pm> run db:generate after making a schema change otherwise it will not take affect
 - always prefer to make db updates via the replica so that updates are instant. if you used rpc to update a replica it would serve 0 purpose and just add an extra round trip
 - prefer one component per file
+
+## lat.md knowledge graph
+
+- Run `lat search "<task>"` before non-trivial work.
+- Update `lat.md/` when behavior, architecture, or tests change.
+- Run `lat check` before finishing.

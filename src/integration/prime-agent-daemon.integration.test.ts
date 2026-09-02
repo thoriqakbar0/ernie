@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import { spawn, type ChildProcess } from "node:child_process"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
@@ -101,6 +101,49 @@ test("one daemon client isolates two logical session attachments", { timeout: 30
   )
 })
 
+test("Ernie cleanup leaves an external Prime Agent daemon running", { timeout: 60_000 }, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ernie-external-prime-agent-"))
+  const socketPath = join(root, "daemon.sock")
+  const agentDir = join(root, "agent")
+  const daemon = startDaemon(socketPath, agentDir)
+  const daemonClient = await connectDaemon(socketPath)
+  const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
+  const development = spawn("nub", ["--node", "scripts/dev.ts", "server"], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      ERNIE_DEV_OPEN_BROWSER: "0",
+      ERNIE_DEV_PROFILE: `external-daemon-${process.pid}`,
+      ERNIE_DEV_STATE_ROOT: join(root, "ernie"),
+      ERNIE_PRIME_AGENT_SOCKET: socketPath,
+      ERNIE_PRIME_AGENT_START_DAEMON: "0",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+
+  t.after(async () => {
+    if (development.exitCode === null) {
+      development.kill("SIGTERM")
+      await waitForExit(development, 10_000)
+    }
+    await stopDaemon(daemonClient, daemon)
+    await rm(root, { recursive: true, force: true })
+  })
+
+  await waitForOutput(development, "Runtime:", 45_000)
+  development.kill("SIGTERM")
+  assert.equal(await waitForExit(development, 10_000), true)
+
+  assert.equal(daemon.exitCode, null)
+  assert.equal((await stat(socketPath)).isSocket(), true)
+  const survivingClient = await connectDaemon(socketPath)
+  try {
+    requireSuccess(await survivingClient.request({ type: "list" }))
+  } finally {
+    survivingClient.close()
+  }
+})
+
 function startDaemon(socketPath: string, agentDir: string) {
   const packageEntry = import.meta.resolve("prime-agent")
   const cliPath = fileURLToPath(new URL("./bundle/cli.js", packageEntry))
@@ -181,6 +224,35 @@ function waitForEvent(
       unsubscribe()
       resolve(event)
     })
+  })
+}
+
+function waitForOutput(child: ChildProcess, expected: string, timeoutMs: number) {
+  const stdout = child.stdout
+  const stderr = child.stderr
+  if (!stdout || !stderr) throw new Error("Ernie development output is unavailable")
+
+  return new Promise<void>((resolvePromise, reject) => {
+    let output = ""
+    const timeout = setTimeout(() => finish(new Error(`Timed out waiting for ${expected}`)), timeoutMs)
+    const onData = (chunk: Buffer | string) => {
+      output += chunk.toString()
+      if (output.includes(expected)) finish()
+    }
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      finish(new Error(`Ernie development exited before readiness (${code ?? signal ?? "unknown"})`))
+    }
+    const finish = (error?: Error) => {
+      clearTimeout(timeout)
+      stdout.off("data", onData)
+      stderr.off("data", onData)
+      child.off("exit", onExit)
+      if (error) reject(error)
+      else resolvePromise()
+    }
+    stdout.on("data", onData)
+    stderr.on("data", onData)
+    child.once("exit", onExit)
   })
 }
 

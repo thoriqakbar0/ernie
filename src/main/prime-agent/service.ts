@@ -33,6 +33,7 @@ import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
 import { chooseAvailableSessionName } from "./session-name"
+import { createPrimeAgentRecoveryRetry } from "./recovery-retry"
 
 type CommandBody = DaemonCommand extends infer Command
   ? Command extends { id?: string }
@@ -40,12 +41,17 @@ type CommandBody = DaemonCommand extends infer Command
     : never
   : never
 
-type PrimeAgentConfig = Readonly<{
-  socketPath: string
-  agentDir?: string
-  executablePath: string
-  startDaemonIfMissing: boolean
-}>
+type PrimeAgentEndpoint =
+  | Readonly<{
+      ownership: "external"
+      socketPath: string
+    }>
+  | Readonly<{
+      ownership: "managed"
+      socketPath: string
+      agentDir?: string
+      executablePath: string
+    }>
 
 type SessionAttachment = {
   readonly sessionId: string
@@ -62,6 +68,7 @@ type SessionAttachment = {
 }
 
 const STREAM_REFRESH_INTERVAL_MS = 50
+const RECOVERY_RETRY_INTERVAL_MS = 250
 const MAX_REFRESH_FAILURES = 2
 const CREATE_SESSION_TIMEOUT_MS = 60_000
 const PRIME_AGENT_DAEMON_WORKER_ENV = [
@@ -82,7 +89,7 @@ export class PrimeAgentService extends Service.create({
   key: "primeAgent",
   deps: { rpc: RpcService },
 }) {
-  private readonly config = readPrimeAgentConfig()
+  private readonly endpoint = readPrimeAgentEndpoint()
   private readonly attachments = new Map<string, SessionAttachment>()
   private readonly attachmentPromises = new Map<string, Promise<SessionAttachment>>()
   private readonly summaries = new Map<string, PrimeSessionSummary>()
@@ -90,6 +97,8 @@ export class PrimeAgentService extends Service.create({
   private connecting: Promise<DaemonClient> | undefined
   private unsubscribeClientClose: (() => void) | undefined
   private recoveryPromise: Promise<void> | undefined
+  private readonly recoveryRetry = createPrimeAgentRecoveryRetry(RECOVERY_RETRY_INTERVAL_MS)
+  private recoveryRequested = false
   private disposed = false
 
   /** Registers one cleanup owner for every Prime Agent resource. */
@@ -209,7 +218,8 @@ export class PrimeAgentService extends Service.create({
     const creation = this.createAttachment(
       await this.getClient(),
       sessionId,
-      existing?.snapshot.session ?? this.summaries.get(sessionId),
+      existing?.snapshot,
+      this.summaries.get(sessionId),
     )
     this.attachmentPromises.set(sessionId, creation)
     try {
@@ -224,6 +234,7 @@ export class PrimeAgentService extends Service.create({
   private async createAttachment(
     client: DaemonClient,
     sessionId: string,
+    previousSnapshot?: PrimeSessionSnapshot,
     previousSession?: PrimeSessionSummary,
   ) {
     let attachment: SessionAttachment | undefined
@@ -242,8 +253,11 @@ export class PrimeAgentService extends Service.create({
     try {
       await connection.attach()
       const snapshot = projectPrimeSessionSnapshot(
-        enrichPrimeSessionSnapshot({ snapshot: await connection.getInitialSnapshot() }),
-        previousSession,
+        enrichPrimeSessionSnapshot({
+          snapshot: await connection.getInitialSnapshot(),
+          previous: previousSnapshot,
+        }),
+        previousSnapshot?.session ?? previousSession,
       )
       if (snapshot.session.id !== sessionId) {
         throw new Error("Prime Agent attached a different session than Ernie requested")
@@ -428,12 +442,30 @@ export class PrimeAgentService extends Service.create({
   }
 
   private beginRecovery() {
+    this.recoveryRequested = true
     if (this.disposed || this.recoveryPromise) return
-    const recovery = this.recoverAttachments().catch(() => this.failAllAttachments())
-    const tracked = recovery.then(() => {
+    const recovery = this.recoverUntilReady()
+    const tracked = recovery.finally(() => {
       if (this.recoveryPromise === tracked) this.recoveryPromise = undefined
+      if (this.recoveryRequested && !this.disposed) this.beginRecovery()
     })
     this.recoveryPromise = tracked
+  }
+
+  private async recoverUntilReady() {
+    while (!this.disposed) {
+      this.recoveryRequested = false
+      const recovered = await this.recoverAttachments().catch(() => {
+        this.failAllAttachments()
+        return false
+      })
+      if (this.disposed) return
+      if (recovered && !this.recoveryRequested && this.client?.isConnected) {
+        this.recoveryRetry.clear()
+        return
+      }
+      await this.recoveryRetry.wait()
+    }
   }
 
   private async recoverAttachments() {
@@ -452,34 +484,52 @@ export class PrimeAgentService extends Service.create({
     try {
       client = await this.replaceClient()
     } catch {
-      if (!this.disposed) {
-        for (const oldAttachment of previous) {
-          const failed = failedAttachment(oldAttachment)
-          this.installAttachment(failed)
-          this.emitSnapshot(failed)
-        }
-      }
-      return
+      this.installFailedAttachments(previous)
+      return false
     }
     if (this.disposed) {
       client.close()
-      return
+      return false
     }
 
+    const replacements: SessionAttachment[] = []
     for (const oldAttachment of previous) {
       try {
         const attachment = await this.createAttachment(
           client,
           oldAttachment.sessionId,
-          oldAttachment.snapshot.session,
+          oldAttachment.snapshot,
         )
-        this.installAttachment(attachment)
-        this.emitSnapshot(attachment)
+        if (this.disposed) {
+          await this.releaseAttachment(attachment)
+          await Promise.allSettled(replacements.map((replacement) =>
+            this.releaseAttachment(replacement)
+          ))
+          return false
+        }
+        replacements.push(attachment)
       } catch {
-        const failed = failedAttachment(oldAttachment)
-        this.installAttachment(failed)
-        this.emitSnapshot(failed)
+        await Promise.allSettled(replacements.map((replacement) =>
+          this.releaseAttachment(replacement)
+        ))
+        this.installFailedAttachments(previous)
+        return false
       }
+    }
+
+    for (const attachment of replacements) {
+      this.installAttachment(attachment)
+      this.emitSnapshot(attachment)
+    }
+    return true
+  }
+
+  private installFailedAttachments(previous: readonly SessionAttachment[]) {
+    if (this.disposed) return
+    for (const oldAttachment of previous) {
+      const failed = failedAttachment(oldAttachment)
+      this.installAttachment(failed)
+      this.emitSnapshot(failed)
     }
   }
 
@@ -547,17 +597,17 @@ export class PrimeAgentService extends Service.create({
 
   private async openClient() {
     try {
-      return await connectClient(this.config.socketPath)
+      return await connectClient(this.endpoint.socketPath)
     } catch (cause) {
-      if (!this.config.startDaemonIfMissing) {
+      if (this.endpoint.ownership === "external") {
         throw new Error("The configured Prime Agent socket is unavailable", { cause })
       }
-      startDaemon(this.config)
+      startDaemon(this.endpoint)
       const deadline = Date.now() + 10_000
       let lastError: unknown
       while (Date.now() < deadline) {
         try {
-          return await connectClient(this.config.socketPath)
+          return await connectClient(this.endpoint.socketPath)
         } catch (error) {
           lastError = error
           await delay(150)
@@ -571,12 +621,13 @@ export class PrimeAgentService extends Service.create({
     if (this.disposed) return
     this.disposed = true
     const recovery = this.recoveryPromise
+    this.recoveryRetry.clear()
     const attachments = [...this.attachments.values()]
     this.attachments.clear()
     this.attachmentPromises.clear()
     await Promise.allSettled(attachments.map((attachment) => this.releaseAttachment(attachment)))
-    this.detachClient()
     await recovery?.catch(() => undefined)
+    this.detachClient()
   }
 }
 
@@ -621,7 +672,7 @@ async function connectClient(socketPath: string) {
   }
 }
 
-function startDaemon(config: PrimeAgentConfig) {
+function startDaemon(config: Extract<PrimeAgentEndpoint, { ownership: "managed" }>) {
   mkdirSync(dirname(config.socketPath), { recursive: true })
   const packageEntry = import.meta.resolve("prime-agent")
   const cliPath = fileURLToPath(new URL("./bundle/cli.js", packageEntry))
@@ -639,11 +690,15 @@ function startDaemon(config: PrimeAgentConfig) {
   child.unref()
 }
 
-function readPrimeAgentConfig(): PrimeAgentConfig {
+function readPrimeAgentEndpoint(): PrimeAgentEndpoint {
   const socketOverride = readAbsolutePath(
     process.env.ERNIE_PRIME_AGENT_SOCKET,
     "ERNIE_PRIME_AGENT_SOCKET",
   )
+  if (socketOverride && process.env.ERNIE_PRIME_AGENT_START_DAEMON !== "1") {
+    return { ownership: "external", socketPath: socketOverride }
+  }
+
   const agentDir = readAbsolutePath(
     process.env.ERNIE_PRIME_AGENT_AGENT_DIR,
     "ERNIE_PRIME_AGENT_AGENT_DIR",
@@ -653,6 +708,7 @@ function readPrimeAgentConfig(): PrimeAgentConfig {
     "ERNIE_PRIME_AGENT_EXECUTABLE",
   ) ?? process.execPath
   return {
+    ownership: "managed",
     socketPath: socketOverride ?? join(
       homedir(),
       "Library",
@@ -662,7 +718,6 @@ function readPrimeAgentConfig(): PrimeAgentConfig {
     ),
     agentDir,
     executablePath,
-    startDaemonIfMissing: socketOverride === undefined || process.env.ERNIE_PRIME_AGENT_START_DAEMON === "1",
   }
 }
 

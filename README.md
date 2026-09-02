@@ -38,6 +38,14 @@ Use a separate profile and port for concurrent worktrees or agents:
 ERNIE_DEV_PROFILE=review-42 ERNIE_DEV_PORT=4410 nub run dev
 ```
 
+To read sessions from an existing local Prime Agent supervisor, provide its absolute socket path explicitly:
+
+```sh
+ERNIE_PRIME_AGENT_SOCKET=/absolute/path/to/prime-agent.sock nub run dev
+```
+
+Ernie treats an explicit socket as externally owned. It reports an unavailable socket instead of starting or replacing a daemon at that path.
+
 A profile has one owner. A second owner fails instead of deleting or sharing live state. Runtime metadata is local, mode `0600`, ignored by Git, and never prints the Zenbu authentication token.
 
 ### Split development modes

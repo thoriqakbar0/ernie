@@ -44,6 +44,7 @@ type PrimeAgentConfig = Readonly<{
   socketPath: string
   agentDir?: string
   executablePath: string
+  startDaemonIfMissing: boolean
 }>
 
 type SessionAttachment = {
@@ -547,7 +548,10 @@ export class PrimeAgentService extends Service.create({
   private async openClient() {
     try {
       return await connectClient(this.config.socketPath)
-    } catch {
+    } catch (cause) {
+      if (!this.config.startDaemonIfMissing) {
+        throw new Error("The configured Prime Agent socket is unavailable", { cause })
+      }
       startDaemon(this.config)
       const deadline = Date.now() + 10_000
       let lastError: unknown
@@ -658,6 +662,7 @@ function readPrimeAgentConfig(): PrimeAgentConfig {
     ),
     agentDir,
     executablePath,
+    startDaemonIfMissing: socketOverride === undefined || process.env.ERNIE_PRIME_AGENT_START_DAEMON === "1",
   }
 }
 

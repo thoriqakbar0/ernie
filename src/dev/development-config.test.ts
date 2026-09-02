@@ -11,6 +11,7 @@ test("development configuration uses one deterministic default edge", () => {
   assert.equal(config.host, "127.0.0.1")
   assert.equal(config.port, 4310)
   assert.equal(config.stateRoot, "/projects/ernie/.zenbu/dev/browser")
+  assert.equal(config.manageDaemon, true)
 })
 
 test("development profiles isolate state while preserving explicit ports", () => {
@@ -23,9 +24,18 @@ test("development profiles isolate state while preserving explicit ports", () =>
   assert.equal(config.stateRoot, "/projects/ernie/.zenbu/dev/second-worktree")
 })
 
+test("development can attach to an explicit Prime Agent socket", () => {
+  const config = readDevConfig(["server"], {
+    ERNIE_PRIME_AGENT_SOCKET: "/tmp/prime-agent.sock",
+  }, "/projects/ernie")
+  assert.equal(config.daemonSocketPath, "/tmp/prime-agent.sock")
+  assert.equal(config.manageDaemon, false)
+})
+
 test("invalid development boundary values fail before starting processes", () => {
   assert.throws(() => readDevConfig([], { ERNIE_DEV_PORT: "zero" }, "/projects/ernie"))
   assert.throws(() => readDevConfig([], { ERNIE_DEV_PROFILE: "../shared" }, "/projects/ernie"))
+  assert.throws(() => readDevConfig([], { ERNIE_PRIME_AGENT_SOCKET: "relative.sock" }, "/projects/ernie"))
 })
 
 test("runtime metadata requires its private authentication coordinate", () => {

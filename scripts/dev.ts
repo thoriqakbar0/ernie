@@ -34,7 +34,9 @@ const close = async () => {
   await gateway?.close().catch((error: unknown) => failures.push(error))
   if (serverChild) {
     await stopOwnedProcess(serverChild).catch((error: unknown) => failures.push(error))
-    await shutdownPrimeAgentDaemon(config.daemonSocketPath).catch((error: unknown) => failures.push(error))
+    if (config.manageDaemon) {
+      await shutdownPrimeAgentDaemon(config.daemonSocketPath).catch((error: unknown) => failures.push(error))
+    }
   }
   await ownership?.release().catch((error: unknown) => failures.push(error))
   if (failures.length > 0) throw new AggregateError(failures, "Ernie development cleanup failed")
@@ -58,7 +60,7 @@ try {
       mkdir(config.agentDirectory, { recursive: true }),
       mkdir(config.electronProfileDirectory, { recursive: true }),
       removeRuntimeDescriptor(config.runtimeFile),
-      removeStaleDaemonSocket(config.daemonSocketPath),
+      ...(config.manageDaemon ? [removeStaleDaemonSocket(config.daemonSocketPath)] : []),
     ])
 
     const environment = { ...process.env }
@@ -70,6 +72,7 @@ try {
       ERNIE_PRIME_AGENT_AGENT_DIR: config.agentDirectory,
       ERNIE_PRIME_AGENT_EXECUTABLE: electronExecutable,
       ERNIE_PRIME_AGENT_SOCKET: config.daemonSocketPath,
+      ERNIE_PRIME_AGENT_START_DAEMON: config.manageDaemon ? "1" : "0",
       ERNIE_RENDERER_MODE: config.role === "desktop" ? "desktop" : "server",
       ERNIE_ZENBU_DB: config.databaseDirectory,
     })

@@ -17,6 +17,7 @@ export type DevConfig = Readonly<{
   databaseDirectory: string
   agentDirectory: string
   daemonSocketPath: string
+  manageDaemon: boolean
   electronProfileDirectory: string
 }>
 
@@ -44,6 +45,10 @@ export function readDevConfig(
       ? configuredStateRoot
       : (() => { throw new Error("ERNIE_DEV_STATE_ROOT must be an absolute path") })()
     : join(root, ".zenbu", "dev", profile)
+  const configuredDaemonSocket = env.ERNIE_PRIME_AGENT_SOCKET
+  if (configuredDaemonSocket && !isAbsolute(configuredDaemonSocket)) {
+    throw new Error("ERNIE_PRIME_AGENT_SOCKET must be an absolute path")
+  }
 
   return {
     role,
@@ -56,7 +61,8 @@ export function readDevConfig(
     ownerFile: join(stateRoot, "owner.json"),
     databaseDirectory: join(stateRoot, "db"),
     agentDirectory: join(stateRoot, "prime-agent"),
-    daemonSocketPath: resolveDaemonSocketPath(stateRoot, profile),
+    daemonSocketPath: configuredDaemonSocket ?? resolveDaemonSocketPath(stateRoot, profile),
+    manageDaemon: configuredDaemonSocket === undefined,
     electronProfileDirectory: join(stateRoot, "electron-user-data"),
   }
 }

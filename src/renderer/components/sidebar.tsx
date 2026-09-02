@@ -6,6 +6,7 @@ import {
   useWorkspacePath,
 } from "../prime-agent-state"
 import { ErnieMark } from "./ernie-mark"
+import { PlusIcon } from "./plus-icon"
 import { getWorkspaceName } from "./workspace-name"
 
 export function Sidebar() {
@@ -37,6 +38,14 @@ export function Sidebar() {
       </div>
 
       <nav aria-label="Conversations" className="sidebar-nav">
+        <div aria-atomic="true" aria-live="polite" className="session-creation-feedback">
+          {createSession.isPending ? <p role="status">Creating conversation…</p> : null}
+          {createSession.isError ? (
+            <p role="alert">
+              <span>{getErrorMessage(createSession.error)}</span>. Select New conversation to try again.
+            </p>
+          ) : null}
+        </div>
         <button
           aria-controls="today-conversations"
           aria-expanded={conversationsExpanded}
@@ -94,10 +103,6 @@ function ChevronIcon({ expanded }: Readonly<{ expanded: boolean }>) {
   )
 }
 
-function PlusIcon() {
-  return (
-    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
-      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
-    </svg>
-  )
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Prime Agent could not start a conversation"
 }

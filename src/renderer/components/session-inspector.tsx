@@ -1,4 +1,4 @@
-import type { PrimeSessionSnapshot } from "../../packages/prime-agent"
+import type { PrimeRlmChild, PrimeSessionSnapshot } from "../../packages/prime-agent"
 
 type SessionInspectorProps = Readonly<{
   snapshot: PrimeSessionSnapshot
@@ -15,7 +15,7 @@ export function SessionInspector({ snapshot }: SessionInspectorProps) {
         <h2>Session activity</h2>
       </div>
 
-      <section className="inspector-section" aria-labelledby="run-state-heading">
+      <section aria-atomic="true" aria-labelledby="run-state-heading" aria-live="polite" className="inspector-section">
         <h3 id="run-state-heading">Run state</h3>
         <p className="inspector-primary">
           {active?.label ?? getRunLabel(snapshot)}
@@ -64,12 +64,7 @@ export function SessionInspector({ snapshot }: SessionInspectorProps) {
                 <div className="agent-list__title">
                   <span>{child.label}</span>
                 </div>
-                <p>{formatChildActivity(
-                  child.status,
-                  child.activity?.kind,
-                  child.activity?.toolName,
-                  child.recap,
-                )}</p>
+                <p>{formatChildActivity(child)}</p>
                 <div className="agent-list__metrics">
                   {child.toolUseCount !== undefined ? <span>{child.toolUseCount} tools</span> : null}
                   {child.tokenCount !== undefined ? <span>{child.tokenCount.toLocaleString()} tokens</span> : null}
@@ -97,19 +92,16 @@ function formatPhase(phase: "committing" | "preparing" | "running") {
   return "Running the turn"
 }
 
-function formatChildActivity(
-  status: "cancelled" | "done" | "error" | "queued" | "running",
-  activityKind?: "executing" | "waiting" | "writing",
-  toolName?: string,
-  recap?: string,
-) {
-  if (activityKind === "executing") return toolName ? `Using ${toolName}` : "Using a tool"
-  if (activityKind === "writing") return "Writing a response"
-  if (activityKind === "waiting") return "Waiting for more work"
-  if (recap) return recap
-  if (status === "done") return "Finished the assigned work"
-  if (status === "error") return "Stopped after an error"
-  if (status === "queued") return "Waiting to start"
-  if (status === "running") return "Working on the assigned task"
+function formatChildActivity(child: PrimeRlmChild) {
+  if (child.activity?.kind === "executing") {
+    return child.activity.toolName ? `Using ${child.activity.toolName}` : "Using a tool"
+  }
+  if (child.activity?.kind === "writing") return "Writing a response"
+  if (child.activity?.kind === "waiting") return "Waiting for more work"
+  if (child.recap) return child.recap
+  if (child.status === "done") return "Finished the assigned work"
+  if (child.status === "error") return "Stopped after an error"
+  if (child.status === "queued") return "Waiting to start"
+  if (child.status === "running") return "Working on the assigned task"
   return "Stopped before completion"
 }

@@ -6,6 +6,7 @@ type PrimeComposerProps = Readonly<{
   connected: boolean
   draft: string
   draftHero: boolean
+  modelChangePending: boolean
   models: readonly PrimeModel[]
   modelsPending: boolean
   onDraftChange: (draft: string) => void
@@ -23,6 +24,7 @@ export function PrimeComposer({
   connected,
   draft,
   draftHero,
+  modelChangePending,
   models,
   modelsPending,
   onDraftChange,
@@ -56,7 +58,7 @@ export function PrimeComposer({
         <div className="prime-composer__footer">
           <div className="prime-composer__controls">
             <ModelPicker
-              disabled={!sessionSelected || !connected || modelsPending}
+              disabled={!sessionSelected || !connected || modelChangePending || modelsPending}
               models={models}
               onSelect={onModelSelect}
               selectedModelId={selectedModelId}
@@ -68,7 +70,7 @@ export function PrimeComposer({
             <button
               aria-label="Stop Prime Agent"
               className="composer-action composer-action--stop"
-              disabled={stopping}
+              disabled={!connected || stopping}
               formAction={stopAction}
               type="submit"
             >

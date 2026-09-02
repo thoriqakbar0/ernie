@@ -8,11 +8,13 @@ The product behavior and user-facing constraints are defined in `PRODUCT.md`.
 
 ## Design
 
-The visual system and interaction rules are defined in `DESIGN.md` and `docs/ui.md`.
+The visual system and interaction rules are defined in `DESIGN.md` and `docs/ui.md`. At narrow widths, session activity follows the conversation in document flow instead of disappearing.
 
 ## Runtime
 
-The renderer consumes typed Prime Agent snapshots through Zenbu RPC and events. Development profiles use isolated daemons unless `ERNIE_PRIME_AGENT_SOCKET` selects an externally owned socket.
+The renderer consumes typed Prime Agent snapshots through Zenbu RPC and events. `PrimeSessionSnapshot` is authoritative for displayed session and model state.
+
+Development profiles use isolated daemons unless `ERNIE_PRIME_AGENT_SOCKET` selects an externally owned socket.
 
 Failed external reconnects keep the last snapshot and retry one connection attempt at a time until recovery or disposal. Ernie cleanup closes its client but leaves the external daemon and socket running.
 

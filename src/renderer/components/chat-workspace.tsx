@@ -1,10 +1,11 @@
 import { useActionState, useEffect, useRef, useState } from "react"
-import type { ReactNode } from "react"
 import { ConversationTranscript } from "./conversation-transcript"
 import { DraftHeroHeadline } from "./draft-hero-headline"
 import { PrimeComposer } from "./prime-composer"
 import { PrimeEmptyState } from "./prime-empty-state"
 import { SessionInspector } from "./session-inspector"
+import { SessionNotice } from "./session-notice"
+import { WorkspaceLoading } from "./workspace-loading"
 import { getWorkspaceName } from "./workspace-name"
 import {
   useCreatePrimeSession,
@@ -31,17 +32,16 @@ export function ChatWorkspace() {
   const models = usePrimeModels(sessionId)
   const workspacePath = useWorkspacePath()
   const [draft, setDraft] = useState("")
-  const [selectedModelId, setSelectedModelId] = useState("")
+  const [modelChangePending, setModelChangePending] = useState(false)
   const [modelError, setModelError] = useState<string>()
   const modelSelectionRevision = useRef(0)
 
   useEffect(() => {
+    modelSelectionRevision.current += 1
     setDraft("")
+    setModelChangePending(false)
     setModelError(undefined)
   }, [sessionId])
-  useEffect(() => {
-    setSelectedModelId(snapshotQuery.data?.session.model?.id ?? "")
-  }, [snapshotQuery.data?.session.model?.id])
 
   const [submitResult, submitAction, submitting] = useActionState(
     async (_previous: ActionResult, formData: FormData): Promise<ActionResult> => {
@@ -151,10 +151,11 @@ export function ChatWorkspace() {
                   draft={draft}
                   draftHero={draftHero}
                   models={models.data ?? []}
+                  modelChangePending={modelChangePending}
                   modelsPending={models.isPending}
                   onDraftChange={setDraft}
                   onModelSelect={(model) => updateModel(model.provider, model.id)}
-                  selectedModelId={selectedModelId}
+                  selectedModelId={snapshot.session.model?.id ?? ""}
                   sessionSelected
                   stopAction={stopAction}
                   stopping={stopping}
@@ -172,48 +173,20 @@ export function ChatWorkspace() {
   )
 
   function updateModel(provider: string, modelId: string) {
-    const authoritativeModelId = snapshot?.session.model?.id ?? ""
+    if (modelChangePending) return
     const revision = modelSelectionRevision.current + 1
     modelSelectionRevision.current = revision
-    setSelectedModelId(modelId)
+    setModelChangePending(true)
     setModelError(undefined)
-    void actions.setModel(provider, modelId).catch((cause: unknown) => {
-      if (modelSelectionRevision.current !== revision) return
-      setSelectedModelId(authoritativeModelId)
-      setModelError(cause instanceof Error ? cause.message : "Prime Agent command failed")
-    })
+    void actions.setModel(provider, modelId)
+      .catch((cause: unknown) => {
+        if (modelSelectionRevision.current !== revision) return
+        setModelError(cause instanceof Error ? cause.message : "Prime Agent command failed")
+      })
+      .finally(() => {
+        if (modelSelectionRevision.current === revision) setModelChangePending(false)
+      })
   }
-}
-
-function SessionNotice({ children, tone }: Readonly<{
-  children: ReactNode
-  tone: "danger" | "warning"
-}>) {
-  return (
-    <div className={`session-notice session-notice--${tone}`} role={tone === "danger" ? "alert" : "status"}>
-      <NoticeIcon />
-      <p>{children}</p>
-    </div>
-  )
-}
-
-function WorkspaceLoading() {
-  return (
-    <div aria-label="Opening Prime Agent" className="workspace-loading" role="status">
-      <span className="workspace-loading__rule" />
-      <span>Opening Prime Agent…</span>
-      <span className="workspace-loading__rule" />
-    </div>
-  )
-}
-
-function NoticeIcon() {
-  return (
-    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" r="5.75" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M8 4.7v3.8M8 11.2v.1" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
-    </svg>
-  )
 }
 
 function getErrorMessage(error: unknown) {

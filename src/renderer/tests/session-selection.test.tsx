@@ -212,7 +212,8 @@ test("model picker waits for the authoritative snapshot", async () => {
   fireEvent.click(screen.getByRole("option", { name: /o3/ }))
 
   try {
-    assert.ok(screen.getByRole("button", { name: "Model: GPT-5" }))
+    const picker = screen.getByRole("button", { name: "Model: GPT-5" })
+    assert.equal(picker.hasAttribute("disabled"), true)
   } finally {
     acceptModel?.()
   }
@@ -312,7 +313,7 @@ test("a failed transport is visible and blocks new commands", async () => {
       ...envelope,
       snapshot: {
         ...envelope.snapshot,
-        session: { ...envelope.snapshot.session, state: "recovering" },
+        session: { ...envelope.snapshot.session, state: "working" },
         transport: { status: "failed", error: "Prime Agent connection failed" },
       },
     }

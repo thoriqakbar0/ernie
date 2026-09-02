@@ -104,12 +104,16 @@ test("one daemon client isolates two logical session attachments", { timeout: 30
 function startDaemon(socketPath: string, agentDir: string) {
   const packageEntry = import.meta.resolve("prime-agent")
   const cliPath = fileURLToPath(new URL("./bundle/cli.js", packageEntry))
+  const environment = { ...process.env }
+  for (const name of Object.keys(environment)) {
+    if (name.startsWith("PRIME_AGENT_INTERNAL_")) delete environment[name]
+  }
   return spawn(
     process.execPath,
     [cliPath, "--mode", "daemon", "--daemon-socket", socketPath],
     {
       env: {
-        ...process.env,
+        ...environment,
         ELECTRON_RUN_AS_NODE: "1",
         PRIME_AGENT_CODING_AGENT_DIR: agentDir,
       },

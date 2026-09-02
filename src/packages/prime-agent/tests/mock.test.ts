@@ -3,40 +3,41 @@ import test from "node:test"
 
 import { createMockPrimeAgentClient } from "../../../dev-only/prime-agent/mock"
 import { createPrimeWorkspace } from "../../prime-workspace"
+import type { PrimeSessionSyncEvent } from "../index"
+import { createPrimeUsefulSessionFixture } from "../fixtures"
+import {
+  createPrimeSessionSyncState,
+  getPrimeSessionSnapshotEnvelope,
+  reducePrimeSessionChange,
+  reducePrimeSessionSnapshot,
+} from "../sync"
 
 test("authoritative seeds define the mock session list and transport", async () => {
+  const session = {
+    id: "seeded-session",
+    cwd: "/workspace/seeded",
+    name: "Seeded session",
+    lifecycle: "live" as const,
+    state: "recovering" as const,
+  }
+  const messages = [{ id: "seeded-message", role: "assistant" as const, content: "Still here" }]
+  const useful = createPrimeUsefulSessionFixture(session, messages)
   const client = createMockPrimeAgentClient({
     initialSnapshots: [{
-      session: {
-        id: "seeded-session",
-        cwd: "/workspace/seeded",
-        name: "Seeded session",
-        lifecycle: "live",
-        state: "recovering",
-      },
-      messages: [{ id: "seeded-message", role: "assistant", content: "Still here" }],
+      session,
+      messages,
+      useful,
       transport: { status: "failed", error: "Seeded failure" },
     }],
   })
 
-  assert.deepEqual(await client.listSessions(), [{
-    id: "seeded-session",
-    cwd: "/workspace/seeded",
-    name: "Seeded session",
-    lifecycle: "live",
-    state: "recovering",
-  }])
+  assert.deepEqual(await client.listSessions(), [session])
   assert.deepEqual(
     (await client.attachSession({ sessionId: "seeded-session" })).snapshot,
     {
-      session: {
-        id: "seeded-session",
-        cwd: "/workspace/seeded",
-        name: "Seeded session",
-        lifecycle: "live",
-        state: "recovering",
-      },
-      messages: [{ id: "seeded-message", role: "assistant", content: "Still here" }],
+      session,
+      messages,
+      useful,
       transport: { status: "failed", error: "Seeded failure" },
     },
   )
@@ -107,10 +108,52 @@ test("session event listeners receive only their session events", async () => {
   })
 
   assert.deepEqual(firstEvents, [])
-  assert.deepEqual(secondEvents, ["session", "message"])
+  assert.deepEqual(secondEvents, [
+    "session",
+    "usefulState",
+    "session",
+    "message",
+    "structured",
+    "usefulState",
+  ])
   unsubscribeFirst()
   unsubscribeSecond()
   await client.abort({ sessionId: created.id })
+  client.dispose()
+})
+
+test("mock changes keep legacy and useful session state synchronized", async () => {
+  const client = createMockPrimeAgentClient({ initialSnapshots: [] })
+  const session = await client.createSession({ cwd: "/workspace/new" })
+  const initial = await client.attachSession({ sessionId: session.id })
+  const changes: PrimeSessionSyncEvent[] = []
+  const unsubscribe = client.subscribeSession(session.id, (event) => changes.push(event))
+
+  const requestContent = "keep useful state synchronized"
+  await client.prompt({
+    sessionId: session.id,
+    admissionId: "admission-useful",
+    commandId: "command-useful",
+    content: requestContent,
+  })
+
+  let state = reducePrimeSessionSnapshot(
+    createPrimeSessionSyncState(session.id),
+    initial,
+  )
+  for (const event of changes) {
+    if (event.type === "change") state = reducePrimeSessionChange(state, event.envelope)
+  }
+  const reduced = getPrimeSessionSnapshotEnvelope(state)
+  const fresh = await client.attachSession({ sessionId: session.id })
+
+  assert.deepEqual(reduced?.snapshot, fresh.snapshot)
+  assert.equal(reduced?.snapshot.useful.state.messageCount, 1)
+  assert.equal(reduced?.snapshot.useful.state.isStreaming, true)
+  assert.equal(reduced?.snapshot.useful.structuredMessages[0]?.content, requestContent)
+
+  unsubscribe()
+  await client.abort({ sessionId: session.id })
   client.dispose()
 })
 

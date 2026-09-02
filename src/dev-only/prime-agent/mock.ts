@@ -14,6 +14,7 @@ import type {
   SessionAction,
   SessionTextAction,
 } from "../../packages/prime-agent"
+import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixtures"
 
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
@@ -96,9 +97,23 @@ export function createMockPrimeAgentClient(
     }
   }
 
+  const emitUsefulState = (session: MockSession) => {
+    const useful = createPrimeUsefulSessionFixture(session.summary, session.messages)
+    emitChange(session, { type: "usefulState", state: useful.state })
+  }
+
+  const emitStructuredMessages = (session: MockSession) => {
+    const useful = createPrimeUsefulSessionFixture(session.summary, session.messages)
+    emitChange(session, {
+      type: "structured",
+      structuredMessages: useful.structuredMessages,
+    })
+  }
+
   const setState = (session: MockSession, state: PrimeSessionSummary["state"]) => {
     session.summary = { ...session.summary, state }
     emitChange(session, { type: "session", session: session.summary })
+    emitUsefulState(session)
     if (state === "idle") {
       for (const resolve of session.idleWaiters) resolve()
       session.idleWaiters.clear()
@@ -112,6 +127,7 @@ export function createMockPrimeAgentClient(
   ) => {
     if (role === "user" && session.summary.lifecycle === "draft") {
       session.summary = { ...session.summary, lifecycle: "live" }
+      emitChange(session, { type: "session", session: session.summary })
     }
     const message = {
       id: `${session.summary.id}-message-${session.revision + 1}`,
@@ -120,6 +136,8 @@ export function createMockPrimeAgentClient(
     }
     session.messages = [...session.messages, message]
     emitChange(session, { type: "message", message })
+    emitStructuredMessages(session)
+    emitUsefulState(session)
   }
 
   const scheduleReply = (session: MockSession, content: string) => {
@@ -134,6 +152,7 @@ export function createMockPrimeAgentClient(
   const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
     session: session.summary,
     messages: session.messages,
+    useful: createPrimeUsefulSessionFixture(session.summary, session.messages),
     transport: session.transport,
   })
 

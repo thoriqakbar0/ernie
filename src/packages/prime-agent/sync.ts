@@ -3,16 +3,156 @@ import { Option, Schema } from "effect"
 import type {
   PrimeSessionChange,
   PrimeSessionChangeEnvelope,
+  PrimeJsonValue,
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
 } from "./index"
 
 const strictParseOptions = { onExcessProperty: "error" } as const
+const finiteNumberSchema = Schema.Number.check(
+  Schema.makeFilter((value) => Number.isFinite(value)
+    ? undefined
+    : "JSON numbers must be finite"),
+)
+
+const jsonValueSchema: Schema.Codec<PrimeJsonValue> = Schema.Union([
+  Schema.Boolean,
+  Schema.Null,
+  finiteNumberSchema,
+  Schema.String,
+  Schema.Array(Schema.suspend((): Schema.Codec<PrimeJsonValue> => jsonValueSchema)),
+  Schema.Record(
+    Schema.String,
+    Schema.suspend((): Schema.Codec<PrimeJsonValue> => jsonValueSchema),
+  ),
+])
 
 const modelSchema = Schema.Struct({
   id: Schema.NonEmptyString,
   provider: Schema.NonEmptyString,
   label: Schema.NonEmptyString,
+})
+
+const structuredMessageSchema = Schema.Record(Schema.String, jsonValueSchema)
+
+const cursorSchema = Schema.Struct({
+  generation: Schema.NonEmptyString,
+  sequence: Schema.Natural,
+})
+
+const sessionActionsSchema = Schema.Struct({
+  queuedCount: Schema.Natural,
+  steering: Schema.Array(Schema.String),
+  followUps: Schema.Array(Schema.String),
+  active: Schema.optionalKey(Schema.Struct({
+    kind: Schema.Literals(["session_command", "turn"]),
+    phase: Schema.Literals(["committing", "preparing", "running"]),
+    label: Schema.optionalKey(Schema.NonEmptyString),
+  })),
+})
+
+const rlmChildSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  parentId: Schema.optionalKey(Schema.NonEmptyString),
+  activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
+  sessionName: Schema.optionalKey(Schema.NonEmptyString),
+  model: Schema.optionalKey(Schema.NonEmptyString),
+  label: Schema.NonEmptyString,
+  status: Schema.Literals(["cancelled", "done", "error", "queued", "running"]),
+  durationMs: Schema.optionalKey(Schema.Natural),
+  answerPreview: Schema.optionalKey(Schema.String),
+  repliedSinceTask: Schema.optionalKey(Schema.Boolean),
+  toolUseCount: Schema.optionalKey(Schema.Natural),
+  tokenCount: Schema.optionalKey(Schema.Natural),
+  recap: Schema.optionalKey(Schema.String),
+  sessionDir: Schema.NonEmptyString,
+  activity: Schema.optionalKey(Schema.Struct({
+    kind: Schema.Literals(["executing", "waiting", "writing"]),
+    toolName: Schema.optionalKey(Schema.NonEmptyString),
+  })),
+  error: Schema.optionalKey(Schema.String),
+})
+
+const usefulStateSchema = Schema.Struct({
+  activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
+  sessionId: Schema.NonEmptyString,
+  cwd: Schema.NonEmptyString,
+  sessionName: Schema.optionalKey(Schema.NonEmptyString),
+  sessionFile: Schema.optionalKey(Schema.NonEmptyString),
+  sessionDir: Schema.optionalKey(Schema.NonEmptyString),
+  leafId: Schema.NullOr(Schema.NonEmptyString),
+  model: Schema.optionalKey(modelSchema),
+  thinkingLevel: Schema.NonEmptyString,
+  serviceTier: Schema.NonEmptyString,
+  availableThinkingLevels: Schema.Array(Schema.NonEmptyString),
+  isStreaming: Schema.Boolean,
+  isCompacting: Schema.Boolean,
+  isBashRunning: Schema.Boolean,
+  retryAttempt: Schema.Natural,
+  steeringMode: Schema.Literals(["all", "one-at-a-time"]),
+  followUpMode: Schema.Literals(["all", "one-at-a-time"]),
+  autoCompactionEnabled: Schema.Boolean,
+  messageCount: Schema.Natural,
+  sessionActions: sessionActionsSchema,
+  compactionCount: Schema.Natural,
+  goal: jsonValueSchema,
+  heartbeat: Schema.optionalKey(Schema.NullOr(jsonValueSchema)),
+  scopedModels: Schema.Array(Schema.Struct({
+    model: modelSchema,
+    thinkingLevel: Schema.optionalKey(Schema.NonEmptyString),
+  })),
+  activeToolNames: Schema.Array(Schema.NonEmptyString),
+  contextUsage: jsonValueSchema,
+  recap: Schema.optionalKey(Schema.String),
+})
+
+const usefulContextSchema = Schema.Struct({
+  state: usefulStateSchema,
+  structuredMessages: Schema.Array(structuredMessageSchema),
+  streamingMessage: Schema.optionalKey(structuredMessageSchema),
+  sessionContext: Schema.optionalKey(Schema.Struct({
+    messages: Schema.Array(structuredMessageSchema),
+    thinkingLevel: Schema.NonEmptyString,
+    serviceTier: Schema.NonEmptyString,
+    model: Schema.NullOr(Schema.Struct({
+      provider: Schema.NonEmptyString,
+      modelId: Schema.NonEmptyString,
+    })),
+  })),
+  sessionTree: Schema.optionalKey(Schema.Struct({
+    tree: jsonValueSchema,
+    leafId: Schema.NullOr(Schema.NonEmptyString),
+  })),
+  parent: Schema.optionalKey(Schema.Struct({
+    activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
+    sessionId: Schema.optionalKey(Schema.NonEmptyString),
+    nodeId: Schema.optionalKey(Schema.NonEmptyString),
+    childId: Schema.optionalKey(Schema.NonEmptyString),
+  })),
+  children: Schema.Array(rlmChildSchema).check(
+    Schema.makeFilter((children) => {
+      const ids = new Set<string>()
+      const issues: Schema.FilterIssue[] = []
+      for (const [index, child] of children.entries()) {
+        if (!ids.has(child.id)) {
+          ids.add(child.id)
+          continue
+        }
+        issues.push({ issue: "RLM child ids must be unique", path: [index, "id"] })
+      }
+      return issues
+    }),
+  ),
+  lastEventSequence: Schema.optionalKey(Schema.Natural),
+  lastEventCursor: Schema.optionalKey(cursorSchema),
+  replay: Schema.optionalKey(Schema.Struct({
+    status: Schema.Literals(["complete", "partial", "unavailable"]),
+    fromSequence: Schema.optionalKey(Schema.Natural),
+    toSequence: Schema.Natural,
+    fromCursor: Schema.optionalKey(cursorSchema),
+    toCursor: Schema.optionalKey(cursorSchema),
+    reason: Schema.optionalKey(Schema.String),
+  })),
 })
 
 const sessionSummarySchema = Schema.Struct({
@@ -65,6 +205,7 @@ const transportSchema = Schema.Union(
 const sessionSnapshotSchema = Schema.Struct({
   session: sessionSummarySchema,
   messages: sessionMessagesSchema,
+  useful: usefulContextSchema,
   transport: transportSchema,
 })
 
@@ -73,6 +214,51 @@ const sessionChangeSchema = Schema.Union(
     Schema.Struct({ type: Schema.Literal("session"), session: sessionSummarySchema }),
     Schema.Struct({ type: Schema.Literal("message"), message: sessionMessageSchema }),
     Schema.Struct({ type: Schema.Literal("messages"), messages: sessionMessagesSchema }),
+    Schema.Struct({
+      type: Schema.Literal("structured"),
+      structuredMessages: Schema.Array(structuredMessageSchema),
+      streamingMessage: Schema.optionalKey(structuredMessageSchema),
+    }),
+    Schema.Struct({ type: Schema.Literal("usefulState"), state: usefulStateSchema }),
+    Schema.Struct({
+      type: Schema.Literal("sessionContext"),
+      sessionContext: Schema.optionalKey(Schema.Struct({
+        messages: Schema.Array(structuredMessageSchema),
+        thinkingLevel: Schema.NonEmptyString,
+        serviceTier: Schema.NonEmptyString,
+        model: Schema.NullOr(Schema.Struct({
+          provider: Schema.NonEmptyString,
+          modelId: Schema.NonEmptyString,
+        })),
+      })),
+    }),
+    Schema.Struct({
+      type: Schema.Literal("family"),
+      parent: Schema.optionalKey(Schema.Struct({
+        activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
+        sessionId: Schema.optionalKey(Schema.NonEmptyString),
+        nodeId: Schema.optionalKey(Schema.NonEmptyString),
+        childId: Schema.optionalKey(Schema.NonEmptyString),
+      })),
+      sessionTree: Schema.optionalKey(Schema.Struct({
+        tree: jsonValueSchema,
+        leafId: Schema.NullOr(Schema.NonEmptyString),
+      })),
+      children: Schema.Array(rlmChildSchema),
+    }),
+    Schema.Struct({
+      type: Schema.Literal("eventPosition"),
+      lastEventSequence: Schema.optionalKey(Schema.Natural),
+      lastEventCursor: Schema.optionalKey(cursorSchema),
+      replay: Schema.optionalKey(Schema.Struct({
+        status: Schema.Literals(["complete", "partial", "unavailable"]),
+        fromSequence: Schema.optionalKey(Schema.Natural),
+        toSequence: Schema.Natural,
+        fromCursor: Schema.optionalKey(cursorSchema),
+        toCursor: Schema.optionalKey(cursorSchema),
+        reason: Schema.optionalKey(Schema.String),
+      })),
+    }),
     Schema.Struct({ type: Schema.Literal("transport"), transport: transportSchema }),
   ],
 )
@@ -309,8 +495,83 @@ function applyChange(
     }
     case "messages":
       return { ...snapshot, messages: change.messages }
+    case "structured":
+      return {
+        ...snapshot,
+        useful: replaceStructuredMessages(snapshot.useful, change),
+      }
+    case "usefulState":
+      return { ...snapshot, useful: { ...snapshot.useful, state: change.state } }
+    case "sessionContext":
+      return {
+        ...snapshot,
+        useful: replaceSessionContext(snapshot.useful, change.sessionContext),
+      }
+    case "family":
+      return {
+        ...snapshot,
+        useful: replaceFamily(snapshot.useful, change),
+      }
+    case "eventPosition":
+      return {
+        ...snapshot,
+        useful: replaceEventPosition(snapshot.useful, change),
+      }
     case "transport":
       return { ...snapshot, transport: change.transport }
+  }
+}
+
+function replaceStructuredMessages(
+  useful: PrimeSessionSnapshot["useful"],
+  change: Extract<PrimeSessionChange, { type: "structured" }>,
+): PrimeSessionSnapshot["useful"] {
+  const { streamingMessage: _streamingMessage, ...rest } = useful
+  return {
+    ...rest,
+    structuredMessages: change.structuredMessages,
+    ...(change.streamingMessage ? { streamingMessage: change.streamingMessage } : {}),
+  }
+}
+
+function replaceSessionContext(
+  useful: PrimeSessionSnapshot["useful"],
+  sessionContext: PrimeSessionSnapshot["useful"]["sessionContext"],
+): PrimeSessionSnapshot["useful"] {
+  const { sessionContext: _sessionContext, ...rest } = useful
+  return { ...rest, ...(sessionContext ? { sessionContext } : {}) }
+}
+
+function replaceFamily(
+  useful: PrimeSessionSnapshot["useful"],
+  change: Extract<PrimeSessionChange, { type: "family" }>,
+): PrimeSessionSnapshot["useful"] {
+  const { parent: _parent, sessionTree: _sessionTree, ...rest } = useful
+  return {
+    ...rest,
+    ...(change.parent ? { parent: change.parent } : {}),
+    ...(change.sessionTree ? { sessionTree: change.sessionTree } : {}),
+    children: change.children,
+  }
+}
+
+function replaceEventPosition(
+  useful: PrimeSessionSnapshot["useful"],
+  change: Extract<PrimeSessionChange, { type: "eventPosition" }>,
+): PrimeSessionSnapshot["useful"] {
+  const {
+    lastEventSequence: _lastEventSequence,
+    lastEventCursor: _lastEventCursor,
+    replay: _replay,
+    ...rest
+  } = useful
+  return {
+    ...rest,
+    ...(change.lastEventSequence === undefined
+      ? {}
+      : { lastEventSequence: change.lastEventSequence }),
+    ...(change.lastEventCursor ? { lastEventCursor: change.lastEventCursor } : {}),
+    ...(change.replay ? { replay: change.replay } : {}),
   }
 }
 

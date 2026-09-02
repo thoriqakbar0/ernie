@@ -82,7 +82,7 @@ export function ChatWorkspace() {
   const sessionStatus = getSessionStatus(snapshot)
 
   return (
-    <section aria-label="Chat workspace" className="flex min-h-0 min-w-0 flex-col bg-white dark:bg-zinc-900">
+    <section aria-label="Chat workspace" className="flex min-h-0 min-w-0 flex-col bg-white text-zinc-950 dark:bg-zinc-900 dark:text-zinc-50">
       <header className="flex h-[48px] shrink-0 items-center justify-between border-b border-zinc-200/80 px-5 dark:border-zinc-800">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
@@ -102,17 +102,17 @@ export function ChatWorkspace() {
       </header>
 
       {snapshot?.transport.status === "reconnecting" ? (
-        <p className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-900" role="status">
+        <p className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status">
           Prime Agent is reconnecting. Commands will resume after recovery.
         </p>
       ) : null}
       {snapshot?.transport.status === "failed" ? (
-        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-900" role="alert">
+        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
           {snapshot.transport.error}
         </p>
       ) : null}
       {submitResult.status === "error" || stopResult.status === "error" || modelError ? (
-        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-900" role="alert">
+        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
           {modelError ?? (submitResult.status === "error" ? submitResult.message : null) ?? (stopResult.status === "error" ? stopResult.message : null)}
         </p>
       ) : null}

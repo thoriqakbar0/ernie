@@ -1,6 +1,7 @@
 import { Option, Schema } from "effect"
 
 import type { PrimeSessionSnapshot } from "../../packages/prime-agent"
+import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixtures"
 
 /** Every deterministic state exposed by the browser UI lab. */
 export const UI_LAB_SCENARIOS = [
@@ -131,7 +132,13 @@ function getUiLabFixture(scenario: UiLabScenario): UiLabFixture {
 
 function populatedFixture(
   name: PopulatedUiLabScenario,
-  snapshot: PrimeSessionSnapshot,
+  snapshot: Omit<PrimeSessionSnapshot, "useful">,
 ): UiLabFixture {
-  return { name, snapshots: [snapshot] }
+  return {
+    name,
+    snapshots: [{
+      ...snapshot,
+      useful: createPrimeUsefulSessionFixture(snapshot.session, snapshot.messages),
+    }],
+  }
 }

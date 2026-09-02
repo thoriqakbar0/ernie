@@ -17,6 +17,7 @@ import type {
   SessionAction,
   SessionTextAction,
 } from "../../prime-agent"
+import { createPrimeUsefulSessionFixture } from "../../prime-agent/fixtures"
 
 const existingSession: PrimeSessionSummary = {
   id: "session-1",
@@ -26,12 +27,15 @@ const existingSession: PrimeSessionSummary = {
   state: "idle",
 }
 
+const existingMessages = [
+  { id: "message-1", role: "user" as const, content: "hello" },
+  { id: "message-2", role: "assistant" as const, content: "hi" },
+]
+
 const existingSnapshot: PrimeSessionSnapshot = {
   session: existingSession,
-  messages: [
-    { id: "message-1", role: "user", content: "hello" },
-    { id: "message-2", role: "assistant", content: "hi" },
-  ],
+  messages: existingMessages,
+  useful: createPrimeUsefulSessionFixture(existingSession, existingMessages),
   transport: { status: "connected" },
 }
 
@@ -208,9 +212,16 @@ test("uses a newer generation snapshot as the source of truth", async () => {
   const primeAgent = new WorkspacePrimeAgent()
   const workspace = createPrimeWorkspace({ primeAgent, createId: createIds() })
   const attached = await workspace.attachSession("session-1")
+  const replacementSession = { ...existingSession, state: "recovering" as const }
+  const replacementMessages = [{
+    id: "replacement-1",
+    role: "system" as const,
+    content: "recovered",
+  }]
   const replacement: PrimeSessionSnapshot = {
-    session: { ...existingSession, state: "recovering" },
-    messages: [{ id: "replacement-1", role: "system", content: "recovered" }],
+    session: replacementSession,
+    messages: replacementMessages,
+    useful: createPrimeUsefulSessionFixture(replacementSession, replacementMessages),
     transport: { status: "reconnecting", error: "daemon restarted" },
   }
   const replacementEnvelope = envelope(0, "generation-2", replacement)

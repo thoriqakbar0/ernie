@@ -70,6 +70,7 @@ try {
   delete electronEnvironment.NODE_OPTIONS
   Object.assign(electronEnvironment, {
     ERNIE_PRIME_AGENT_AGENT_DIR: agentDirectory,
+    ERNIE_PRIME_AGENT_EXECUTABLE: electronExecutable,
     ERNIE_PRIME_AGENT_SOCKET: daemonSocketPath,
     ERNIE_ZENBU_DB: databaseDirectory,
     VITE_ERNIE_CYPRESS: "1",

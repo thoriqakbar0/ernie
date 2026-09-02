@@ -16,16 +16,21 @@ import {
   reducePrimeSessionChange,
   reducePrimeSessionSnapshot,
 } from "../sync"
+import { createPrimeUsefulSessionFixture } from "../fixtures"
+
+const baseSession = {
+  id: "session-1",
+  cwd: "/workspace/ernie",
+  name: "Ernie",
+  lifecycle: "live" as const,
+  state: "idle" as const,
+}
+const baseMessages = [{ id: "message-1", role: "user" as const, content: "hello" }]
 
 const baseSnapshot: PrimeSessionSnapshot = {
-  session: {
-    id: "session-1",
-    cwd: "/workspace/ernie",
-    name: "Ernie",
-    lifecycle: "live",
-    state: "idle",
-  },
-  messages: [{ id: "message-1", role: "user", content: "hello" }],
+  session: baseSession,
+  messages: baseMessages,
+  useful: createPrimeUsefulSessionFixture(baseSession, baseMessages),
   transport: { status: "connected" },
 }
 
@@ -101,6 +106,26 @@ test("rejects malformed payloads and mismatched session identities", () => {
   assert.equal(duplicateMessages.error._tag, "PrimeSessionProtocolError")
   assert.equal(excessProperty.ok, false)
   assert.equal(excessProperty.error._tag, "PrimeSessionProtocolError")
+})
+
+test("rejects non-finite numbers at the JSON boundary", () => {
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const result = parsePrimeSessionSnapshotEnvelope({
+      ...snapshotEnvelope(0),
+      snapshot: {
+        ...baseSnapshot,
+        useful: {
+          ...baseSnapshot.useful,
+          state: {
+            ...baseSnapshot.useful.state,
+            contextUsage: { value },
+          },
+        },
+      },
+    })
+
+    assert.equal(result.ok, false)
+  }
 })
 
 test("buffers an early change and applies it after the attachment snapshot", () => {

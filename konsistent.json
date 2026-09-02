@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/konsistent/konsistent.schema.json",
+  "version": "v1",
+  "conventions": [
+    {
+      "name": "package-entrypoints",
+      "description": "Each internal package exposes a stable index.ts entrypoint.",
+      "paths": "src/packages/{packageName}",
+      "must": {
+        "haveType": "directory",
+        "haveFiles": [
+          "index.ts"
+        ]
+      }
+    },
+    {
+      "name": "renderer-component-exports",
+      "description": "Renderer component modules export a function named after the file.",
+      "paths": "src/renderer/components/{componentName}.tsx",
+      "must": {
+        "exportFunctions": [
+          "${componentName.toPascalCase()}"
+        ]
+      }
+    },
+    {
+      "name": "renderer-component-props",
+      "description": "Components that accept props declare a named Props type instead of an inline object type.",
+      "paths": "src/renderer/components/{componentName}.tsx",
+      "excludeFiles": [
+        "src/renderer/components/app.tsx",
+        "src/renderer/components/chat-workspace.tsx",
+        "src/renderer/components/sidebar.tsx",
+        "src/renderer/components/titlebar.tsx"
+      ],
+      "must": {
+        "declareTypes": [
+          "${componentName.toPascalCase()}Props"
+        ]
+      }
+    }
+  ]
+}

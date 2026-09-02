@@ -78,6 +78,9 @@ importers:
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      konsistent:
+        specifier: ^1.0.0-beta.4
+        version: 1.0.0-beta.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3156,6 +3159,25 @@ packages:
 
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
+
+  '@konsistent/convention@1.0.0-beta.4':
+    resolution: {integrity: sha512-Wv+ISxerqvw2NYoyjuPCOsxrai2p4/FguO+KD6qfXYXW3vNLz2tdnADFET81chiNIvWjwa0/rS5zFc/bRf5FFg==}
+    engines: {node: '>=22.11.0'}
+    hasBin: true
+    peerDependencies:
+      zod: ^4
+
+  citty@0.2.2:
+    resolution: {integrity: sha512-+6vJA3L98yv+IdfKGZHBNiGW5KHn22e/JwID0Strsz8h4S/csAu/OuICwxrg44k5MRiZHWIo8XXuJgQTriRP4w==}
+
+  konsistent@1.0.0-beta.4:
+    resolution: {integrity: sha512-O8t9pBITO0WspmOd7XFl4OcadmKXmoY2ZE4WrHrRk7odSra5kAXEATeyGl4d9dwjwS/GrmXtpsf1PRY6vRj7Sg==}
+    engines: {node: '>=22.11.0'}
+    hasBin: true
+
+  resolve.exports@2.0.3:
+    resolution: {integrity: sha512-OcXjMsGdhL4XnbShKpAcSqPMzQoYkYyhbEaeSko47MjRP9NfEQMhZkXL1DoFlt9LWQn4YttrdnV6X2OiyzBi+A==}
+    engines: {node: '>=10'}
 
 snapshots:
 
@@ -6387,3 +6409,23 @@ snapshots:
       zod: 4.5.4
 
   zod@4.5.4: {}
+
+  '@konsistent/convention@1.0.0-beta.4(zod@4.5.4)':
+    dependencies:
+      citty: 0.2.2
+      jiti: 2.7.0
+      zod: 4.5.4
+
+  citty@0.2.2: {}
+
+  konsistent@1.0.0-beta.4:
+    dependencies:
+      '@konsistent/convention': 1.0.0-beta.4(zod@4.5.4)
+      citty: 0.2.2
+      picocolors: 1.1.1
+      resolve.exports: 2.0.3
+      tinyglobby: 0.2.17
+      typescript: 5.9.3
+      zod: 4.5.4
+
+  resolve.exports@2.0.3: {}

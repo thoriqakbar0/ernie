@@ -93,6 +93,17 @@ nub run test:e2e:open
 
 The browser integration and desktop smoke commands use temporary database, agent, socket, and Electron profile directories, then remove them on exit.
 
+### Structural conventions
+
+Validate the Konsistent configuration schema separately from auditing the codebase:
+
+```sh
+nub run konsistent validate
+nub run konsistent
+```
+
+The audit reports structural outliers and may exit non-zero until those findings are reviewed. It is intentionally not part of `nub run check`.
+
 ## Reference snapshots
 
 Thin T3 Code and Effect snapshots live under the ignored `repos/` directory. Refresh both pinned snapshots with:

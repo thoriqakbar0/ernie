@@ -270,6 +270,6 @@ test("a failed transport is visible and blocks new commands", async () => {
 
   await screen.findByRole("alert", { name: "" })
   assert.ok(screen.getByText("Prime Agent connection failed"))
-  assert.ok(screen.getByText("Failed"))
+  assert.ok(screen.getByText("Couldn’t reconnect to Prime Agent."))
   assert.equal(screen.getByRole("textbox", { name: "Message Prime Agent" }).hasAttribute("disabled"), true)
 })

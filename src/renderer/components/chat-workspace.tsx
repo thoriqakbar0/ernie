@@ -1,7 +1,11 @@
-import { useActionState, useEffect, useState } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
+import type { ReactNode } from "react"
+import { ConversationTranscript } from "./conversation-transcript"
 import { DraftHeroHeadline } from "./draft-hero-headline"
 import { PrimeComposer } from "./prime-composer"
 import { PrimeEmptyState } from "./prime-empty-state"
+import { SessionInspector } from "./session-inspector"
+import { getWorkspaceName } from "./workspace-name"
 import {
   useCreatePrimeSession,
   usePrimeSessionActions,
@@ -29,6 +33,7 @@ export function ChatWorkspace() {
   const [draft, setDraft] = useState("")
   const [selectedModelId, setSelectedModelId] = useState("")
   const [modelError, setModelError] = useState<string>()
+  const modelSelectionRevision = useRef(0)
 
   useEffect(() => {
     setDraft("")
@@ -37,6 +42,7 @@ export function ChatWorkspace() {
   useEffect(() => {
     setSelectedModelId(snapshotQuery.data?.session.model?.id ?? "")
   }, [snapshotQuery.data?.session.model?.id])
+
   const [submitResult, submitAction, submitting] = useActionState(
     async (_previous: ActionResult, formData: FormData): Promise<ActionResult> => {
       const content = formData.get("message")
@@ -79,45 +85,40 @@ export function ChatWorkspace() {
   const noSessions = sessions.isSuccess && sessions.data.length === 0
   const waitingForCreatedSession = createSession.isPending && snapshot === undefined
   const showEmptyState = (noSessions && sessionId === undefined) || waitingForCreatedSession
-  const sessionStatus = getSessionStatus(snapshot)
+  const actionError = modelError ??
+    (submitResult.status === "error" ? submitResult.message : undefined) ??
+    (stopResult.status === "error" ? stopResult.message : undefined)
 
   return (
-    <section aria-label="Chat workspace" className="flex min-h-0 min-w-0 flex-col bg-white text-zinc-950 dark:bg-zinc-900 dark:text-zinc-50">
-      <header className="flex h-[48px] shrink-0 items-center justify-between border-b border-zinc-200/80 px-5 dark:border-zinc-800">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-sm font-semibold tracking-tight">
-              {snapshot?.session.name ?? "Prime Agent"}
-            </h1>
-            {sessionStatus ? (
-              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sessionStatus.tone}`} role="status">
-                {sessionStatus.label}
-              </span>
-            ) : null}
-          </div>
-          <p className="truncate text-xs text-zinc-500" title={snapshot?.session.cwd ?? workspacePath.data ?? undefined}>
-            {snapshot?.session.cwd ?? workspacePath.data ?? ""}
+    <section aria-label="Chat workspace" className="chat-workspace" id="ernie-workspace" tabIndex={-1}>
+      <header className="workspace-header">
+        <div className="workspace-header__copy">
+          <h1>{snapshot?.session.name ?? "Prime Agent"}</h1>
+          <p title={snapshot?.session.cwd ?? workspacePath.data ?? undefined}>
+            {snapshot ? getWorkspaceName(snapshot.session.cwd) : getWorkspaceName(workspacePath.data ?? "Workspace")}
+            <span aria-hidden="true"> · </span>
+            <span className="workspace-header__path">{snapshot?.session.cwd ?? workspacePath.data ?? "Opening workspace"}</span>
           </p>
         </div>
       </header>
 
       {snapshot?.transport.status === "reconnecting" ? (
-        <p className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status">
-          Prime Agent is reconnecting. Commands will resume after recovery.
-        </p>
+        <SessionNotice tone="warning">
+          <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will resume after recovery.
+        </SessionNotice>
       ) : null}
       {snapshot?.transport.status === "failed" ? (
-        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
-          {snapshot.transport.error}
-        </p>
+        <SessionNotice tone="danger">
+          <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the connection returns. <span>{snapshot.transport.error}</span>
+        </SessionNotice>
       ) : null}
-      {submitResult.status === "error" || stopResult.status === "error" || modelError ? (
-        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
-          {modelError ?? (submitResult.status === "error" ? submitResult.message : null) ?? (stopResult.status === "error" ? stopResult.message : null)}
-        </p>
+      {actionError ? (
+        <SessionNotice tone="danger">
+          <strong>The session wasn’t updated.</strong> {actionError}. Try the action again.
+        </SessionNotice>
       ) : null}
 
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="workspace-content">
         {showEmptyState ? (
           <PrimeEmptyState
             creating={createSession.isPending}
@@ -125,98 +126,96 @@ export function ChatWorkspace() {
             error={createSession.isError ? getErrorMessage(createSession.error) : undefined}
             onCreate={() => createSession.mutate()}
           />
+        ) : snapshotQuery.isError ? (
+          <div className="open-error" role="alert">
+            <h2>Unable to open this session</h2>
+            <p>{getErrorMessage(snapshotQuery.error)}.</p>
+            <button className="secondary-button" onClick={() => void snapshotQuery.refetch()} type="button">Try again</button>
+          </div>
         ) : !snapshot ? (
-          <p className="grid h-full place-items-center text-sm text-zinc-400" role="status">
-            Opening Prime Agent...
-          </p>
+          <WorkspaceLoading />
         ) : (
-          <>
-            <div
-              aria-label="Conversation transcript"
-              aria-live="polite"
-              className={`h-full overflow-y-auto ${draftHero ? "" : "pb-40"}`}
-              role="log"
-            >
-              {!draftHero ? (
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-6 py-10">
-                  {snapshot.messages.map((message) => (
-                    <article className="grid grid-cols-[28px_minmax(0,1fr)] gap-3" key={message.id}>
-                      <div className={`grid size-7 place-items-center rounded-md text-[11px] font-semibold ${message.role === "assistant" ? "bg-zinc-950 text-white dark:bg-zinc-50 dark:text-zinc-950" : "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100"}`}>
-                        {message.role === "assistant" ? "P" : "You"}
-                      </div>
-                      <div className="min-w-0 pt-0.5">
-                        <p className="mb-1 text-xs font-medium text-zinc-500">
-                          {message.role === "assistant" ? "Prime Agent" : message.role === "user" ? "You" : "System"}
-                        </p>
-                        <p className="whitespace-pre-wrap text-[15px] leading-6 text-zinc-800 dark:text-zinc-200">
-                          {message.content}
-                        </p>
-                      </div>
-                    </article>
-                  ))}
+          <div className={draftHero ? "session-stage session-stage--draft" : "session-stage"}>
+            <div className="conversation-pane">
+              {draftHero ? (
+                <div className="draft-heading-stage">
+                  <DraftHeroHeadline cwd={snapshot.session.cwd} />
                 </div>
-              ) : null}
-            </div>
-
-            <div
-              className={draftHero
-                ? "pointer-events-none absolute inset-0 z-20 flex items-center"
-                : "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-transparent pb-5 pt-10 dark:from-zinc-900 dark:via-zinc-900/95"}
-              data-composer-placement={draftHero ? "hero" : "docked"}
-            >
-              <div className="w-full px-5">
-                <div className="pointer-events-auto relative mx-auto w-full max-w-3xl">
-                  {draftHero ? (
-                    <div className="absolute inset-x-0 bottom-full pb-8">
-                      <DraftHeroHeadline cwd={snapshot.session.cwd} />
-                    </div>
-                  ) : null}
-                  <PrimeComposer
-                    connected={connected}
-                    draft={draft}
-                    draftHero={draftHero}
-                    models={models.data ?? []}
-                    modelsPending={models.isPending}
-                    onDraftChange={setDraft}
-                    onModelSelect={(model) => {
-                      setSelectedModelId(model.id)
-                      setModelError(undefined)
-                      void actions.setModel(model.provider, model.id).catch((cause: unknown) => {
-                        setModelError(cause instanceof Error ? cause.message : "Prime Agent command failed")
-                      })
-                    }}
-                    selectedModelId={selectedModelId}
-                    sessionSelected
-                    stopAction={stopAction}
-                    stopping={stopping}
-                    submitAction={submitAction}
-                    submitting={submitting}
-                    working={working}
-                  />
-                </div>
+              ) : <ConversationTranscript messages={snapshot.messages} />}
+              <div
+                className={draftHero ? "composer-placement composer-placement--hero" : "composer-dock"}
+                data-composer-placement={draftHero ? "hero" : "docked"}
+              >
+                <PrimeComposer
+                  connected={connected}
+                  draft={draft}
+                  draftHero={draftHero}
+                  models={models.data ?? []}
+                  modelsPending={models.isPending}
+                  onDraftChange={setDraft}
+                  onModelSelect={(model) => updateModel(model.provider, model.id)}
+                  selectedModelId={selectedModelId}
+                  sessionSelected
+                  stopAction={stopAction}
+                  stopping={stopping}
+                  submitAction={submitAction}
+                  submitting={submitting}
+                  working={working}
+                />
               </div>
             </div>
-          </>
+            {!draftHero ? <SessionInspector snapshot={snapshot} /> : null}
+          </div>
         )}
       </div>
     </section>
+  )
+
+  function updateModel(provider: string, modelId: string) {
+    const authoritativeModelId = snapshot?.session.model?.id ?? ""
+    const revision = modelSelectionRevision.current + 1
+    modelSelectionRevision.current = revision
+    setSelectedModelId(modelId)
+    setModelError(undefined)
+    void actions.setModel(provider, modelId).catch((cause: unknown) => {
+      if (modelSelectionRevision.current !== revision) return
+      setSelectedModelId(authoritativeModelId)
+      setModelError(cause instanceof Error ? cause.message : "Prime Agent command failed")
+    })
+  }
+}
+
+function SessionNotice({ children, tone }: Readonly<{
+  children: ReactNode
+  tone: "danger" | "warning"
+}>) {
+  return (
+    <div className={`session-notice session-notice--${tone}`} role={tone === "danger" ? "alert" : "status"}>
+      <NoticeIcon />
+      <p>{children}</p>
+    </div>
+  )
+}
+
+function WorkspaceLoading() {
+  return (
+    <div aria-label="Opening Prime Agent" className="workspace-loading" role="status">
+      <span className="workspace-loading__rule" />
+      <span>Opening Prime Agent…</span>
+      <span className="workspace-loading__rule" />
+    </div>
+  )
+}
+
+function NoticeIcon() {
+  return (
+    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="5.75" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 4.7v3.8M8 11.2v.1" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+    </svg>
   )
 }
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Prime Agent could not start a conversation"
-}
-
-function getSessionStatus(snapshot: ReturnType<typeof usePrimeSessionSnapshot>["data"]) {
-  if (!snapshot) return undefined
-  if (snapshot.transport.status === "failed") {
-    return { label: "Failed", tone: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" }
-  }
-  if (snapshot.transport.status === "reconnecting" || snapshot.session.state === "recovering") {
-    return { label: "Recovering", tone: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" }
-  }
-  if (snapshot.session.state === "working") {
-    return { label: "Working", tone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" }
-  }
-  return undefined
 }

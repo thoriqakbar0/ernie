@@ -11,7 +11,7 @@ describe("Ernie browser development", () => {
       cy.visit(browserUrl, { log: false })
     })
 
-    cy.contains("h2", "Start a conversation").should("be.visible")
+    cy.contains("h2", /Start work in/).should("be.visible")
     cy.document().its("documentElement.dataset.ernieHmrRevision").should("equal", "initial")
     cy.get('[data-cy="prime-empty-create"]').should("be.enabled").click()
     cy.contains("h2", /What should we build in/).should("be.visible")

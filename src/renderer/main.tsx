@@ -10,11 +10,16 @@ if (rootElement === null) {
   throw new Error("Missing #root renderer mount.")
 }
 
-const route = new URLSearchParams(window.location.search).get("route")
+const search = new URLSearchParams(window.location.search)
+const route = search.get("route")
+const browserDevelopment = search.get("browser") === "1"
+const browserWsUrl = browserDevelopment
+  ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
+  : undefined
 const content = route === null ? <App /> : <View name={route} />
 
 createRoot(rootElement).render(
-  <ZenbuProvider>
+  <ZenbuProvider wsUrl={browserWsUrl}>
     <PrimeAgentStateProvider>
       {content}
     </PrimeAgentStateProvider>

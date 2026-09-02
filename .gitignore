@@ -9,3 +9,5 @@ tsconfig.local.json
 cypress/downloads/
 cypress/screenshots/
 cypress/videos/
+repos/
+repos.local.json

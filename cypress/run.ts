@@ -1,11 +1,14 @@
-import { spawn, type ChildProcess } from "node:child_process"
-import { once } from "node:events"
+import type { ChildProcess } from "node:child_process"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { createServer } from "node:net"
 import { dirname, join } from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { fileURLToPath } from "node:url"
 import { tmpdir } from "node:os"
+
+import { resolveDaemonSocketPath } from "../scripts/dev/config.ts"
+import { startOwnedProcess, stopOwnedProcess, waitForProcessExit } from "../scripts/dev/process.ts"
+import { shutdownPrimeAgentDaemon } from "../scripts/dev/prime-agent-daemon.ts"
 
 type DevtoolsTarget = Readonly<{
   type: string
@@ -16,12 +19,6 @@ const cypressDirectory = dirname(fileURLToPath(import.meta.url))
 const projectDirectory = dirname(cypressDirectory)
 const require = createRequire(import.meta.url)
 const electronModule: unknown = require("electron")
-const primeAgentEntry = fileURLToPath(import.meta.resolve("prime-agent"))
-const daemonLaunchModule: unknown = await import(pathToFileURL(
-  join(dirname(primeAgentEntry), "cli", "daemon-launch.js"),
-).href)
-const shutdownDaemonAndWait = readShutdownDaemonAndWait(daemonLaunchModule)
-
 if (typeof electronModule !== "string") {
   throw new Error("Electron did not resolve to an executable path")
 }
@@ -29,15 +26,13 @@ if (typeof electronModule !== "string") {
 const electronExecutable = electronModule
 const ownedChildren = new Set<ChildProcess>()
 const temporaryRoot = await mkdtemp(join(tmpdir(), "ernie-cypress-"))
-const daemonSocketPath = join(temporaryRoot, "prime-agent.sock")
+const daemonSocketPath = resolveDaemonSocketPath(temporaryRoot, `cypress-${process.pid}`)
 let cleanupPromise: Promise<void> | undefined
 
 const cleanup = () => {
   cleanupPromise ??= (async () => {
-    await Promise.all([...ownedChildren].map((child) => terminate(child)))
-    if (!await shutdownDaemonAndWait(daemonSocketPath, 10_000)) {
-      throw new Error(`Prime Agent daemon stayed active on ${daemonSocketPath}`)
-    }
+    await Promise.all([...ownedChildren].map((child) => stopOwnedProcess(child)))
+    await shutdownPrimeAgentDaemon(daemonSocketPath)
     await rm(temporaryRoot, { force: true, recursive: true })
   })()
   return cleanupPromise
@@ -86,7 +81,9 @@ try {
     ],
     projectDirectory,
     electronEnvironment,
+    "pipe",
   )
+  forwardRedactedOutput(electron)
   const rendererUrl = await waitForRendererUrl(debuggingPort, electron)
   const cypressExecutable = join(cypressDirectory, "node_modules", ".bin", "cypress")
   const cypressArguments = process.argv.includes("--open")
@@ -103,34 +100,29 @@ try {
   await cleanup()
 }
 
-type ShutdownDaemonAndWait = (socketPath: string, timeoutMs?: number) => Promise<boolean>
-
-function readShutdownDaemonAndWait(input: unknown): ShutdownDaemonAndWait {
-  if (!input || typeof input !== "object") {
-    throw new Error("Prime Agent daemon launcher did not load")
-  }
-  const shutdown = (input as Record<string, unknown>).shutdownDaemonAndWait
-  if (typeof shutdown !== "function") {
-    throw new Error("Prime Agent does not expose daemon shutdown")
-  }
-  return shutdown as ShutdownDaemonAndWait
-}
-
 function startOwned(
   command: string,
   args: readonly string[],
   cwd: string,
   env: NodeJS.ProcessEnv = process.env,
+  stdio: "inherit" | "pipe" = "inherit",
 ) {
-  const child = spawn(command, args, {
-    cwd,
-    detached: process.platform !== "win32",
-    env,
-    stdio: "inherit",
-  })
+  const child = startOwnedProcess(command, args, cwd, env, stdio)
   ownedChildren.add(child)
   child.once("exit", () => ownedChildren.delete(child))
   return child
+}
+
+function forwardRedactedOutput(child: ChildProcess) {
+  const stdout = child.stdout
+  const stderr = child.stderr
+  if (!stdout || !stderr) throw new Error("Electron E2E output was not captured")
+  stdout.setEncoding("utf8").on("data", (chunk: string) => process.stdout.write(redactRuntimeToken(chunk)))
+  stderr.setEncoding("utf8").on("data", (chunk: string) => process.stderr.write(redactRuntimeToken(chunk)))
+}
+
+function redactRuntimeToken(value: string) {
+  return value.replace(/wsToken=[^&\s]+/g, "wsToken=[redacted]")
 }
 
 async function runChecked(
@@ -140,7 +132,7 @@ async function runChecked(
   env: NodeJS.ProcessEnv = process.env,
 ) {
   const child = startOwned(command, args, cwd, env)
-  const [code, signal] = await once(child, "exit") as [number | null, NodeJS.Signals | null]
+  const [code, signal] = await waitForProcessExit(child)
   if (code !== 0) {
     throw new Error(`${command} exited with ${code ?? signal ?? "an unknown status"}`)
   }
@@ -196,9 +188,9 @@ function parseTargets(input: unknown): readonly DevtoolsTarget[] {
   if (!Array.isArray(input)) return []
   return input.flatMap((item) => {
     if (!item || typeof item !== "object") return []
-    const target = item as Record<string, unknown>
-    return typeof target.type === "string" && typeof target.url === "string"
-      ? [{ type: target.type, url: target.url }]
+    if (!("type" in item) || !("url" in item)) return []
+    return typeof item.type === "string" && typeof item.url === "string"
+      ? [{ type: item.type, url: item.url }]
       : []
   })
 }
@@ -210,24 +202,6 @@ function isMainRenderer(target: DevtoolsTarget) {
   return url.searchParams.has("wsPort") &&
     url.searchParams.has("wsToken") &&
     (viewType === null || viewType === "entrypoint")
-}
-
-async function terminate(child: ChildProcess) {
-  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return
-
-  const exited = once(child, "exit").catch(() => undefined)
-  sendSignal(child, "SIGKILL")
-  await Promise.race([exited, delay(3_000)])
-}
-
-function sendSignal(child: ChildProcess, signal: NodeJS.Signals) {
-  if (child.pid === undefined) return
-  try {
-    if (process.platform === "win32") child.kill(signal)
-    else process.kill(-child.pid, signal)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
-  }
 }
 
 function delay(milliseconds: number) {

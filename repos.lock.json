@@ -1,0 +1,49 @@
+{
+  "$schema": "./scripts/vendored-repos.schema.json",
+  "repositories": [
+    {
+      "name": "t3code",
+      "repository": "https://github.com/pingdotgg/t3code.git",
+      "commit": "47a95332a2b8fe47da9fb0af97fd6f0b542a18ee",
+      "paths": [
+        "README.md",
+        "AGENTS.md",
+        "package.json",
+        "docs/architecture",
+        "apps/web/src/AppRoot.tsx",
+        "apps/web/src/main.tsx",
+        "apps/web/src/components/ChatView.tsx",
+        "apps/web/src/components/ChatView.logic.ts",
+        "apps/web/src/components/Sidebar.tsx",
+        "apps/web/src/components/Sidebar.logic.ts",
+        "apps/web/src/components/chat",
+        "apps/desktop/src/app",
+        "apps/desktop/src/electron",
+        "apps/desktop/src/ipc",
+        "apps/server/src/orchestration/Services",
+        "apps/server/src/orchestration/Layers"
+      ]
+    },
+    {
+      "name": "effect",
+      "repository": "https://github.com/Effect-TS/effect.git",
+      "commit": "0af0985d5c132b33e14a2df59e0567d7ba2a1710",
+      "paths": [
+        "README.md",
+        "package.json",
+        "packages/effect/package.json",
+        "packages/effect/src/Context.ts",
+        "packages/effect/src/Effect.ts",
+        "packages/effect/src/Layer.ts",
+        "packages/effect/src/Match.ts",
+        "packages/effect/src/PubSub.ts",
+        "packages/effect/src/Queue.ts",
+        "packages/effect/src/Ref.ts",
+        "packages/effect/src/Schedule.ts",
+        "packages/effect/src/Schema.ts",
+        "packages/effect/src/Scope.ts",
+        "packages/effect/src/Stream.ts"
+      ]
+    }
+  ]
+}

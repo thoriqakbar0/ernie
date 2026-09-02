@@ -5,7 +5,9 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "dist",
@@ -16,14 +18,17 @@
       ],
       "#registry/*": [
         "./types/*"
+      ],
+      "@ernie-hmr-sentinel": [
+        "./src/browser/hmr-sentinel.ts"
       ]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src",
     "scripts",
     "types",
-    "./.zenbu/types/zenbu-register.ts",
-    "vite.ui-lab.config.ts"
+    "./.zenbu/types/zenbu-register.ts"
   ]
 }

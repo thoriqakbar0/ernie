@@ -5,6 +5,7 @@ import {
 import { isAbsolute } from "node:path"
 
 const dbOverride = process.env.ERNIE_ZENBU_DB
+const browserDevelopment = process.env.ERNIE_RENDERER_MODE === "server"
 if (dbOverride && !isAbsolute(dbOverride)) {
   throw new Error("ERNIE_ZENBU_DB must be an absolute path")
 }
@@ -13,7 +14,7 @@ export default defineConfig({
   db: dbOverride ?? "./.zenbu/db",
 
   // Boot-window HTML. The single ui entrypoint for the whole app.
-  uiEntrypoint: "./src/renderer",
+  uiEntrypoint: browserDevelopment ? "./src/browser" : "./src/renderer",
 
   pluginsFiles: "./zenbu.plugins.jsonc",
 
@@ -50,6 +51,7 @@ export default defineConfig({
       "src/**/*.test.tsx",
       "src/**/*.spec.ts",
       "src/**/*.spec.tsx",
+      "src/browser/**",
       "src/dev-only/**",
     ],
     mirror: { target: "thoriqakbar0/ernie", branch: "main" },

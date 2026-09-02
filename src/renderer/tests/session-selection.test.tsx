@@ -19,10 +19,10 @@ afterEach(async () => {
 })
 after(cleanupDom)
 
-function renderChatShell() {
+function renderChatShell(client = createMockPrimeAgentClient()) {
   return render(
     <PrimeAgentStateProvider
-      client={createMockPrimeAgentClient()}
+      client={client}
       getWorkspacePath={async () => "/workspace/ernie"}
     >
       <Sidebar />
@@ -200,6 +200,65 @@ test("conversation groups fold without losing the selected session", async () =>
   assert.equal(restoredSession.getAttribute("aria-current"), "page")
 })
 
+test("model picker waits for the authoritative snapshot", async () => {
+  const client = createMockPrimeAgentClient()
+  let acceptModel: (() => void) | undefined
+  client.setModel = () => new Promise<void>((resolve) => {
+    acceptModel = resolve
+  })
+  renderChatShell(client)
+  await screen.findByRole("heading", { name: "Build the chat workspace" })
+  fireEvent.click(await screen.findByRole("button", { name: "Model: GPT-5" }))
+  fireEvent.click(screen.getByRole("option", { name: /o3/ }))
+
+  try {
+    assert.ok(screen.getByRole("button", { name: "Model: GPT-5" }))
+  } finally {
+    acceptModel?.()
+  }
+})
+
+test("existing sessions show pending creation feedback", async () => {
+  const client = createMockPrimeAgentClient()
+  const createSession = client.createSession.bind(client)
+  let continueCreation: (() => void) | undefined
+  client.createSession = async (request) => {
+    await new Promise<void>((resolve) => {
+      continueCreation = resolve
+    })
+    return createSession(request)
+  }
+  renderChatShell(client)
+  fireEvent.click(await screen.findByRole("button", { name: "New conversation" }))
+
+  try {
+    assert.ok(await screen.findByText("Creating conversation…"))
+  } finally {
+    continueCreation?.()
+  }
+})
+
+test("existing sessions keep creation failures visible", async () => {
+  const client = createMockPrimeAgentClient()
+  client.createSession = async () => {
+    throw new Error("Prime Agent daemon rejected the session")
+  }
+  renderChatShell(client)
+  fireEvent.click(await screen.findByRole("button", { name: "New conversation" }))
+
+  assert.ok(await screen.findByRole("alert"))
+  assert.ok(screen.getByText("Prime Agent daemon rejected the session"))
+})
+
+test("session activity announces ordinary runtime changes", async () => {
+  renderChatShell()
+  const heading = await screen.findByRole("heading", { name: "Run state" })
+  const section = heading.closest("section")
+  assert.ok(section)
+  assert.equal(section.getAttribute("aria-live"), "polite")
+  assert.equal(section.getAttribute("aria-atomic"), "true")
+})
+
 test("model picker reflects the selected model", async () => {
   renderChatShell()
   await screen.findByRole("heading", { name: "Build the chat workspace" })
@@ -272,4 +331,5 @@ test("a failed transport is visible and blocks new commands", async () => {
   assert.ok(screen.getByText("Prime Agent connection failed"))
   assert.ok(screen.getByText("Couldn’t reconnect to Prime Agent."))
   assert.equal(screen.getByRole("textbox", { name: "Message Prime Agent" }).hasAttribute("disabled"), true)
+  assert.equal(screen.getByRole("button", { name: "Stop Prime Agent" }).hasAttribute("disabled"), true)
 })

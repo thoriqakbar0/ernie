@@ -9,11 +9,16 @@ import type {
 } from "./index"
 
 const strictParseOptions = { onExcessProperty: "error" } as const
+const finiteNumberSchema = Schema.Number.check(
+  Schema.makeFilter((value) => Number.isFinite(value)
+    ? undefined
+    : "JSON numbers must be finite"),
+)
 
 const jsonValueSchema: Schema.Codec<PrimeJsonValue> = Schema.Union([
   Schema.Boolean,
   Schema.Null,
-  Schema.Number,
+  finiteNumberSchema,
   Schema.String,
   Schema.Array(Schema.suspend((): Schema.Codec<PrimeJsonValue> => jsonValueSchema)),
   Schema.Record(

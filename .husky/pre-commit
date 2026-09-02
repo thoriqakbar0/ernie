@@ -1,3 +1,4 @@
+nub run link
 nub run typecheck
 nub run test
 nub run lint:debt

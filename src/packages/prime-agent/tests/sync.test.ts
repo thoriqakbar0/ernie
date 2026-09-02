@@ -108,6 +108,26 @@ test("rejects malformed payloads and mismatched session identities", () => {
   assert.equal(excessProperty.error._tag, "PrimeSessionProtocolError")
 })
 
+test("rejects non-finite numbers at the JSON boundary", () => {
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const result = parsePrimeSessionSnapshotEnvelope({
+      ...snapshotEnvelope(0),
+      snapshot: {
+        ...baseSnapshot,
+        useful: {
+          ...baseSnapshot.useful,
+          state: {
+            ...baseSnapshot.useful.state,
+            contextUsage: { value },
+          },
+        },
+      },
+    })
+
+    assert.equal(result.ok, false)
+  }
+})
+
 test("buffers an early change and applies it after the attachment snapshot", () => {
   let state = createPrimeSessionSyncState("session-1")
   state = reducePrimeSessionChange(state, changeEnvelope(2, {

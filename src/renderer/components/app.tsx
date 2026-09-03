@@ -1,22 +1,39 @@
-import { Agentation } from "agentation"
+import { useState } from "react"
 import { View } from "@zenbujs/core/react"
+import { PanelLeftOpenIcon } from "lucide-react"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
 import { ChatWorkspace } from "./chat-workspace"
-import { Titlebar } from "./titlebar"
 
+// @lat: [[product#Product contract#Responsive workspace]]
 export function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
-      <Titlebar />
-      <main className="grid min-h-0 flex-1 grid-cols-[236px_minmax(0,1fr)]">
-        <aside aria-label="Sidebar" className="min-h-0">
-          <View className="h-full w-full" name={SIDEBAR_VIEW_TYPE} />
-        </aside>
+    <div className="app-shell">
+      <a className="skip-link" href="#ernie-workspace">Skip to workspace</a>
+      <main className={sidebarOpen ? "app-main" : "app-main app-main--sidebar-closed"}>
+        {sidebarOpen ? (
+          <div aria-label="Session navigation" className="app-sidebar-slot">
+            <View
+              args={{ onClose: () => setSidebarOpen(false) }}
+              className="h-full w-full"
+              name={SIDEBAR_VIEW_TYPE}
+            />
+          </div>
+        ) : (
+          <button
+            aria-controls="ernie-sidebar"
+            aria-expanded="false"
+            aria-label="Open sidebar"
+            className="sidebar-open-button"
+            onClick={() => setSidebarOpen(true)}
+            type="button"
+          >
+            <PanelLeftOpenIcon />
+          </button>
+        )}
         <ChatWorkspace />
       </main>
-      {import.meta.env.DEV && import.meta.env.VITE_ERNIE_CYPRESS !== "1"
-        ? <Agentation endpoint="http://127.0.0.1:4747" />
-        : null}
     </div>
   )
 }

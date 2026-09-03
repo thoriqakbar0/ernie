@@ -1,16 +1,28 @@
 import type { KeyboardEvent } from "react"
-import type { PrimeModel } from "../../packages/prime-agent"
+import { ArrowUpIcon, SquareIcon } from "lucide-react"
+import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "./ui/input-group"
 import { ModelPicker } from "./model-picker"
 
 type PrimeComposerProps = Readonly<{
   connected: boolean
   draft: string
   draftHero: boolean
+  modelChangePending: boolean
+  acceptedEffort: string | undefined
   models: readonly PrimeModel[]
   modelsPending: boolean
   onDraftChange: (draft: string) => void
+  onEffortChange: (effort: PrimeEffort) => Promise<void>
+  onEffortError: (message: string) => void
   onModelSelect: (model: PrimeModel) => void
-  selectedModelId: string
+  recovering: boolean
+  selectedModel: PrimeModel | undefined
   sessionSelected: boolean
   stopAction: () => void
   stopping: boolean
@@ -19,16 +31,20 @@ type PrimeComposerProps = Readonly<{
   working: boolean
 }>
 
-/** Renders Ernie's draft and active-session input using one visual contract. */
 export function PrimeComposer({
   connected,
+  acceptedEffort,
   draft,
   draftHero,
+  modelChangePending,
   models,
   modelsPending,
   onDraftChange,
+  onEffortChange,
+  onEffortError,
   onModelSelect,
-  selectedModelId,
+  recovering,
+  selectedModel,
   sessionSelected,
   stopAction,
   stopping,
@@ -36,56 +52,67 @@ export function PrimeComposer({
   submitting,
   working,
 }: PrimeComposerProps) {
-  const inputDisabled = !sessionSelected || !connected || submitting || stopping
+  const inputDisabled = !sessionSelected || !connected || recovering || submitting || stopping
 
   return (
-    <form action={submitAction} className="mx-auto w-full max-w-3xl" data-chat-composer>
-      <div className="rounded-[22px] bg-zinc-300/80 p-px shadow-[0_12px_28px_-18px_rgba(0,0,0,0.4)] transition-colors focus-within:bg-zinc-400 dark:bg-white/10 dark:shadow-none dark:focus-within:bg-white/20">
-        <div className="rounded-[21px] bg-white/95 px-3 pb-3 pt-3 backdrop-blur-xl dark:bg-zinc-950/95">
-          <label className="sr-only" htmlFor="chat-message">Message Prime Agent</label>
-          <textarea
-            autoFocus={draftHero}
-            className="min-h-[68px] w-full resize-none bg-transparent px-1 text-[15px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-600"
-            disabled={inputDisabled}
-            id="chat-message"
-            name="message"
-            onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={submitOnEnter}
-            placeholder={working ? "Queue a follow-up..." : "Ask Prime Agent to build something..."}
-            rows={2}
-            value={draft}
+    <form
+      action={submitAction}
+      className={draftHero ? "prime-composer prime-composer--hero" : "prime-composer"}
+      data-chat-composer
+    >
+      <InputGroup>
+        <label className="sr-only" htmlFor="chat-message">Message Prime Agent</label>
+        <InputGroupTextarea
+          autoFocus={draftHero}
+          className="min-h-10 max-h-40 overflow-y-auto"
+          disabled={inputDisabled}
+          id="chat-message"
+          name="message"
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={submitOnEnter}
+          placeholder={recovering ? "Reconnecting to this session…" : draftHero ? "What should Ernie build?" : working ? "Add a follow-up…" : "What should Ernie do next?"}
+          rows={1}
+          value={draft}
+        />
+        <InputGroupAddon align="block-end">
+          <ModelPicker
+            acceptedEffort={acceptedEffort}
+            disabled={!sessionSelected || !connected || recovering || modelChangePending || modelsPending}
+            models={models}
+            onEffortChange={onEffortChange}
+            onEffortError={onEffortError}
+            onSelect={onModelSelect}
+            selectedModel={selectedModel}
+            side={draftHero ? "bottom" : "top"}
           />
-          <div className="mt-1 flex min-w-0 items-center justify-between gap-3">
-            <ModelPicker
-              disabled={!sessionSelected || !connected || modelsPending}
-              models={models}
-              onSelect={onModelSelect}
-              selectedModelId={selectedModelId}
-              side={draftHero ? "bottom" : "top"}
-            />
-            {working ? (
-              <button
-                aria-label="Stop Prime Agent"
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
-                disabled={stopping}
-                formAction={stopAction}
-                type="submit"
-              >
-                <span className="size-2.5 rounded-[2px] bg-current" />
-              </button>
-            ) : (
-              <button
-                aria-label="Send message"
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
-                disabled={!draft.trim() || inputDisabled}
-                type="submit"
-              >
-                <SendIcon />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+          {working ? (
+            <InputGroupButton
+              aria-label="Stop Prime Agent"
+              className="ml-auto"
+              disabled={!connected || stopping}
+              formAction={stopAction}
+              size="sm"
+              type="submit"
+              variant="destructive"
+            >
+              <SquareIcon data-icon="inline-start" />
+              <span>{stopping ? "Stopping" : "Stop"}</span>
+            </InputGroupButton>
+          ) : (
+            <InputGroupButton
+              aria-label={draftHero ? "Start conversation" : "Send message"}
+              className="ml-auto"
+              disabled={!draft.trim() || inputDisabled}
+              size="sm"
+              type="submit"
+              variant="default"
+            >
+              <span>{submitting ? (draftHero ? "Starting" : "Sending") : (draftHero ? "Start" : "Send")}</span>
+              <ArrowUpIcon data-icon="inline-end" />
+            </InputGroupButton>
+          )}
+        </InputGroupAddon>
+      </InputGroup>
     </form>
   )
 }
@@ -94,12 +121,4 @@ function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   if (event.key !== "Enter" || event.shiftKey) return
   event.preventDefault()
   event.currentTarget.form?.requestSubmit()
-}
-
-function SendIcon() {
-  return (
-    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 16 16">
-      <path d="m3 8 5-5 5 5M8 3v10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  )
 }

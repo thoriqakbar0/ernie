@@ -3,6 +3,7 @@ import type {
   CreateSessionRequest,
   PrimeAgentModelClient,
   PrimeSessionChange,
+  PrimeSessionState,
   PrimeSessionEventListener,
   PrimeSessionMessage,
   PrimeSessionSnapshot,
@@ -72,6 +73,21 @@ export function createMockPrimeAgentClient(
   const sessions = new Map<string, MockSession>(
     seededSessions.map((session) => [session.summary.id, session]),
   )
+  const stateListeners = new Set<(state: PrimeSessionState) => void>()
+  let stateRevision = 0
+  let selectedSessionId: string | undefined = seededSessions[0]?.summary.id
+
+  const state = (): PrimeSessionState => ({
+    revision: stateRevision,
+    ...(selectedSessionId ? { selectedSessionId } : {}),
+    sessions: [...sessions.values()].map(({ summary }) => summary),
+  })
+
+  const emitState = () => {
+    stateRevision += 1
+    const next = state()
+    for (const listener of stateListeners) listener(next)
+  }
 
   const getSession = (sessionId: string) => {
     const session = sessions.get(sessionId)
@@ -113,6 +129,7 @@ export function createMockPrimeAgentClient(
   const setState = (session: MockSession, state: PrimeSessionSummary["state"]) => {
     session.summary = { ...session.summary, state }
     emitChange(session, { type: "session", session: session.summary })
+    emitState()
     emitUsefulState(session)
     if (state === "idle") {
       for (const resolve of session.idleWaiters) resolve()
@@ -164,7 +181,18 @@ export function createMockPrimeAgentClient(
   })
 
   return {
-    listSessions: () => Promise.resolve([...sessions.values()].map(({ summary }) => summary)),
+    getSessionState: () => Promise.resolve(state()),
+
+    subscribeSessionState(listener) {
+      stateListeners.add(listener)
+      return () => stateListeners.delete(listener)
+    },
+
+    selectSession(request) {
+      selectedSessionId = request.sessionId
+      emitState()
+      return Promise.resolve()
+    },
 
     createSession(request: CreateSessionRequest) {
       const summary: PrimeSessionSummary = {
@@ -185,6 +213,7 @@ export function createMockPrimeAgentClient(
         timers: new Set(),
         idleWaiters: new Set(),
       })
+      emitState()
       return Promise.resolve(summary)
     },
 
@@ -244,6 +273,19 @@ export function createMockPrimeAgentClient(
       const model = { id: request.modelId, provider: request.provider, label: request.modelId }
       session.summary = { ...session.summary, model }
       emitChange(session, { type: "session", session: session.summary })
+      emitState()
+      return Promise.resolve()
+    },
+
+    setEffort() {
+      return Promise.resolve()
+    },
+
+    getRecurrentDepth() {
+      return Promise.resolve(1)
+    },
+
+    setRecurrentDepth() {
       return Promise.resolve()
     },
 
@@ -256,6 +298,7 @@ export function createMockPrimeAgentClient(
         session.idleWaiters.clear()
       }
       sessions.clear()
+      stateListeners.clear()
     },
   }
 }

@@ -38,7 +38,7 @@ export function Sidebar() {
       </div>
 
       <nav aria-label="Conversations" className="sidebar-nav">
-        <div aria-atomic="true" aria-live="polite" className="session-creation-feedback">
+        <div className="session-creation-feedback">
           {createSession.isPending ? <p role="status">Creating conversation…</p> : null}
           {createSession.isError ? (
             <p role="alert">

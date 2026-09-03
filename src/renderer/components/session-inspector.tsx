@@ -11,11 +11,20 @@ export function SessionInspector({ snapshot }: SessionInspectorProps) {
 
   return (
     <aside aria-label="Session activity" className="session-inspector">
+      <p
+        aria-atomic="true"
+        aria-label="Session activity update"
+        aria-live="polite"
+        className="sr-only"
+        role="status"
+      >
+        {getActivityAnnouncement(snapshot)}
+      </p>
       <div className="inspector-heading">
         <h2>Session activity</h2>
       </div>
 
-      <section aria-atomic="true" aria-labelledby="run-state-heading" aria-live="polite" className="inspector-section">
+      <section aria-labelledby="run-state-heading" className="inspector-section">
         <h3 id="run-state-heading">Run state</h3>
         <p className="inspector-primary">
           {active?.label ?? getRunLabel(snapshot)}
@@ -78,6 +87,30 @@ export function SessionInspector({ snapshot }: SessionInspectorProps) {
   )
 }
 
+function getActivityAnnouncement(snapshot: PrimeSessionSnapshot) {
+  const state = snapshot.useful.state
+  const active = state.sessionActions.active
+  const queueCount = state.sessionActions.queuedCount
+  const details = [active?.label ?? getRunLabel(snapshot)]
+  if (active) details.push(formatPhase(active.phase))
+  if (queueCount > 0) {
+    details.push(`${queueCount} follow-up${queueCount === 1 ? "" : "s"} queued`)
+  }
+  if (state.activeToolNames.length > 0) {
+    details.push(
+      `${state.activeToolNames.length === 1 ? "Active tool" : "Active tools"}: ${state.activeToolNames.join(", ")}`,
+    )
+  }
+  for (const child of snapshot.useful.children) {
+    details.push(`${child.label}: ${formatChildAnnouncement(child)}`)
+  }
+  return `${details.map(stripTerminalPunctuation).join(". ")}.`
+}
+
+function stripTerminalPunctuation(value: string) {
+  return value.replace(/[.!?]+$/, "")
+}
+
 function getRunLabel(snapshot: PrimeSessionSnapshot) {
   if (snapshot.transport.status === "failed") return "Connection unavailable"
   if (snapshot.transport.status === "reconnecting") return "Restoring connection"
@@ -90,6 +123,15 @@ function formatPhase(phase: "committing" | "preparing" | "running") {
   if (phase === "committing") return "Saving the current result"
   if (phase === "preparing") return "Preparing the turn"
   return "Running the turn"
+}
+
+function formatChildAnnouncement(child: PrimeRlmChild) {
+  if (child.activity) return formatChildActivity({ ...child, recap: undefined })
+  if (child.status === "done") return "Finished the assigned work"
+  if (child.status === "error") return "Stopped after an error"
+  if (child.status === "queued") return "Waiting to start"
+  if (child.status === "running") return "Working on the assigned task"
+  return "Stopped before completion"
 }
 
 function formatChildActivity(child: PrimeRlmChild) {

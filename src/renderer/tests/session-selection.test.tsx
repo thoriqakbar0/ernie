@@ -3,6 +3,7 @@ import { after, afterEach, test } from "node:test"
 import globalJsdom from "global-jsdom"
 
 import { ChatWorkspace } from "../components/chat-workspace"
+import { SessionInspector } from "../components/session-inspector"
 import { Sidebar } from "../components/sidebar"
 import {
   PrimeAgentStateProvider,
@@ -221,6 +222,22 @@ test("model picker waits for the authoritative snapshot", async () => {
   }
 })
 
+test("model picker keeps the snapshot model after a rejected change", async () => {
+  const client = createMockPrimeAgentClient()
+  client.setModel = async () => {
+    throw new Error("Prime Agent rejected the model")
+  }
+  renderChatShell(client)
+  await screen.findByRole("heading", { name: "Build the chat workspace" })
+  fireEvent.click(await screen.findByRole("button", { name: "Model: GPT-5" }))
+  fireEvent.click(screen.getByRole("option", { name: /o3/ }))
+
+  const alert = await screen.findByRole("alert")
+  assert.match(alert.textContent ?? "", /Prime Agent rejected the model/)
+  const picker = screen.getByRole("button", { name: "Model: GPT-5" })
+  assert.equal(picker.hasAttribute("disabled"), false)
+})
+
 // @lat: [[tests#Behavior specifications#Renderer behavior#Activity document order]]
 test("session activity follows the conversation in document order", async () => {
   renderChatShell()
@@ -264,15 +281,49 @@ test("existing sessions keep creation failures visible", async () => {
 
   assert.ok(await screen.findByRole("alert"))
   assert.ok(screen.getByText("Prime Agent daemon rejected the session"))
+  assert.equal(screen.getByRole("button", { name: "New conversation" }).hasAttribute("disabled"), false)
 })
 
-test("session activity announces ordinary runtime changes", async () => {
-  renderChatShell()
-  const heading = await screen.findByRole("heading", { name: "Run state" })
-  const section = heading.closest("section")
-  assert.ok(section)
-  assert.equal(section.getAttribute("aria-live"), "polite")
-  assert.equal(section.getAttribute("aria-atomic"), "true")
+test("session activity announces run, queue, tool, and child changes", async () => {
+  const client = createMockPrimeAgentClient()
+  const [session] = await client.listSessions()
+  assert.ok(session)
+  const { snapshot } = await client.attachSession({ sessionId: session.id })
+  render(
+    <SessionInspector
+      snapshot={{
+        ...snapshot,
+        session: { ...snapshot.session, state: "working" },
+        useful: {
+          ...snapshot.useful,
+          state: {
+            ...snapshot.useful.state,
+            activeToolNames: ["bash"],
+            sessionActions: {
+              ...snapshot.useful.state.sessionActions,
+              active: { kind: "turn", label: "Reviewing changes", phase: "running" },
+              queuedCount: 2,
+            },
+          },
+          children: [{
+            id: "child-1",
+            label: "Type checker",
+            sessionDir: "/tmp/type-checker",
+            status: "running",
+            activity: { kind: "executing", toolName: "TypeScript" },
+          }],
+        },
+      }}
+    />,
+  )
+
+  const announcement = screen.getByRole("status", { name: "Session activity update" })
+  assert.equal(announcement.getAttribute("aria-live"), "polite")
+  assert.equal(announcement.getAttribute("aria-atomic"), "true")
+  assert.equal(
+    announcement.textContent,
+    "Reviewing changes. Running the turn. 2 follow-ups queued. Active tool: bash. Type checker: Using TypeScript.",
+  )
 })
 
 test("model picker reflects the selected model", async () => {

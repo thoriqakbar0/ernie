@@ -14,6 +14,7 @@ test("development configuration uses one deterministic default edge", () => {
   assert.equal(config.manageDaemon, true)
 })
 
+// @lat: [[tests#Behavior specifications#Development boundary#Profile isolation]]
 test("development profiles isolate state while preserving explicit ports", () => {
   const config = readDevConfig(["server"], {
     ERNIE_DEV_PORT: "4410",

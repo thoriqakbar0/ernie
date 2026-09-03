@@ -21,6 +21,7 @@ export type DevConfig = Readonly<{
   electronProfileDirectory: string
 }>
 
+// @lat: [[development#Development workflow#Development profiles]]
 export function readDevConfig(
   argv: readonly string[],
   env: NodeJS.ProcessEnv,

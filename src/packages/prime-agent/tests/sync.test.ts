@@ -77,6 +77,7 @@ test("parses JSON-safe snapshot and change envelopes", () => {
   })
 })
 
+// @lat: [[tests#Behavior specifications#Synchronization boundary#Invalid payload rejection]]
 test("rejects malformed payloads and mismatched session identities", () => {
   const malformed = parsePrimeSessionSnapshotEnvelope({
     ...snapshotEnvelope(0),
@@ -128,6 +129,7 @@ test("rejects non-finite numbers at the JSON boundary", () => {
   }
 })
 
+// @lat: [[tests#Behavior specifications#Synchronization boundary#Early change buffering]]
 test("buffers an early change and applies it after the attachment snapshot", () => {
   let state = createPrimeSessionSyncState("session-1")
   state = reducePrimeSessionChange(state, changeEnvelope(2, {
@@ -184,6 +186,7 @@ test("upserts streaming messages at the next revision", () => {
   ])
 })
 
+// @lat: [[tests#Behavior specifications#Synchronization boundary#Discontinuity recovery]]
 test("requests recovery for revision gaps and generation changes", () => {
   const ready = reducePrimeSessionSnapshot(
     createPrimeSessionSyncState("session-1"),
@@ -207,6 +210,7 @@ test("requests recovery for revision gaps and generation changes", () => {
   )
 })
 
+// @lat: [[tests#Behavior specifications#Synchronization boundary#Covering snapshot authority]]
 test("uses a covering recovery snapshot as the new source of truth", () => {
   const ready = reducePrimeSessionSnapshot(
     createPrimeSessionSyncState("session-1"),

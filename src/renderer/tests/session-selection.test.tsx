@@ -143,6 +143,7 @@ test("a fresh workspace keeps a session creation failure visible", async () => {
   assert.ok(screen.getByRole("button", { name: "New conversation" }))
 })
 
+// @lat: [[tests#Behavior specifications#Renderer behavior#Draft isolation]]
 test("a draft cannot leak into another selected session", async () => {
   renderChatShell()
   const originalSession = await screen.findByRole("button", {
@@ -162,6 +163,7 @@ test("a draft cannot leak into another selected session", async () => {
   assert.equal(composer.value, "")
 })
 
+// @lat: [[tests#Behavior specifications#Renderer behavior#Selection convergence]]
 test("rapid selection keeps the heading and current marker together", async () => {
   renderChatShell()
   const originalSession = await screen.findByRole("button", {
@@ -217,6 +219,19 @@ test("model picker waits for the authoritative snapshot", async () => {
   } finally {
     acceptModel?.()
   }
+})
+
+// @lat: [[tests#Behavior specifications#Renderer behavior#Activity document order]]
+test("session activity follows the conversation in document order", async () => {
+  renderChatShell()
+  await screen.findByRole("heading", { name: "Build the chat workspace" })
+  const conversation = document.querySelector(".conversation-pane")
+  const inspector = screen.getByRole("complementary", { name: "Session activity" })
+  assert.ok(conversation)
+  assert.notEqual(
+    conversation.compareDocumentPosition(inspector) & Node.DOCUMENT_POSITION_FOLLOWING,
+    0,
+  )
 })
 
 test("existing sessions show pending creation feedback", async () => {
@@ -304,6 +319,7 @@ test("new conversations open with an empty transcript state", async () => {
   assert.equal(document.querySelector("[data-composer-placement='docked']") !== null, true)
 })
 
+// @lat: [[tests#Behavior specifications#Renderer behavior#Failed transport]]
 test("a failed transport is visible and blocks new commands", async () => {
   const client = createMockPrimeAgentClient()
   const attachSession = client.attachSession.bind(client)

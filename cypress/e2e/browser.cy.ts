@@ -1,3 +1,4 @@
+// @lat: [[tests#Behavior specifications#Development boundary#Browser recovery]]
 describe("Ernie browser development", () => {
   after(() => {
     cy.task("writeBrowserHmrRevision", "initial", { log: false })

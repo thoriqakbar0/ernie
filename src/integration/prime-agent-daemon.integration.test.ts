@@ -18,6 +18,7 @@ const createdSessionSchema = Schema.Struct({
   activeSessionId: Schema.NonEmptyString,
 })
 
+// @lat: [[tests#Behavior specifications#Daemon boundary#Logical attachment isolation]]
 test("one daemon client isolates two logical session attachments", { timeout: 30_000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ernie-prime-agent-"))
   const socketPath = join(root, "daemon.sock")
@@ -101,6 +102,7 @@ test("one daemon client isolates two logical session attachments", { timeout: 30
   )
 })
 
+// @lat: [[tests#Behavior specifications#Daemon boundary#External daemon ownership]]
 test("Ernie cleanup leaves an external Prime Agent daemon running", { timeout: 60_000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ernie-external-prime-agent-"))
   const socketPath = join(root, "daemon.sock")

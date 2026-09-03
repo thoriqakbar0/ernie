@@ -48,6 +48,7 @@ test("retries recovery attempts until one succeeds", async () => {
   assert.equal(waits, 2)
 })
 
+// @lat: [[tests#Behavior specifications#Daemon boundary#Recovery cancellation]]
 test("does not schedule another retry after disposal during an attempt", async () => {
   const attempt = Promise.withResolvers<boolean>()
   let stopped = false

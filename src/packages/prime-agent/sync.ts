@@ -364,6 +364,7 @@ export type PrimeSessionSyncState =
       latestObserved?: ObservedRevision
     }>
 
+// @lat: [[runtime#Prime Agent runtime#Ordered synchronization]]
 /** Starts synchronization before the renderer requests its first snapshot. */
 export function createPrimeSessionSyncState(sessionId: string): PrimeSessionSyncState {
   return { status: "attaching", sessionId, bufferedChanges: [] }

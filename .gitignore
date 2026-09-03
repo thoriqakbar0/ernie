@@ -11,3 +11,5 @@ cypress/screenshots/
 cypress/videos/
 repos/
 repos.local.json
+lat.md/.cache/
+.codex

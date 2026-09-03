@@ -139,6 +139,7 @@ export type PrimeSessionTransport =
   | Readonly<{ status: "reconnecting"; error?: string }>
   | Readonly<{ status: "failed"; error: string }>
 
+// @lat: [[runtime#Prime Agent runtime#Snapshot authority]]
 /** Prime Agent's authoritative state when Ernie attaches to a session. */
 export type PrimeSessionSnapshot = Readonly<{
   session: PrimeSessionSummary

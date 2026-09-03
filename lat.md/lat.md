@@ -2,22 +2,23 @@
 
 Ernie is a local desktop workspace for reading and directing Prime Agent sessions.
 
+- [[development]] records Nub roles, isolated profiles, and validation.
+- [[product]] records user workflows, state rules, responsive behavior, and boundaries.
+- [[runtime]] records snapshot authority, synchronization, ownership, and recovery.
+- [[tests]] records executable specifications for runtime and development guarantees.
+
 ## Product
 
-The product behavior and user-facing constraints are defined in `PRODUCT.md`.
-
-## Design
-
-The visual system and interaction rules are defined in `DESIGN.md` and `docs/ui.md`. At narrow widths, session activity follows the conversation in document flow instead of disappearing.
+[[product]] records the visible workflow, state rules, responsive behavior, and product boundaries.
 
 ## Runtime
 
-The renderer consumes typed Prime Agent snapshots through Zenbu RPC and events. `PrimeSessionSnapshot` is authoritative for displayed session and model state.
+[[runtime]] records snapshot authority, ordered synchronization, daemon ownership, and recovery behavior.
 
-Development profiles use isolated daemons unless `ERNIE_PRIME_AGENT_SOCKET` selects an externally owned socket.
+## Development
 
-Failed external reconnects keep the last snapshot and retry one connection attempt at a time until recovery or disposal. Ernie cleanup closes its client but leaves the external daemon and socket running.
+[[development]] records the supported Nub commands, isolated profiles, and validation path.
 
-## Validation
+## Test specifications
 
-Run `nub run check`, the browser integration suite, Electron E2E, `konsistent validate`, and `lat check` before release.
+[[tests]] ties the main runtime, development, and renderer guarantees to executable tests.

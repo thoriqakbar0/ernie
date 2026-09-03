@@ -139,6 +139,7 @@ type PrimeSessionSelection = Readonly<{
 
 const PrimeSessionSelectionContext = createContext<PrimeSessionSelection | undefined>(undefined)
 
+// @lat: [[product#Product contract#Session continuity]]
 /** Provides one Prime Agent runtime and one server-state cache to a Zenbu renderer. */
 export function PrimeAgentStateProvider({
   children,

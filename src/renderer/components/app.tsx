@@ -4,6 +4,7 @@ import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
 import { ChatWorkspace } from "./chat-workspace"
 import { Titlebar } from "./titlebar"
 
+// @lat: [[product#Product contract#Responsive workspace]]
 export function App() {
   return (
     <div className="app-shell">

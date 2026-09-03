@@ -27,7 +27,8 @@
     "lint:debt": "debtmap validate . --summary --semantic-off",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
-    "check": "zen link && tsc --noEmit && nub run test && nub run lint:boundaries && zen build:source",
+    "lat:check": "nub dlx lat.md@0.12.2 check",
+    "check": "zen link && tsc --noEmit && nub run test && nub run lint:boundaries && nub run lat:check && zen build:source",
     "konsistent": "konsistent"
   },
   "dependencies": {

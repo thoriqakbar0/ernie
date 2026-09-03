@@ -54,6 +54,7 @@ type RunPrimeAgentRecoveryLoopOptions = Readonly<{
   wait: () => Promise<void>
 }>
 
+// @lat: [[runtime#Prime Agent runtime#External recovery]]
 /** Repeats one Prime Agent recovery attempt until it succeeds or the owner stops. */
 export async function runPrimeAgentRecoveryLoop({
   attempt,

@@ -21,6 +21,7 @@ import {
 } from "../packages/prime-workspace"
 
 const sessionKeys = {
+  recurrentDepth: (sessionId: string) => ["prime-agent", "recurrent-depth", sessionId] as const,
   snapshot: (sessionId: string) => ["prime-agent", "session", sessionId] as const,
   workspacePath: ["app", "workspace-path"] as const,
 }
@@ -162,6 +163,18 @@ class PrimeAgentRuntime {
 
   setModel(sessionId: string, provider: string, modelId: string) {
     return this.client.setModel({ sessionId, provider, modelId })
+  }
+
+  getRecurrentDepth(sessionId: string) {
+    return this.client.getRecurrentDepth({ sessionId })
+  }
+
+  setEffort(sessionId: string, effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") {
+    return this.client.setEffort({ sessionId, effort })
+  }
+
+  setRecurrentDepth(sessionId: string, recurrentDepth: number) {
+    return this.client.setRecurrentDepth({ sessionId, recurrentDepth })
   }
 
   selectSession(sessionId: string | undefined) {
@@ -365,6 +378,14 @@ export function usePrimeSessionActions(sessionId: string | undefined) {
       if (!sessionId) throw new Error("No Prime Agent session is attached")
       return runtime.setModel(sessionId, provider, modelId)
     },
+    setEffort: (effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.setEffort(sessionId, effort)
+    },
+    setRecurrentDepth: (recurrentDepth: number) => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.setRecurrentDepth(sessionId, recurrentDepth)
+    },
   }), [runtime, sessionId])
 }
 
@@ -376,6 +397,18 @@ export function usePrimeModels(sessionId: string | undefined) {
     queryFn: () => {
       if (!sessionId) throw new Error("No Prime Agent session is attached")
       return runtime.getModels(sessionId)
+    },
+    enabled: sessionId !== undefined,
+  })
+}
+
+export function usePrimeRecurrentDepth(sessionId: string | undefined) {
+  const runtime = usePrimeAgentRuntime()
+  return useQuery({
+    queryKey: sessionKeys.recurrentDepth(sessionId ?? "none"),
+    queryFn: () => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.getRecurrentDepth(sessionId)
     },
     enabled: sessionId !== undefined,
   })

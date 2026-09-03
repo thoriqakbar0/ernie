@@ -231,6 +231,24 @@ export class PrimeAgentService extends Service.create({
     await connection.setModel(input.provider, input.modelId)
   }
 
+  async getRecurrentDepth(input: { sessionId: string }) {
+    const connection = await this.getReadyConnection(input.sessionId)
+    return (await connection.getRlmMaxDepthStatus()).maxDepth
+  }
+
+  async setEffort(input: {
+    sessionId: string
+    effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+  }) {
+    const connection = await this.getReadyConnection(input.sessionId)
+    await connection.setThinkingLevel(input.effort)
+  }
+
+  async setRecurrentDepth(input: { sessionId: string; recurrentDepth: number }) {
+    const connection = await this.getReadyConnection(input.sessionId)
+    await connection.setRlmMaxDepth(input.recurrentDepth)
+  }
+
   private async getReadyConnection(sessionId: string) {
     if (this.recoveryPromise) {
       const recoveryAvailability = checkPrimeAgentCommandAvailability<DaemonAgentConnection>({
@@ -517,7 +535,7 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async readSessionCatalog() {
-    const data = await this.request({ type: "list" })
+    const data = await this.request({ type: "list", all: true })
     if (this.disposed) return
     const listedSessions = readSessionList(data).map(toSessionSummary)
     const sessions = listedSessions.map((session) =>

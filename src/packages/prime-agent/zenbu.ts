@@ -2,6 +2,7 @@ import type {
   AttachSessionRequest,
   CreateSessionRequest,
   PrimeAgentModelClient,
+  PrimeEffort,
   PrimeSessionChangeEnvelope,
   PrimeSessionEventListener,
   PrimeSessionSnapshot,
@@ -28,6 +29,9 @@ type PrimeAgentRpc = Readonly<{
   waitForIdle(input: SessionAction): Promise<void>
   getModels(input: SessionAction): Promise<readonly { id: string; provider: string; label: string }[]>
   setModel(input: SessionAction & { provider: string; modelId: string }): Promise<void>
+  getRecurrentDepth(input: SessionAction): Promise<number>
+  setEffort(input: SessionAction & { effort: PrimeEffort }): Promise<void>
+  setRecurrentDepth(input: SessionAction & { recurrentDepth: number }): Promise<void>
 }>
 
 type PrimeAgentEvents = Readonly<{
@@ -103,6 +107,9 @@ export function createZenbuPrimeAgentClient(
     waitForIdle: (request: SessionAction) => rpc.waitForIdle(request),
     getModels: (request: SessionAction) => rpc.getModels(request),
     setModel: (request) => rpc.setModel(request),
+    getRecurrentDepth: (request) => rpc.getRecurrentDepth(request),
+    setEffort: (request) => rpc.setEffort(request),
+    setRecurrentDepth: (request) => rpc.setRecurrentDepth(request),
     dispose() {
       unsubscribeChanges()
       unsubscribeSnapshots()

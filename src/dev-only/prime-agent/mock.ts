@@ -277,6 +277,18 @@ export function createMockPrimeAgentClient(
       return Promise.resolve()
     },
 
+    setEffort() {
+      return Promise.resolve()
+    },
+
+    getRecurrentDepth() {
+      return Promise.resolve(1)
+    },
+
+    setRecurrentDepth() {
+      return Promise.resolve()
+    },
+
     dispose() {
       for (const session of sessions.values()) {
         for (const timer of session.timers) clearTimeout(timer)

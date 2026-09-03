@@ -18,6 +18,8 @@ export type PrimeSessionState = Readonly<{
 /** One model Prime Agent exposes to an attached session. */
 export type PrimeModel = Readonly<{ id: string; provider: string; label: string }>
 
+export type PrimeEffort = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+
 /** One JSON value that can safely cross Ernie's process boundary. */
 export type PrimeJsonValue =
   | boolean
@@ -282,4 +284,7 @@ export interface PrimeAgentClient {
 export interface PrimeAgentModelClient extends PrimeAgentClient {
   getModels(request: SessionAction): Promise<readonly PrimeModel[]>
   setModel(request: SessionAction & { provider: string; modelId: string }): Promise<void>
+  getRecurrentDepth(request: SessionAction): Promise<number>
+  setEffort(request: SessionAction & { effort: PrimeEffort }): Promise<void>
+  setRecurrentDepth(request: SessionAction & { recurrentDepth: number }): Promise<void>
 }

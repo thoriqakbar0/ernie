@@ -11,6 +11,7 @@ type PrimeComposerProps = Readonly<{
   modelsPending: boolean
   onDraftChange: (draft: string) => void
   onModelSelect: (model: PrimeModel) => void
+  recovering: boolean
   selectedModel: PrimeModel | undefined
   sessionSelected: boolean
   stopAction: () => void
@@ -29,6 +30,7 @@ export function PrimeComposer({
   modelsPending,
   onDraftChange,
   onModelSelect,
+  recovering,
   selectedModel,
   sessionSelected,
   stopAction,
@@ -37,7 +39,7 @@ export function PrimeComposer({
   submitting,
   working,
 }: PrimeComposerProps) {
-  const inputDisabled = !sessionSelected || !connected || submitting || stopping
+  const inputDisabled = !sessionSelected || !connected || recovering || submitting || stopping
 
   return (
     <form
@@ -55,20 +57,19 @@ export function PrimeComposer({
           name="message"
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={submitOnEnter}
-          placeholder={draftHero ? "Ask Ernie to build something…" : working ? "Add a follow-up for this run…" : "Describe the outcome, constraints, files, or checks…"}
-          rows={draftHero ? 1 : 3}
+          placeholder={recovering ? "Prime Agent is restoring this session…" : draftHero ? "Ask Ernie to build something…" : working ? "Add a follow-up for this run…" : "Describe the outcome, constraints, files, or checks…"}
+          rows={3}
           value={draft}
         />
-        {draftHero ? null : <div className="prime-composer__footer">
+        <div className="prime-composer__footer">
           <div className="prime-composer__controls">
             <ModelPicker
-              disabled={!sessionSelected || !connected || modelChangePending || modelsPending}
+              disabled={!sessionSelected || !connected || recovering || modelChangePending || modelsPending}
               models={models}
               onSelect={onModelSelect}
               selectedModel={selectedModel}
               side={draftHero ? "bottom" : "top"}
             />
-            <span className="composer-hint">Enter to send · Shift+Enter for a new line</span>
           </div>
           {working ? (
             <button
@@ -83,26 +84,17 @@ export function PrimeComposer({
             </button>
           ) : (
             <button
-              aria-label="Send message"
+              aria-label={draftHero ? "Start conversation" : "Send message"}
               className="composer-action composer-action--send"
               disabled={!draft.trim() || inputDisabled}
               type="submit"
             >
-              <span>{submitting ? "Sending" : "Send"}</span>
+              <span>{submitting ? (draftHero ? "Starting" : "Sending") : (draftHero ? "Start" : "Send")}</span>
               <SendIcon />
             </button>
           )}
-        </div>}
+        </div>
       </div>
-      {draftHero ? (
-        <button
-          className="composer-hero-submit"
-          disabled={!draft.trim() || inputDisabled}
-          type="submit"
-        >
-          {submitting ? "Starting" : "Start"}
-        </button>
-      ) : null}
     </form>
   )
 }

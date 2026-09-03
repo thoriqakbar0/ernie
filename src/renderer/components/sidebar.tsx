@@ -65,12 +65,7 @@ export function Sidebar() {
                 title={`${session.name ?? getWorkspaceName(session.cwd)}\n${session.id}\n${session.cwd}`}
                 type="button"
               >
-                <span className="session-button__topline">
-                  <span className="session-button__name">{session.name ?? getWorkspaceName(session.cwd)}</span>
-                  <span className={`session-button__state session-button__state--${session.state}`}>
-                    {formatSessionState(session.state)}
-                  </span>
-                </span>
+                <span className="session-button__name">{session.name ?? getWorkspaceName(session.cwd)}</span>
                 <span className="session-button__path">{getWorkspaceName(session.cwd)}</span>
               </button>
             </li>
@@ -79,12 +74,6 @@ export function Sidebar() {
       </nav>
     </aside>
   )
-}
-
-function formatSessionState(state: "idle" | "recovering" | "working") {
-  if (state === "working") return "Working"
-  if (state === "recovering") return "Recovering"
-  return "Idle"
 }
 
 function sessionStatePriority(state: "idle" | "recovering" | "working") {

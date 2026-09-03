@@ -20,28 +20,34 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
 
   return (
     <form className="empty-state" onSubmit={submit}>
-      <label className="sr-only" htmlFor="empty-state-prompt">Message Prime Agent</label>
-      <div className="empty-state__composer">
-        <textarea
-          autoFocus
-          className="empty-state__input"
-          disabled={creating}
-          id="empty-state-prompt"
-          onChange={(event) => setPrompt(event.target.value)}
-          onKeyDown={submitOnEnter}
-          placeholder={`What should we build in ${workspaceName}?`}
-          rows={3}
-          value={prompt}
-        />
-        <button
-          aria-label="Start conversation"
-          className="empty-state__submit"
-          data-cy="prime-empty-create"
-          disabled={creating || !prompt.trim()}
-          type="submit"
-        >
-          {creating ? "Starting…" : "Send"}
-        </button>
+      <div className="empty-state__composer-shell prime-composer prime-composer--hero">
+        <div className="prime-composer__surface prime-composer__surface--hero">
+          <label className="sr-only" htmlFor="empty-state-prompt">Message Prime Agent</label>
+          <textarea
+            autoFocus
+            className="prime-composer__input"
+            disabled={creating}
+            id="empty-state-prompt"
+            onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={submitOnEnter}
+            placeholder={`What should we build in ${workspaceName}?`}
+            rows={3}
+            value={prompt}
+          />
+          <div className="prime-composer__footer">
+            <div className="prime-composer__controls" />
+            <button
+              aria-label="Start conversation"
+              className="composer-action composer-action--send"
+              data-cy="prime-empty-create"
+              disabled={creating || !prompt.trim()}
+              type="submit"
+            >
+              <span>{creating ? "Starting" : "Start"}</span>
+              <SendIcon />
+            </button>
+          </div>
+        </div>
       </div>
       {creating ? (
         <p className="empty-state__status" role="status">
@@ -54,6 +60,14 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
         </p>
       ) : null}
     </form>
+  )
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
+      <path d="m3 8 5-5 5 5M8 3v10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+    </svg>
   )
 }
 

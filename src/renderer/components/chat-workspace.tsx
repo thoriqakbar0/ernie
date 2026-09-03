@@ -125,6 +125,7 @@ function PrimeSessionWorkspace({
 
   const connected = snapshot.transport.status === "connected"
   const working = snapshot.session.state === "working"
+  const recovering = snapshot.session.state === "recovering"
   const draftHero = snapshot.session.lifecycle === "draft" &&
     snapshot.messages.length === 0 &&
     !working
@@ -141,6 +142,11 @@ function PrimeSessionWorkspace({
       {snapshot.transport.status === "failed" ? (
         <SessionNotice tone="danger">
           <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the connection returns. <span>{snapshot.transport.error}</span>
+        </SessionNotice>
+      ) : null}
+      {connected && recovering ? (
+        <SessionNotice tone="warning">
+          <strong>Restoring this Prime Agent session.</strong> Commands will return when recovery finishes.
         </SessionNotice>
       ) : null}
       {actionError ? (
@@ -166,6 +172,7 @@ function PrimeSessionWorkspace({
                 modelsPending={models.isPending}
                 onDraftChange={setDraft}
                 onModelSelect={(model) => updateModel(model.provider, model.id)}
+                recovering={recovering}
                 selectedModel={snapshot.session.model}
                 sessionSelected
                 stopAction={stopAction}

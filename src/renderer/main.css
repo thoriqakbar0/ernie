@@ -3,45 +3,49 @@
 
 :root {
   color-scheme: light;
-  --paper: #f7f1e7;
-  --surface: #fffaf2;
-  --surface-muted: #eee6d9;
-  --surface-strong: #e4dbcc;
-  --ink: #172a5b;
-  --ink-strong: #0d1d45;
-  --muted: #5f6472;
-  --faint: #858994;
-  --rule: #d8cfbf;
-  --rule-strong: #bdb3a3;
-  --accent: #cf3f32;
-  --accent-hover: #b93429;
-  --focus: #275eb5;
-  --focus-soft: #dce8fb;
-  --warning: #92570f;
+  --canvas: #fdfbf9;
+  --paper: var(--canvas);
+  --surface: #fffaf5;
+  --surface-muted: #f7efe9;
+  --surface-strong: #efe3da;
+  --ink: #171717;
+  --ink-strong: #2b1a07;
+  --muted: #6f655d;
+  --faint: #8d8178;
+  --rule: #ded5ce;
+  --rule-strong: #c9bbb1;
+  --accent: #ff6f1e;
+  --accent-hover: #ce500a;
+  --focus: #ce500a;
+  --focus-soft: #ffe1cf;
+  --success: #247154;
+  --warning: #956012;
   --warning-soft: #f8e9c9;
-  --danger: #a52f2f;
+  --danger: #a63a32;
   --danger-soft: #f7dddd;
-  --shadow-composer: 0 18px 48px -28px rgb(23 42 91 / 0.42), 0 5px 16px -10px rgb(23 42 91 / 0.2);
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow-composer: 0 18px 48px -28px rgb(43 26 7 / 0.28), 0 5px 16px -10px rgb(43 26 7 / 0.14);
+  font-family: "Geist", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --paper: #0e1730;
-    --surface: #14203f;
-    --surface-muted: #1b294b;
-    --surface-strong: #243457;
-    --ink: #f8f2e8;
-    --ink-strong: #ffffff;
-    --muted: #aeb5c8;
-    --faint: #8791ab;
-    --rule: #2c3b61;
-    --rule-strong: #43547d;
-    --accent: #ff7466;
-    --accent-hover: #ff8a7f;
-    --focus: #75a7f6;
-    --focus-soft: #203b67;
+    --canvas: #171310;
+    --paper: var(--canvas);
+    --surface: #211b17;
+    --surface-muted: #2b231e;
+    --surface-strong: #392e27;
+    --ink: #f8f1eb;
+    --ink-strong: #fffaf5;
+    --muted: #c1b4aa;
+    --faint: #978980;
+    --rule: #44372f;
+    --rule-strong: #635044;
+    --accent: #ff8d4d;
+    --accent-hover: #ff6f1e;
+    --success: #76d5ad;
+    --focus: #ff8d4d;
+    --focus-soft: #4b2a18;
     --warning: #f1bd69;
     --warning-soft: #45361f;
     --danger: #ff8a84;
@@ -293,48 +297,14 @@ input:disabled {
   color: var(--ink-strong);
 }
 
-.session-button__topline {
-  display: flex;
+.session-button__name {
   width: 100%;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.session-button__name {
-  min-width: 0;
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
   font-weight: 680;
-}
-
-.session-button__state {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.session-button__state::before {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
-  content: "";
-}
-
-.session-button__state--working {
-  color: var(--focus);
-}
-
-.session-button__state--recovering {
-  color: var(--warning);
 }
 
 .session-button__path {
@@ -519,9 +489,9 @@ input:disabled {
 }
 
 .prime-composer__surface--hero {
-  height: 52px;
+  min-height: 131px;
   border-radius: 14px;
-  padding: 0 18px;
+  padding: 11px;
   box-shadow: var(--shadow-composer);
 }
 
@@ -530,42 +500,25 @@ input:disabled {
 }
 
 .prime-composer__surface--hero .prime-composer__input {
-  height: 50px;
-  min-height: 50px;
+  min-height: 72px;
+  max-height: 220px;
   overflow-y: auto;
-  padding: 13px 0;
+  padding: 4px 5px 8px;
   font-size: 16px;
   line-height: 24px;
 }
 
 .prime-composer--hero {
-  width: min(100%, 722px);
-}
-
-.composer-hero-submit {
-  display: block;
-  width: 140px;
-  height: 52px;
-  margin-top: 150px;
-  margin-left: auto;
-  border: 0;
-  border-radius: 14px;
-  background: var(--accent);
-  color: white;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.composer-hero-submit:disabled {
-  cursor: default;
-  opacity: 0.42;
+  width: min(100%, 719px);
 }
 
 .prime-composer__input {
   display: block;
   width: 100%;
   min-height: 72px;
+  max-height: 240px;
+  field-sizing: content;
+  overflow-y: auto;
   resize: none;
   border: 0;
   background: transparent;
@@ -607,11 +560,6 @@ input:disabled {
   gap: 10px;
 }
 
-.composer-hint {
-  color: var(--faint);
-  font-size: 10px;
-}
-
 .composer-action {
   display: inline-flex;
   min-width: 80px;
@@ -633,12 +581,12 @@ input:disabled {
 }
 
 .composer-action--send {
-  background: var(--ink);
-  color: var(--surface);
+  background: var(--accent);
+  color: white;
 }
 
 .composer-action--send:hover:not(:disabled) {
-  background: var(--ink-strong);
+  background: var(--accent-hover);
 }
 
 .composer-action--stop {
@@ -1018,7 +966,7 @@ input:disabled {
 
 .composer-placement--hero {
   position: absolute;
-  top: 30%;
+  top: 22%;
   right: 0;
   left: 0;
   z-index: 10;
@@ -1063,50 +1011,9 @@ input:disabled {
   line-height: 1.6;
 }
 
-.empty-state__composer {
-  display: flex;
-  width: min(100%, 680px);
-  align-items: flex-end;
-  gap: 10px;
-  border: 1px solid var(--rule-strong);
-  border-radius: 16px;
-  background: var(--paper);
-  padding: 14px;
-  box-shadow: var(--shadow-soft);
-}
-
-.empty-state__input {
-  min-width: 0;
-  flex: 1;
-  resize: none;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink-strong);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.empty-state__input::placeholder {
-  color: var(--muted);
-}
-
-.empty-state__submit {
-  min-height: 36px;
-  border: 0;
-  border-radius: 9px;
-  background: var(--ink);
-  color: var(--surface);
-  cursor: pointer;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.empty-state__submit:disabled {
-  cursor: default;
-  opacity: 0.45;
+.empty-state__composer-shell {
+  margin: 0;
+  text-align: left;
 }
 
 .primary-button,

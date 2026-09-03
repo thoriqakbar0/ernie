@@ -40,18 +40,22 @@ export function ModelPicker({
     () => [...new Set(models.map(({ provider }) => provider))].sort((left, right) => left.localeCompare(right)),
     [models],
   )
-  const filteredModels = useMemo(() => {
+  const groupedModels = useMemo(() => {
     const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
-    return models.filter((model) => {
-      if (excludedProviders.has(model.provider)) return false
+    const groups = new Map<string, PrimeModel[]>()
+    for (const model of models) {
+      if (excludedProviders.has(model.provider)) continue
       const searchText = `${model.label} ${model.id} ${model.provider}`.toLocaleLowerCase()
-      return terms.every((term) => searchText.includes(term))
+      if (!terms.every((term) => searchText.includes(term))) continue
+      const group = groups.get(model.provider)
+      if (group) group.push(model)
+      else groups.set(model.provider, [model])
+    }
+    return providers.flatMap((provider) => {
+      const providerModels = groups.get(provider)
+      return providerModels ? [{ provider, models: providerModels }] : []
     })
-  }, [excludedProviders, models, query])
-  const groupedModels = useMemo(() => providers.flatMap((provider) => {
-    const providerModels = filteredModels.filter((model) => model.provider === provider)
-    return providerModels.length > 0 ? [{ provider, models: providerModels }] : []
-  }), [filteredModels, providers])
+  }, [excludedProviders, models, providers, query])
 
   const closePicker = (restoreFocus: boolean) => {
     setOpen(false)

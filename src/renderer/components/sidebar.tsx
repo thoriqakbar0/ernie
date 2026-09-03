@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import {
   useCreatePrimeSession,
   usePrimeSessionSelection,
@@ -11,8 +12,11 @@ export function Sidebar() {
   const sessions = usePrimeSessions()
   const createSession = useCreatePrimeSession()
   const { selectedSessionId, selectSession } = usePrimeSessionSelection()
-  const visibleSessions = [...(sessions.data ?? [])].sort(
-    (left, right) => sessionStatePriority(left.state) - sessionStatePriority(right.state),
+  const visibleSessions = useMemo(
+    () => [...(sessions.data ?? [])].sort(
+      (left, right) => sessionStatePriority(left.state) - sessionStatePriority(right.state),
+    ),
+    [sessions.data],
   )
 
   return (

@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { PropsWithChildren } from "react"
 import { useEvents, useRpc } from "@zenbujs/core/react"
 import { Option, Schema } from "effect"
@@ -275,66 +275,73 @@ function PrimeSessionSelectionProvider({
   const queryClient = useQueryClient()
   const sessions = usePrimeSessions()
   const [selectedSessionId, setSelectedSessionId] = useState<string>()
+  const selectionRevision = useRef(0)
+
+  const acceptSelection = useCallback((sessionId: string | undefined) => {
+    selectionRevision.current += 1
+    setSelectedSessionId(sessionId)
+    if (!sessionId) return
+
+    const revision = selectionRevision.current
+    void runtime.getAttachment(sessionId).then((attached) => {
+      if (selectionRevision.current !== revision) return
+      const session = attached.snapshot.session
+      queryClient.setQueryData(sessionKeys.snapshot(sessionId), attached.snapshot)
+      queryClient.setQueryData(
+        sessionKeys.all,
+        (sessions: readonly PrimeSessionSnapshot["session"][] | undefined) => {
+          if (!sessions?.some(({ id }) => id === session.id)) {
+            return [...(sessions ?? []), session]
+          }
+          return sessions.map((existing) => existing.id === session.id ? session : existing)
+        },
+      )
+    }).catch((error: unknown) => {
+      if (selectionRevision.current === revision) {
+        console.error("Failed to synchronize Prime Agent session selection", error)
+      }
+    })
+  }, [queryClient, runtime])
 
   useEffect(() => {
-    let active = true
-    let observedSelection = false
-    const acceptSelection = (sessionId: string | undefined) => {
-      if (!active) return
-      observedSelection = true
-      setSelectedSessionId(sessionId)
-      if (!sessionId) return
-
-      void runtime.getAttachment(sessionId).then((attached) => {
-        if (!active) return
-        const session = attached.snapshot.session
-        queryClient.setQueryData(sessionKeys.snapshot(sessionId), attached.snapshot)
-        queryClient.setQueryData(
-          sessionKeys.all,
-          (sessions: readonly PrimeSessionSnapshot["session"][] | undefined) => {
-            if (!sessions?.some(({ id }) => id === session.id)) {
-              return [...(sessions ?? []), session]
-            }
-            return sessions.map((existing) => existing.id === session.id ? session : existing)
-          },
-        )
-      }).catch((error: unknown) => {
-        if (active) console.error("Failed to synchronize Prime Agent session selection", error)
-      })
-    }
     const unsubscribe = channel.subscribe(acceptSelection)
-
-    if (!sessions.isSuccess) {
-      return () => {
-        active = false
-        unsubscribe()
-      }
+    return () => {
+      selectionRevision.current += 1
+      unsubscribe()
     }
+  }, [acceptSelection, channel])
 
+  useEffect(() => {
+    if (!sessions.isSuccess) return
+
+    let active = true
+    const revision = selectionRevision.current
     void channel.get().then((current) => {
-      if (!active) return
+      if (!active || selectionRevision.current !== revision) return
       const availableSessionIds = sessions.data.map(({ id }) => id)
       if (current && availableSessionIds.includes(current)) {
+        if (current === selectedSessionId) return
         logSessionSelection("keep", current, availableSessionIds)
         acceptSelection(current)
         return
       }
-      if (observedSelection) return
 
-      const firstSessionId = sessions.data?.[0]?.id
+      const firstSessionId = sessions.data[0]?.id
       logSessionSelection(current ? "replace-stale" : "initialize", current, availableSessionIds)
       return channel.select(firstSessionId)
     }).catch((error: unknown) => {
-      if (active) console.error("Failed to initialize Prime Agent session selection", error)
+      if (active && selectionRevision.current === revision) {
+        console.error("Failed to initialize Prime Agent session selection", error)
+      }
     })
 
     return () => {
       active = false
-      unsubscribe()
     }
-  }, [channel, queryClient, runtime, sessions.data, sessions.isSuccess])
+  }, [acceptSelection, channel, selectedSessionId, sessions.data, sessions.isSuccess])
 
   const selectSession = useCallback((sessionId: string) => {
+    selectionRevision.current += 1
     const snapshot = runtime.getAttachedSnapshot(sessionId)
     if (snapshot) queryClient.setQueryData(sessionKeys.snapshot(sessionId), snapshot)
     setSelectedSessionId(sessionId)
@@ -448,7 +455,10 @@ export function usePrimeModels(sessionId: string | undefined) {
   const runtime = usePrimeAgentRuntime()
   return useQuery({
     queryKey: ["prime-agent", "models", sessionId ?? "none"],
-    queryFn: () => runtime.getModels(sessionId!),
+    queryFn: () => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.getModels(sessionId)
+    },
     enabled: sessionId !== undefined,
   })
 }

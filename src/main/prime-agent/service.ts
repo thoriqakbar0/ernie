@@ -32,7 +32,11 @@ import {
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
-import { chooseAvailableSessionName } from "./session-name"
+import {
+  chooseAvailableSessionName,
+  deriveSessionName,
+  isGenericSessionName,
+} from "./session-name"
 
 type CommandBody = DaemonCommand extends infer Command
   ? Command extends { id?: string }
@@ -134,7 +138,8 @@ export class PrimeAgentService extends Service.create({
     commandId: string
     content: string
   }) {
-    const connection = await this.getReadyConnection(input.sessionId)
+    const { attachment, connection } = await this.getReadyAttachment(input.sessionId)
+    await this.nameDraftSessionFromPrompt(attachment, connection, input.content)
     await connection.prompt(input.content, { source: "interactive" })
     return { admissionId: input.admissionId, commandId: input.commandId }
   }
@@ -174,6 +179,10 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async getReadyConnection(sessionId: string) {
+    return (await this.getReadyAttachment(sessionId)).connection
+  }
+
+  private async getReadyAttachment(sessionId: string) {
     if (this.recoveryPromise) {
       const recoveryAvailability = checkPrimeAgentCommandAvailability<DaemonAgentConnection>({
         sessionId,
@@ -192,7 +201,29 @@ export class PrimeAgentService extends Service.create({
       connection: attachment.connection,
     })
     if (!availability.ok) throw availability.error
-    return availability.connection
+    return { attachment, connection: availability.connection }
+  }
+
+  private async nameDraftSessionFromPrompt(
+    attachment: SessionAttachment,
+    connection: DaemonAgentConnection,
+    prompt: string,
+  ) {
+    if (
+      attachment.snapshot.session.lifecycle !== "draft" ||
+      !isGenericSessionName(attachment.snapshot.session.name)
+    ) return
+
+    const derivedName = deriveSessionName(prompt)
+    if (!derivedName) return
+
+    try {
+      const name = chooseAvailableSessionName(derivedName, await this.listSessions())
+      if (!name) return
+      await connection.setSessionName(name)
+    } catch {
+      // A display-name failure must never reject the user's prompt.
+    }
   }
 
   private async getAttachment(sessionId: string) {

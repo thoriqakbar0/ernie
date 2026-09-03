@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
+import { Popover } from "@base-ui/react/popover"
 import { useViewArgs } from "@zenbujs/core/react"
-import { ChevronRightIcon, FolderIcon, PanelLeftCloseIcon } from "lucide-react"
+import { FolderIcon, PanelLeftCloseIcon } from "lucide-react"
 import { useIdle } from "phase/react"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
 import {
@@ -134,9 +135,25 @@ function WorkspaceSessionGroup({
         open={open}
       >
         <summary className="workspace-session-group__summary" title={cwd}>
-          <ChevronRightIcon className="workspace-session-group__chevron" />
           <FolderIcon />
-          <span>{getWorkspaceName(cwd)}</span>
+          <Popover.Root>
+            <Popover.Trigger
+              aria-label={`Workspace details for ${getWorkspaceName(cwd)}`}
+              className="workspace-session-group__name"
+              onClick={(event) => event.stopPropagation()}
+              openOnHover
+            >
+              {getWorkspaceName(cwd)}
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Positioner align="start" side="right" sideOffset={8}>
+                <Popover.Popup className="workspace-session-popover">
+                  <strong>{getWorkspaceName(cwd)}</strong>
+                  <span>{cwd}</span>
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
           <small>{sessions.length}</small>
         </summary>
         <ul className="workspace-session-group__sessions">

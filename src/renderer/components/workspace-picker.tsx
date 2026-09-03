@@ -62,8 +62,8 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
       </DialogTrigger>
       <DialogContent className="workspace-dialog">
         <DialogHeader>
-          <DialogTitle>Choose a workspace</DialogTitle>
-          <DialogDescription>Continue in an existing Prime Agent workspace.</DialogDescription>
+          <DialogTitle>Switch workspace</DialogTitle>
+          <DialogDescription>Open a conversation from another Prime Agent workspace.</DialogDescription>
         </DialogHeader>
         <label className="workspace-dialog__search">
           <SearchIcon aria-hidden="true" />
@@ -72,7 +72,7 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
             autoComplete="off"
             autoFocus
             onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder="Search ~/work/..."
+            placeholder="Search by workspace name or path"
             spellCheck={false}
             type="search"
             value={query}

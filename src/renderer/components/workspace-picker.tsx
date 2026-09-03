@@ -64,7 +64,7 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
       <DialogContent className="workspace-dialog">
         <DialogHeader>
           <DialogTitle>Open a workspace</DialogTitle>
-          <DialogDescription>Choose a workspace to open its latest Prime Agent conversation.</DialogDescription>
+          <DialogDescription>Choose a workspace to open a Prime Agent conversation.</DialogDescription>
         </DialogHeader>
         <InputGroup>
           <InputGroupInput

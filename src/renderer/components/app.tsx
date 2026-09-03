@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./app.stylex"
 import { Agentation } from "agentation"
 import { View } from "@zenbujs/core/react"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
@@ -6,11 +8,11 @@ import { Titlebar } from "./titlebar"
 
 export function App() {
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
+    <div {...stylex.props(styles.flex, styles.minHScreen, styles.flexCol, styles.bgZinc50, styles.textZinc950, styles.darkBgZinc950, styles.darkTextZinc50)}>
       <Titlebar />
-      <main className="grid min-h-0 flex-1 grid-cols-[236px_minmax(0,1fr)]">
-        <aside aria-label="Sidebar" className="min-h-0">
-          <View className="h-full w-full" name={SIDEBAR_VIEW_TYPE} />
+      <main {...stylex.props(styles.grid, styles.minH0, styles.flex1, styles.appColumns)}>
+        <aside aria-label="Sidebar" {...stylex.props(styles.minH0)}>
+          <View {...stylex.props(styles.hFull, styles.wFull)} name={SIDEBAR_VIEW_TYPE} />
         </aside>
         <ChatWorkspace />
       </main>

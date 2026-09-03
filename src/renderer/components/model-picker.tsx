@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./model-picker.stylex"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { PrimeModel } from "../../packages/prime-agent"
@@ -118,12 +120,12 @@ export function ModelPicker({
   }, [open])
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div {...stylex.props(styles.relative)} ref={rootRef}>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Model: ${selected?.label ?? "Select model"}`}
-        className="flex h-7 max-w-48 items-center gap-1.5 rounded-md px-2.5 text-xs text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        {...stylex.props(styles.flex, styles.h7, styles.maxW48, styles.itemsCenter, styles.gap15, styles.roundedMd, styles.px25, styles.textXs, styles.textZinc500, styles.transition, styles.hoverBgZinc100, styles.hoverTextZinc900, styles.focusVisibleOutline2, styles.focusVisibleOutlineOffset1, styles.focusVisibleOutlineZinc500, styles.disabledCursorNotAllowed, styles.disabledOpacity50, styles.darkHoverBgZinc800, styles.darkHoverTextZinc100)}
         disabled={disabled}
         onClick={() => {
           setQuery("")
@@ -132,44 +134,64 @@ export function ModelPicker({
         ref={triggerRef}
         type="button"
       >
-        <span className="grid size-4 shrink-0 place-items-center rounded bg-zinc-200 text-[9px] font-semibold uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+        <span {...stylex.props(styles.grid, styles.size4, styles.shrink0, styles.placeItemsCenter, styles.rounded, styles.bgZinc200, styles.text9px, styles.fontSemibold, styles.uppercase, styles.textZinc600, styles.darkBgZinc800, styles.darkTextZinc300)}>
           {selected?.provider.slice(0, 1) ?? "M"}
         </span>
-        <span className="min-w-0 flex-1 truncate">{selected?.label ?? "Select model"}</span>
+        <span {...stylex.props(styles.minW0, styles.flex1, styles.truncate)}>{selected?.label ?? "Select model"}</span>
         <ChevronIcon />
       </button>
 
       {open && position ? createPortal(
         <div
           aria-label="Model picker"
-          className="fixed z-[100] flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white/95 text-zinc-900 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/95 dark:text-zinc-100"
+          {...stylex.props(styles.fixed, styles.z100, styles.flex, styles.flexCol, styles.overflowHidden, styles.roundedXl, styles.border, styles.borderZinc200, styles.bgWhite95, styles.textZinc900, styles.shadow2xl, styles.backdropBlurXl, styles.darkBorderWhite10, styles.darkBgZinc90095, styles.darkTextZinc100)}
           data-model-picker-popup
           role="dialog"
           style={position}
         >
-          <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
-            <div className="flex items-center gap-2 rounded-md px-2 focus-within:ring-1 focus-within:ring-zinc-400">
+          <div {...stylex.props(styles.borderB, styles.borderZinc200, styles.p2, styles.darkBorderZinc800)}>
+            <div {...stylex.props(styles.flex, styles.itemsCenter, styles.gap2, styles.roundedMd, styles.px2, styles.focusWithinRingZinc400)}>
               <SearchIcon />
               <input
                 aria-label="Search models"
                 autoFocus
-                className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400"
+                {...stylex.props(styles.h9, styles.minW0, styles.flex1, styles.bgTransparent, styles.textSm, styles.outlineNone, styles.placeholderTextZinc400)}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search models..."
                 value={query}
               />
             </div>
           </div>
-          <div className="h-[52px] shrink-0 border-b border-zinc-200 dark:border-zinc-800">
-            <div aria-label="Model companies" className="h-full overflow-x-auto overflow-y-hidden px-2">
-              <div className="flex h-full min-w-max items-center gap-1">
+          <div {...stylex.props(styles.h52px, styles.shrink0, styles.borderB, styles.borderZinc200, styles.darkBorderZinc800)}>
+            <div aria-label="Model companies" {...stylex.props(styles.hFull, styles.overflowXAuto, styles.overflowYHidden, styles.px2)}>
+              <div {...stylex.props(styles.flex, styles.hFull, styles.minWMax, styles.itemsCenter, styles.gap1)}>
                 {providers.map((provider) => {
                   const enabled = activeProviders.has(provider)
                   return (
                     <button
                       aria-label={provider}
                       aria-pressed={enabled}
-                      className={`relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold uppercase leading-none ${enabled ? "bg-zinc-900 text-white ring-1 ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-100" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
+                      {...stylex.props(
+                        styles.relative,
+                        styles.inlineFlex,
+                        styles.size9,
+                        styles.shrink0,
+                        styles.itemsCenter,
+                        styles.justifyCenter,
+                        styles.roundedLg,
+                        styles.text11px,
+                        styles.fontSemibold,
+                        styles.uppercase,
+                        styles.leadingNone,
+                        enabled ? styles.bgZinc900 : styles.bgZinc100,
+                        enabled ? styles.textWhite : styles.textZinc500,
+                        enabled && styles.ringZinc900,
+                        enabled ? styles.darkBgZinc100 : styles.darkBgZinc800,
+                        enabled && styles.darkTextZinc900,
+                        enabled && styles.darkRingZinc100,
+                        !enabled && styles.hoverBgZinc200,
+                        !enabled && styles.darkHoverBgZinc700,
+                      )}
                       key={provider}
                       onClick={() => toggleProvider(provider)}
                       title={provider}
@@ -182,16 +204,16 @@ export function ModelPicker({
               </div>
             </div>
           </div>
-          <div aria-label="Models" className="min-h-0 overflow-y-auto p-1.5" role="listbox">
+          <div aria-label="Models" {...stylex.props(styles.minH0, styles.overflowYAuto, styles.p15)} role="listbox">
             {groupedModels.length > 0 ? groupedModels.map(({ provider, models: providerModels }) => (
               <section aria-label={provider} key={provider}>
-                <p className="px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-zinc-400">{provider}</p>
+                <p {...stylex.props(styles.px25, styles.pb1, styles.pt2, styles.text11px, styles.fontMedium, styles.uppercase, styles.trackingWide, styles.textZinc400)}>{provider}</p>
                 {providerModels.map((model) => {
                   const isSelected = model.id === selectedModelId
                   return (
                     <button
                       aria-selected={isSelected}
-                      className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-zinc-100 focus-visible:bg-zinc-100 focus-visible:outline-none dark:hover:bg-zinc-800 dark:focus-visible:bg-zinc-800"
+                      {...stylex.props(styles.flex, styles.wFull, styles.itemsCenter, styles.gap3, styles.roundedLg, styles.px25, styles.py2, styles.textLeft, styles.hoverBgZinc100, styles.focusVisibleBgZinc100, styles.focusVisibleOutlineNone, styles.darkHoverBgZinc800, styles.darkFocusVisibleBgZinc800)}
                       key={`${model.provider}:${model.id}`}
                       onClick={() => {
                         onSelect(model)
@@ -200,12 +222,12 @@ export function ModelPicker({
                       role="option"
                       type="button"
                     >
-                      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-zinc-100 text-[10px] font-semibold uppercase text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                      <span {...stylex.props(styles.grid, styles.size7, styles.shrink0, styles.placeItemsCenter, styles.roundedMd, styles.bgZinc100, styles.text10px, styles.fontSemibold, styles.uppercase, styles.textZinc500, styles.darkBgZinc800, styles.darkTextZinc300)}>
                         {model.provider.slice(0, 1)}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{model.label}</span>
-                        <span className="block truncate text-xs capitalize text-zinc-400">{model.provider}</span>
+                      <span {...stylex.props(styles.minW0, styles.flex1)}>
+                        <span {...stylex.props(styles.block, styles.truncate, styles.textSm, styles.fontMedium)}>{model.label}</span>
+                        <span {...stylex.props(styles.block, styles.truncate, styles.textXs, styles.capitalize, styles.textZinc400)}>{model.provider}</span>
                       </span>
                       {isSelected ? <CheckIcon /> : null}
                     </button>
@@ -213,7 +235,7 @@ export function ModelPicker({
                 })}
               </section>
             )) : (
-              <p className="px-3 py-8 text-center text-sm text-zinc-400">No models found</p>
+              <p {...stylex.props(styles.px3, styles.py8, styles.textCenter, styles.textSm, styles.textZinc400)}>No models found</p>
             )}
           </div>
         </div>,
@@ -232,7 +254,7 @@ function companyMark(provider: string) {
 
 function ChevronIcon() {
   return (
-    <svg aria-hidden="true" className="size-3.5 shrink-0 text-zinc-400" fill="none" viewBox="0 0 14 14">
+    <svg aria-hidden="true" {...stylex.props(styles.size35, styles.shrink0, styles.textZinc400)} fill="none" viewBox="0 0 14 14">
       <path d="m4 5.5 3 3 3-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
   )
@@ -240,7 +262,7 @@ function ChevronIcon() {
 
 function SearchIcon() {
   return (
-    <svg aria-hidden="true" className="size-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 16 16">
+    <svg aria-hidden="true" {...stylex.props(styles.size4, styles.shrink0, styles.textZinc400)} fill="none" viewBox="0 0 16 16">
       <circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.4" />
       <path d="m10 10 3 3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
     </svg>
@@ -249,7 +271,7 @@ function SearchIcon() {
 
 function CheckIcon() {
   return (
-    <svg aria-hidden="true" className="size-4 shrink-0" fill="none" viewBox="0 0 16 16">
+    <svg aria-hidden="true" {...stylex.props(styles.size4, styles.shrink0)} fill="none" viewBox="0 0 16 16">
       <path d="m3.5 8 3 3 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
   )

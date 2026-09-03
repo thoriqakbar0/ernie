@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./chat-workspace.stylex"
 import { useActionState, useEffect, useState } from "react"
 import { DraftHeroHeadline } from "./draft-hero-headline"
 import { PrimeComposer } from "./prime-composer"
@@ -82,42 +84,61 @@ export function ChatWorkspace() {
   const sessionStatus = getSessionStatus(snapshot)
 
   return (
-    <section aria-label="Chat workspace" className="flex min-h-0 min-w-0 flex-col bg-white text-zinc-950 dark:bg-zinc-900 dark:text-zinc-50">
-      <header className="flex h-[48px] shrink-0 items-center justify-between border-b border-zinc-200/80 px-5 dark:border-zinc-800">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-sm font-semibold tracking-tight">
+    <section aria-label="Chat workspace" {...stylex.props(styles.flex, styles.minH0, styles.minW0, styles.flexCol, styles.bgWhite, styles.textZinc950, styles.darkBgZinc900, styles.darkTextZinc50)}>
+      <header {...stylex.props(styles.flex, styles.h48px, styles.shrink0, styles.itemsCenter, styles.justifyBetween, styles.borderB, styles.borderZinc20080, styles.px5, styles.darkBorderZinc800)}>
+        <div {...stylex.props(styles.minW0)}>
+          <div {...stylex.props(styles.flex, styles.minW0, styles.itemsCenter, styles.gap2)}>
+            <h1 {...stylex.props(styles.truncate, styles.textSm, styles.fontSemibold, styles.trackingTight)}>
               {snapshot?.session.name ?? "Prime Agent"}
             </h1>
             {sessionStatus ? (
-              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sessionStatus.tone}`} role="status">
+              <span {...stylex.props(
+                styles.shrink0,
+                styles.roundedFull,
+                styles.px15,
+                styles.py05,
+                styles.text10px,
+                styles.fontMedium,
+                sessionStatus.tone === "failed" && styles.bgRed100,
+                sessionStatus.tone === "failed" && styles.textRed700,
+                sessionStatus.tone === "failed" && styles.darkBgRed950,
+                sessionStatus.tone === "failed" && styles.darkTextRed300,
+                sessionStatus.tone === "recovering" && styles.bgAmber100,
+                sessionStatus.tone === "recovering" && styles.textAmber700,
+                sessionStatus.tone === "recovering" && styles.darkBgAmber950,
+                sessionStatus.tone === "recovering" && styles.darkTextAmber300,
+                sessionStatus.tone === "working" && styles.bgEmerald100,
+                sessionStatus.tone === "working" && styles.textEmerald700,
+                sessionStatus.tone === "working" && styles.darkBgEmerald950,
+                sessionStatus.tone === "working" && styles.darkTextEmerald300,
+              )} role="status">
                 {sessionStatus.label}
               </span>
             ) : null}
           </div>
-          <p className="truncate text-xs text-zinc-500" title={snapshot?.session.cwd ?? workspacePath.data ?? undefined}>
+          <p {...stylex.props(styles.truncate, styles.textXs, styles.textZinc500)} title={snapshot?.session.cwd ?? workspacePath.data ?? undefined}>
             {snapshot?.session.cwd ?? workspacePath.data ?? ""}
           </p>
         </div>
       </header>
 
       {snapshot?.transport.status === "reconnecting" ? (
-        <p className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status">
+        <p {...stylex.props(styles.borderB, styles.borderAmber200, styles.bgAmber50, styles.px5, styles.py2, styles.textSm, styles.textAmber950, styles.darkBorderAmber900, styles.darkBgAmber950, styles.darkTextAmber100)} role="status">
           Prime Agent is reconnecting. Commands will resume after recovery.
         </p>
       ) : null}
       {snapshot?.transport.status === "failed" ? (
-        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
+        <p {...stylex.props(styles.borderB, styles.borderRed200, styles.bgRed50, styles.px5, styles.py2, styles.textSm, styles.textRed950, styles.darkBorderRed900, styles.darkBgRed950, styles.darkTextRed100)} role="alert">
           {snapshot.transport.error}
         </p>
       ) : null}
       {submitResult.status === "error" || stopResult.status === "error" || modelError ? (
-        <p className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" role="alert">
+        <p {...stylex.props(styles.borderB, styles.borderRed200, styles.bgRed50, styles.px5, styles.py2, styles.textSm, styles.textRed950, styles.darkBorderRed900, styles.darkBgRed950, styles.darkTextRed100)} role="alert">
           {modelError ?? (submitResult.status === "error" ? submitResult.message : null) ?? (stopResult.status === "error" ? stopResult.message : null)}
         </p>
       ) : null}
 
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div {...stylex.props(styles.relative, styles.minH0, styles.flex1, styles.overflowHidden)}>
         {showEmptyState ? (
           <PrimeEmptyState
             creating={createSession.isPending}
@@ -126,7 +147,7 @@ export function ChatWorkspace() {
             onCreate={() => createSession.mutate()}
           />
         ) : !snapshot ? (
-          <p className="grid h-full place-items-center text-sm text-zinc-400" role="status">
+          <p {...stylex.props(styles.grid, styles.hFull, styles.placeItemsCenter, styles.textSm, styles.textZinc400)} role="status">
             Opening Prime Agent...
           </p>
         ) : (
@@ -134,21 +155,32 @@ export function ChatWorkspace() {
             <div
               aria-label="Conversation transcript"
               aria-live="polite"
-              className={`h-full overflow-y-auto ${draftHero ? "" : "pb-40"}`}
+              {...stylex.props(styles.hFull, styles.overflowYAuto, !draftHero && styles.pb40)}
               role="log"
             >
               {!draftHero ? (
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-6 py-10">
+                <div {...stylex.props(styles.mxAuto, styles.flex, styles.wFull, styles.maxW3xl, styles.flexCol, styles.gap7, styles.px6, styles.py10)}>
                   {snapshot.messages.map((message) => (
-                    <article className="grid grid-cols-[28px_minmax(0,1fr)] gap-3" key={message.id}>
-                      <div className={`grid size-7 place-items-center rounded-md text-[11px] font-semibold ${message.role === "assistant" ? "bg-zinc-950 text-white dark:bg-zinc-50 dark:text-zinc-950" : "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100"}`}>
+                    <article {...stylex.props(styles.grid, styles.messageColumns, styles.gap3)} key={message.id}>
+                      <div {...stylex.props(
+                        styles.grid,
+                        styles.size7,
+                        styles.placeItemsCenter,
+                        styles.roundedMd,
+                        styles.text11px,
+                        styles.fontSemibold,
+                        message.role === "assistant" ? styles.bgZinc950 : styles.bgZinc200,
+                        message.role === "assistant" ? styles.textWhite : styles.textZinc700,
+                        message.role === "assistant" ? styles.darkBgZinc50 : styles.darkBgZinc700,
+                        message.role === "assistant" ? styles.darkTextZinc950 : styles.darkTextZinc100,
+                      )}>
                         {message.role === "assistant" ? "P" : "You"}
                       </div>
-                      <div className="min-w-0 pt-0.5">
-                        <p className="mb-1 text-xs font-medium text-zinc-500">
+                      <div {...stylex.props(styles.minW0, styles.pt05)}>
+                        <p {...stylex.props(styles.mb1, styles.textXs, styles.fontMedium, styles.textZinc500)}>
                           {message.role === "assistant" ? "Prime Agent" : message.role === "user" ? "You" : "System"}
                         </p>
-                        <p className="whitespace-pre-wrap text-[15px] leading-6 text-zinc-800 dark:text-zinc-200">
+                        <p {...stylex.props(styles.whitespacePreWrap, styles.text15px, styles.leading6, styles.textZinc800, styles.darkTextZinc200)}>
                           {message.content}
                         </p>
                       </div>
@@ -159,15 +191,28 @@ export function ChatWorkspace() {
             </div>
 
             <div
-              className={draftHero
-                ? "pointer-events-none absolute inset-0 z-20 flex items-center"
-                : "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-transparent pb-5 pt-10 dark:from-zinc-900 dark:via-zinc-900/95"}
+              {...stylex.props(
+                styles.pointerEventsNone,
+                styles.absolute,
+                styles.z20,
+                draftHero ? styles.inset0 : styles.insetX0,
+                draftHero ? styles.flex : styles.bottom0,
+                draftHero && styles.itemsCenter,
+                !draftHero && styles.bgGradientToT,
+                !draftHero && styles.fromWhite,
+                !draftHero && styles.viaWhite95,
+                !draftHero && styles.toTransparent,
+                !draftHero && styles.pb5,
+                !draftHero && styles.pt10,
+                !draftHero && styles.darkFromZinc900,
+                !draftHero && styles.darkViaZinc90095,
+              )}
               data-composer-placement={draftHero ? "hero" : "docked"}
             >
-              <div className="w-full px-5">
-                <div className="pointer-events-auto relative mx-auto w-full max-w-3xl">
+              <div {...stylex.props(styles.wFull, styles.px5)}>
+                <div {...stylex.props(styles.pointerEventsAuto, styles.relative, styles.mxAuto, styles.wFull, styles.maxW3xl)}>
                   {draftHero ? (
-                    <div className="absolute inset-x-0 bottom-full pb-8">
+                    <div {...stylex.props(styles.absolute, styles.insetX0, styles.bottomFull, styles.pb8)}>
                       <DraftHeroHeadline cwd={snapshot.session.cwd} />
                     </div>
                   ) : null}
@@ -210,13 +255,13 @@ function getErrorMessage(error: unknown) {
 function getSessionStatus(snapshot: ReturnType<typeof usePrimeSessionSnapshot>["data"]) {
   if (!snapshot) return undefined
   if (snapshot.transport.status === "failed") {
-    return { label: "Failed", tone: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" }
+    return { label: "Failed", tone: "failed" as const }
   }
   if (snapshot.transport.status === "reconnecting" || snapshot.session.state === "recovering") {
-    return { label: "Recovering", tone: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" }
+    return { label: "Recovering", tone: "recovering" as const }
   }
   if (snapshot.session.state === "working") {
-    return { label: "Working", tone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" }
+    return { label: "Working", tone: "working" as const }
   }
   return undefined
 }

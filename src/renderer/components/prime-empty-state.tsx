@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./prime-empty-state.stylex"
 type PrimeEmptyStateProps = Readonly<{
   creating: boolean
   cwd: string
@@ -10,27 +12,27 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
   const workspaceName = getWorkspaceName(cwd)
 
   return (
-    <div className="flex h-full min-h-0 items-center justify-center px-6 py-12 text-center">
-      <div className="flex max-w-md flex-col items-center">
-        <div aria-hidden="true" className="relative mb-7 size-11">
-          <span className="absolute inset-1 -rotate-8 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900" />
-          <span className="absolute inset-1 rotate-8 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900" />
-          <span className="absolute inset-0 grid place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+    <div {...stylex.props(styles.flex, styles.hFull, styles.minH0, styles.itemsCenter, styles.justifyCenter, styles.px6, styles.py12, styles.textCenter)}>
+      <div {...stylex.props(styles.flex, styles.maxWMd, styles.flexCol, styles.itemsCenter)}>
+        <div aria-hidden="true" {...stylex.props(styles.relative, styles.mb7, styles.size11)}>
+          <span {...stylex.props(styles.absolute, styles.inset1, styles.negativeRotate8, styles.roundedXl, styles.border, styles.borderZinc200, styles.bgWhite, styles.darkBorderZinc800, styles.darkBgZinc900)} />
+          <span {...stylex.props(styles.absolute, styles.inset1, styles.rotate8, styles.roundedXl, styles.border, styles.borderZinc200, styles.bgWhite, styles.darkBorderZinc800, styles.darkBgZinc900)} />
+          <span {...stylex.props(styles.absolute, styles.inset0, styles.grid, styles.placeItemsCenter, styles.roundedXl, styles.border, styles.borderZinc200, styles.bgWhite, styles.textZinc700, styles.shadowSm, styles.darkBorderZinc700, styles.darkBgZinc900, styles.darkTextZinc200)}>
             <SparkIcon />
           </span>
         </div>
-        <h2 className="text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+        <h2 {...stylex.props(styles.textXl, styles.fontSemibold, styles.trackingTight, styles.textZinc950, styles.darkTextZinc50)}>
           Start a conversation
         </h2>
-        <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+        <p {...stylex.props(styles.mt2, styles.maxWSm, styles.textSm, styles.leading6, styles.textZinc500, styles.darkTextZinc400)}>
           Prime Agent will work inside{" "}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300" title={cwd}>
+          <span {...stylex.props(styles.fontMedium, styles.textZinc700, styles.darkTextZinc300)} title={cwd}>
             {workspaceName}
           </span>
           .
         </p>
         <button
-          className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-zinc-900 px-3.5 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-wait disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+          {...stylex.props(styles.mt6, styles.inlineFlex, styles.h9, styles.itemsCenter, styles.gap2, styles.roundedLg, styles.bgZinc900, styles.px35, styles.textSm, styles.fontMedium, styles.textWhite, styles.transition, styles.hoverBgZinc700, styles.focusVisibleOutline2, styles.focusVisibleOutlineOffset2, styles.focusVisibleOutlineZinc500, styles.disabledCursorWait, styles.disabledOpacity60, styles.darkBgZinc100, styles.darkTextZinc950, styles.darkHoverBgWhite)}
           data-cy="prime-empty-create"
           disabled={creating}
           onClick={onCreate}
@@ -40,12 +42,12 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
           {creating ? "Starting..." : "New conversation"}
         </button>
         {creating ? (
-          <p className="mt-3 text-xs text-zinc-500" role="status">
+          <p {...stylex.props(styles.mt3, styles.textXs, styles.textZinc500)} role="status">
             Starting Prime Agent in {workspaceName}...
           </p>
         ) : null}
         {error ? (
-          <p className="mt-3 max-w-sm text-sm text-red-700 dark:text-red-400" role="alert">
+          <p {...stylex.props(styles.mt3, styles.maxWSm, styles.textSm, styles.textRed700, styles.darkTextRed400)} role="alert">
             {error}
           </p>
         ) : null}
@@ -61,7 +63,7 @@ function getWorkspaceName(cwd: string) {
 
 function SparkIcon() {
   return (
-    <svg className="size-5" fill="none" viewBox="0 0 20 20">
+    <svg {...stylex.props(styles.size5)} fill="none" viewBox="0 0 20 20">
       <path d="M10 2.5c.45 3.95 2.55 6.05 6.5 6.5-3.95.45-6.05 2.55-6.5 6.5C9.55 11.55 7.45 9.45 3.5 9 7.45 8.55 9.55 6.45 10 2.5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.4" />
     </svg>
   )
@@ -69,7 +71,7 @@ function SparkIcon() {
 
 function PlusIcon() {
   return (
-    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 16 16">
+    <svg aria-hidden="true" {...stylex.props(styles.size4)} fill="none" viewBox="0 0 16 16">
       <path d="M8 3v10M3 8h10" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
     </svg>
   )

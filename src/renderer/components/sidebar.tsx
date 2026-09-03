@@ -1,9 +1,7 @@
-import { useState } from "react"
 import {
   useCreatePrimeSession,
   usePrimeSessionSelection,
   usePrimeSessions,
-  useWorkspacePath,
 } from "../prime-agent-state"
 import { ErnieMark } from "./ernie-mark"
 import { PlusIcon } from "./plus-icon"
@@ -12,19 +10,17 @@ import { getWorkspaceName } from "./workspace-name"
 export function Sidebar() {
   const sessions = usePrimeSessions()
   const createSession = useCreatePrimeSession()
-  const workspacePath = useWorkspacePath()
   const { selectedSessionId, selectSession } = usePrimeSessionSelection()
-  const [conversationsExpanded, setConversationsExpanded] = useState(true)
+  const visibleSessions = [...(sessions.data ?? [])].sort(
+    (left, right) => sessionStatePriority(left.state) - sessionStatePriority(right.state),
+  )
 
   return (
     <aside aria-label="Sidebar" className="session-sidebar">
       <div className="sidebar-brand">
         <div className="sidebar-brand__identity">
           <ErnieMark className="sidebar-brand__mark" />
-          <div>
-            <p className="sidebar-brand__name">Ernie</p>
-            <p className="sidebar-brand__tagline">Local agent desk</p>
-          </div>
+          <p className="sidebar-brand__name">Ernie</p>
         </div>
         <button
           aria-label="New conversation"
@@ -46,61 +42,51 @@ export function Sidebar() {
             </p>
           ) : null}
         </div>
-        <button
-          aria-controls="today-conversations"
-          aria-expanded={conversationsExpanded}
-          aria-label="Conversations"
-          className="sidebar-nav__heading"
-          onClick={() => setConversationsExpanded((expanded) => !expanded)}
-          type="button"
-        >
-          <span>Sessions</span>
-          <span className="sidebar-nav__count">{sessions.data?.length ?? 0}</span>
-          <ChevronIcon expanded={conversationsExpanded} />
-        </button>
-        {conversationsExpanded ? (
-          <ul className="sidebar-session-list" id="today-conversations">
-            {sessions.isPending ? (
-              <li className="sidebar-placeholder" role="status">Loading sessions…</li>
-            ) : sessions.isError ? (
-              <li className="sidebar-placeholder sidebar-placeholder--error" role="alert">Unable to load sessions</li>
-            ) : sessions.data.length === 0 ? (
-              <li className="sidebar-placeholder">No sessions yet</li>
-            ) : sessions.data.map((session) => (
-              <li key={session.id}>
-                <button
-                  aria-current={session.id === selectedSessionId ? "page" : undefined}
-                  aria-label={session.name ?? session.cwd}
-                  className="session-button"
-                  onClick={() => selectSession(session.id)}
-                  title={session.name ?? session.cwd}
-                  type="button"
-                >
-                  <span className="session-button__topline">
-                    <span className="session-button__name">{session.name ?? getWorkspaceName(session.cwd)}</span>
+        <ul className="sidebar-session-list">
+          {sessions.isPending ? (
+            <li className="sidebar-placeholder" role="status">Loading sessions…</li>
+          ) : sessions.isError ? (
+            <li className="sidebar-placeholder sidebar-placeholder--error" role="alert">Unable to load sessions</li>
+          ) : sessions.data.length === 0 ? (
+            <li className="sidebar-placeholder">No sessions yet</li>
+          ) : visibleSessions.map((session) => (
+            <li key={session.id}>
+              <button
+                aria-current={session.id === selectedSessionId ? "page" : undefined}
+                aria-label={session.name ?? session.cwd}
+                className="session-button"
+                data-session-id={session.id}
+                data-session-state={session.state}
+                onClick={() => selectSession(session.id)}
+                title={`${session.name ?? getWorkspaceName(session.cwd)}\n${session.id}\n${session.cwd}`}
+                type="button"
+              >
+                <span className="session-button__topline">
+                  <span className="session-button__name">{session.name ?? getWorkspaceName(session.cwd)}</span>
+                  <span className={`session-button__state session-button__state--${session.state}`}>
+                    {formatSessionState(session.state)}
                   </span>
-                  <span className="session-button__path">{getWorkspaceName(session.cwd)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+                </span>
+                <span className="session-button__path">{getWorkspaceName(session.cwd)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </nav>
-
-      <div className="sidebar-footer">
-        <span className="sidebar-footer__label">Workspace</span>
-        <span className="sidebar-footer__path" title={workspacePath.data}>{workspacePath.data ?? "Loading…"}</span>
-      </div>
     </aside>
   )
 }
 
-function ChevronIcon({ expanded }: Readonly<{ expanded: boolean }>) {
-  return (
-    <svg aria-hidden="true" className={expanded ? "chevron chevron--expanded" : "chevron"} fill="none" viewBox="0 0 12 12">
-      <path d="m4.5 2.5 3.5 3.5-3.5 3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
-    </svg>
-  )
+function formatSessionState(state: "idle" | "recovering" | "working") {
+  if (state === "working") return "Working"
+  if (state === "recovering") return "Recovering"
+  return "Idle"
+}
+
+function sessionStatePriority(state: "idle" | "recovering" | "working") {
+  if (state === "working") return 0
+  if (state === "recovering") return 1
+  return 2
 }
 
 function getErrorMessage(error: unknown) {

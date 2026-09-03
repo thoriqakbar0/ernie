@@ -11,7 +11,7 @@ type PrimeComposerProps = Readonly<{
   modelsPending: boolean
   onDraftChange: (draft: string) => void
   onModelSelect: (model: PrimeModel) => void
-  selectedModelId: string
+  selectedModel: PrimeModel | undefined
   sessionSelected: boolean
   stopAction: () => void
   stopping: boolean
@@ -29,7 +29,7 @@ export function PrimeComposer({
   modelsPending,
   onDraftChange,
   onModelSelect,
-  selectedModelId,
+  selectedModel,
   sessionSelected,
   stopAction,
   stopping,
@@ -40,8 +40,12 @@ export function PrimeComposer({
   const inputDisabled = !sessionSelected || !connected || submitting || stopping
 
   return (
-    <form action={submitAction} className="prime-composer" data-chat-composer>
-      <div className="prime-composer__surface">
+    <form
+      action={submitAction}
+      className={draftHero ? "prime-composer prime-composer--hero" : "prime-composer"}
+      data-chat-composer
+    >
+      <div className={draftHero ? "prime-composer__surface prime-composer__surface--hero" : "prime-composer__surface"}>
         <label className="sr-only" htmlFor="chat-message">Message Prime Agent</label>
         <textarea
           autoFocus={draftHero}
@@ -51,17 +55,17 @@ export function PrimeComposer({
           name="message"
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={submitOnEnter}
-          placeholder={working ? "Add a follow-up for this run…" : "Describe the outcome, constraints, files, or checks…"}
-          rows={3}
+          placeholder={draftHero ? "Ask Ernie to build something…" : working ? "Add a follow-up for this run…" : "Describe the outcome, constraints, files, or checks…"}
+          rows={draftHero ? 1 : 3}
           value={draft}
         />
-        <div className="prime-composer__footer">
+        {draftHero ? null : <div className="prime-composer__footer">
           <div className="prime-composer__controls">
             <ModelPicker
               disabled={!sessionSelected || !connected || modelChangePending || modelsPending}
               models={models}
               onSelect={onModelSelect}
-              selectedModelId={selectedModelId}
+              selectedModel={selectedModel}
               side={draftHero ? "bottom" : "top"}
             />
             <span className="composer-hint">Enter to send · Shift+Enter for a new line</span>
@@ -88,8 +92,17 @@ export function PrimeComposer({
               <SendIcon />
             </button>
           )}
-        </div>
+        </div>}
       </div>
+      {draftHero ? (
+        <button
+          className="composer-hero-submit"
+          disabled={!draft.trim() || inputDisabled}
+          type="submit"
+        >
+          {submitting ? "Starting" : "Start"}
+        </button>
+      ) : null}
     </form>
   )
 }

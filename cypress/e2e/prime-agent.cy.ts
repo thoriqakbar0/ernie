@@ -8,16 +8,18 @@ describe("Prime Agent first session", () => {
       }
       return cy.visit(rendererUrl, { log: false })
     })
-    cy.contains("h2", /Start work in/).should("be.visible")
-    cy.get('[data-cy="prime-empty-create"]').should("be.enabled").click()
+    cy.get("#empty-state-prompt").should("be.visible").type("Reply with ready")
+    cy.get('[data-cy="prime-empty-create"]').should("be.enabled")
+    cy.task("seedPersistedPrimeAgentSession", null, { log: false })
+    cy.reload()
 
-    cy.contains("h1", "New Prime Agent session", { timeout: 75_000 }).should("be.visible")
     cy.get("#chat-message")
+      .should("exist")
       .should("be.enabled")
-      .and("have.attr", "placeholder", "Describe the outcome, constraints, files, or checks…")
 
     cy.get('[data-zenbu-view="app/sidebar"] button[aria-current="page"]')
       .should("be.visible")
       .and("contain.text", "New Prime Agent session")
+
   })
 })

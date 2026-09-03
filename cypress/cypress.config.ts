@@ -11,6 +11,7 @@ const primeAgentAgentDir = process.env.CYPRESS_primeAgentAgentDir
 const primeAgentCliPath = process.env.CYPRESS_primeAgentCliPath
 const primeAgentExecutablePath = process.env.CYPRESS_primeAgentExecutablePath
 const primeAgentSocketPath = process.env.CYPRESS_primeAgentSocketPath
+const workspacePath = process.env.CYPRESS_workspacePath
 
 export default defineConfig({
   allowCypressEnv: false,
@@ -22,9 +23,18 @@ export default defineConfig({
     specPattern: browserUrl ? "e2e/browser.cy.ts" : "e2e/prime-agent.cy.ts",
     supportFile: "support/e2e.ts",
     setupNodeEvents(on) {
+      if (!primeAgentSocketPath || !workspacePath) {
+        throw new Error("Prime Agent session seed configuration is incomplete")
+      }
+      on("task", {
+        async seedPersistedPrimeAgentSession() {
+          await seedPersistedPrimeAgentSession(primeAgentSocketPath, workspacePath)
+          return null
+        },
+      })
       if (!browserUrl) return
       if (!hmrSentinelPath) throw new Error("CYPRESS_hmrSentinelPath is required for browser integration")
-      if (!primeAgentAgentDir || !primeAgentCliPath || !primeAgentExecutablePath || !primeAgentSocketPath) {
+      if (!primeAgentAgentDir || !primeAgentCliPath || !primeAgentExecutablePath) {
         throw new Error("Prime Agent browser recovery configuration is incomplete")
       }
       on("task", {
@@ -47,10 +57,6 @@ export default defineConfig({
             socketPath: primeAgentSocketPath,
           })
           await waitForSocket(primeAgentSocketPath)
-          return null
-        },
-        async seedPersistedPrimeAgentSession() {
-          await seedPersistedPrimeAgentSession(primeAgentSocketPath)
           return null
         },
       })
@@ -145,13 +151,13 @@ function canConnectToSocket(socketPath: string) {
   })
 }
 
-async function seedPersistedPrimeAgentSession(socketPath: string) {
+async function seedPersistedPrimeAgentSession(socketPath: string, cwd: string) {
   const client = new DaemonClient(socketPath)
   try {
     await client.connect()
     const list = await client.request({ type: "list" })
     if (!list.success) throw new Error(list.error)
-    const activeSessionId = readSoleActiveSessionId(list.data)
+    const activeSessionId = await ensureSoleActiveSession(client, list.data, cwd)
     const seed = await client.request({
       type: "execute_bash_and_wait",
       activeSessionId,
@@ -163,7 +169,7 @@ async function seedPersistedPrimeAgentSession(socketPath: string) {
   }
 }
 
-function readSoleActiveSessionId(value: unknown) {
+async function ensureSoleActiveSession(client: DaemonClient, value: unknown, cwd: string) {
   if (typeof value !== "object" || value === null || !("sessions" in value)) {
     throw new Error("Prime Agent returned an invalid session list")
   }
@@ -174,6 +180,23 @@ function readSoleActiveSessionId(value: unknown) {
     if (typeof entry !== "object" || entry === null || !("activeSessionId" in entry)) return []
     return typeof entry.activeSessionId === "string" ? [entry.activeSessionId] : []
   })
+  if (activeSessionIds.length === 0) {
+    const created = await client.request({
+      type: "create",
+      noSession: true,
+      name: "Browser integration session",
+      config: { cwd },
+      lifecycle: "resident",
+    })
+    if (!created.success) throw new Error(created.error)
+    if (typeof created.data !== "object" || created.data === null || !("activeSessionId" in created.data)) {
+      throw new Error("Prime Agent returned an invalid created session")
+    }
+    if (typeof created.data.activeSessionId !== "string") {
+      throw new Error("Prime Agent returned an invalid created session")
+    }
+    return created.data.activeSessionId
+  }
   if (activeSessionIds.length !== 1) {
     throw new Error(`Expected one active Prime Agent session, found ${activeSessionIds.length}`)
   }

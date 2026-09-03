@@ -6,6 +6,13 @@ Use Nub for dependency installation, TypeScript execution, and package scripts.
 Use Nub's `--node` mode when starting Electron directly.
 The Zenbu build embeds pnpm for installed apps because Zenbu.js does not support Nub there yet.
 
+## Testing
+
+- Do not create or retain unit tests.
+- Do not assert UI copy, control labels, CSS classes, or selectors in unit tests.
+- Verify new user behavior through browser integration tests.
+- Verify daemon contracts through integration tests.
+
 ## Frog
 
 - Run `nub dlx frog list` before work to see known friction.

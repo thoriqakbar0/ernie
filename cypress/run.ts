@@ -93,7 +93,9 @@ try {
 
   await runChecked(cypressExecutable, cypressArguments, cypressDirectory, {
     ...process.env,
+    CYPRESS_primeAgentSocketPath: daemonSocketPath,
     CYPRESS_rendererUrl: rendererUrl,
+    CYPRESS_workspacePath: projectDirectory,
   })
 } finally {
   process.removeListener("SIGINT", handleSignal)

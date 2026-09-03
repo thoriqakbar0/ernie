@@ -6,7 +6,7 @@ type ModelPickerProps = Readonly<{
   disabled: boolean
   models: readonly PrimeModel[]
   onSelect: (model: PrimeModel) => void
-  selectedModelId: string
+  selectedModel: PrimeModel | undefined
   side: "bottom" | "top"
 }>
 
@@ -25,32 +25,29 @@ export function ModelPicker({
   disabled,
   models,
   onSelect,
-  selectedModelId,
+  selectedModel,
   side,
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const [enabledProviders, setEnabledProviders] = useState<ReadonlySet<string> | undefined>()
+  const [excludedProviders, setExcludedProviders] = useState<ReadonlySet<string>>(() => new Set())
   const [position, setPosition] = useState<PickerPosition>()
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const selected = models.find(({ id }) => id === selectedModelId)
+  const selected = models.find((model) =>
+    model.id === selectedModel?.id && model.provider === selectedModel.provider)
   const providers = useMemo(
     () => [...new Set(models.map(({ provider }) => provider))].sort((left, right) => left.localeCompare(right)),
     [models],
   )
-  const activeProviders = useMemo(
-    () => enabledProviders ?? new Set(providers),
-    [enabledProviders, providers],
-  )
   const filteredModels = useMemo(() => {
     const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
     return models.filter((model) => {
-      if (!activeProviders.has(model.provider)) return false
+      if (excludedProviders.has(model.provider)) return false
       const searchText = `${model.label} ${model.id} ${model.provider}`.toLocaleLowerCase()
       return terms.every((term) => searchText.includes(term))
     })
-  }, [activeProviders, models, query])
+  }, [excludedProviders, models, query])
   const groupedModels = useMemo(() => providers.flatMap((provider) => {
     const providerModels = filteredModels.filter((model) => model.provider === provider)
     return providerModels.length > 0 ? [{ provider, models: providerModels }] : []
@@ -62,10 +59,12 @@ export function ModelPicker({
   }
 
   const toggleProvider = (provider: string) => {
-    const next = new Set(activeProviders)
-    if (next.has(provider)) next.delete(provider)
-    else next.add(provider)
-    setEnabledProviders(next.size === providers.length ? undefined : next)
+    setExcludedProviders((current) => {
+      const next = new Set(current)
+      if (next.has(provider)) next.delete(provider)
+      else next.add(provider)
+      return next
+    })
   }
 
   useLayoutEffect(() => {
@@ -161,7 +160,7 @@ export function ModelPicker({
           </div>
           <div aria-label="Model companies" className="provider-filters">
             {providers.map((provider) => {
-              const enabled = activeProviders.has(provider)
+              const enabled = !excludedProviders.has(provider)
               return (
                 <button
                   aria-label={provider}
@@ -182,7 +181,8 @@ export function ModelPicker({
               <section aria-label={provider} className="model-group" key={provider}>
                 <p>{provider}</p>
                 {providerModels.map((model) => {
-                  const isSelected = model.id === selectedModelId
+                  const isSelected = model.id === selectedModel?.id &&
+                    model.provider === selectedModel.provider
                   return (
                     <button
                       aria-selected={isSelected}

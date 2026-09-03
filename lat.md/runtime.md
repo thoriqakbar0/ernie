@@ -1,6 +1,6 @@
 # Prime Agent runtime
 
-Ernie projects Prime Agent daemon state into one typed session model shared by its main process, renderer, and package tests.
+Ernie projects Prime Agent daemon state into one typed session model shared by its main process and renderer.
 
 ## Snapshot authority
 
@@ -13,8 +13,6 @@ Ernie projects Prime Agent daemon state into one typed session model shared by i
 Each attachment starts from a snapshot envelope. Ordered changes apply only to the same session and generation at the expected revision.
 
 [[src/packages/prime-agent/sync.ts#createPrimeSessionSyncState]] owns the synchronization state. Revision gaps, overflow, or generation changes require a fresh snapshot.
-
-[[tests#Behavior specifications#Synchronization boundary#Discontinuity recovery]] and [[tests#Behavior specifications#Synchronization boundary#Covering snapshot authority]] protect recovery transitions.
 
 ## Logical session isolation
 
@@ -34,6 +32,6 @@ Failed external reconnects keep the last snapshot and pause commands. Ernie retr
 
 [[src/main/prime-agent/recovery-retry.ts#runPrimeAgentRecoveryLoop]] stops retries during disposal.
 
-[[tests#Behavior specifications#Development boundary#Browser recovery]] proves session recovery. [[tests#Behavior specifications#Daemon boundary#Recovery cancellation]] protects disposal.
+[[tests#Behavior specifications#Development boundary#Browser recovery]] proves session recovery.
 
 The external daemon and socket survive cleanup, as required by [[tests#Behavior specifications#Daemon boundary#External daemon ownership]].

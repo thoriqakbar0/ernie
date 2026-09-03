@@ -6,5 +6,5 @@ import type {
 export type Events = {
   primeSessionChanged: PrimeSessionChangeEnvelope
   primeSessionSnapshot: PrimeSessionSnapshotEnvelope
-  primeSessionSelected: { sessionId: string }
+  primeSessionSelected: { sessionId?: string }
 }

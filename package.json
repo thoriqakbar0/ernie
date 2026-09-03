@@ -22,13 +22,12 @@
     "test:integration:browser": "nub --node scripts/browser-test.ts",
     "test:integration:browser:open": "nub --node scripts/browser-test.ts --open",
     "test:desktop-smoke": "nub --node scripts/desktop-smoke.ts",
-    "test": "nub --test src/dev/*.test.ts src/main/prime-agent/*.test.ts src/packages/*/tests/*.test.ts src/renderer/tests/*.test.tsx",
     "test:integration": "nub --test src/integration/*.integration.test.ts",
     "lint:debt": "debtmap validate . --summary --semantic-off",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
     "lat:check": "nub dlx lat.md@0.12.2 check",
-    "check": "zen link && tsc --noEmit && nub run test && nub run lint:boundaries && nub run lat:check && zen build:source",
+    "check": "zen link && tsc --noEmit && nub run lint:boundaries && nub run lat:check && nub run test:integration && nub run test:integration:browser && zen build:source",
     "konsistent": "konsistent"
   },
   "dependencies": {
@@ -39,7 +38,7 @@
     "@tanstack/react-query": "^5.102.8",
     "@vitejs/plugin-react": "^5.0.0",
     "@zenbujs/core": "0.6.0",
-    "agentation": "link:/Users/thor/work/agentation/package",
+    "agentation": "3.0.2",
     "effect": "^4.0.0-rc.112",
     "prime-agent": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.8.1/prime-agent-0.8.1.tgz",
     "react": "^19.0.0",
@@ -58,6 +57,7 @@
     "global-jsdom": "^29.0.0",
     "husky": "^9.1.7",
     "konsistent": "^1.0.0-beta.4",
+    "react-grab": "^0.2.0",
     "typescript": "^5.9.3"
   },
   "repository": {

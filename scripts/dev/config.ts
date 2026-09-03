@@ -1,9 +1,11 @@
 import { isAbsolute, join, resolve } from "node:path"
 import { Schema } from "effect"
+import { defaultDaemonSocketPath } from "prime-agent"
 
 const DevRole = Schema.Literals(["all", "server", "web", "desktop"])
 
 export type DevRole = typeof DevRole.Type
+export type DaemonLifecycle = "shared" | "owned" | "external"
 
 export type DevConfig = Readonly<{
   role: DevRole
@@ -15,9 +17,9 @@ export type DevConfig = Readonly<{
   runtimeFile: string
   ownerFile: string
   databaseDirectory: string
-  agentDirectory: string
+  agentDirectory: string | undefined
   daemonSocketPath: string
-  manageDaemon: boolean
+  daemonLifecycle: DaemonLifecycle
   electronProfileDirectory: string
 }>
 
@@ -50,6 +52,11 @@ export function readDevConfig(
   if (configuredDaemonSocket && !isAbsolute(configuredDaemonSocket)) {
     throw new Error("ERNIE_PRIME_AGENT_SOCKET must be an absolute path")
   }
+  const daemonLifecycle: DaemonLifecycle = configuredDaemonSocket
+    ? "external"
+    : role === "desktop"
+      ? "owned"
+      : "shared"
 
   return {
     role,
@@ -61,9 +68,11 @@ export function readDevConfig(
     runtimeFile: join(stateRoot, "runtime.json"),
     ownerFile: join(stateRoot, "owner.json"),
     databaseDirectory: join(stateRoot, "db"),
-    agentDirectory: join(stateRoot, "prime-agent"),
-    daemonSocketPath: configuredDaemonSocket ?? resolveDaemonSocketPath(stateRoot, profile),
-    manageDaemon: configuredDaemonSocket === undefined,
+    agentDirectory: daemonLifecycle === "owned" ? join(stateRoot, "prime-agent") : undefined,
+    daemonSocketPath: configuredDaemonSocket ?? (
+      daemonLifecycle === "shared" ? defaultDaemonSocketPath() : resolveDaemonSocketPath(stateRoot, profile)
+    ),
+    daemonLifecycle,
     electronProfileDirectory: join(stateRoot, "electron-user-data"),
   }
 }

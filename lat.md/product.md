@@ -10,23 +10,17 @@ Selecting a session changes its heading, transcript, activity, composer, and cur
 
 [[src/renderer/prime-agent-state.tsx#PrimeAgentStateProvider]] owns renderer selection and session state.
 
-[[tests#Behavior specifications#Renderer behavior#Draft isolation]] and [[tests#Behavior specifications#Renderer behavior#Selection convergence]] protect this rule.
-
 ## Runtime states
 
 Working, recovering, reconnecting, and failed states change visible actions and messages. The UI never invents progress, permission, or completion data.
 
 These states depend on the authoritative contract in [[runtime#Prime Agent runtime#Snapshot authority]].
 
-[[tests#Behavior specifications#Renderer behavior#Failed transport]] proves that failed transport remains visible and blocks commands.
-
 ## Responsive workspace
 
 The same production components run in browser development and Electron. Narrow windows move session navigation and activity into document flow.
 
 [[src/renderer/components/app.tsx#App]] defines the main renderer layout.
-
-[[tests#Behavior specifications#Renderer behavior#Activity document order]] protects the activity placement required for narrow layouts.
 
 ## Product boundaries
 

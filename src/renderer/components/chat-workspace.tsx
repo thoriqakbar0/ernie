@@ -1,12 +1,10 @@
 import { useActionState, useEffect, useRef, useState } from "react"
 import { ConversationTranscript } from "./conversation-transcript"
-import { DraftHeroHeadline } from "./draft-hero-headline"
 import { PrimeComposer } from "./prime-composer"
 import { PrimeEmptyState } from "./prime-empty-state"
 import { SessionInspector } from "./session-inspector"
 import { SessionNotice } from "./session-notice"
 import { WorkspaceLoading } from "./workspace-loading"
-import { getWorkspaceName } from "./workspace-name"
 import {
   useCreatePrimeSession,
   usePrimeSessionActions,
@@ -21,6 +19,16 @@ type ActionResult =
   | Readonly<{ status: "idle" }>
   | Readonly<{ status: "error"; message: string }>
 
+type ModelSelection = Readonly<{
+  modelId: string
+  provider: string
+}>
+
+type ModelChangeState =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "pending"; selection: ModelSelection }>
+  | Readonly<{ status: "error"; message: string }>
+
 const idleAction: ActionResult = { status: "idle" }
 
 export function ChatWorkspace() {
@@ -32,15 +40,13 @@ export function ChatWorkspace() {
   const models = usePrimeModels(sessionId)
   const workspacePath = useWorkspacePath()
   const [draft, setDraft] = useState("")
-  const [modelChangePending, setModelChangePending] = useState(false)
-  const [modelError, setModelError] = useState<string>()
+  const [modelChange, setModelChange] = useState<ModelChangeState>(idleAction)
   const modelSelectionRevision = useRef(0)
 
   useEffect(() => {
     modelSelectionRevision.current += 1
     setDraft("")
-    setModelChangePending(false)
-    setModelError(undefined)
+    setModelChange(idleAction)
   }, [sessionId])
 
   const [submitResult, submitAction, submitting] = useActionState(
@@ -85,23 +91,13 @@ export function ChatWorkspace() {
   const noSessions = sessions.isSuccess && sessions.data.length === 0
   const waitingForCreatedSession = createSession.isPending && snapshot === undefined
   const showEmptyState = (noSessions && sessionId === undefined) || waitingForCreatedSession
-  const actionError = modelError ??
+  const actionError = (modelChange.status === "error" ? modelChange.message : undefined) ??
+    createSession.data?.initialPromptError ??
     (submitResult.status === "error" ? submitResult.message : undefined) ??
     (stopResult.status === "error" ? stopResult.message : undefined)
 
   return (
     <section aria-label="Chat workspace" className="chat-workspace" id="ernie-workspace" tabIndex={-1}>
-      <header className="workspace-header">
-        <div className="workspace-header__copy">
-          <h1>{snapshot?.session.name ?? "Prime Agent"}</h1>
-          <p title={snapshot?.session.cwd ?? workspacePath.data ?? undefined}>
-            {snapshot ? getWorkspaceName(snapshot.session.cwd) : getWorkspaceName(workspacePath.data ?? "Workspace")}
-            <span aria-hidden="true"> · </span>
-            <span className="workspace-header__path">{snapshot?.session.cwd ?? workspacePath.data ?? "Opening workspace"}</span>
-          </p>
-        </div>
-      </header>
-
       {snapshot?.transport.status === "reconnecting" ? (
         <SessionNotice tone="warning">
           <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will resume after recovery.
@@ -124,7 +120,7 @@ export function ChatWorkspace() {
             creating={createSession.isPending}
             cwd={workspacePath.data ?? "this workspace"}
             error={createSession.isError ? getErrorMessage(createSession.error) : undefined}
-            onCreate={() => createSession.mutate()}
+            onCreate={(prompt) => createSession.mutate(prompt)}
           />
         ) : snapshotQuery.isError ? (
           <div className="open-error" role="alert">
@@ -137,11 +133,7 @@ export function ChatWorkspace() {
         ) : (
           <div className={draftHero ? "session-stage session-stage--draft" : "session-stage"}>
             <div className="conversation-pane">
-              {draftHero ? (
-                <div className="draft-heading-stage">
-                  <DraftHeroHeadline cwd={snapshot.session.cwd} />
-                </div>
-              ) : <ConversationTranscript messages={snapshot.messages} />}
+              {draftHero ? null : <ConversationTranscript messages={snapshot.messages} />}
               <div
                 className={draftHero ? "composer-placement composer-placement--hero" : "composer-dock"}
                 data-composer-placement={draftHero ? "hero" : "docked"}
@@ -151,11 +143,11 @@ export function ChatWorkspace() {
                   draft={draft}
                   draftHero={draftHero}
                   models={models.data ?? []}
-                  modelChangePending={modelChangePending}
+                  modelChangePending={modelChange.status === "pending"}
                   modelsPending={models.isPending}
                   onDraftChange={setDraft}
                   onModelSelect={(model) => updateModel(model.provider, model.id)}
-                  selectedModelId={snapshot.session.model?.id ?? ""}
+                  selectedModel={snapshot.session.model}
                   sessionSelected
                   stopAction={stopAction}
                   stopping={stopping}
@@ -173,18 +165,20 @@ export function ChatWorkspace() {
   )
 
   function updateModel(provider: string, modelId: string) {
-    if (modelChangePending) return
+    if (modelChange.status === "pending") return
     const revision = modelSelectionRevision.current + 1
     modelSelectionRevision.current = revision
-    setModelChangePending(true)
-    setModelError(undefined)
+    setModelChange({ status: "pending", selection: { provider, modelId } })
     void actions.setModel(provider, modelId)
+      .then(() => {
+        if (modelSelectionRevision.current === revision) setModelChange(idleAction)
+      })
       .catch((cause: unknown) => {
         if (modelSelectionRevision.current !== revision) return
-        setModelError(cause instanceof Error ? cause.message : "Prime Agent command failed")
-      })
-      .finally(() => {
-        if (modelSelectionRevision.current === revision) setModelChangePending(false)
+        setModelChange({
+          status: "error",
+          message: cause instanceof Error ? cause.message : "Prime Agent command failed",
+        })
       })
   }
 }

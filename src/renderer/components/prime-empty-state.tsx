@@ -1,33 +1,48 @@
-import { ErnieMark } from "./ernie-mark"
-import { PlusIcon } from "./plus-icon"
+import { useState, type FormEvent, type KeyboardEvent } from "react"
 import { getWorkspaceName } from "./workspace-name"
 
 type PrimeEmptyStateProps = Readonly<{
   creating: boolean
   cwd: string
   error?: string
-  onCreate: () => void
+  onCreate: (prompt: string) => void
 }>
 
 export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptyStateProps) {
   const workspaceName = getWorkspaceName(cwd)
+  const [prompt, setPrompt] = useState("")
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!prompt.trim() || creating) return
+    onCreate(prompt)
+  }
 
   return (
-    <div className="empty-state">
-      <div className="empty-state__mark"><ErnieMark className="size-full" /></div>
-      <h2>Start work in <span title={cwd}>{workspaceName}</span></h2>
-      <p>Ernie will create a durable Prime Agent session in this workspace.</p>
-      <button
-        aria-label="New conversation"
-        className="primary-button"
-        data-cy="prime-empty-create"
-        disabled={creating}
-        onClick={onCreate}
-        type="button"
-      >
-        <PlusIcon />
-        {creating ? "Starting session…" : "Start session"}
-      </button>
+    <form className="empty-state" onSubmit={submit}>
+      <label className="sr-only" htmlFor="empty-state-prompt">Message Prime Agent</label>
+      <div className="empty-state__composer">
+        <textarea
+          autoFocus
+          className="empty-state__input"
+          disabled={creating}
+          id="empty-state-prompt"
+          onChange={(event) => setPrompt(event.target.value)}
+          onKeyDown={submitOnEnter}
+          placeholder={`What should we build in ${workspaceName}?`}
+          rows={3}
+          value={prompt}
+        />
+        <button
+          aria-label="Start conversation"
+          className="empty-state__submit"
+          data-cy="prime-empty-create"
+          disabled={creating || !prompt.trim()}
+          type="submit"
+        >
+          {creating ? "Starting…" : "Send"}
+        </button>
+      </div>
       {creating ? (
         <p className="empty-state__status" role="status">
           Starting Prime Agent in {workspaceName}…
@@ -35,9 +50,15 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
       ) : null}
       {error ? (
         <p className="inline-error" role="alert">
-          <span>{error}</span>. Select Start session to try again.
+          <span>{error}</span>. Submit the prompt to try again.
         </p>
       ) : null}
-    </div>
+    </form>
   )
+}
+
+function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key !== "Enter" || event.shiftKey) return
+  event.preventDefault()
+  event.currentTarget.form?.requestSubmit()
 }

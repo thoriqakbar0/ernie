@@ -90,6 +90,7 @@ try {
     CYPRESS_primeAgentCliPath: primeAgentCliPath,
     CYPRESS_primeAgentExecutablePath: process.execPath,
     CYPRESS_primeAgentSocketPath: daemonSocketPath,
+    CYPRESS_workspacePath: projectRoot,
   })
   const [code, signal] = await waitForProcessExit(cypress)
   if (code !== 0) throw new Error(`${executable} exited with ${code ?? signal ?? "an unknown status"}`)

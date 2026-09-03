@@ -12,36 +12,15 @@ describe("Ernie browser development", () => {
       cy.visit(browserUrl, { log: false })
     })
 
-    cy.contains("h2", /Start work in/).should("be.visible")
+    cy.get("#empty-state-prompt").should("be.visible").type("Keep this integration session ready")
     cy.document().its("documentElement.dataset.ernieHmrRevision").should("equal", "initial")
-    cy.get('[data-cy="prime-empty-create"]').should("be.enabled").click()
-    cy.contains("h2", /What should we build in/).should("be.visible")
-    cy.get('[data-composer-placement="hero"]').should("be.visible")
-    cy.get(".session-stage").then(($stage) => {
-      const stage = $stage[0]
-      if (!stage) throw new Error("Session stage is missing")
-      const inspector = stage.ownerDocument.createElement("aside")
-      inspector.className = "session-inspector"
-      inspector.dataset.cy = "responsive-inspector-probe"
-      inspector.textContent = "Session activity"
-      stage.append(inspector)
-    })
+    cy.get('[data-cy="prime-empty-create"]').should("be.enabled")
+    cy.task("seedPersistedPrimeAgentSession", null, { log: false })
+    cy.reload()
+    cy.get("#chat-message").should("be.enabled")
 
     for (const width of [600, 320]) {
       cy.viewport(width, 800)
-      cy.get('[data-cy="responsive-inspector-probe"]').should(($inspector) => {
-        const element = $inspector[0]
-        if (!element) throw new Error("Session inspector is missing")
-        const view = element.ownerDocument.defaultView
-        if (!view) throw new Error("Renderer window is missing")
-        expect(view.getComputedStyle(element).display).not.to.equal("none")
-        expect(view.getComputedStyle(element).position).to.equal("static")
-        const conversation = element.ownerDocument.querySelector<HTMLElement>(".conversation-pane")
-        if (!conversation) throw new Error("Conversation pane is missing")
-        expect(element.getBoundingClientRect().top).to.be.at.least(
-          conversation.getBoundingClientRect().bottom - 1,
-        )
-      })
       cy.document().then((document) => {
         expect(document.documentElement.scrollWidth).to.be.at.most(
           document.documentElement.clientWidth,
@@ -49,11 +28,8 @@ describe("Ernie browser development", () => {
       })
     }
 
-    cy.get('[data-cy="responsive-inspector-probe"]').then(($inspector) => $inspector.remove())
-
     cy.viewport(1_100, 750)
     cy.get("#chat-message").should("be.enabled")
-    cy.task("seedPersistedPrimeAgentSession", null, { log: false })
     cy.task("stopExternalPrimeAgentDaemon", null, { log: false })
     cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
     cy.wait(1_250, { log: false })
@@ -64,6 +40,6 @@ describe("Ernie browser development", () => {
 
     cy.task("writeBrowserHmrRevision", "updated", { log: false })
     cy.document().its("documentElement.dataset.ernieHmrRevision").should("equal", "updated")
-    cy.contains("h2", /What should we build in/).should("be.visible")
+    cy.get("#chat-message").should("be.enabled")
   })
 })

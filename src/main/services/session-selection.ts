@@ -19,4 +19,10 @@ export class SessionSelectionService extends Service.create({
     this.selectedSessionId = sessionId
     this.ctx.rpc.emit.app.primeSessionSelected({ sessionId })
   }
+
+  clear() {
+    if (this.selectedSessionId === undefined) return
+    this.selectedSessionId = undefined
+    this.ctx.rpc.emit.app.primeSessionSelected({})
+  }
 }

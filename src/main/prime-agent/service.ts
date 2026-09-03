@@ -32,7 +32,10 @@ import {
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
-import { chooseAvailableSessionName } from "./session-name"
+import {
+  chooseAvailableSessionName,
+  isUnavailableSessionNameError,
+} from "./session-name"
 import {
   createPrimeAgentRecoveryRetry,
   runPrimeAgentRecoveryLoop,
@@ -74,6 +77,9 @@ const STREAM_REFRESH_INTERVAL_MS = 50
 const RECOVERY_RETRY_INTERVAL_MS = 1_000
 const MAX_REFRESH_FAILURES = 2
 const CREATE_SESSION_TIMEOUT_MS = 60_000
+const CREATE_SESSION_NAME_RETRIES = 3
+const ATTACHMENT_STARTUP_TIMEOUT_MS = 10_000
+const ATTACHMENT_STARTUP_RETRY_MS = 100
 const PRIME_AGENT_DAEMON_WORKER_ENV = [
   "PRIME_AGENT_INTERNAL_DAEMON_WORKER",
   "PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN",
@@ -119,19 +125,36 @@ export class PrimeAgentService extends Service.create({
 
   /** Creates one resident Prime Agent session without attaching a renderer. */
   async createSession(input: { cwd: string; name?: string }) {
-    const name = chooseAvailableSessionName(input.name, await this.listSessions())
-    const data = await this.request(
-      {
-        type: "create",
-        name,
-        config: { cwd: input.cwd },
-        lifecycle: "resident",
-      },
-      CREATE_SESSION_TIMEOUT_MS,
-    )
-    const session = toSessionSummary(readRecord(data, "create response"))
-    this.summaries.set(session.id, session)
-    return session
+    const data = await this.request({ type: "list", all: true })
+    const knownSessions = readSessionList(data).map(toSessionSummary)
+    const rejectedNames = new Set<string>()
+    let lastCollision: unknown
+
+    for (let attempt = 0; attempt <= CREATE_SESSION_NAME_RETRIES; attempt += 1) {
+      const name = chooseAvailableSessionName(input.name, knownSessions, rejectedNames)
+      try {
+        const created = await this.request(
+          {
+            type: "create",
+            name,
+            config: { cwd: input.cwd },
+            lifecycle: "resident",
+          },
+          CREATE_SESSION_TIMEOUT_MS,
+        )
+        const session = toSessionSummary(readRecord(created, "create response"))
+        this.summaries.set(session.id, session)
+        return session
+      } catch (error) {
+        if (!name || !isUnavailableSessionNameError(error, name)) throw error
+        rejectedNames.add(name)
+        lastCollision = error
+      }
+    }
+
+    throw new Error("Prime Agent session name stayed unavailable after retries", {
+      cause: lastCollision,
+    })
   }
 
   /** Attaches one logical connection and returns its current projected snapshot. */
@@ -235,6 +258,29 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async createAttachment(
+    client: DaemonClient,
+    sessionId: string,
+    previousSnapshot?: PrimeSessionSnapshot,
+    previousSession?: PrimeSessionSummary,
+  ) {
+    const deadline = Date.now() + ATTACHMENT_STARTUP_TIMEOUT_MS
+
+    while (true) {
+      try {
+        return await this.createAttachmentOnce(
+          client,
+          sessionId,
+          previousSnapshot,
+          previousSession,
+        )
+      } catch (error) {
+        if (!isSessionWorkerStartingError(error) || Date.now() >= deadline) throw error
+        await new Promise<void>((resolve) => setTimeout(resolve, ATTACHMENT_STARTUP_RETRY_MS))
+      }
+    }
+  }
+
+  private async createAttachmentOnce(
     client: DaemonClient,
     sessionId: string,
     previousSnapshot?: PrimeSessionSnapshot,
@@ -633,6 +679,10 @@ export class PrimeAgentService extends Service.create({
     await recovery?.catch(() => undefined)
     this.detachClient()
   }
+}
+
+function isSessionWorkerStartingError(error: unknown) {
+  return error instanceof Error && error.message === "Session worker is starting"
 }
 
 function snapshotEnvelope(attachment: SessionAttachment): PrimeSessionSnapshotEnvelope {

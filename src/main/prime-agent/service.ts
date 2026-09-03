@@ -33,7 +33,10 @@ import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
 import { chooseAvailableSessionName } from "./session-name"
-import { createPrimeAgentRecoveryRetry } from "./recovery-retry"
+import {
+  createPrimeAgentRecoveryRetry,
+  runPrimeAgentRecoveryLoop,
+} from "./recovery-retry"
 
 type CommandBody = DaemonCommand extends infer Command
   ? Command extends { id?: string }
@@ -68,7 +71,7 @@ type SessionAttachment = {
 }
 
 const STREAM_REFRESH_INTERVAL_MS = 50
-const RECOVERY_RETRY_INTERVAL_MS = 250
+const RECOVERY_RETRY_INTERVAL_MS = 1_000
 const MAX_REFRESH_FAILURES = 2
 const CREATE_SESSION_TIMEOUT_MS = 60_000
 const PRIME_AGENT_DAEMON_WORKER_ENV = [
@@ -453,19 +456,20 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async recoverUntilReady() {
-    while (!this.disposed) {
-      this.recoveryRequested = false
-      const recovered = await this.recoverAttachments().catch(() => {
-        this.failAllAttachments()
-        return false
-      })
-      if (this.disposed) return
-      if (recovered && !this.recoveryRequested && this.client?.isConnected) {
-        this.recoveryRetry.clear()
-        return
-      }
-      await this.recoveryRetry.wait()
-    }
+    await runPrimeAgentRecoveryLoop({
+      attempt: async () => {
+        this.recoveryRequested = false
+        const recovered = await this.recoverAttachments().catch(() => {
+          this.failAllAttachments()
+          return false
+        })
+        const ready = recovered && !this.recoveryRequested && this.client?.isConnected === true
+        if (ready) this.recoveryRetry.clear()
+        return ready
+      },
+      shouldStop: () => this.disposed,
+      wait: () => this.recoveryRetry.wait(),
+    })
   }
 
   private async recoverAttachments() {

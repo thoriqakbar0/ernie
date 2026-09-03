@@ -47,3 +47,22 @@ export function createPrimeAgentRecoveryRetry(delayMs: number) {
     return () => clearTimeout(timer)
   })
 }
+
+type RunPrimeAgentRecoveryLoopOptions = Readonly<{
+  attempt: () => Promise<boolean>
+  shouldStop: () => boolean
+  wait: () => Promise<void>
+}>
+
+/** Repeats one Prime Agent recovery attempt until it succeeds or the owner stops. */
+export async function runPrimeAgentRecoveryLoop({
+  attempt,
+  shouldStop,
+  wait,
+}: RunPrimeAgentRecoveryLoopOptions) {
+  while (!shouldStop()) {
+    if (await attempt()) return
+    if (shouldStop()) return
+    await wait()
+  }
+}

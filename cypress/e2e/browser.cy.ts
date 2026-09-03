@@ -50,6 +50,17 @@ describe("Ernie browser development", () => {
 
     cy.get('[data-cy="responsive-inspector-probe"]').then(($inspector) => $inspector.remove())
 
+    cy.viewport(1_100, 750)
+    cy.get("#chat-message").should("be.enabled")
+    cy.task("seedPersistedPrimeAgentSession", null, { log: false })
+    cy.task("stopExternalPrimeAgentDaemon", null, { log: false })
+    cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
+    cy.wait(1_250, { log: false })
+    cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
+    cy.task("startExternalPrimeAgentDaemon", null, { log: false })
+    cy.contains("Couldn’t reconnect to Prime Agent.").should("not.exist")
+    cy.get("#chat-message").should("be.enabled")
+
     cy.task("writeBrowserHmrRevision", "updated", { log: false })
     cy.document().its("documentElement.dataset.ernieHmrRevision").should("equal", "updated")
     cy.contains("h2", /What should we build in/).should("be.visible")

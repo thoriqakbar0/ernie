@@ -1,14 +1,17 @@
 import { useActionState, useEffect, useRef, useState } from "react"
+import type { PrimeModel, PrimeSessionSummary } from "../../packages/prime-agent"
 import { ConversationTranscript } from "./conversation-transcript"
 import { PrimeComposer } from "./prime-composer"
 import { PrimeEmptyState } from "./prime-empty-state"
 import { SessionInspector } from "./session-inspector"
 import { SessionNotice } from "./session-notice"
 import { WorkspaceLoading } from "./workspace-loading"
+import { WorkspacePicker } from "./workspace-picker"
 import {
   useCreatePrimeSession,
   usePrimeSessionActions,
   usePrimeModels,
+  usePrimeRecurrentDepth,
   usePrimeSessionSelection,
   usePrimeSessionSnapshot,
   usePrimeSessionState,
@@ -26,9 +29,10 @@ type ModelChangeState =
   | Readonly<{ status: "error"; message: string }>
 
 const idleModelChange: ModelChangeState = { status: "idle" }
+const emptyModels: readonly PrimeModel[] = []
 
 export function ChatWorkspace() {
-  const { selectedSessionId: sessionId } = usePrimeSessionSelection()
+  const { selectSession, selectedSessionId: sessionId } = usePrimeSessionSelection()
   const sessions = usePrimeSessionState()
   const createSession = useCreatePrimeSession()
   const workspacePath = useWorkspacePath()
@@ -53,7 +57,9 @@ export function ChatWorkspace() {
             ? createSession.data.initialPromptError
             : undefined}
           key={sessionId}
+          onSelectSession={selectSession}
           sessionId={sessionId}
+          sessions={sessions.data}
         />
       ) : (
         <div className="workspace-content">
@@ -66,14 +72,19 @@ export function ChatWorkspace() {
 
 function PrimeSessionWorkspace({
   initialPromptError,
+  onSelectSession,
   sessionId,
+  sessions,
 }: Readonly<{
   initialPromptError: string | undefined
+  onSelectSession: (sessionId: string) => void
   sessionId: string
+  sessions: readonly PrimeSessionSummary[]
 }>) {
   const snapshotQuery = usePrimeSessionSnapshot(sessionId)
   const actions = usePrimeSessionActions(sessionId)
   const models = usePrimeModels(sessionId)
+  const recurrentDepth = usePrimeRecurrentDepth(sessionId)
   const [draft, setDraft] = useState("")
   const [commandError, setCommandError] = useState(initialPromptError)
   const [modelChange, setModelChange] = useState<ModelChangeState>(idleModelChange)
@@ -159,19 +170,36 @@ function PrimeSessionWorkspace({
         <div className={draftHero ? "session-stage session-stage--draft" : "session-stage"}>
           <div className="conversation-pane">
             {draftHero ? null : <ConversationTranscript messages={snapshot.messages} />}
+            {draftHero ? (
+              <h1 className="draft-hero-title">
+                What should we build in <WorkspacePicker
+                  activeSessionId={sessionId}
+                  onSelectSession={onSelectSession}
+                  sessions={sessions}
+                />?
+              </h1>
+            ) : null}
             <div
               className={draftHero ? "composer-placement composer-placement--hero" : "composer-dock"}
               data-composer-placement={draftHero ? "hero" : "docked"}
             >
               <PrimeComposer
+                acceptedEffort={snapshot.useful.sessionContext?.thinkingLevel}
+                acceptedRecurrentDepth={recurrentDepth.data}
                 connected={connected}
                 draft={draft}
                 draftHero={draftHero}
-                models={models.data ?? []}
+                models={models.data ?? emptyModels}
                 modelChangePending={modelChange.status === "pending"}
                 modelsPending={models.isPending}
                 onDraftChange={setDraft}
+                onEffortChange={actions.setEffort}
+                onEffortError={setCommandError}
                 onModelSelect={(model) => updateModel(model.provider, model.id)}
+                onRecurrentDepthChange={async (depth) => {
+                  await actions.setRecurrentDepth(depth)
+                  await recurrentDepth.refetch()
+                }}
                 recovering={recovering}
                 selectedModel={snapshot.session.model}
                 sessionSelected

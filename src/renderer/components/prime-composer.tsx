@@ -1,16 +1,22 @@
 import type { KeyboardEvent } from "react"
-import type { PrimeModel } from "../../packages/prime-agent"
+import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
 import { ModelPicker } from "./model-picker"
+import { RecurrentDepthSlider } from "./recurrent-depth-slider"
 
 type PrimeComposerProps = Readonly<{
   connected: boolean
   draft: string
   draftHero: boolean
   modelChangePending: boolean
+  acceptedEffort: string | undefined
+  acceptedRecurrentDepth: number | undefined
   models: readonly PrimeModel[]
   modelsPending: boolean
   onDraftChange: (draft: string) => void
+  onEffortChange: (effort: PrimeEffort) => Promise<void>
+  onEffortError: (message: string) => void
   onModelSelect: (model: PrimeModel) => void
+  onRecurrentDepthChange: (depth: number) => Promise<void>
   recovering: boolean
   selectedModel: PrimeModel | undefined
   sessionSelected: boolean
@@ -23,13 +29,18 @@ type PrimeComposerProps = Readonly<{
 
 export function PrimeComposer({
   connected,
+  acceptedEffort,
+  acceptedRecurrentDepth,
   draft,
   draftHero,
   modelChangePending,
   models,
   modelsPending,
   onDraftChange,
+  onEffortChange,
+  onEffortError,
   onModelSelect,
+  onRecurrentDepthChange,
   recovering,
   selectedModel,
   sessionSelected,
@@ -64,11 +75,20 @@ export function PrimeComposer({
         <div className="prime-composer__footer">
           <div className="prime-composer__controls">
             <ModelPicker
+              acceptedEffort={acceptedEffort}
               disabled={!sessionSelected || !connected || recovering || modelChangePending || modelsPending}
               models={models}
+              onEffortChange={onEffortChange}
+              onEffortError={onEffortError}
               onSelect={onModelSelect}
               selectedModel={selectedModel}
               side={draftHero ? "bottom" : "top"}
+            />
+            <RecurrentDepthSlider
+              acceptedDepth={acceptedRecurrentDepth}
+              disabled={!sessionSelected || !connected || recovering || submitting || stopping}
+              onChange={onRecurrentDepthChange}
+              onError={onEffortError}
             />
           </div>
           {working ? (

@@ -18,7 +18,7 @@ Success means the developer can create or select a session, send work, inspect t
 ## Constraints
 
 - `PrimeSessionSnapshot` remains the authoritative UI state.
-- Production RPC, events, session selection, and model APIs remain unchanged.
+- `PrimeAgentService` publishes one revisioned session state containing the catalog and current selection.
 - The sidebar can render as a separate Zenbu view.
 - The production components must run in browser development and Electron.
 - Existing accessible names and test hooks remain stable where possible.

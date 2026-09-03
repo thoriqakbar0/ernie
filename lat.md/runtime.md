@@ -2,6 +2,10 @@
 
 Ernie projects Prime Agent daemon state into one typed session model shared by its main process and renderer.
 
+## Session-state authority
+
+[[src/main/prime-agent/service.ts#PrimeAgentService]] owns the session catalog and selected session identifier. The renderer subscribes to revisioned state and does not poll the daemon.
+
 ## Snapshot authority
 
 [[src/packages/prime-agent/index.ts#PrimeSessionSnapshot]] is the authoritative displayed state for one session, including messages, useful activity, and transport status.

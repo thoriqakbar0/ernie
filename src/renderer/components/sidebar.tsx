@@ -2,14 +2,14 @@ import { useMemo } from "react"
 import {
   useCreatePrimeSession,
   usePrimeSessionSelection,
-  usePrimeSessions,
+  usePrimeSessionState,
 } from "../prime-agent-state"
 import { ErnieMark } from "./ernie-mark"
 import { PlusIcon } from "./plus-icon"
 import { getWorkspaceName } from "./workspace-name"
 
 export function Sidebar() {
-  const sessions = usePrimeSessions()
+  const sessions = usePrimeSessionState()
   const createSession = useCreatePrimeSession()
   const { selectedSessionId, selectSession } = usePrimeSessionSelection()
   const visibleSessions = useMemo(

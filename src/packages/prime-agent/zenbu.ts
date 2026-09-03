@@ -6,17 +6,20 @@ import type {
   PrimeSessionEventListener,
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
+  PrimeSessionState,
   PromptRequest,
   SessionAction,
   SessionTextAction,
 } from "./index"
 import {
   parsePrimeSessionChangeEnvelope,
+  parsePrimeSessionState,
   parsePrimeSessionSnapshotEnvelope,
 } from "./sync"
 
 type PrimeAgentRpc = Readonly<{
-  listSessions(): Promise<readonly PrimeSessionSnapshot["session"][]>
+  getSessionState(): Promise<PrimeSessionState>
+  selectSession(input: { sessionId?: string }): Promise<void>
   createSession(input: CreateSessionRequest): Promise<PrimeSessionSnapshot["session"]>
   attachSession(input: { sessionId: string }): Promise<PrimeSessionSnapshotEnvelope>
   prompt(input: PromptRequest): Promise<{ admissionId: string; commandId: string }>
@@ -28,6 +31,9 @@ type PrimeAgentRpc = Readonly<{
 }>
 
 type PrimeAgentEvents = Readonly<{
+  primeSessionStateChanged: Readonly<{
+    subscribe(listener: (state: PrimeSessionState) => void): () => void
+  }>
   primeSessionChanged: Readonly<{
     subscribe(listener: (event: PrimeSessionChangeEnvelope) => void): () => void
   }>
@@ -46,6 +52,7 @@ export function createZenbuPrimeAgentClient(
   events: PrimeAgentEvents,
 ): ZenbuPrimeAgentClient {
   const listeners = new Map<string, Set<PrimeSessionEventListener>>()
+  const stateListeners = new Set<(state: PrimeSessionState) => void>()
   const dispatch = (event: Parameters<PrimeSessionEventListener>[0]) => {
     for (const listener of listeners.get(event.envelope.sessionId) ?? []) listener(event)
   }
@@ -57,9 +64,23 @@ export function createZenbuPrimeAgentClient(
     const parsed = parsePrimeSessionSnapshotEnvelope(input)
     if (parsed.ok) dispatch({ type: "snapshot", envelope: parsed.value })
   })
+  const unsubscribeState = events.primeSessionStateChanged.subscribe((input) => {
+    const parsed = parsePrimeSessionState(input)
+    if (!parsed.ok) return
+    for (const listener of stateListeners) listener(parsed.value)
+  })
 
   return {
-    listSessions: () => rpc.listSessions(),
+    async getSessionState() {
+      const parsed = parsePrimeSessionState(await rpc.getSessionState())
+      if (!parsed.ok) throw parsed.error
+      return parsed.value
+    },
+    subscribeSessionState(listener) {
+      stateListeners.add(listener)
+      return () => stateListeners.delete(listener)
+    },
+    selectSession: (request) => rpc.selectSession(request),
     createSession: (request: CreateSessionRequest) => rpc.createSession(request),
     async attachSession(request: AttachSessionRequest) {
       const parsed = parsePrimeSessionSnapshotEnvelope(await rpc.attachSession(request))
@@ -85,6 +106,8 @@ export function createZenbuPrimeAgentClient(
     dispose() {
       unsubscribeChanges()
       unsubscribeSnapshots()
+      unsubscribeState()
+      stateListeners.clear()
       listeners.clear()
     },
   }

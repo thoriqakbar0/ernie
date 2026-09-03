@@ -12,7 +12,7 @@ Development configuration must isolate state before it starts any process.
 
 ### Browser recovery
 
-Browser development preserves a live session while its isolated Prime Agent daemon stops and restarts.
+Browser development discovers an external session without reloading. It preserves that session while its isolated Prime Agent daemon stops and restarts.
 
 ## Daemon boundary
 

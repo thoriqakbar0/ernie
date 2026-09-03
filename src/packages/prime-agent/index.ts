@@ -8,6 +8,13 @@ export type PrimeSessionSummary = Readonly<{
   model?: PrimeModel
 }>
 
+/** One authoritative session-state revision published by Ernie's main process. */
+export type PrimeSessionState = Readonly<{
+  revision: number
+  selectedSessionId?: string
+  sessions: readonly PrimeSessionSummary[]
+}>
+
 /** One model Prime Agent exposes to an attached session. */
 export type PrimeModel = Readonly<{ id: string; provider: string; label: string }>
 
@@ -239,8 +246,14 @@ export type SessionAction = Readonly<{
 
 /** The Prime Agent operations required by Ernie's first chat flow. */
 export interface PrimeAgentClient {
-  /** Lists sessions visible to Ernie. */
-  listSessions(): Promise<readonly PrimeSessionSummary[]>
+  /** Reads the newest authoritative session state. */
+  getSessionState(): Promise<PrimeSessionState>
+
+  /** Observes newer authoritative session-state revisions. */
+  subscribeSessionState(listener: (state: PrimeSessionState) => void): () => void
+
+  /** Selects the session displayed by Ernie, or clears selection. */
+  selectSession(request: Readonly<{ sessionId?: string }>): Promise<void>
 
   /** Creates a new session without attaching a renderer to it. */
   createSession(request: CreateSessionRequest): Promise<PrimeSessionSummary>

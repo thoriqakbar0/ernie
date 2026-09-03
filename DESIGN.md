@@ -107,17 +107,18 @@ Prime Agent daemon
    ├─ transcript and activity
    └─ accepted provider and model
 
-PrimeAgentRuntime
-└─ attachment lifetime and daemon commands
+PrimeAgentService
+├─ session catalog and selected session identifier
+├─ attachment lifetime and recovery
+└─ daemon commands
+
+renderer session store
+└─ immutable mirror of main-process session state
 
 Query cache
-├─ session list
 ├─ selected session snapshot
 ├─ model catalog
 └─ workspace path
-
-session selection channel
-└─ selected session identifier
 
 PrimeSessionWorkspace keyed by session identifier
 ├─ draft text
@@ -247,7 +248,7 @@ The primary public action may use the outlined cream button from the reference. 
 
 This design does not create runtime actions that Prime Agent does not expose. Rename, archive, delete, retry-run, cost reporting, permissions, and completion percentages stay out until the product and runtime define them.
 
-This design does not replace Zenbu's view boundaries, RPC, events, or session selection. It defines how those existing contracts appear and behave.
+This design keeps Zenbu's view, RPC, and event boundaries. `PrimeAgentService` owns session selection with the catalog.
 
 ## Implementation review
 

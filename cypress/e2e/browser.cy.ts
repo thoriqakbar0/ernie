@@ -16,7 +16,6 @@ describe("Ernie browser development", () => {
     cy.document().its("documentElement.dataset.ernieHmrRevision").should("equal", "initial")
     cy.get('[data-cy="prime-empty-create"]').should("be.enabled")
     cy.task("seedPersistedPrimeAgentSession", null, { log: false })
-    cy.reload()
     cy.get("#chat-message").should("be.enabled")
 
     for (const width of [600, 320]) {

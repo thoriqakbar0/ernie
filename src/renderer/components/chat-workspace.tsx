@@ -11,7 +11,7 @@ import {
   usePrimeModels,
   usePrimeSessionSelection,
   usePrimeSessionSnapshot,
-  usePrimeSessions,
+  usePrimeSessionState,
   useWorkspacePath,
 } from "../prime-agent-state"
 
@@ -29,7 +29,7 @@ const idleModelChange: ModelChangeState = { status: "idle" }
 
 export function ChatWorkspace() {
   const { selectedSessionId: sessionId } = usePrimeSessionSelection()
-  const sessions = usePrimeSessions()
+  const sessions = usePrimeSessionState()
   const createSession = useCreatePrimeSession()
   const workspacePath = useWorkspacePath()
   const noSessions = sessions.isSuccess && sessions.data.length === 0

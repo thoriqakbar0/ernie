@@ -16,6 +16,7 @@ import {
 
 import type {
   PrimeModel,
+  PrimeSessionState,
   PrimeSessionChangeEnvelope,
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
@@ -80,6 +81,7 @@ const CREATE_SESSION_TIMEOUT_MS = 60_000
 const CREATE_SESSION_NAME_RETRIES = 3
 const ATTACHMENT_STARTUP_TIMEOUT_MS = 10_000
 const ATTACHMENT_STARTUP_RETRY_MS = 100
+const SESSION_CATALOG_REFRESH_MS = 1_000
 const PRIME_AGENT_DAEMON_WORKER_ENV = [
   "PRIME_AGENT_INTERNAL_DAEMON_WORKER",
   "PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN",
@@ -102,6 +104,10 @@ export class PrimeAgentService extends Service.create({
   private readonly attachments = new Map<string, SessionAttachment>()
   private readonly attachmentPromises = new Map<string, Promise<SessionAttachment>>()
   private readonly summaries = new Map<string, PrimeSessionSummary>()
+  private stateRevision = 0
+  private selectedSessionId: string | undefined
+  private catalogSessions: readonly PrimeSessionSummary[] = []
+  private catalogRefresh: Promise<void> | undefined
   private client: DaemonClient | undefined
   private connecting: Promise<DaemonClient> | undefined
   private unsubscribeClientClose: (() => void) | undefined
@@ -113,14 +119,29 @@ export class PrimeAgentService extends Service.create({
   /** Registers one cleanup owner for every Prime Agent resource. */
   evaluate() {
     this.setup("prime-agent-runtime", () => () => this.disposeRuntime())
+    this.setup("prime-agent-catalog", () => {
+      const timer = setInterval(() => {
+        void this.refreshSessionCatalog().catch(() => undefined)
+      }, SESSION_CATALOG_REFRESH_MS)
+      return () => clearInterval(timer)
+    })
   }
 
-  /** Lists sessions currently visible through the shared daemon. */
-  async listSessions() {
-    const data = await this.request({ type: "list" })
-    const sessions = readSessionList(data).map(toSessionSummary)
-    for (const session of sessions) this.summaries.set(session.id, session)
-    return sessions
+  /** Reads the newest authoritative session state. */
+  async getSessionState(): Promise<PrimeSessionState> {
+    await this.refreshSessionCatalog()
+    return this.sessionState()
+  }
+
+  /** Selects the session displayed by Ernie, or clears selection. */
+  async selectSession(input: { sessionId?: string }) {
+    const sessionId = input.sessionId?.trim()
+    if (sessionId && !this.catalogSessions.some(({ id }) => id === sessionId)) {
+      throw new Error("The selected Prime Agent session is unavailable")
+    }
+    if (sessionId === this.selectedSessionId) return
+    this.selectedSessionId = sessionId
+    this.publishSessionState()
   }
 
   /** Creates one resident Prime Agent session without attaching a renderer. */
@@ -144,6 +165,7 @@ export class PrimeAgentService extends Service.create({
         )
         const session = toSessionSummary(readRecord(created, "create response"))
         this.summaries.set(session.id, session)
+        this.upsertCatalogSession(session)
         return session
       } catch (error) {
         if (!name || !isUnavailableSessionNameError(error, name)) throw error
@@ -325,6 +347,7 @@ export class PrimeAgentService extends Service.create({
         disposed: false,
       }
       this.summaries.set(sessionId, snapshot.session)
+      this.upsertCatalogSession(snapshot.session)
       return attachment
     } catch (error) {
       unsubscribe()
@@ -382,6 +405,8 @@ export class PrimeAgentService extends Service.create({
       attachment.generation = crypto.randomUUID()
       attachment.revision = 0
       attachment.snapshot = snapshot
+      this.summaries.set(attachment.sessionId, snapshot.session)
+      this.upsertCatalogSession(snapshot.session)
       this.emitSnapshot(attachment)
     } catch {
       this.failAttachment(attachment)
@@ -461,6 +486,7 @@ export class PrimeAgentService extends Service.create({
 
     attachment.snapshot = snapshot
     this.summaries.set(attachment.sessionId, snapshot.session)
+    this.upsertCatalogSession(snapshot.session)
     for (const change of changes) {
       attachment.revision += 1
       const envelope: PrimeSessionChangeEnvelope = {
@@ -479,6 +505,64 @@ export class PrimeAgentService extends Service.create({
     const parsed = parsePrimeSessionSnapshotEnvelope(snapshotEnvelope(attachment))
     if (!parsed.ok) throw parsed.error
     this.ctx.rpc.emit.app.primeSessionSnapshot(parsed.value)
+  }
+
+  private refreshSessionCatalog() {
+    if (this.catalogRefresh) return this.catalogRefresh
+    const refresh = this.readSessionCatalog()
+    this.catalogRefresh = refresh
+    return refresh.finally(() => {
+      if (this.catalogRefresh === refresh) this.catalogRefresh = undefined
+    })
+  }
+
+  private async readSessionCatalog() {
+    const data = await this.request({ type: "list" })
+    if (this.disposed) return
+    const listedSessions = readSessionList(data).map(toSessionSummary)
+    const sessions = listedSessions.map((session) =>
+      this.attachments.get(session.id)?.snapshot.session ?? session)
+    this.summaries.clear()
+    for (const session of sessions) this.summaries.set(session.id, session)
+    this.replaceCatalogSessions(sessions)
+  }
+
+  private upsertCatalogSession(session: PrimeSessionSummary) {
+    const index = this.catalogSessions.findIndex(({ id }) => id === session.id)
+    if (index === -1) {
+      this.replaceCatalogSessions([...this.catalogSessions, session])
+      return
+    }
+    if (sameSessionSummary(this.catalogSessions[index], session)) return
+    this.replaceCatalogSessions(this.catalogSessions.map((existing) =>
+      existing.id === session.id ? session : existing))
+  }
+
+  private replaceCatalogSessions(sessions: readonly PrimeSessionSummary[]) {
+    const selectedSessionId = this.selectedSessionId &&
+      sessions.some(({ id }) => id === this.selectedSessionId)
+      ? this.selectedSessionId
+      : sessions[0]?.id
+    if (
+      sameSessionCatalog(this.catalogSessions, sessions) &&
+      selectedSessionId === this.selectedSessionId
+    ) return
+    this.catalogSessions = sessions
+    this.selectedSessionId = selectedSessionId
+    this.publishSessionState()
+  }
+
+  private publishSessionState() {
+    this.stateRevision += 1
+    this.ctx.rpc.emit.app.primeSessionStateChanged(this.sessionState())
+  }
+
+  private sessionState(): PrimeSessionState {
+    return {
+      revision: this.stateRevision,
+      ...(this.selectedSessionId ? { selectedSessionId: this.selectedSessionId } : {}),
+      sessions: this.catalogSessions,
+    }
   }
 
   private failAttachment(attachment: SessionAttachment, duringRecovery = false) {
@@ -816,6 +900,26 @@ function toSessionSummary(value: Record<string, unknown>): PrimeSessionSummary {
 function readLifecycle(value: unknown): PrimeSessionSummary["lifecycle"] {
   if (value === "archived" || value === "draft" || value === "live") return value
   throw new Error("Prime Agent returned an invalid session lifecycle")
+}
+
+function sameSessionCatalog(
+  left: readonly PrimeSessionSummary[],
+  right: readonly PrimeSessionSummary[],
+) {
+  return left.length === right.length && left.every((session, index) =>
+    sameSessionSummary(session, right[index]))
+}
+
+function sameSessionSummary(left: PrimeSessionSummary, right: PrimeSessionSummary | undefined) {
+  return right !== undefined &&
+    left.id === right.id &&
+    left.cwd === right.cwd &&
+    left.name === right.name &&
+    left.lifecycle === right.lifecycle &&
+    left.state === right.state &&
+    left.model?.id === right.model?.id &&
+    left.model?.provider === right.model?.provider &&
+    left.model?.label === right.model?.label
 }
 
 function readModel(value: unknown) {

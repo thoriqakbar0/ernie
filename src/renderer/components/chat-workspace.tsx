@@ -3,7 +3,6 @@ import type { PrimeModel, PrimeSessionSummary } from "../../packages/prime-agent
 import { ConversationTranscript } from "./conversation-transcript"
 import { PrimeComposer } from "./prime-composer"
 import { PrimeEmptyState } from "./prime-empty-state"
-import { SessionInspector } from "./session-inspector"
 import { SessionNotice } from "./session-notice"
 import { WorkspaceLoading } from "./workspace-loading"
 import { WorkspacePicker } from "./workspace-picker"
@@ -11,7 +10,6 @@ import {
   useCreatePrimeSession,
   usePrimeSessionActions,
   usePrimeModels,
-  usePrimeRecurrentDepth,
   usePrimeSessionSelection,
   usePrimeSessionSnapshot,
   usePrimeSessionState,
@@ -84,7 +82,6 @@ function PrimeSessionWorkspace({
   const snapshotQuery = usePrimeSessionSnapshot(sessionId)
   const actions = usePrimeSessionActions(sessionId)
   const models = usePrimeModels(sessionId)
-  const recurrentDepth = usePrimeRecurrentDepth(sessionId)
   const [draft, setDraft] = useState("")
   const [commandError, setCommandError] = useState(initialPromptError)
   const [modelChange, setModelChange] = useState<ModelChangeState>(idleModelChange)
@@ -185,7 +182,6 @@ function PrimeSessionWorkspace({
             >
               <PrimeComposer
                 acceptedEffort={snapshot.useful.sessionContext?.thinkingLevel}
-                acceptedRecurrentDepth={recurrentDepth.data}
                 connected={connected}
                 draft={draft}
                 draftHero={draftHero}
@@ -196,10 +192,6 @@ function PrimeSessionWorkspace({
                 onEffortChange={actions.setEffort}
                 onEffortError={setCommandError}
                 onModelSelect={(model) => updateModel(model.provider, model.id)}
-                onRecurrentDepthChange={async (depth) => {
-                  await actions.setRecurrentDepth(depth)
-                  await recurrentDepth.refetch()
-                }}
                 recovering={recovering}
                 selectedModel={snapshot.session.model}
                 sessionSelected
@@ -211,7 +203,6 @@ function PrimeSessionWorkspace({
               />
             </div>
           </div>
-          {draftHero ? null : <SessionInspector snapshot={snapshot} />}
         </div>
       </div>
     </>

@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from "./ui/dialog"
 import { Button } from "./ui/button"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group"
 import { getWorkspaceName } from "./workspace-name"
 
 type WorkspacePickerProps = Readonly<{
@@ -62,12 +63,11 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
       </DialogTrigger>
       <DialogContent className="workspace-dialog">
         <DialogHeader>
-          <DialogTitle>Switch workspace</DialogTitle>
-          <DialogDescription>Open a conversation from another Prime Agent workspace.</DialogDescription>
+          <DialogTitle>Open a workspace</DialogTitle>
+          <DialogDescription>Choose a workspace to open its latest Prime Agent conversation.</DialogDescription>
         </DialogHeader>
-        <label className="workspace-dialog__search">
-          <SearchIcon aria-hidden="true" />
-          <input
+        <InputGroup>
+          <InputGroupInput
             aria-label="Search workspaces"
             autoComplete="off"
             autoFocus
@@ -77,7 +77,15 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
             type="search"
             value={query}
           />
-        </label>
+          <InputGroupAddon align="inline-start">
+            <SearchIcon aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
+        <p className="workspace-dialog__summary">
+          {visibleWorkspaces.length === workspaces.length
+            ? `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"}`
+            : `${visibleWorkspaces.length} of ${workspaces.length} workspaces`}
+        </p>
         <div className="workspace-dialog__list">
           {visibleWorkspaces.length === 0 ? (
             <p className="workspace-dialog__empty">No matching workspace</p>
@@ -98,7 +106,7 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
                 <FolderIcon data-icon="inline-start" />
                 <span>
                   <strong>{getWorkspaceName(workspace.cwd)}</strong>
-                  <small>{workspace.cwd}</small>
+                  <small>{active ? `Current workspace · ${workspace.cwd}` : workspace.cwd}</small>
                 </span>
                 {active ? <CheckIcon data-icon="inline-end" /> : null}
               </Button>

@@ -6,6 +6,7 @@ Ernie is a local desktop workspace for reading and directing Prime Agent session
 - [[product]] records user workflows, state rules, responsive behavior, and boundaries.
 - [[runtime]] records snapshot authority, synchronization, ownership, and recovery.
 - [[tests]] records executable specifications for runtime and development guarantees.
+- [[styling]] records StyleX ownership, theme values, and the CSS boundary.
 
 ## Product
 

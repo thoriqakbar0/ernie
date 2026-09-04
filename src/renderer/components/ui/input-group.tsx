@@ -1,156 +1,216 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import type { ComponentProps } from "react"
+import * as stylex from "@stylexjs/stylex"
+import { Button } from "./button"
+import { Input } from "./input"
+import { Textarea } from "./textarea"
+import type { StyledProps } from "./styles"
+const styles = stylex.create({
+  group: {
+    position: "relative",
+    display: "flex",
+    width: "100%",
+    minWidth: 0,
+    alignItems: "center",
+    height: {
+      default: 32,
+      ':has(> [data-align="block-end"], > [data-align="block-start"], > textarea)': "auto",
+    },
+    flexDirection: {
+      default: "row",
+      ':has(> [data-align="block-end"], > [data-align="block-start"])': "column",
+    },
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: {
+      default: "var(--rule)",
+      ':has([data-slot="input-group-control"]:focus-visible)': "var(--focus)",
+      ':has([aria-invalid="true"])': "var(--danger)",
+    },
+    boxShadow: {
+      default: "none",
+      ':has([data-slot="input-group-control"]:focus-visible)':
+        "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
+      ':has([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
+    },
+    backgroundColor: {
+      default: "transparent",
+      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 30%, transparent)",
+    },
+    opacity: {
+      default: 1,
+      ":has(:disabled)": 0.5,
+    },
+    outlineStyle: "none",
+    transition: "border-color 150ms, box-shadow 150ms",
+  },
+  addon: {
+    display: "flex",
+    height: "auto",
+    cursor: "text",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingBlock: 6,
+    fontSize: 14,
+    fontWeight: 500,
+    color: "var(--muted)",
+    userSelect: "none",
+  },
+  text: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 14,
+    color: "var(--muted)",
+  },
+  control: {
+    flex: 1,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    boxShadow: {
+      default: "none",
+      ":focus": "none",
+      ":focus-visible": "none",
+      ':is([aria-invalid="true"])': "none",
+    },
+    outlineStyle: "none",
+  },
+  textarea: {
+    resize: "none",
+    paddingBlock: 8,
+  },
+  button: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 14,
+    boxShadow: {
+      default: "none",
+      ":focus-visible": "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
+    },
+  },
+})
+const alignments = stylex.create({
+  "inline-start": {
+    order: -1,
+    paddingInlineStart: 8,
+    marginInlineStart: {
+      default: 0,
+      ":has(> button)": "-0.3rem",
+      ":has(> kbd)": "-0.15rem",
+    },
+  },
+  "inline-end": {
+    order: 1,
+    paddingInlineEnd: 8,
+    marginInlineEnd: {
+      default: 0,
+      ":has(> button)": "-0.3rem",
+      ":has(> kbd)": "-0.15rem",
+    },
+  },
+  "block-start": {
+    order: -1,
+    width: "100%",
+    justifyContent: "flex-start",
+    paddingInline: 10,
+    paddingTop: 8,
+  },
+  "block-end": {
+    order: 1,
+    width: "100%",
+    justifyContent: "flex-start",
+    paddingInline: 10,
+    paddingBottom: 8,
+  },
+})
+const sizes = stylex.create({
+  xs: {
+    height: 24,
+    gap: 4,
+    borderRadius: "calc(var(--radius) - 3px)",
+    paddingInline: 6,
+  },
+  sm: {},
+  "icon-xs": {
+    width: 24,
+    height: 24,
+    borderRadius: "calc(var(--radius) - 3px)",
+    padding: 0,
+  },
+  "icon-sm": {
+    width: 32,
+    height: 32,
+    padding: 0,
+  },
+})
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-
-function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
+/** Groups controls and addons while reflecting descendant validation and focus. */
+export function InputGroup({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) {
   return (
-    <div
-      data-slot="input-group"
-      role="group"
-      className={cn(
-        "group/input-group relative flex h-8 w-full min-w-0 items-center rounded-lg border border-input transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-disabled:bg-input/50 has-disabled:opacity-50 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-3 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto dark:bg-input/30 dark:has-disabled:bg-input/80 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pe-1.5 has-[>[data-align=inline-start]]:[&>input]:ps-1.5",
-        className
-      )}
-      {...props}
-    />
+    <div data-slot="input-group" role="group" {...props} {...stylex.props(styles.group, xstyle)} />
   )
 }
-
-const inputGroupAddonVariants = cva(
-  "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-[calc(var(--radius)-5px)] [&>svg:not([class*='size-'])]:size-4",
-  {
-    variants: {
-      align: {
-        "inline-start":
-          "order-first ps-2 has-[>button]:ms-[-0.3rem] has-[>kbd]:ms-[-0.15rem]",
-        "inline-end":
-          "order-last pe-2 has-[>button]:me-[-0.3rem] has-[>kbd]:me-[-0.15rem]",
-        "block-start":
-          "order-first w-full justify-start px-2.5 pt-2 group-has-[>input]/input-group:pt-2 [.border-b]:pb-2",
-        "block-end":
-          "order-last w-full justify-start px-2.5 pb-2 group-has-[>input]/input-group:pb-2 [.border-t]:pt-2",
-      },
-    },
-    defaultVariants: {
-      align: "inline-start",
-    },
-  }
-)
-
-function InputGroupAddon({
-  className,
+/** Places an addon and focuses its associated control on non-button clicks. */
+export function InputGroupAddon({
+  xstyle,
   align = "inline-start",
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
+}: StyledProps<ComponentProps<"div">> & {
+  align?: keyof typeof alignments
+}) {
   return (
     <div
       role="group"
       data-slot="input-group-addon"
       data-align={align}
-      className={cn(inputGroupAddonVariants({ align }), className)}
-      onClick={(e) => {
-        if (e.target instanceof Element && e.target.closest("button")) {
-          return
-        }
-        e.currentTarget.parentElement?.querySelector<HTMLElement>("input, textarea")?.focus()
+      onClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("button")) return
+        event.currentTarget.parentElement?.querySelector<HTMLElement>("input, textarea")?.focus()
       }}
       {...props}
+      {...stylex.props(styles.addon, alignments[align], xstyle)}
     />
   )
 }
-
-const inputGroupButtonVariants = cva(
-  "flex items-center gap-2 text-sm shadow-none",
-  {
-    variants: {
-      size: {
-        xs: "h-6 gap-1 rounded-[calc(var(--radius)-3px)] px-1.5 [&>svg:not([class*='size-'])]:size-3.5",
-        sm: "",
-        "icon-xs":
-          "size-6 rounded-[calc(var(--radius)-3px)] p-0 has-[>svg]:p-0",
-        "icon-sm": "size-8 p-0 has-[>svg]:p-0",
-      },
-    },
-    defaultVariants: {
-      size: "xs",
-    },
-  }
-)
-
-function InputGroupButton({
-  className,
+/** Button sized for a control group; keeps the Base UI interaction contract. */
+export function InputGroupButton({
+  xstyle,
   type = "button",
   variant = "ghost",
   size = "xs",
   ...props
-}: Omit<React.ComponentProps<typeof Button>, "size" | "type"> &
-  VariantProps<typeof inputGroupButtonVariants> & {
-    type?: "button" | "submit" | "reset"
-  }) {
+}: Omit<ComponentProps<typeof Button>, "size" | "type"> & {
+  size?: keyof typeof sizes
+  type?: "button" | "submit" | "reset"
+}) {
   return (
     <Button
       type={type}
       data-size={size}
       variant={variant}
-      className={cn(inputGroupButtonVariants({ size }), className)}
       {...props}
+      xstyle={[styles.button, sizes[size], xstyle]}
     />
   )
 }
-
-function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      className={cn(
-        "flex items-center gap-2 text-sm text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    />
-  )
+/** Supplementary text within a control group. */
+export function InputGroupText({ xstyle, ...props }: StyledProps<ComponentProps<"span">>) {
+  return <span {...props} {...stylex.props(styles.text, xstyle)} />
 }
-
-function InputGroupInput({
-  className,
-  ...props
-}: React.ComponentProps<"input">) {
-  return (
-    <Input
-      data-slot="input-group-control"
-      className={cn(
-        "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
-        className
-      )}
-      {...props}
-    />
-  )
+/** Removes the inner input border; the group owns the focus indicator. */
+export function InputGroupInput({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) {
+  return <Input data-slot="input-group-control" {...props} xstyle={[styles.control, xstyle]} />
 }
-
-function InputGroupTextarea({
-  className,
-  ...props
-}: React.ComponentProps<"textarea">) {
+/** Resizable-by-content group textarea; the group owns the focus indicator. */
+export function InputGroupTextarea({ xstyle, ...props }: StyledProps<ComponentProps<"textarea">>) {
   return (
     <Textarea
       data-slot="input-group-control"
-      className={cn(
-        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
-        className
-      )}
       {...props}
+      xstyle={[styles.control, styles.textarea, xstyle]}
     />
   )
-}
-
-export {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupText,
-  InputGroupInput,
-  InputGroupTextarea,
 }

@@ -1,3 +1,5 @@
+import { styles } from "./chat-workspace.styles"
+import * as stylex from "@stylexjs/stylex"
 import { useActionState, useEffect, useRef, useState } from "react"
 import type { PrimeModel, PrimeSessionSummary } from "../../packages/prime-agent"
 import { ConversationTranscript } from "./conversation-transcript"
@@ -15,20 +17,26 @@ import {
   usePrimeSessionState,
   useWorkspacePath,
 } from "../prime-agent-state"
-
 type ModelSelection = Readonly<{
   modelId: string
   provider: string
 }>
-
 type ModelChangeState =
-  | Readonly<{ status: "idle" }>
-  | Readonly<{ status: "pending"; selection: ModelSelection }>
-  | Readonly<{ status: "error"; message: string }>
-
-const idleModelChange: ModelChangeState = { status: "idle" }
+  | Readonly<{
+      status: "idle"
+    }>
+  | Readonly<{
+      status: "pending"
+      selection: ModelSelection
+    }>
+  | Readonly<{
+      status: "error"
+      message: string
+    }>
+const idleModelChange: ModelChangeState = {
+  status: "idle",
+}
 const emptyModels: readonly PrimeModel[] = []
-
 export function ChatWorkspace() {
   const { selectSession, selectedSessionId: sessionId } = usePrimeSessionSelection()
   const sessions = usePrimeSessionState()
@@ -37,11 +45,15 @@ export function ChatWorkspace() {
   const noSessions = sessions.isSuccess && sessions.data.length === 0
   const waitingForCreatedSession = createSession.isPending && sessionId === undefined
   const showEmptyState = (noSessions && sessionId === undefined) || waitingForCreatedSession
-
   return (
-    <section aria-label="Chat workspace" className="chat-workspace" id="ernie-workspace" tabIndex={-1}>
+    <section
+      aria-label="Chat workspace"
+      id="ernie-workspace"
+      tabIndex={-1}
+      {...stylex.props(styles.chatWorkspace)}
+    >
       {showEmptyState ? (
-        <div className="workspace-content">
+        <div {...stylex.props(styles.workspaceContent)}>
           <PrimeEmptyState
             creating={createSession.isPending}
             cwd={workspacePath.data ?? "this workspace"}
@@ -51,23 +63,24 @@ export function ChatWorkspace() {
         </div>
       ) : sessionId ? (
         <PrimeSessionWorkspace
-          initialPromptError={createSession.data?.attached.snapshot.session.id === sessionId
-            ? createSession.data.initialPromptError
-            : undefined}
+          initialPromptError={
+            createSession.data?.attached.snapshot.session.id === sessionId
+              ? createSession.data.initialPromptError
+              : undefined
+          }
           key={sessionId}
           onSelectSession={selectSession}
           sessionId={sessionId}
           sessions={sessions.data}
         />
       ) : (
-        <div className="workspace-content">
+        <div {...stylex.props(styles.workspaceContent)}>
           <WorkspaceLoading />
         </div>
       )}
     </section>
   )
 }
-
 function PrimeSessionWorkspace({
   initialPromptError,
   onSelectSession,
@@ -86,16 +99,16 @@ function PrimeSessionWorkspace({
   const [commandError, setCommandError] = useState(initialPromptError)
   const [modelChange, setModelChange] = useState<ModelChangeState>(idleModelChange)
   const modelSelectionRevision = useRef(0)
-
-  useEffect(() => () => {
-    modelSelectionRevision.current += 1
-  }, [])
-
+  useEffect(
+    () => () => {
+      modelSelectionRevision.current += 1
+    },
+    [],
+  )
   const [, submitAction, submitting] = useActionState(
     async (_previous: undefined, formData: FormData): Promise<undefined> => {
       const content = formData.get("message")
       if (typeof content !== "string" || !content.trim()) return
-
       setCommandError(undefined)
       try {
         await actions.submit(content)
@@ -106,55 +119,56 @@ function PrimeSessionWorkspace({
     },
     undefined,
   )
-  const [, stopAction, stopping] = useActionState(
-    async (): Promise<undefined> => {
-      setCommandError(undefined)
-      try {
-        await actions.stop()
-      } catch (cause) {
-        setCommandError(cause instanceof Error ? cause.message : "Prime Agent command failed")
-      }
-    },
-    undefined,
-  )
-
+  const [, stopAction, stopping] = useActionState(async (): Promise<undefined> => {
+    setCommandError(undefined)
+    try {
+      await actions.stop()
+    } catch (cause) {
+      setCommandError(cause instanceof Error ? cause.message : "Prime Agent command failed")
+    }
+  }, undefined)
   if (snapshotQuery.isError) {
     return (
-      <div className="open-error" role="alert">
+      <div role="alert" {...stylex.props(styles.openError)}>
         <h2>Unable to open this session</h2>
-        <p>{getErrorMessage(snapshotQuery.error)}.</p>
-        <button className="secondary-button" onClick={() => void snapshotQuery.refetch()} type="button">Try again</button>
+        <p {...stylex.props(styles.errorDescription)}>{getErrorMessage(snapshotQuery.error)}.</p>
+        <button
+          onClick={() => void snapshotQuery.refetch()}
+          type="button"
+          {...stylex.props(styles.secondaryButton)}
+        >
+          Try again
+        </button>
       </div>
     )
   }
-
   const snapshot = snapshotQuery.data
   if (!snapshot) return <WorkspaceLoading />
-
   const connected = snapshot.transport.status === "connected"
   const working = snapshot.session.state === "working"
   const recovering = snapshot.session.state === "recovering"
-  const draftHero = snapshot.session.lifecycle === "draft" &&
-    snapshot.messages.length === 0 &&
-    !working
-  const actionError = (modelChange.status === "error" ? modelChange.message : undefined) ??
-    commandError
-
+  const draftHero =
+    snapshot.session.lifecycle === "draft" && snapshot.messages.length === 0 && !working
+  const actionError =
+    (modelChange.status === "error" ? modelChange.message : undefined) ?? commandError
   return (
     <>
       {snapshot.transport.status === "reconnecting" ? (
         <SessionNotice tone="warning">
-          <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will resume after recovery.
+          <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will
+          resume after recovery.
         </SessionNotice>
       ) : null}
       {snapshot.transport.status === "failed" ? (
         <SessionNotice tone="danger">
-          <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the connection returns. <span>{snapshot.transport.error}</span>
+          <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the
+          connection returns. <span>{snapshot.transport.error}</span>
         </SessionNotice>
       ) : null}
       {connected && recovering ? (
         <SessionNotice tone="warning">
-          <strong>Restoring this Prime Agent session.</strong> Commands will return when recovery finishes.
+          <strong>Restoring this Prime Agent session.</strong> Commands will return when recovery
+          finishes.
         </SessionNotice>
       ) : null}
       {actionError ? (
@@ -163,22 +177,30 @@ function PrimeSessionWorkspace({
         </SessionNotice>
       ) : null}
 
-      <div className="workspace-content">
-        <div className={draftHero ? "session-stage session-stage--draft" : "session-stage"}>
-          <div className="conversation-pane">
+      <div {...stylex.props(styles.workspaceContent)}>
+        <div {...stylex.props(styles.sessionStage, draftHero && styles.sessionStageDraft)}>
+          <div
+            {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}
+          >
             {draftHero ? null : <ConversationTranscript messages={snapshot.messages} />}
             {draftHero ? (
-              <h1 className="draft-hero-title">
-                What should we build in <WorkspacePicker
+              <h1 {...stylex.props(styles.draftHeroTitle)}>
+                What should we build in{" "}
+                <WorkspacePicker
                   activeSessionId={sessionId}
                   onSelectSession={onSelectSession}
                   sessions={sessions}
-                />?
+                />
+                ?
               </h1>
             ) : null}
             <div
-              className={draftHero ? "composer-placement composer-placement--hero" : "composer-dock"}
               data-composer-placement={draftHero ? "hero" : "docked"}
+              {...stylex.props(
+                !draftHero && styles.composerDock,
+                draftHero && styles.composerPlacement,
+                draftHero && styles.composerPlacementHero,
+              )}
             >
               <PrimeComposer
                 acceptedEffort={snapshot.useful.sessionContext?.thinkingLevel}
@@ -207,13 +229,19 @@ function PrimeSessionWorkspace({
       </div>
     </>
   )
-
   function updateModel(provider: string, modelId: string) {
     if (modelChange.status === "pending") return
     const revision = modelSelectionRevision.current + 1
     modelSelectionRevision.current = revision
-    setModelChange({ status: "pending", selection: { provider, modelId } })
-    void actions.setModel(provider, modelId)
+    setModelChange({
+      status: "pending",
+      selection: {
+        provider,
+        modelId,
+      },
+    })
+    void actions
+      .setModel(provider, modelId)
       .then(() => {
         if (modelSelectionRevision.current === revision) setModelChange(idleModelChange)
       })
@@ -226,7 +254,6 @@ function PrimeSessionWorkspace({
       })
   }
 }
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Prime Agent could not start a conversation"
 }

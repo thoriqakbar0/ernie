@@ -1,10 +1,12 @@
+import { styles } from "./workspace-loading.styles"
+import * as stylex from "@stylexjs/stylex"
 /** Announces workspace attachment progress without moving focus. */
 export function WorkspaceLoading() {
   return (
-    <div aria-label="Opening Prime Agent" className="workspace-loading" role="status">
-      <span className="workspace-loading__rule" />
+    <div aria-label="Opening Prime Agent" role="status" {...stylex.props(styles.workspaceLoading)}>
+      <span {...stylex.props(styles.workspaceLoadingRule)} />
       <span>Opening Prime Agent…</span>
-      <span className="workspace-loading__rule" />
+      <span {...stylex.props(styles.workspaceLoadingRule)} />
     </div>
   )
 }

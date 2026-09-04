@@ -1,0 +1,150 @@
+import * as stylex from "@stylexjs/stylex"
+import { theme } from "../theme.stylex"
+
+/** Styles owned by this surface, including its responsive and interaction states. */
+export const styles = stylex.create({
+  chatWorkspace: {
+    display: "flex",
+    minWidth: "0",
+    minHeight: "0",
+    flexDirection: "column",
+    backgroundColor: theme["--surface"],
+    color: theme["--ink"],
+  },
+  workspaceContent: {
+    position: "relative",
+    minWidth: "0",
+    minHeight: "0",
+    flex: "1",
+    overflow: "hidden",
+    overflowY: {
+      default: null,
+      "@media (max-width: 720px)": "auto",
+    },
+  },
+  openError: {
+    display: "flex",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "column",
+    padding: "42px 24px",
+    textAlign: "center",
+  },
+  errorDescription: {
+    maxWidth: "52ch",
+    marginTop: "12px",
+    color: theme["--muted"],
+    fontSize: "13px",
+    lineHeight: "1.6",
+  },
+  secondaryButton: {
+    display: "inline-flex",
+    minHeight: "42px",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    borderRadius: "10px",
+    cursor: "pointer",
+    padding: "0 15px",
+    fontSize: "13px",
+    fontWeight: "760",
+    marginTop: "18px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: theme["--rule-strong"],
+    backgroundColor: theme["--surface-muted"],
+    color: theme["--ink"],
+  },
+  sessionStage: {
+    display: {
+      default: "grid",
+      "@media (max-width: 720px)": "block",
+    },
+    height: {
+      default: "100%",
+      "@media (max-width: 720px)": "auto",
+    },
+    minWidth: "0",
+    minHeight: {
+      default: "0",
+      "@media (max-width: 720px)": "100%",
+    },
+    gridTemplateRows: "minmax(0, 1fr)",
+  },
+  sessionStageDraft: {
+    display: "block",
+  },
+  conversationPane: {
+    position: "relative",
+    display: "flex",
+    height: {
+      default: "100%",
+      "@media (max-width: 720px)": "max(420px, calc(100dvh - 254px))",
+      "@media (max-width: 480px)": "max(420px, calc(100dvh - 228px))",
+    },
+    minWidth: "0",
+    minHeight: "0",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  draftConversationPane: {
+    display: "grid",
+    height: {
+      default: "100%",
+      "@media (max-width: 720px)": "auto",
+    },
+    alignContent: "center",
+    justifyItems: "center",
+    gap: "24px",
+    overflowY: "auto",
+    paddingBlock: {
+      default: "48px",
+      "@media (max-width: 720px)": "36px",
+    },
+    minHeight: {
+      default: null,
+      "@media (max-width: 720px)": "max(420px, calc(100dvh - 254px))",
+      "@media (max-width: 480px)": "max(420px, calc(100dvh - 228px))",
+    },
+  },
+  draftHeroTitle: {
+    width: {
+      default: "min(calc(100% - 48px), 720px)",
+      "@media (max-width: 720px)": "min(calc(100% - 32px), 719px)",
+    },
+    margin: "0",
+    color: theme["--ink-strong"],
+    fontSize: "clamp(24px, 3vw, 34px)",
+    fontWeight: "500",
+    letterSpacing: "-0.035em",
+    lineHeight: "1.15",
+    textAlign: "center",
+  },
+  composerDock: {
+    position: "relative",
+    zIndex: "10",
+    flex: "0 0 auto",
+    padding: "14px 28px max(18px, env(safe-area-inset-bottom))",
+    backgroundColor: theme["--surface"],
+    pointerEvents: "none",
+    paddingInline: {
+      default: null,
+      "@media (max-width: 720px)": "14px",
+    },
+    paddingBottom: {
+      default: null,
+      "@media (max-width: 720px)": "12px",
+    },
+  },
+  composerPlacement: {
+    pointerEvents: "none",
+  },
+  composerPlacementHero: {
+    zIndex: "10",
+    width: {
+      default: "min(calc(100% - 48px), 719px)",
+      "@media (max-width: 720px)": "min(calc(100% - 32px), 719px)",
+    },
+  },
+})

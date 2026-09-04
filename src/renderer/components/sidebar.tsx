@@ -1,202 +1,100 @@
-import { useEffect, useMemo, useState } from "react"
-import { Popover } from "@base-ui/react/popover"
+import { useMemo, useState } from "react"
 import { useViewArgs } from "@zenbujs/core/react"
-import { FolderIcon, PanelLeftCloseIcon } from "lucide-react"
-import { useIdle } from "phase/react"
+import { FolderIcon, MessageCircleIcon, PanelLeftCloseIcon, SearchIcon, XIcon } from "lucide-react"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
-import {
-  useCreatePrimeSession,
-  usePrimeSessionSelection,
-  usePrimeSessionState,
-} from "../prime-agent-state"
+import { useCreatePrimeSession, usePrimeSessionSelection, usePrimeSessionState } from "../prime-agent-state"
 import { ErnieMark } from "./ernie-mark"
 import { PlusIcon } from "./plus-icon"
 import { getWorkspaceName } from "./workspace-name"
 
+/** Navigate real Prime Agent conversations without implying additional Agent identities. */
 export function Sidebar() {
   const { onClose } = useViewArgs<{ onClose: () => void }>()
-  const idle = useIdle({ timeout: 500 })
   const sessions = usePrimeSessionState()
   const createSession = useCreatePrimeSession()
   const { selectedSessionId, selectSession } = usePrimeSessionSelection()
-  const visibleSessions = useMemo(
-    () => (sessions.data ?? [])
-      .filter(({ lifecycle }) => lifecycle !== "archived")
-      .toSorted(
-        (left, right) => sessionStatePriority(left.state) - sessionStatePriority(right.state),
-      ),
-    [sessions.data],
-  )
-  const renderedSessions = idle
-    ? visibleSessions
-    : visibleSessions.filter((session, index) => index < 24 || session.id === selectedSessionId)
-  const workspaceGroups = useMemo(() => {
-    const groups = new Map<string, PrimeSessionSummary[]>()
-    for (const session of renderedSessions) {
-      const group = groups.get(session.cwd)
-      if (group) group.push(session)
-      else groups.set(session.cwd, [session])
-    }
-    return [...groups].map(([cwd, groupedSessions]) => ({ cwd, sessions: groupedSessions }))
-  }, [renderedSessions])
+  const [query, setQuery] = useState("")
+  const [activeOnly, setActiveOnly] = useState(false)
+  const visible = useMemo(() => sessions.data.filter((session) => session.lifecycle !== "archived"), [sessions.data])
+  const working = visible.filter((session) => session.state === "working").length
+  const recovering = visible.filter((session) => session.state === "recovering").length
+  const filtered = useMemo(() => {
+    const search = query.trim().toLocaleLowerCase()
+    return visible.filter((session) =>
+      (!activeOnly || session.state !== "idle") &&
+      (!search || [session.name ?? "", session.cwd].some((value) => value.toLocaleLowerCase().includes(search))),
+    ).toSorted((left, right) => priority(left.state) - priority(right.state))
+  }, [visible, query, activeOnly])
+  const selected = visible.find((session) => session.id === selectedSessionId)
 
   return (
-    <aside aria-label="Sidebar" className="session-sidebar" id="ernie-sidebar">
+    <aside aria-label="Sidebar" className="session-sidebar agent-sidebar" id="ernie-sidebar">
       <div className="sidebar-brand">
         <div className="sidebar-brand__identity">
           <ErnieMark className="sidebar-brand__mark" />
           <p className="sidebar-brand__name">Ernie</p>
         </div>
         <div className="sidebar-brand__actions">
-          <button
-            aria-controls="ernie-sidebar"
-            aria-expanded="true"
-            aria-label="Close sidebar"
-            className="sidebar-close-button"
-            onClick={onClose}
-            type="button"
-          >
-            <PanelLeftCloseIcon />
-          </button>
-          <button
-            aria-label="New conversation"
-            className="new-session-button"
-            disabled={createSession.isPending}
-            onClick={() => createSession.mutate()}
-            type="button"
-          >
-            <PlusIcon />
-          </button>
+        <button aria-controls="ernie-sidebar" aria-expanded="true" aria-label="Close sidebar" className="sidebar-close-button" onClick={onClose} type="button">
+          <PanelLeftCloseIcon />
+        </button>
+        <button className="new-session-button" aria-label="New conversation" title="New conversation" disabled={createSession.isPending || !sessions.isSuccess} onClick={() => { setQuery(""); setActiveOnly(false); createSession.mutate() }} type="button">
+          <PlusIcon />
+        </button>
         </div>
       </div>
 
-      <nav aria-label="Conversations" className="sidebar-nav">
-        <div className="session-creation-feedback">
-          {createSession.isPending ? <p role="status">Creating conversation…</p> : null}
-          {createSession.isError ? (
-            <p role="alert">
-              <span>{getErrorMessage(createSession.error)}</span>. Select New conversation to try again.
-            </p>
-          ) : null}
-        </div>
-        <ul className="sidebar-session-list">
+      <div className="session-creation-feedback">
+        {createSession.isPending ? <p role="status">Creating your conversation…</p> : null}
+        {createSession.isError ? <p role="alert">{createSession.error instanceof Error ? createSession.error.message : "Could not create conversation"}. Try New conversation again.</p> : null}
+      </div>
+
+        <nav aria-label="Conversations" className="sidebar-nav" id="agent-conversations">
+          <div className="agent-sidebar__tools">
+            <label className="sidebar-search">
+              <SearchIcon aria-hidden="true" />
+              <input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={(event) => setQuery(event.target.value)} type="search" />
+              {query ? <button aria-label="Clear search" onClick={() => setQuery("")} type="button"><XIcon /></button> : null}
+            </label>
+            <div className="sidebar-filters" aria-label="Conversation filters">
+              <button aria-pressed={!activeOnly} onClick={() => setActiveOnly(false)} type="button">All <span>{visible.length}</span></button>
+              <button aria-pressed={activeOnly} onClick={() => setActiveOnly(true)} type="button">Active <span>{working + recovering}</span></button>
+            </div>
+          </div>
           {sessions.isPending ? (
-            <li className="sidebar-placeholder" role="status">Loading sessions…</li>
+            <div className="sidebar-empty" role="status"><span className="sidebar-loading-lines" aria-hidden="true" /><strong>Connecting to Prime Agent</strong><p>Your conversations will appear here.</p></div>
           ) : sessions.isError ? (
-            <li className="sidebar-placeholder sidebar-placeholder--error" role="alert">Unable to load sessions</li>
-          ) : visibleSessions.length === 0 ? (
-            <li className="sidebar-placeholder">No sessions yet</li>
-          ) : workspaceGroups.map((group) => (
-            <WorkspaceSessionGroup
-              cwd={group.cwd}
-              key={group.cwd}
-              onSelectSession={selectSession}
-              selectedSessionId={selectedSessionId}
-              sessions={group.sessions}
-            />
-          ))}
-        </ul>
-      </nav>
+            <div className="sidebar-empty sidebar-empty--error" role="alert"><strong>Conversations unavailable</strong><p>Check the Prime Agent connection. Your saved work remains unchanged.</p></div>
+          ) : filtered.length === 0 ? (
+            <div className="sidebar-empty" role="status"><MessageCircleIcon aria-hidden="true" /><strong>{query ? "No matching conversations" : activeOnly ? "Nothing running" : "A place to begin"}</strong><p>{query ? "Try a conversation name or workspace." : activeOnly ? "Active conversations appear here while work runs or recovers." : "Start a conversation with Prime Agent. Return to it whenever you need."}</p>
+              {query || activeOnly ? <button type="button" onClick={() => { setQuery(""); setActiveOnly(false) }}>Show all conversations</button> : null}
+            </div>
+          ) : (
+            <ul className="sidebar-session-list">
+              {filtered.map((session) => (
+                <li key={session.id}>
+                  <button aria-current={session.id === selectedSessionId ? "page" : undefined} aria-label={session.name ?? session.cwd} className="session-button" data-session-id={session.id} data-session-state={session.state} onClick={() => selectSession(session.id)} title={`${session.name ?? "Untitled conversation"}\n${session.cwd}`} type="button">
+                    <span className="session-button__heading"><span className="session-button__name">{session.name?.trim() || getWorkspaceName(session.cwd)}</span><span className="session-button__state">{session.lifecycle === "draft" && session.state === "idle" ? "Draft" : session.state === "working" ? "Working" : session.state === "recovering" ? "Recovering" : ""}</span></span>
+                    <span className="session-button__context"><FolderIcon aria-hidden="true" /><span>{getWorkspaceName(session.cwd)}</span></span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </nav>
+
+      <div className="agent-sidebar__footer">
+        <FolderIcon aria-hidden="true" />
+        <span><strong>{selected ? getWorkspaceName(selected.cwd) : "Local workspace"}</strong><span title={selected?.cwd}>{selected?.cwd ?? "Choose a conversation to see its workspace"}</span></span>
+      </div>
     </aside>
   )
 }
 
-type WorkspaceSessionGroupProps = Readonly<{
-  cwd: string
-  onSelectSession: (sessionId: string) => void
-  selectedSessionId: string | undefined
-  sessions: readonly PrimeSessionSummary[]
-}>
-
-function WorkspaceSessionGroup({
-  cwd,
-  onSelectSession,
-  selectedSessionId,
-  sessions,
-}: WorkspaceSessionGroupProps) {
-  const selectedSession = sessions.find(({ id }) => id === selectedSessionId)
-  const selectedInside = selectedSession !== undefined
-  const [open, setOpen] = useState(selectedInside)
-  const [showAll, setShowAll] = useState(false)
-  const collapsedSessions = selectedSession
-    ? [selectedSession, ...sessions.filter(({ id }) => id !== selectedSession.id)].slice(0, 5)
-    : sessions.slice(0, 5)
-  const displayedSessions = showAll ? sessions : collapsedSessions
-  const hiddenSessionCount = sessions.length - displayedSessions.length
-
-  useEffect(() => {
-    if (selectedInside) setOpen(true)
-  }, [selectedInside])
-
-  return (
-    <li className="workspace-session-group">
-      <details
-        onToggle={(event) => setOpen(event.currentTarget.open)}
-        open={open}
-      >
-        <summary className="workspace-session-group__summary" title={cwd}>
-          <FolderIcon />
-          <Popover.Root>
-            <Popover.Trigger
-              aria-label={`Workspace details for ${getWorkspaceName(cwd)}`}
-              className="workspace-session-group__name"
-              onClick={(event) => event.stopPropagation()}
-              openOnHover
-            >
-              {getWorkspaceName(cwd)}
-            </Popover.Trigger>
-            <Popover.Portal>
-              <Popover.Positioner align="start" side="right" sideOffset={8}>
-                <Popover.Popup className="workspace-session-popover">
-                  <strong>{getWorkspaceName(cwd)}</strong>
-                  <span>{cwd}</span>
-                </Popover.Popup>
-              </Popover.Positioner>
-            </Popover.Portal>
-          </Popover.Root>
-          <small>{sessions.length}</small>
-        </summary>
-        <ul className="workspace-session-group__sessions">
-          {displayedSessions.map((session) => (
-            <li key={session.id}>
-              <button
-                aria-current={session.id === selectedSessionId ? "page" : undefined}
-                aria-label={session.name ?? session.cwd}
-                className="session-button"
-                data-session-id={session.id}
-                data-session-state={session.state}
-                onClick={() => onSelectSession(session.id)}
-                title={`${session.name ?? getWorkspaceName(session.cwd)}\n${session.id}\n${session.cwd}`}
-                type="button"
-              >
-                <span className="session-button__name">{session.name ?? "Untitled conversation"}</span>
-              </button>
-            </li>
-          ))}
-          {sessions.length > collapsedSessions.length ? (
-            <li>
-              <button
-                aria-expanded={showAll}
-                className="workspace-session-group__more"
-                onClick={() => setShowAll((current) => !current)}
-                type="button"
-              >
-                {showAll ? "Show less" : `Show ${hiddenSessionCount} more`}
-              </button>
-            </li>
-          ) : null}
-        </ul>
-      </details>
-    </li>
-  )
-}
-
-function sessionStatePriority(state: "idle" | "recovering" | "working") {
-  if (state === "working") return 0
-  if (state === "recovering") return 1
-  return 2
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Prime Agent could not start a conversation"
+function priority(state: PrimeSessionSummary["state"]) {
+  switch (state) {
+    case "working": return 0
+    case "recovering": return 1
+    case "idle": return 2
+  }
 }

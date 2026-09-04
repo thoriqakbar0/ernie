@@ -1,25 +1,39 @@
-import * as React from "react"
-import * as stylex from "@stylexjs/stylex"
+import type { ComponentProps } from "react"
 import { Input as InputPrimitive } from "@base-ui/react/input"
-import { styles } from "./field.stylex"
-
-/** Text input with native attributes and composable field styles. */
-function Input({
-  className,
-  type,
-  xstyle,
-  style,
-  ...props
-}: React.ComponentProps<"input"> & { xstyle?: stylex.StyleXStyles }) {
-  const compiled = stylex.props(styles.field, styles.input, xstyle)
+import * as stylex from "@stylexjs/stylex"
+import { controlStyles, type StyledProps } from "./styles"
+const styles = stylex.create({
+  input: {
+    height: 32,
+    width: "100%",
+    minWidth: 0,
+    paddingInline: 10,
+    paddingBlock: 4,
+    fontSize: {
+      default: 16,
+      "@media (min-width: 768px)": 14,
+    },
+    "::placeholder": {
+      color: "var(--muted)",
+    },
+    "::file-selector-button": {
+      display: "inline-flex",
+      height: 24,
+      borderWidth: 0,
+      backgroundColor: "transparent",
+      color: "var(--ink)",
+      fontSize: 14,
+      fontWeight: 500,
+    },
+  },
+})
+/** Base UI input with the shared focus and validation states. */
+export function Input({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) {
   return (
     <InputPrimitive
-      type={type}
       data-slot="input"
-      className={[compiled.className, className].filter(Boolean).join(" ")}
-      style={{ ...compiled.style, ...style }}
       {...props}
+      {...stylex.props(controlStyles.control, styles.input, xstyle)}
     />
   )
 }
-export { Input }

@@ -24,10 +24,12 @@
     "test:desktop-smoke": "nub --node scripts/desktop-smoke.ts",
     "test:integration": "nub --test src/integration/*.integration.test.ts",
     "lint:debt": "debtmap validate . --summary --semantic-off",
+    "lint:outline": "nub --node scripts/lint-visible-outline.ts",
+    "lint:stylex": "nub --node scripts/lint-stylex.ts",
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
     "lat:check": "nub dlx lat.md@0.12.2 check",
-    "check": "zen link && tsc --noEmit && nub run lint:boundaries && nub run lat:check && nub run test:integration && nub run test:integration:browser && zen build:source",
+    "check": "zen link && tsc --noEmit && nub run lint:outline && nub run lint:stylex && nub run lint:boundaries && nub run lat:check && nub run test:integration && nub run test:integration:browser && zen build:source",
     "konsistent": "konsistent"
   },
   "dependencies": {

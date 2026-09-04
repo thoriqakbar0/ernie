@@ -1,3 +1,6 @@
+import { styles as sharedStyles } from "../component-styles"
+import { styles } from "./workspace-picker.styles"
+import * as stylex from "@stylexjs/stylex"
 import { useMemo, useState } from "react"
 import { CheckIcon, ChevronDownIcon, FolderIcon, SearchIcon } from "lucide-react"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
@@ -12,21 +15,24 @@ import {
 import { Button } from "./ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group"
 import { getWorkspaceName } from "./workspace-name"
-
 type WorkspacePickerProps = Readonly<{
   activeSessionId: string
   sessions: readonly PrimeSessionSummary[]
   onSelectSession: (sessionId: string) => void
 }>
-
-export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: WorkspacePickerProps) {
+export function WorkspacePicker({
+  activeSessionId,
+  sessions,
+  onSelectSession,
+}: WorkspacePickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const activeSession = sessions.find(({ id }) => id === activeSessionId)
   const workspaces = useMemo(() => {
     const byPath = new Map<string, PrimeSessionSummary>()
     for (const session of sessions) {
-      if (!byPath.has(session.cwd) || session.id === activeSessionId) byPath.set(session.cwd, session)
+      if (!byPath.has(session.cwd) || session.id === activeSessionId)
+        byPath.set(session.cwd, session)
     }
     return [...byPath.values()].toSorted((left, right) => {
       if (left.id === activeSessionId) return -1
@@ -35,16 +41,20 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
     })
   }, [activeSessionId, sessions])
   const visibleWorkspaces = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase().replace(/^~(?=\/)/, "")
+    const normalizedQuery = query
+      .trim()
+      .toLocaleLowerCase()
+      .replace(/^~(?=\/)/, "")
     if (!normalizedQuery) return workspaces
     return workspaces.filter((workspace) => {
       const label = getWorkspaceName(workspace.cwd)
-      return workspace.cwd.toLocaleLowerCase().includes(normalizedQuery) ||
+      return (
+        workspace.cwd.toLocaleLowerCase().includes(normalizedQuery) ||
         label.toLocaleLowerCase().includes(normalizedQuery) ||
         workspace.name?.toLocaleLowerCase().includes(normalizedQuery)
+      )
     })
   }, [query, workspaces])
-
   return (
     <Dialog
       onOpenChange={(nextOpen) => {
@@ -54,17 +64,17 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
       open={open}
     >
       <DialogTrigger
-        render={
-          <button className="workspace-picker__trigger" type="button" />
-        }
+        render={<button type="button" {...stylex.props(styles.workspacePickerTrigger)} />}
       >
         {getWorkspaceName(activeSession?.cwd ?? "this workspace")}
-        <ChevronDownIcon data-icon="inline-end" />
+        <ChevronDownIcon data-icon="inline-end" {...stylex.props(sharedStyles.controlIcon)} />
       </DialogTrigger>
-      <DialogContent className="workspace-dialog">
+      <DialogContent xstyle={[styles.workspaceDialog]}>
         <DialogHeader>
           <DialogTitle>Open a workspace</DialogTitle>
-          <DialogDescription>Choose a workspace to open a Prime Agent conversation.</DialogDescription>
+          <DialogDescription>
+            Choose a workspace to open a Prime Agent conversation.
+          </DialogDescription>
         </DialogHeader>
         <InputGroup>
           <InputGroupInput
@@ -78,40 +88,57 @@ export function WorkspacePicker({ activeSessionId, sessions, onSelectSession }: 
             value={query}
           />
           <InputGroupAddon align="inline-start">
-            <SearchIcon aria-hidden="true" />
+            <SearchIcon aria-hidden="true" {...stylex.props(sharedStyles.controlIcon)} />
           </InputGroupAddon>
         </InputGroup>
-        <p className="workspace-dialog__summary">
+        <p {...stylex.props(styles.workspaceDialogSummary)}>
           {visibleWorkspaces.length === workspaces.length
             ? `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"}`
             : `${visibleWorkspaces.length} of ${workspaces.length} workspaces`}
         </p>
-        <div className="workspace-dialog__list">
+        <div {...stylex.props(styles.workspaceDialogList)}>
           {visibleWorkspaces.length === 0 ? (
-            <p className="workspace-dialog__empty">No matching workspace</p>
-          ) : visibleWorkspaces.map((workspace) => {
-            const active = workspace.id === activeSessionId
-            return (
-              <Button
-                aria-current={active ? "true" : undefined}
-                className="workspace-dialog__option"
-                key={workspace.cwd}
-                onClick={() => {
-                  if (!active) onSelectSession(workspace.id)
-                  setOpen(false)
-                }}
-                type="button"
-                variant="ghost"
-              >
-                <FolderIcon data-icon="inline-start" />
-                <span>
-                  <strong>{getWorkspaceName(workspace.cwd)}</strong>
-                  <small>{active ? `Current workspace · ${workspace.cwd}` : workspace.cwd}</small>
-                </span>
-                {active ? <CheckIcon data-icon="inline-end" /> : null}
-              </Button>
-            )
-          })}
+            <p {...stylex.props(styles.workspaceDialogEmpty)}>No matching workspace</p>
+          ) : (
+            visibleWorkspaces.map((workspace) => {
+              const active = workspace.id === activeSessionId
+              return (
+                <Button
+                  aria-current={active ? "true" : undefined}
+                  key={workspace.cwd}
+                  onClick={() => {
+                    if (!active) onSelectSession(workspace.id)
+                    setOpen(false)
+                  }}
+                  type="button"
+                  variant="ghost"
+                  xstyle={[
+                    styles.workspaceDialogOption,
+                    active && styles.workspaceDialogOptionCurrent,
+                  ]}
+                >
+                  <FolderIcon
+                    data-icon="inline-start"
+                    {...stylex.props(sharedStyles.controlIcon, styles.optionIcon)}
+                  />
+                  <span {...stylex.props(styles.optionDetails)}>
+                    <strong {...stylex.props(styles.optionName)}>
+                      {getWorkspaceName(workspace.cwd)}
+                    </strong>
+                    <small {...stylex.props(styles.optionPath)}>
+                      {active ? `Current workspace · ${workspace.cwd}` : workspace.cwd}
+                    </small>
+                  </span>
+                  {active ? (
+                    <CheckIcon
+                      data-icon="inline-end"
+                      {...stylex.props(sharedStyles.controlIcon, styles.optionIcon)}
+                    />
+                  ) : null}
+                </Button>
+              )
+            })
+          )}
         </div>
       </DialogContent>
     </Dialog>

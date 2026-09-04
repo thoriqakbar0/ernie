@@ -12,12 +12,15 @@ if (browserHmrSentinel && !path.isAbsolute(browserHmrSentinel)) {
 
 export default defineConfig({
   root: path.resolve(__dirname, "src", "renderer"),
-  plugins: [stylex.vite({ useCSSLayers: { before: ["reset"] } }), react()],
+  plugins: [
+    stylex.vite({ unstable_moduleResolution: { type: "commonJS", rootDir: __dirname } }),
+    react(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src", "renderer"),
-      "@ernie-hmr-sentinel": browserHmrSentinel
-        ?? path.resolve(__dirname, "src", "browser", "hmr-sentinel.ts"),
+      "@ernie-hmr-sentinel":
+        browserHmrSentinel ?? path.resolve(__dirname, "src", "browser", "hmr-sentinel.ts"),
     },
   },
 })

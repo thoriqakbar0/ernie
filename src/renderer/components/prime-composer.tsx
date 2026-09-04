@@ -1,15 +1,10 @@
-import { styles } from "./composer.stylex"
+import { styles as sharedStyles } from "../component-styles"
+import * as stylex from "@stylexjs/stylex"
 import type { KeyboardEvent } from "react"
 import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "./ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "./ui/input-group"
 import { ModelPicker } from "./model-picker"
-
 type PrimeComposerProps = Readonly<{
   connected: boolean
   draft: string
@@ -31,7 +26,6 @@ type PrimeComposerProps = Readonly<{
   submitting: boolean
   working: boolean
 }>
-
 export function PrimeComposer({
   connected,
   acceptedEffort,
@@ -54,31 +48,42 @@ export function PrimeComposer({
   working,
 }: PrimeComposerProps) {
   const inputDisabled = !sessionSelected || !connected || recovering || submitting || stopping
-
   return (
     <form
       action={submitAction}
-      className={draftHero ? "prime-composer prime-composer--hero" : "prime-composer"}
       data-chat-composer
+      {...stylex.props(sharedStyles.primeComposer, draftHero && sharedStyles.primeComposerHero)}
     >
-      <InputGroup>
-        <label className="sr-only" htmlFor="chat-message">Message Prime Agent</label>
+      <InputGroup xstyle={[sharedStyles.composerGroup]}>
+        <label htmlFor="chat-message" {...stylex.props(sharedStyles.srOnly)}>
+          Message Prime Agent
+        </label>
         <InputGroupTextarea
           autoFocus={draftHero}
-          xstyle={styles.prompt}
           disabled={inputDisabled}
           id="chat-message"
           name="message"
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={submitOnEnter}
-          placeholder={recovering ? "Reconnecting to this session…" : draftHero ? "What should Ernie build?" : working ? "Add a follow-up…" : "What should Ernie do next?"}
+          placeholder={
+            recovering
+              ? "Reconnecting to this session…"
+              : draftHero
+                ? "What should Ernie build?"
+                : working
+                  ? "Add a follow-up…"
+                  : "What should Ernie do next?"
+          }
           rows={1}
           value={draft}
+          xstyle={[sharedStyles.composerControl, sharedStyles.composerField]}
         />
         <InputGroupAddon align="block-end">
           <ModelPicker
             acceptedEffort={acceptedEffort}
-            disabled={!sessionSelected || !connected || recovering || modelChangePending || modelsPending}
+            disabled={
+              !sessionSelected || !connected || recovering || modelChangePending || modelsPending
+            }
             models={models}
             onEffortChange={onEffortChange}
             onEffortError={onEffortError}
@@ -89,27 +94,29 @@ export function PrimeComposer({
           {working ? (
             <InputGroupButton
               aria-label="Stop Prime Agent"
-              xstyle={styles.action}
               disabled={!connected || stopping}
               formAction={stopAction}
               size="sm"
               type="submit"
               variant="destructive"
+              xstyle={[sharedStyles.composerAction]}
             >
-              <SquareIcon data-icon="inline-start" />
+              <SquareIcon data-icon="inline-start" {...stylex.props(sharedStyles.controlIcon)} />
               <span>{stopping ? "Stopping" : "Stop"}</span>
             </InputGroupButton>
           ) : (
             <InputGroupButton
               aria-label={draftHero ? "Start conversation" : "Send message"}
-              xstyle={styles.action}
               disabled={!draft.trim() || inputDisabled}
               size="sm"
               type="submit"
               variant="default"
+              xstyle={[sharedStyles.composerAction]}
             >
-              <span>{submitting ? (draftHero ? "Starting" : "Sending") : (draftHero ? "Start" : "Send")}</span>
-              <ArrowUpIcon data-icon="inline-end" />
+              <span>
+                {submitting ? (draftHero ? "Starting" : "Sending") : draftHero ? "Start" : "Send"}
+              </span>
+              <ArrowUpIcon data-icon="inline-end" {...stylex.props(sharedStyles.controlIcon)} />
             </InputGroupButton>
           )}
         </InputGroupAddon>
@@ -117,7 +124,6 @@ export function PrimeComposer({
     </form>
   )
 }
-
 function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   if (event.key !== "Enter" || event.shiftKey) return
   event.preventDefault()

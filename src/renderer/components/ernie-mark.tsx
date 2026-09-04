@@ -1,6 +1,11 @@
-export function ErnieMark({ className = "" }: Readonly<{ className?: string }>) {
+import * as stylex from "@stylexjs/stylex"
+export function ErnieMark({
+  xstyle,
+}: Readonly<{
+  xstyle?: stylex.StyleXStyles
+}>) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 48 48">
+    <svg {...stylex.props(xstyle)} aria-hidden="true" fill="none" viewBox="0 0 48 48">
       <path
         d="M37.6 33.2A18.5 18.5 0 1 1 39.8 17"
         stroke="currentColor"

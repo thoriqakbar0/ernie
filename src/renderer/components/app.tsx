@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./app.stylex"
 import { useState } from "react"
 import { View } from "@zenbujs/core/react"
 import { PanelLeftOpenIcon } from "lucide-react"
@@ -16,7 +18,7 @@ export function App() {
           <div aria-label="Session navigation" className="app-sidebar-slot">
             <View
               args={{ onClose: () => setSidebarOpen(false) }}
-              className="h-full w-full"
+              {...stylex.props(styles.sidebarView)}
               name={SIDEBAR_VIEW_TYPE}
             />
           </div>

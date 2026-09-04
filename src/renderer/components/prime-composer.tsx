@@ -1,3 +1,4 @@
+import { styles } from "./composer.stylex"
 import type { KeyboardEvent } from "react"
 import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
@@ -64,7 +65,7 @@ export function PrimeComposer({
         <label className="sr-only" htmlFor="chat-message">Message Prime Agent</label>
         <InputGroupTextarea
           autoFocus={draftHero}
-          className="min-h-10 max-h-40 overflow-y-auto"
+          xstyle={styles.prompt}
           disabled={inputDisabled}
           id="chat-message"
           name="message"
@@ -88,7 +89,7 @@ export function PrimeComposer({
           {working ? (
             <InputGroupButton
               aria-label="Stop Prime Agent"
-              className="ml-auto"
+              xstyle={styles.action}
               disabled={!connected || stopping}
               formAction={stopAction}
               size="sm"
@@ -101,7 +102,7 @@ export function PrimeComposer({
           ) : (
             <InputGroupButton
               aria-label={draftHero ? "Start conversation" : "Send message"}
-              className="ml-auto"
+              xstyle={styles.action}
               disabled={!draft.trim() || inputDisabled}
               size="sm"
               type="submit"

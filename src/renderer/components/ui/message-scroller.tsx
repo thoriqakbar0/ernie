@@ -11,7 +11,9 @@ import {
   type ReactNode,
 } from "react"
 
-import { cn } from "@/lib/utils"
+import * as stylex from "@stylexjs/stylex"
+import { withClassName } from "@/lib/stylex"
+import { styles } from "./message-scroller.stylex"
 import { Button } from "@/components/ui/button"
 
 type ScrollBehavior = "auto" | "smooth"
@@ -80,14 +82,16 @@ function MessageScrollerProvider({ children }: Readonly<{ children: ReactNode }>
 }
 
 function MessageScroller({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("relative flex size-full min-h-0 overflow-hidden", className)} {...props} />
+  return (
+    <div className={withClassName(stylex.props(styles.root).className, className)} {...props} />
+  )
 }
 
 function MessageScrollerViewport({ className, ...props }: ComponentProps<"div">) {
   const { viewportRef } = useMessageScroller()
   return (
     <div
-      className={cn("size-full overflow-y-auto overscroll-contain", className)}
+      className={withClassName(stylex.props(styles.viewport).className, className)}
       ref={viewportRef}
       {...props}
     />
@@ -96,21 +100,28 @@ function MessageScrollerViewport({ className, ...props }: ComponentProps<"div">)
 
 function MessageScrollerContent({ className, ...props }: ComponentProps<"div">) {
   const { contentRef } = useMessageScroller()
-  return <div className={cn("flex flex-col", className)} ref={contentRef} {...props} />
+  return (
+    <div
+      className={withClassName(stylex.props(styles.content).className, className)}
+      ref={contentRef}
+      {...props}
+    />
+  )
 }
 
 function MessageScrollerItem(props: ComponentProps<"div">) {
   return <div {...props} />
 }
 
-function MessageScrollerButton({ className, ...props }: ComponentProps<typeof Button>) {
+function MessageScrollerButton({ className, xstyle, ...props }: ComponentProps<typeof Button>) {
   const { atEnd, scrollToEnd } = useMessageScroller()
   if (atEnd) return null
 
   return (
     <Button
       aria-label="Scroll to latest message"
-      className={cn("absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-lg", className)}
+      className={className}
+      xstyle={[styles.button, xstyle]}
       onClick={() => scrollToEnd()}
       size="icon-sm"
       type="button"

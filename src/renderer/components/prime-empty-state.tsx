@@ -1,3 +1,4 @@
+import { styles } from "./composer.stylex"
 import { useState, type FormEvent, type KeyboardEvent } from "react"
 import { ArrowUpIcon } from "lucide-react"
 import {
@@ -32,7 +33,7 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
           <label className="sr-only" htmlFor="empty-state-prompt">Message Prime Agent</label>
           <InputGroupTextarea
             autoFocus
-            className="min-h-10 max-h-40 overflow-y-auto"
+            xstyle={styles.prompt}
             disabled={creating}
             id="empty-state-prompt"
             onChange={(event) => setPrompt(event.target.value)}
@@ -44,7 +45,7 @@ export function PrimeEmptyState({ creating, cwd, error, onCreate }: PrimeEmptySt
           <InputGroupAddon align="block-end">
             <InputGroupButton
               aria-label="Start conversation"
-              className="ml-auto"
+              xstyle={styles.action}
               data-cy="prime-empty-create"
               disabled={creating || !prompt.trim()}
               size="sm"

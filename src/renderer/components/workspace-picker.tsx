@@ -112,7 +112,10 @@ export function WorkspacePicker({
                   }}
                   type="button"
                   variant="ghost"
-                  xstyle={[styles.workspaceDialogOption]}
+                  xstyle={[
+                    styles.workspaceDialogOption,
+                    active && styles.workspaceDialogOptionCurrent,
+                  ]}
                 >
                   <FolderIcon
                     data-icon="inline-start"

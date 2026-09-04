@@ -61,10 +61,9 @@ export const styles = stylex.create({
     padding: "8px 10px",
     textAlign: "start",
     whiteSpace: "normal",
-    backgroundColor: {
-      default: null,
-      ':is([aria-current="true"])': theme["--focus-soft"],
-    },
+  },
+  workspaceDialogOptionCurrent: {
+    backgroundColor: theme["--focus-soft"],
   },
   optionIcon: {
     width: "16px",

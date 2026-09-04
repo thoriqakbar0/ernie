@@ -86,4 +86,12 @@ input:disabled {
   button {
     border: 1px solid CanvasText;
   }
+
+  /* Forced-colors mode suppresses shadows; keep keyboard focus distinct without outlines. */
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    border: 2px dashed Highlight !important;
+  }
 }

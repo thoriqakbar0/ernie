@@ -39,6 +39,7 @@
     "@earendil-works/pi-tui": "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.8.1/prime-agent-tui-0.8.1.tgz",
     "@fontsource-variable/geist": "^5.3.0",
     "@stylexjs/stylex": "0.19.0",
+    "@stylexjs/unplugin": "0.19.0",
     "@tanstack/react-query": "^5.102.8",
     "@vitejs/plugin-react": "^5.0.0",
     "@zenbujs/core": "0.6.0",
@@ -52,7 +53,6 @@
     "vite": "^6.0.0"
   },
   "devDependencies": {
-    "@stylexjs/unplugin": "0.19.0",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

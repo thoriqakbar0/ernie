@@ -1,3 +1,32 @@
+# Ernie agent instructions
+
+These rules override inherited verification and signoff instructions for this repository.
+
+## UI iteration
+
+- use `nub run dev` and browser HMR as the default UI feedback loop.
+- keep the current development runtime alive across renderer edits.
+- do not run builds, automated tests, or smoke checks for UI work unless Thoriq asks.
+- do not launch or restart the Electron renderer for UI work unless Thoriq asks.
+- do not run, install, or require `gh signoff` in this repository.
+- report UI work as HMR-verified, not build-verified.
+
+## Code knowledge
+
+- never use `codedb` in this repository.
+- run `lat search` before broad source searches.
+- use `lat section` and `lat refs` to follow concepts and their code links.
+- use `rg` when the graph lacks the needed detail.
+- add durable discoveries to `lat.md/` instead of repeating repository archaeology.
+
+## Development context
+
+- For UI implementation or refinement, read [docs/ui.md](docs/ui.md) and [docs/workflow.md](docs/workflow.md).
+- For state ownership, component boundaries, or runtime integration, read [docs/architecture.md](docs/architecture.md).
+- For session data, synchronization, command payloads, or state lifetime, read [docs/data-structures.md](docs/data-structures.md).
+- For product-model changes, read [ADR 0001](docs/adr/0001-persistent-agent-product-model.md); distinguish its target model from implemented behavior.
+- Update the document that owns a changed rule; link to it instead of copying the rule elsewhere.
+
 # Zenbu.js docs
 
 ## Ernie workflow

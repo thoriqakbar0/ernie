@@ -1,235 +1,102 @@
-# Ernie UI specification
+# UI guidance
 
-## Decision
+Use this guide for visual and interaction changes. It records design requirements, not a claim that every scenario has passed. Follow the [development workflow](workflow.md) to inspect the rendered result.
 
-Design Ernie as a complete desktop-first workspace where a developer can start, monitor, interrupt, and continue Prime Agent sessions while preserving workspace and runtime context.
+## Product context
 
-## Actor and success
+The current interface presents Prime Agent sessions. A developer needs to understand the selected session, its workspace, its execution state, and the next available action.
 
-A developer working in a local repository can answer four questions at a glance:
+[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and their conversations. Apply it when product-model changes are in scope. Do not infer that its roster, routines, or task surfaces already exist.
 
-1. Which session is selected?
-2. Which directory will Prime Agent change?
-3. What is Prime Agent doing in the current session?
-4. What can I do next?
+## Current surface
 
-Success means the developer can create or select a session, send work, inspect the transcript and live activity, stop work, change models, and recover from a connection problem without reading runtime logs.
+The shell composes session navigation and the chat workspace. The workspace selects an empty, loading, opening-error, draft, or conversation view from session data. A draft uses the central composer; a conversation places the composer below its transcript.
 
-## Constraints
+Use these source entry points for the affected surface:
 
-- `PrimeSessionSnapshot` remains the authoritative UI state.
-- `PrimeAgentService` publishes one revisioned session state containing the catalog and current selection.
-- The sidebar can render as a separate Zenbu view.
-- The production components must run in browser development and Electron.
-- Existing accessible names and test hooks remain stable where possible.
-- No UI may imply progress, permissions, or actions the runtime does not expose.
-- Do not render standalone status indicators. State belongs in action labels, session activity copy, or recovery messages.
+| Surface | Source |
+| --- | --- |
+| Shell and sidebar visibility | [App](../src/renderer/components/app.tsx) |
+| Session navigation | [Sidebar](../src/renderer/components/sidebar.tsx) |
+| Workspace composition and action feedback | [ChatWorkspace](../src/renderer/components/chat-workspace.tsx) |
+| Transcript and scroll behavior | [ConversationTranscript](../src/renderer/components/conversation-transcript.tsx) |
+| Submission and stop controls | [PrimeComposer](../src/renderer/components/prime-composer.tsx) |
+| Model and effort selection | [ModelPicker](../src/renderer/components/model-picker.tsx) |
+| Shared theme values | [theme.stylex.ts](../src/renderer/theme.stylex.ts) |
+| Component layout and responsive rules | Colocated `*.styles.ts` modules, described in the [StyleX map](../lat.md/styling.md) |
+| Document defaults and accessibility resets | [main.css](../src/renderer/main.css) |
 
-## Assumptions
+Inspect the current surface before choosing a layout change. Session navigation includes search and activity filtering; it still represents real Prime Agent sessions.
 
-- Ernie is primarily used by developers on desktop-sized windows.
-- Narrow windows still need session switching, composition, and transcript reading.
-- The existing Ernie navy, coral, and warm-white mark is the durable brand base.
+## Visual direction
 
-## Primary flow
+Start directly with the main heading or content. Never use eyebrow labels above headings.
 
-```text
-Open Ernie
-  ├─ no sessions ──> New conversation ──> draft session
-  └─ sessions exist ──> select current or another session
-                              │
-                              v
-                      confirm workspace + model
-                              │
-                              v
-                         write instruction
-                              │
-                              v
-                idle ──> send first turn ──> working
-                                             ├─ queue follow-up
-                                             ├─ inspect activity
-                                             └─ stop
-                              │
-                              v
-                      read result / continue
-```
+Give the transcript and composer priority. Use spacing, type, and surface contrast to distinguish content from controls. Place execution state in relevant actions, activity text, or recovery messages; avoid standalone decorative status indicators.
 
-## Structural wireframe
+Use the semantic theme and shared controls already defined in the renderer. Follow the [StyleX boundary](../lat.md/styling.md) for component styles. Keep exact color values, dimensions, breakpoints, and motion timings in their source definitions. Establish a new shared token only when the design needs a reusable distinction.
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ draggable title region                                                       │
-├──────────────────────┬───────────────────────────────────────────────────────┤
-│ ERNIE         [+]    │ Session name                                           │
-│ Local agent desk     │ /workspace/ernie                                       │
-│                      ├───────────────────────────────────┬───────────────────┤
-│ SESSIONS          3  │ Conversation ledger               │ SESSION ACTIVITY  │
-│                      │                                   │ Running turn      │
-│ Build chat           │ PRIME AGENT                       │ GPT-5             │
-│ New UI               │ Message content…                  │ Tools: bash       │
-│ Release              │                                   │ 2 child agents    │
-│                      │ YOU                               │                   │
-│ /workspace/ernie     │ Message content…                  │                   │
-│                      │                                   │                   │
-│                      │ ┌───────────────────────────────┐ │                   │
-│                      │ │ Ask Prime Agent…              │ │                   │
-│                      │ │ [Model]                 [Send]│ │                   │
-│                      │ └───────────────────────────────┘ │                   │
-└──────────────────────┴───────────────────────────────────┴───────────────────┘
-```
+Settle layout and information priority before refining typography, spacing, color, and motion. Review the complete screen after local changes.
 
-At narrow widths, the left region becomes a horizontal session strip above the workspace. The activity panel moves into the document flow below the transcript header and above the composer.
+## Interaction requirements
 
-## Component tree
+Requirements below define expected behavior. Verify the affected requirement during a change and report any gap between it and the implementation.
 
-```text
-App
-├─ Titlebar
-└─ app shell
-   ├─ View(app/sidebar)
-   │  └─ Sidebar
-   │     ├─ ErnieMark
-   │     ├─ session navigation
-   │     └─ workspace footer
-   └─ ChatWorkspace
-      ├─ WorkspaceHeader
-      ├─ SessionNotice
-      ├─ PrimeEmptyState | WorkspaceLoading | session stage
-      │  ├─ ConversationTranscript
-      │  ├─ SessionInspector
-      │  └─ PrimeComposer
-      │     └─ ModelPicker
-      └─ action error announcement
-```
+### Session continuity
 
-## State model
+Selection must keep the transcript, composer context, runtime state, and navigation marker aligned. A draft from one session must never appear in another. Rapid switching must converge on one selected session.
 
-| State | Visible meaning | Available actions | Exit |
-|---|---|---|---|
-| Empty | No sessions exist | New conversation | Session creation succeeds |
-| Creating | Prime Agent is creating a session | Wait | Success or creation error |
-| Creation failed | Session was not created | New conversation | Retry succeeds |
-| Opening | Selected session is attaching | Wait, select another session | Snapshot arrives or attach fails |
-| Draft | Session exists with no first turn | Choose model, send | First turn is admitted |
-| Idle | Transcript is current and no work is active | Send, select model, switch session | New turn starts |
-| Working | Prime Agent owns active work | Queue follow-up, inspect, stop | Work completes or stops |
-| Recovering | Runtime is restoring session work | Inspect, switch session | Idle, working, or transport failure |
-| Reconnecting | Transport is temporarily interrupted | Inspect, switch session | Connected or failed |
-| Failed | Commands are paused | Switch session, wait for connection | Transport reconnects |
-| Action error | A command or model update failed | Correct and retry | Next successful action |
+Cross-session draft retention is a separate lifetime decision. Read [architecture ownership](architecture.md#ownership) before promising that switching away and back preserves text.
 
-Cancellation is not failure. The interface returns to idle when a stop request succeeds.
+### Creation and submission
 
-## Interaction contract
+Show pending creation and prevent duplicate creation while it is pending. Keep a creation error visible with a usable recovery action.
 
-### Session selection
+Enter submits and Shift+Enter inserts a newline. Respect composition input and prevent empty submissions. Disable submission while the connection or recovery state prevents it. Preserve typed text when a submission fails.
 
-- Selecting a session changes the heading, transcript, activity, composer state, and `aria-current` marker together.
-- A draft from one session never appears in another.
-- Rapid selection must converge on one selected session.
+During active work, distinguish follow-up submission from stopping execution. Derive command availability from authoritative state. A successful stop request must not fabricate a completed execution state.
 
-### New conversation
+### Model and effort selection
 
-- The action is available from the sidebar and empty state.
-- While creation is pending, duplicate creation is blocked and status text stays visible.
-- A creation error remains visible with the same action available for retry.
+Show the authoritative selection and make pending changes understandable. A rejected change must leave the accepted value visible and explain the failure.
 
-### Composer
+Opening a picker must place focus usefully inside it. Escape must close it and restore trigger focus. Expose expanded and selected states through accessible semantics. When search or provider filters are present, make their effects and empty results clear.
 
-- Enter submits. Shift+Enter inserts a newline.
-- Empty input cannot submit.
-- Disconnected or failed sessions cannot submit.
-- During active work, the text area accepts a follow-up and the primary round control stops the active work.
-- Model selection updates only after the runtime accepts it; failures restore the authoritative model.
+### Errors and recovery
 
-### Model picker
+Distinguish an opening error, command rejection, session recovery, and transport failure. Explain the consequence and available next action. Cancellation is not failure.
 
-- Trigger exposes expanded state and the selected model name.
-- Opening focuses search.
-- Escape closes and returns focus to the trigger.
-- Provider filters expose pressed state.
-- An empty result names the query outcome.
+The UI must not invent progress, permissions, completion, or recovery actions. Use the capabilities exposed by the runtime boundary.
 
-## Responsive behavior
+## Responsive layout and accessibility
 
-| Width | Behavior |
-|---|---|
-| `> 1180px` | Sidebar, transcript, and activity rail are visible together. |
-| `721–1180px` | Activity rail moves below the workspace header in a compact row or document section. |
-| `≤ 720px` | Sidebar becomes a horizontal session strip above the workspace. Footer details collapse. |
-| `≤ 480px` | Brand block narrows, session tiles shorten, composer controls remain at least 40px. |
+Keep session selection, transcript reading, and composition usable at narrow widths and increased zoom. Let long names, paths, and model identifiers wrap or truncate before they obstruct primary controls. Keep the full value accessible when truncation hides necessary context.
 
-Transcript text keeps priority. Model IDs, paths, and session names truncate before the composer or primary actions do.
+Use semantic controls with accessible names and visible keyboard focus. Preserve a logical order through navigation, transcript controls, composer, and pickers. Announce relevant asynchronous outcomes without flooding assistive technology during streaming.
 
-## Keyboard and focus
+Respect reduced motion and forced colors. Motion should explain a change or maintain continuity. Keep essential state understandable when animation is disabled.
 
-1. Skip link.
-2. New conversation.
-3. Session group disclosure.
-4. Session buttons.
-5. Workspace header actions, when present.
-6. Transcript links or controls.
-7. Composer input.
-8. Model picker.
-9. Send or stop.
+## Adverse states to inspect
 
-Opening the model picker moves focus to search. Closing restores focus to the model trigger. New session creation moves product context to the new session while the textarea receives focus in the draft hero.
+Select scenarios affected by the change. These are inspection requirements, not an inventory of implemented fixtures:
 
-## Motion
+| Scenario | Expected outcome |
+| --- | --- |
+| No sessions or pending creation | Clear composition entry and creation feedback |
+| Session opening fails | Visible failure and supported recovery action |
+| Long transcript or long message | Readable content and usable scroll controls |
+| New output while reading earlier content | Reading position remains usable; latest output stays reachable |
+| Long names, paths, or many sessions | Navigation remains usable without obscuring primary actions |
+| Rejected submission | Error remains understandable and typed input is preserved |
+| Rejected model or effort change | Accepted selection remains visible |
+| Reconnection while composing | Draft remains visible and submission follows connection state |
+| Rapid session switching | Displayed content and actions belong to the selected session |
+| Keyboard-only interaction | Primary flows work with visible, predictable focus |
+| Light, dark, reduced motion, or forced colors | Content, controls, and state remain understandable |
+| 200% zoom or 320 CSS-pixel width | Primary flows remain usable without document overflow |
 
-- Session selection crossfades surface tone over 160ms.
-- Model picker appears with a short opacity and 4px translate transition.
-- Reduced motion removes translation and animated loading treatments.
+Controlled scenarios should use production components through the [development scenario boundary](architecture.md#development-scenarios). Label fixture evidence separately from live runtime evidence.
 
-## Adverse-state checks
+## Keeping this guide current
 
-| Scenario | Required behavior |
-|---|---|
-| Zero sessions | One clear new-conversation action and workspace orientation. |
-| Long session names | Truncate without hiding state text. Full value remains available as a title. |
-| Long paths | Truncate in compact UI; preserve full path in `title`. |
-| Many sessions | Sidebar scrolls independently. Narrow mode scrolls the strip horizontally. |
-| Failed model update | Show error and restore the authoritative model. |
-| Reconnect during a draft | Preserve typed text but disable submission until connected. |
-| Rapid session switching | Heading, transcript, composer, and current marker converge. |
-| Keyboard-only use | Every primary flow completes with visible focus. |
-| Reduced motion | No pulsing or translated overlays. |
-| 200% zoom / 320px width | Page reflows without horizontal document scrolling. |
-
-## Acceptance scenarios
-
-```text
-Given no sessions exist
-When the developer selects New conversation
-Then creation status is announced
-And the new draft session becomes current
-And the message field is enabled
-```
-
-```text
-Given Prime Agent is working
-When the developer types a follow-up
-Then the interface labels it as a queued follow-up
-And the developer can stop active work without losing the transcript
-```
-
-```text
-Given a model change fails
-When the runtime rejects the request
-Then an alert explains the failure
-And the picker returns to the authoritative model
-```
-
-```text
-Given the window is 600 CSS pixels wide
-When sessions exist
-Then the session navigation is above the workspace
-And the transcript and composer retain the full content width
-```
-
-## Non-goals
-
-- New runtime commands such as retry, rename, archive, delete, or permissions.
-- A second renderer state model.
-- Fabricated token, cost, progress, or completion metrics.
-- Replacing the Prime Agent protocol or Zenbu view topology.
+Update this document when a visual or interaction decision is accepted. Record a durable product-model decision in an ADR. Keep implementation ownership in the architecture map and verification evidence in the task handoff.

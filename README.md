@@ -2,6 +2,18 @@
 
 Ernie is a Zenbu.js application backed by the real Prime Agent daemon.
 
+## Development context
+
+Read the guide that matches the change:
+
+- [Architecture](docs/architecture.md): state ownership, component boundaries, and scenario integration
+- [Data structures](docs/data-structures.md): contract relationships, identifiers, synchronization, and state lifetime
+- [UI](docs/ui.md): visual direction, interaction requirements, and adverse states
+- [Workflow](docs/workflow.md): agent-native inspection, iteration, and evidence
+- [Code map](lat.md/lat.md): concepts linked to implementation
+
+The guides distinguish current implementation from accepted product direction and verification requirements.
+
 ## Development
 
 Install dependencies with Nub:

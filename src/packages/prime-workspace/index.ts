@@ -2,7 +2,6 @@ import { createChatSession, type ChatSession } from "../chat-session"
 import type {
   PrimeAgentClient,
   PrimeSessionSnapshot,
-  PrimeSessionSummary,
 } from "../prime-agent"
 import {
   createPrimeSessionSyncState,
@@ -28,9 +27,6 @@ export interface AttachedPrimeSession {
 
 /** Session discovery and attachment operations used by Ernie. */
 export interface PrimeWorkspace {
-  /** Lists every session currently visible to Ernie. */
-  listSessions(): Promise<readonly PrimeSessionSummary[]>
-
   /** Creates and attaches one new Prime Agent session. */
   createSession(input: Readonly<{ cwd: string; name?: string }>): Promise<AttachedPrimeSession>
 
@@ -152,8 +148,6 @@ export function createPrimeWorkspace({
   }
 
   return {
-    listSessions: () => primeAgent.listSessions(),
-
     async createSession(input) {
       const session = await primeAgent.createSession(input)
       return attach(session.id)

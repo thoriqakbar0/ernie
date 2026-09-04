@@ -5,11 +5,15 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { PropsWithChildren } from "react"
 import { useEvents, useRpc } from "@zenbujs/core/react"
-import { Option, Schema } from "effect"
-import type { PrimeAgentModelClient, PrimeSessionSnapshot } from "../packages/prime-agent"
+import type {
+  PrimeAgentModelClient,
+  PrimeSessionState,
+  PrimeSessionSnapshot,
+  PrimeSessionSummary,
+} from "../packages/prime-agent"
 import { createZenbuPrimeAgentClient } from "../packages/prime-agent/zenbu"
 import {
   createPrimeWorkspace,
@@ -17,17 +21,48 @@ import {
 } from "../packages/prime-workspace"
 
 const sessionKeys = {
-  all: ["prime-agent", "sessions"] as const,
+  recurrentDepth: (sessionId: string) => ["prime-agent", "recurrent-depth", sessionId] as const,
   snapshot: (sessionId: string) => ["prime-agent", "session", sessionId] as const,
   workspacePath: ["app", "workspace-path"] as const,
 }
 
-const sessionSelectionSchema = Schema.Struct({ sessionId: Schema.NonEmptyString })
+type SessionStateView =
+  | Readonly<{
+      data: readonly PrimeSessionSummary[]
+      isError: false
+      isPending: true
+      isSuccess: false
+      selectedSessionId?: string
+    }>
+  | Readonly<{
+      data: readonly PrimeSessionSummary[]
+      error: unknown
+      isError: true
+      isPending: false
+      isSuccess: false
+      selectedSessionId?: string
+    }>
+  | Readonly<{
+      data: readonly PrimeSessionSummary[]
+      isError: false
+      isPending: false
+      isSuccess: true
+      selectedSessionId?: string
+    }>
 
 class PrimeAgentRuntime {
   private readonly workspace
   private readonly attachments = new Map<string, Promise<AttachedPrimeSession>>()
-  private readonly resolvedAttachments = new Map<string, AttachedPrimeSession>()
+  private readonly stateListeners = new Set<() => void>()
+  private stateRevision = -1
+  private stateView: SessionStateView = {
+    data: [],
+    isError: false,
+    isPending: true,
+    isSuccess: false,
+  }
+  private unsubscribeState: (() => void) | undefined
+  private started = false
 
   constructor(
     private readonly client: PrimeAgentModelClient & { dispose?: () => void },
@@ -39,23 +74,45 @@ class PrimeAgentRuntime {
     })
   }
 
-  listSessions() {
-    return this.workspace.listSessions()
+  start() {
+    if (this.started) return
+    this.started = true
+    this.unsubscribeState = this.client.subscribeSessionState((state) => {
+      this.acceptState(state)
+    })
+    void this.client.getSessionState().then(
+      (state) => this.acceptState(state),
+      (error: unknown) => this.failState(error),
+    )
+  }
+
+  getStateView = () => this.stateView
+
+  subscribeState = (listener: () => void) => {
+    this.stateListeners.add(listener)
+    return () => this.stateListeners.delete(listener)
   }
 
   workspacePath() {
     return this.getWorkspacePath()
   }
 
-  async createSession() {
+  async createSession(initialPrompt?: string) {
     const cwd = await this.getWorkspacePath()
     const attached = await this.workspace.createSession({
       cwd,
       name: "New Prime Agent session",
     })
     this.attachments.set(attached.snapshot.session.id, Promise.resolve(attached))
-    this.resolvedAttachments.set(attached.snapshot.session.id, attached)
-    return attached
+    let initialPromptError: string | undefined
+    if (initialPrompt?.trim()) {
+      try {
+        await attached.chat.submitDraft(initialPrompt)
+      } catch (cause) {
+        initialPromptError = cause instanceof Error ? cause.message : "Prime Agent command failed"
+      }
+    }
+    return { attached, initialPromptError }
   }
 
   async getAttachment(sessionId: string) {
@@ -66,16 +123,11 @@ class PrimeAgentRuntime {
     this.attachments.set(sessionId, pending)
     try {
       const attached = await pending
-      this.resolvedAttachments.set(sessionId, attached)
       return attached
     } catch (error) {
       this.attachments.delete(sessionId)
       throw error
     }
-  }
-
-  getAttachedSnapshot(sessionId: string) {
-    return this.resolvedAttachments.get(sessionId)?.snapshot
   }
 
   async submit(sessionId: string, content: string) {
@@ -92,7 +144,7 @@ class PrimeAgentRuntime {
       if (!active) return
       listener(attachment.snapshot)
       unsubscribe = attachment.subscribe(listener)
-    })
+    }).catch(() => undefined)
 
     return () => {
       active = false
@@ -113,42 +165,71 @@ class PrimeAgentRuntime {
     return this.client.setModel({ sessionId, provider, modelId })
   }
 
+  getRecurrentDepth(sessionId: string) {
+    return this.client.getRecurrentDepth({ sessionId })
+  }
+
+  setEffort(sessionId: string, effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") {
+    return this.client.setEffort({ sessionId, effort })
+  }
+
+  setRecurrentDepth(sessionId: string, recurrentDepth: number) {
+    return this.client.setRecurrentDepth({ sessionId, recurrentDepth })
+  }
+
+  selectSession(sessionId: string | undefined) {
+    return this.client.selectSession(sessionId ? { sessionId } : {})
+  }
+
   async dispose() {
     const attachments = await Promise.allSettled(this.attachments.values())
     for (const result of attachments) {
       if (result.status === "fulfilled") result.value.dispose()
     }
     this.attachments.clear()
-    this.resolvedAttachments.clear()
+    this.unsubscribeState?.()
+    this.unsubscribeState = undefined
+    this.stateListeners.clear()
     this.client.dispose?.()
+  }
+
+  private acceptState(state: PrimeSessionState) {
+    if (state.revision <= this.stateRevision) return
+    this.stateRevision = state.revision
+    this.stateView = {
+      data: state.sessions,
+      isError: false,
+      isPending: false,
+      isSuccess: true,
+      ...(state.selectedSessionId ? { selectedSessionId: state.selectedSessionId } : {}),
+    }
+    for (const listener of this.stateListeners) listener()
+  }
+
+  private failState(error: unknown) {
+    if (this.stateRevision >= 0) return
+    this.stateView = {
+      data: this.stateView.data,
+      error,
+      isError: true,
+      isPending: false,
+      isSuccess: false,
+    }
+    for (const listener of this.stateListeners) listener()
   }
 }
 
 const PrimeAgentRuntimeContext = createContext<PrimeAgentRuntime | undefined>(undefined)
 
-export type PrimeSessionSelectionChannel = Readonly<{
-  get(): Promise<string | undefined>
-  select(sessionId: string): Promise<void>
-  subscribe(listener: (sessionId: string) => void): () => void
-}>
-
-type PrimeSessionSelection = Readonly<{
-  selectedSessionId: string | undefined
-  selectSession: (sessionId: string) => void
-}>
-
-const PrimeSessionSelectionContext = createContext<PrimeSessionSelection | undefined>(undefined)
-
+// @lat: [[product#Product contract#Session continuity]]
 /** Provides one Prime Agent runtime and one server-state cache to a Zenbu renderer. */
 export function PrimeAgentStateProvider({
   children,
   client,
   getWorkspacePath,
-  selectionChannel,
 }: PropsWithChildren<{
   client?: PrimeAgentModelClient & { dispose?: () => void }
   getWorkspacePath?: () => Promise<string>
-  selectionChannel?: PrimeSessionSelectionChannel
 }>) {
   if (client && !getWorkspacePath) {
     throw new Error("A workspace path provider is required with a custom Prime Agent client")
@@ -159,7 +240,6 @@ export function PrimeAgentStateProvider({
         <PrimeAgentState
           client={client}
           getWorkspacePath={getWorkspacePath!}
-          selectionChannel={selectionChannel}
         >
           {children}
         </PrimeAgentState>
@@ -174,20 +254,11 @@ function LivePrimeAgentState({ children }: PropsWithChildren) {
     rpc.app.primeAgent,
     events.app,
   ))
-  const [selectionChannel] = useState<PrimeSessionSelectionChannel>(() => ({
-    get: () => rpc.app.sessionSelection.get(),
-    select: (sessionId) => rpc.app.sessionSelection.select({ sessionId }),
-    subscribe: (listener) => events.app.primeSessionSelected.subscribe((input) => {
-      const parsed = Schema.decodeUnknownOption(sessionSelectionSchema)(input)
-      if (Option.isSome(parsed)) listener(parsed.value.sessionId)
-    }),
-  }))
 
   return (
     <PrimeAgentState
       client={client}
       getWorkspacePath={() => rpc.app.cwd.get()}
-      selectionChannel={selectionChannel}
     >
       {children}
     </PrimeAgentState>
@@ -198,14 +269,11 @@ function PrimeAgentState({
   children,
   client,
   getWorkspacePath,
-  selectionChannel,
 }: PropsWithChildren<{
   client: PrimeAgentModelClient & { dispose?: () => void }
   getWorkspacePath: () => Promise<string>
-  selectionChannel?: PrimeSessionSelectionChannel
 }>) {
   const [runtime] = useState(() => new PrimeAgentRuntime(client, getWorkspacePath))
-  const [selection] = useState(() => selectionChannel ?? createLocalSelectionChannel())
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: { staleTime: Number.POSITIVE_INFINITY, retry: false },
@@ -213,17 +281,18 @@ function PrimeAgentState({
     },
   }))
 
-  useEffect(() => () => {
-    void runtime.dispose()
-    queryClient.clear()
+  useEffect(() => {
+    runtime.start()
+    return () => {
+      void runtime.dispose()
+      queryClient.clear()
+    }
   }, [queryClient, runtime])
 
   return (
     <PrimeAgentRuntimeContext value={runtime}>
       <QueryClientProvider client={queryClient}>
-        <PrimeSessionSelectionProvider channel={selection}>
-          {children}
-        </PrimeSessionSelectionProvider>
+        {children}
       </QueryClientProvider>
     </PrimeAgentRuntimeContext>
   )
@@ -235,13 +304,14 @@ function usePrimeAgentRuntime() {
   return runtime
 }
 
-/** Reads Prime Agent's session list from the Query cache. */
-export function usePrimeSessions() {
+/** Reads Prime Agent's authoritative session state from its renderer mirror. */
+export function usePrimeSessionState() {
   const runtime = usePrimeAgentRuntime()
-  return useQuery({
-    queryKey: sessionKeys.all,
-    queryFn: () => runtime.listSessions(),
-  })
+  return useSyncExternalStore(
+    runtime.subscribeState,
+    runtime.getStateView,
+    runtime.getStateView,
+  )
 }
 
 /** Reads the initial workspace path from Ernie's main-process configuration. */
@@ -253,106 +323,19 @@ export function useWorkspacePath() {
   })
 }
 
-function PrimeSessionSelectionProvider({
-  channel,
-  children,
-}: PropsWithChildren<{ channel: PrimeSessionSelectionChannel }>) {
-  const runtime = usePrimeAgentRuntime()
-  const queryClient = useQueryClient()
-  const sessions = usePrimeSessions()
-  const [selectedSessionId, setSelectedSessionId] = useState<string>()
-
-  useEffect(() => {
-    let active = true
-    let observedSelection = false
-    const acceptSelection = (sessionId: string) => {
-      if (!active) return
-      observedSelection = true
-      setSelectedSessionId(sessionId)
-
-      void runtime.getAttachment(sessionId).then((attached) => {
-        if (!active) return
-        const session = attached.snapshot.session
-        queryClient.setQueryData(sessionKeys.snapshot(sessionId), attached.snapshot)
-        queryClient.setQueryData(
-          sessionKeys.all,
-          (sessions: readonly PrimeSessionSnapshot["session"][] | undefined) => {
-            if (!sessions?.some(({ id }) => id === session.id)) {
-              return [...(sessions ?? []), session]
-            }
-            return sessions.map((existing) => existing.id === session.id ? session : existing)
-          },
-        )
-      }).catch((error: unknown) => {
-        if (active) console.error("Failed to synchronize Prime Agent session selection", error)
-      })
-    }
-    const unsubscribe = channel.subscribe(acceptSelection)
-
-    void channel.get().then((current) => {
-      if (!active) return
-      if (current) {
-        acceptSelection(current)
-        return
-      }
-      if (observedSelection) return
-
-      const firstSessionId = sessions.data?.[0]?.id
-      if (firstSessionId) return channel.select(firstSessionId)
-    }).catch((error: unknown) => {
-      if (active) console.error("Failed to initialize Prime Agent session selection", error)
-    })
-
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [channel, queryClient, runtime, sessions.data])
-
-  const selectSession = useCallback((sessionId: string) => {
-    const snapshot = runtime.getAttachedSnapshot(sessionId)
-    if (snapshot) queryClient.setQueryData(sessionKeys.snapshot(sessionId), snapshot)
-    setSelectedSessionId(sessionId)
-    void channel.select(sessionId).catch((error: unknown) => {
-      console.error("Failed to select Prime Agent session", error)
-    })
-  }, [channel, queryClient, runtime])
-
-  const selection = useMemo(() => ({
-    selectedSessionId,
-    selectSession,
-  }), [selectSession, selectedSessionId])
-
-  return (
-    <PrimeSessionSelectionContext value={selection}>
-      {children}
-    </PrimeSessionSelectionContext>
-  )
-}
-
-function createLocalSelectionChannel(): PrimeSessionSelectionChannel {
-  const listeners = new Set<(sessionId: string) => void>()
-  let selectedSessionId: string | undefined
-
-  return {
-    get: async () => selectedSessionId,
-    select: async (sessionId) => {
-      if (sessionId === selectedSessionId) return
-      selectedSessionId = sessionId
-      for (const listener of listeners) listener(sessionId)
-    },
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-  }
-}
-
 /** Reads and changes the session displayed by Ernie's shared chat shell. */
 export function usePrimeSessionSelection() {
-  const selection = useContext(PrimeSessionSelectionContext)
-  if (!selection) throw new Error("PrimeSessionSelectionProvider is missing")
-  return selection
+  const runtime = usePrimeAgentRuntime()
+  const state = usePrimeSessionState()
+  const selectSession = useCallback((sessionId: string) => {
+    void runtime.selectSession(sessionId).catch((error: unknown) => {
+      console.error("Failed to select Prime Agent session", error)
+    })
+  }, [runtime])
+  return useMemo(() => ({
+    selectedSessionId: state.selectedSessionId,
+    selectSession,
+  }), [selectSession, state.selectedSessionId])
 }
 
 /** Reads one attached snapshot and applies ordered events to the Query cache. */
@@ -373,13 +356,6 @@ export function usePrimeSessionSnapshot(sessionId: string | undefined) {
 
     return runtime.subscribe(sessionId, (snapshot) => {
       queryClient.setQueryData(sessionKeys.snapshot(sessionId), snapshot)
-      queryClient.setQueryData(
-        sessionKeys.all,
-        (sessions: readonly PrimeSessionSnapshot["session"][] | undefined) =>
-          sessions?.map((session) =>
-            session.id === snapshot.session.id ? snapshot.session : session,
-          ),
-      )
     })
   }, [queryClient, runtime, sessionId])
 
@@ -402,6 +378,14 @@ export function usePrimeSessionActions(sessionId: string | undefined) {
       if (!sessionId) throw new Error("No Prime Agent session is attached")
       return runtime.setModel(sessionId, provider, modelId)
     },
+    setEffort: (effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.setEffort(sessionId, effort)
+    },
+    setRecurrentDepth: (recurrentDepth: number) => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.setRecurrentDepth(sessionId, recurrentDepth)
+    },
   }), [runtime, sessionId])
 }
 
@@ -410,26 +394,34 @@ export function usePrimeModels(sessionId: string | undefined) {
   const runtime = usePrimeAgentRuntime()
   return useQuery({
     queryKey: ["prime-agent", "models", sessionId ?? "none"],
-    queryFn: () => runtime.getModels(sessionId!),
+    queryFn: () => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.getModels(sessionId)
+    },
     enabled: sessionId !== undefined,
   })
 }
 
-/** Creates a Prime Agent session and seeds both session Query caches. */
+export function usePrimeRecurrentDepth(sessionId: string | undefined) {
+  const runtime = usePrimeAgentRuntime()
+  return useQuery({
+    queryKey: sessionKeys.recurrentDepth(sessionId ?? "none"),
+    queryFn: () => {
+      if (!sessionId) throw new Error("No Prime Agent session is attached")
+      return runtime.getRecurrentDepth(sessionId)
+    },
+    enabled: sessionId !== undefined,
+  })
+}
+
+/** Creates a Prime Agent session and seeds its attached snapshot cache. */
 export function useCreatePrimeSession() {
   const runtime = usePrimeAgentRuntime()
   const queryClient = useQueryClient()
   const { selectSession } = usePrimeSessionSelection()
   return useMutation({
-    mutationFn: () => runtime.createSession(),
-    onSuccess: (attached) => {
-      queryClient.setQueryData(
-        sessionKeys.all,
-        (sessions: readonly PrimeSessionSnapshot["session"][] | undefined) => [
-          ...(sessions ?? []),
-          attached.snapshot.session,
-        ],
-      )
+    mutationFn: (initialPrompt?: string) => runtime.createSession(initialPrompt),
+    onSuccess: ({ attached }) => {
       queryClient.setQueryData(
         sessionKeys.snapshot(attached.snapshot.session.id),
         attached.snapshot,

@@ -67,6 +67,7 @@ try {
     ERNIE_PRIME_AGENT_AGENT_DIR: agentDirectory,
     ERNIE_PRIME_AGENT_EXECUTABLE: electronExecutable,
     ERNIE_PRIME_AGENT_SOCKET: daemonSocketPath,
+    ERNIE_PRIME_AGENT_START_DAEMON: "1",
     ERNIE_ZENBU_DB: databaseDirectory,
     VITE_ERNIE_CYPRESS: "1",
   })
@@ -92,7 +93,9 @@ try {
 
   await runChecked(cypressExecutable, cypressArguments, cypressDirectory, {
     ...process.env,
+    CYPRESS_primeAgentSocketPath: daemonSocketPath,
     CYPRESS_rendererUrl: rendererUrl,
+    CYPRESS_workspacePath: projectDirectory,
   })
 } finally {
   process.removeListener("SIGINT", handleSignal)

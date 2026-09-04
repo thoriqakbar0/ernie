@@ -18,7 +18,7 @@ nub run dev
 
 This starts one windowless Electron main process because Zenbu 0.6.0 requires Electron to host its service graph. It does not create an Electron renderer window. A stable loopback gateway opens the production Ernie renderer in the normal browser at `http://127.0.0.1:4310`.
 
-The browser uses the real Zenbu RPC, events, database replica, service hot reload, and Prime Agent daemon. Renderer edits use Vite HMR without restarting the service host.
+The browser uses the real Zenbu RPC, events, database replica, service hot reload, and shared Prime Agent daemon. Renderer edits use Vite HMR without restarting the service host.
 
 Development state is isolated under `.zenbu/dev/browser/`:
 
@@ -26,17 +26,25 @@ Development state is isolated under `.zenbu/dev/browser/`:
 .zenbu/dev/browser/
 ├── db/
 ├── electron-user-data/
-├── prime-agent/
-├── prime-agent.sock
 ├── owner.json
 └── runtime.json
 ```
+
+Browser development reads the standard Prime Agent daemon and its existing sessions. Ernie starts it when unavailable and leaves it running on exit.
 
 Use a separate profile and port for concurrent worktrees or agents:
 
 ```sh
 ERNIE_DEV_PROFILE=review-42 ERNIE_DEV_PORT=4410 nub run dev
 ```
+
+To read sessions from another Prime Agent supervisor, provide its absolute socket path explicitly:
+
+```sh
+ERNIE_PRIME_AGENT_SOCKET=/absolute/path/to/prime-agent.sock nub run dev
+```
+
+Ernie treats an explicit socket as externally owned. It reports an unavailable socket instead of starting or replacing a daemon at that path.
 
 A profile has one owner. A second owner fails instead of deleting or sharing live state. Runtime metadata is local, mode `0600`, ignored by Git, and never prints the Zenbu authentication token.
 
@@ -60,11 +68,11 @@ nub run dev:desktop
 Use the cheapest proof that crosses the boundary changed by the work:
 
 ```sh
-# Fast unit and renderer tests
-nub run test
-
-# Type generation, typecheck, tests, boundaries, and staged source build
+# Type generation, typecheck, boundaries, integration tests, and staged source build
 nub run check
+
+# Daemon boundary integration tests
+nub run test:integration
 
 # Real browser, Zenbu RPC, Prime Agent session creation, and Vite HMR
 nub run test:integration:browser
@@ -84,6 +92,17 @@ nub run test:e2e:open
 ```
 
 The browser integration and desktop smoke commands use temporary database, agent, socket, and Electron profile directories, then remove them on exit.
+
+### Structural conventions
+
+Validate the Konsistent configuration schema separately from auditing the codebase:
+
+```sh
+nub run konsistent validate
+nub run konsistent
+```
+
+The audit reports structural outliers and may exit non-zero until those findings are reviewed. It is intentionally not part of `nub run check`.
 
 ## Reference snapshots
 
@@ -114,4 +133,4 @@ nub run build:electron
 
 Electron builds use `thoriqakbar0/ernie` on `main` as the installed source mirror. Initialize or publish that mirror only during an explicitly authorized release.
 
-Development builds load Agentation from `/Users/thor/work/agentation/package`. React Doctor scans the renderer through `nub run doctor`.
+Development builds load React Grab for source-aware UI selection. React Doctor scans the renderer through `nub run doctor`.

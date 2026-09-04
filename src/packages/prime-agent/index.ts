@@ -8,8 +8,17 @@ export type PrimeSessionSummary = Readonly<{
   model?: PrimeModel
 }>
 
+/** One authoritative session-state revision published by Ernie's main process. */
+export type PrimeSessionState = Readonly<{
+  revision: number
+  selectedSessionId?: string
+  sessions: readonly PrimeSessionSummary[]
+}>
+
 /** One model Prime Agent exposes to an attached session. */
 export type PrimeModel = Readonly<{ id: string; provider: string; label: string }>
+
+export type PrimeEffort = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
 
 /** One JSON value that can safely cross Ernie's process boundary. */
 export type PrimeJsonValue =
@@ -139,6 +148,7 @@ export type PrimeSessionTransport =
   | Readonly<{ status: "reconnecting"; error?: string }>
   | Readonly<{ status: "failed"; error: string }>
 
+// @lat: [[runtime#Prime Agent runtime#Snapshot authority]]
 /** Prime Agent's authoritative state when Ernie attaches to a session. */
 export type PrimeSessionSnapshot = Readonly<{
   session: PrimeSessionSummary
@@ -238,8 +248,14 @@ export type SessionAction = Readonly<{
 
 /** The Prime Agent operations required by Ernie's first chat flow. */
 export interface PrimeAgentClient {
-  /** Lists sessions visible to Ernie. */
-  listSessions(): Promise<readonly PrimeSessionSummary[]>
+  /** Reads the newest authoritative session state. */
+  getSessionState(): Promise<PrimeSessionState>
+
+  /** Observes newer authoritative session-state revisions. */
+  subscribeSessionState(listener: (state: PrimeSessionState) => void): () => void
+
+  /** Selects the session displayed by Ernie, or clears selection. */
+  selectSession(request: Readonly<{ sessionId?: string }>): Promise<void>
 
   /** Creates a new session without attaching a renderer to it. */
   createSession(request: CreateSessionRequest): Promise<PrimeSessionSummary>
@@ -268,4 +284,7 @@ export interface PrimeAgentClient {
 export interface PrimeAgentModelClient extends PrimeAgentClient {
   getModels(request: SessionAction): Promise<readonly PrimeModel[]>
   setModel(request: SessionAction & { provider: string; modelId: string }): Promise<void>
+  getRecurrentDepth(request: SessionAction): Promise<number>
+  setEffort(request: SessionAction & { effort: PrimeEffort }): Promise<void>
+  setRecurrentDepth(request: SessionAction & { recurrentDepth: number }): Promise<void>
 }

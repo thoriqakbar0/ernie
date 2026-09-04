@@ -34,7 +34,9 @@ const close = async () => {
   await gateway?.close().catch((error: unknown) => failures.push(error))
   if (serverChild) {
     await stopOwnedProcess(serverChild).catch((error: unknown) => failures.push(error))
-    await shutdownPrimeAgentDaemon(config.daemonSocketPath).catch((error: unknown) => failures.push(error))
+    if (config.daemonLifecycle === "owned") {
+      await shutdownPrimeAgentDaemon(config.daemonSocketPath).catch((error: unknown) => failures.push(error))
+    }
   }
   await ownership?.release().catch((error: unknown) => failures.push(error))
   if (failures.length > 0) throw new AggregateError(failures, "Ernie development cleanup failed")
@@ -55,10 +57,10 @@ try {
     ownership = await acquireDevelopmentOwnership(config.ownerFile, generation)
     await Promise.all([
       mkdir(config.databaseDirectory, { recursive: true }),
-      mkdir(config.agentDirectory, { recursive: true }),
       mkdir(config.electronProfileDirectory, { recursive: true }),
       removeRuntimeDescriptor(config.runtimeFile),
-      removeStaleDaemonSocket(config.daemonSocketPath),
+      ...(config.agentDirectory ? [mkdir(config.agentDirectory, { recursive: true })] : []),
+      ...(config.daemonLifecycle === "owned" ? [removeStaleDaemonSocket(config.daemonSocketPath)] : []),
     ])
 
     const environment = { ...process.env }
@@ -67,11 +69,12 @@ try {
     Object.assign(environment, {
       ERNIE_DEV_GENERATION: generation,
       ERNIE_DEV_RUNTIME_FILE: config.runtimeFile,
-      ERNIE_PRIME_AGENT_AGENT_DIR: config.agentDirectory,
       ERNIE_PRIME_AGENT_EXECUTABLE: electronExecutable,
       ERNIE_PRIME_AGENT_SOCKET: config.daemonSocketPath,
+      ERNIE_PRIME_AGENT_START_DAEMON: config.daemonLifecycle === "external" ? "0" : "1",
       ERNIE_RENDERER_MODE: config.role === "desktop" ? "desktop" : "server",
       ERNIE_ZENBU_DB: config.databaseDirectory,
+      ...(config.agentDirectory ? { ERNIE_PRIME_AGENT_AGENT_DIR: config.agentDirectory } : {}),
     })
 
     serverChild = startOwnedProcess(

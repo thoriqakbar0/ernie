@@ -6,6 +6,7 @@ import type {
   PrimeJsonValue,
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
+  PrimeSessionState,
 } from "./index"
 
 const strictParseOptions = { onExcessProperty: "error" } as const
@@ -164,6 +165,23 @@ const sessionSummarySchema = Schema.Struct({
   model: Schema.optionalKey(modelSchema),
 })
 
+const sessionStateSchema = Schema.Struct({
+  revision: Schema.Natural,
+  selectedSessionId: Schema.optionalKey(Schema.NonEmptyString),
+  sessions: Schema.Array(sessionSummarySchema),
+}).check(
+  Schema.makeFilter((state) => {
+    const ids = new Set(state.sessions.map(({ id }) => id))
+    if (ids.size !== state.sessions.length) {
+      return { issue: "session state ids must be unique", path: ["sessions"] }
+    }
+    if (state.selectedSessionId && !ids.has(state.selectedSessionId)) {
+      return { issue: "selected session must exist in session state", path: ["selectedSessionId"] }
+    }
+    return undefined
+  }),
+)
+
 const sessionMessageSchema = Schema.Struct({
   id: Schema.NonEmptyString,
   role: Schema.Literals(["assistant", "system", "user"]),
@@ -299,10 +317,20 @@ export class PrimeSessionProtocolError extends Error {
   readonly _tag = "PrimeSessionProtocolError"
 
   /** Creates a safe error without retaining the rejected payload. */
-  constructor(readonly envelope: "change" | "snapshot") {
+  constructor(readonly envelope: "change" | "snapshot" | "state") {
     super(`Prime Agent returned an invalid session ${envelope} envelope`)
     this.name = "PrimeSessionProtocolError"
   }
+}
+
+/** Parses an unknown authoritative session state. */
+export function parsePrimeSessionState(
+  input: unknown,
+): PrimeSessionParseResult<PrimeSessionState> {
+  const parsed = Schema.decodeUnknownOption(sessionStateSchema, strictParseOptions)(input)
+  return Option.isSome(parsed)
+    ? { ok: true, value: parsed.value }
+    : { ok: false, error: new PrimeSessionProtocolError("state") }
 }
 
 /** Result of parsing one unknown cross-process payload. */
@@ -364,6 +392,7 @@ export type PrimeSessionSyncState =
       latestObserved?: ObservedRevision
     }>
 
+// @lat: [[runtime#Prime Agent runtime#Ordered synchronization]]
 /** Starts synchronization before the renderer requests its first snapshot. */
 export function createPrimeSessionSyncState(sessionId: string): PrimeSessionSyncState {
   return { status: "attaching", sessionId, bufferedChanges: [] }

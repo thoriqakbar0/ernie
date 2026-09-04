@@ -1,14 +1,23 @@
-import * as stylex from "@stylexjs/stylex"
-import { styles } from "./model-picker.stylex"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import type { PrimeModel } from "../../packages/prime-agent"
+import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select"
 
 type ModelPickerProps = Readonly<{
+  acceptedEffort: string | undefined
   disabled: boolean
   models: readonly PrimeModel[]
+  onEffortChange: (effort: PrimeEffort) => Promise<void>
+  onEffortError: (message: string) => void
   onSelect: (model: PrimeModel) => void
-  selectedModelId: string
+  selectedModel: PrimeModel | undefined
   side: "bottom" | "top"
 }>
 
@@ -19,51 +28,110 @@ type PickerPosition = Readonly<{
   width: number
 }>
 
+type ModelTier = "flagship" | "balanced" | "fast"
+
+type ModelProfile = Readonly<{
+  rank: number
+  tier: ModelTier
+}>
+
 const pickerGap = 8
 const viewportInset = 12
-const preferredPickerWidth = 360
+const preferredPickerWidth = 260
+const searchVisibilityThreshold = 8
+const pinnedModelsStorageKey = "ernie:pinned-models:v1"
+const hiddenModelsStorageKey = "ernie:hidden-models:v1"
+const effortLevels: readonly PrimeEffort[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
+const modelProfiles: ReadonlyMap<string, ModelProfile> = new Map<string, ModelProfile>([
+  ["openai-codex:gpt-5.6-sol", { rank: 0, tier: "flagship" }],
+  ["openai-codex:gpt-5.6-terra", { rank: 1, tier: "balanced" }],
+  ["openai-codex:gpt-5.6-luna", { rank: 2, tier: "fast" }],
+])
 
-/** Selects one model from Prime Agent's searchable model catalog. */
 export function ModelPicker({
+  acceptedEffort,
   disabled,
   models,
+  onEffortChange,
+  onEffortError,
   onSelect,
-  selectedModelId,
+  selectedModel,
   side,
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const [enabledProviders, setEnabledProviders] = useState<ReadonlySet<string> | undefined>()
+  const [excludedProviders, setExcludedProviders] = useState<ReadonlySet<string>>(() => new Set())
+  const [pinnedModelKeys, setPinnedModelKeys] = useState<ReadonlySet<string>>(readPinnedModelKeys)
+  const [hiddenModelKeys, setHiddenModelKeys] = useState<ReadonlySet<string>>(readHiddenModelKeys)
+  const [showHiddenModels, setShowHiddenModels] = useState(false)
   const [position, setPosition] = useState<PickerPosition>()
+  const positioned = position !== undefined
   const rootRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const selectedOptionRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const selected = models.find(({ id }) => id === selectedModelId)
+  const selected = models.find((model) =>
+    model.id === selectedModel?.id && model.provider === selectedModel.provider)
   const providers = useMemo(
-    () => [...new Set(models.map(({ provider }) => provider))].sort((left, right) => left.localeCompare(right)),
+    () => [...new Set(models.map(({ provider }) => provider))].toSorted((left, right) => left.localeCompare(right)),
     [models],
   )
-  const activeProviders = useMemo(
-    () => enabledProviders ?? new Set(providers),
-    [enabledProviders, providers],
-  )
-  const filteredModels = useMemo(() => {
+  const showProviderFilters = providers.length > 1
+  const showSearch = models.length > searchVisibilityThreshold
+  const groupedModels = useMemo(() => {
     const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
-    return models.filter((model) => {
-      if (!activeProviders.has(model.provider)) return false
+    const groups = new Map<string, PrimeModel[]>()
+    for (const model of models) {
+      if (excludedProviders.has(model.provider)) continue
+      if (!showHiddenModels && hiddenModelKeys.has(modelKey(model))) continue
       const searchText = `${model.label} ${model.id} ${model.provider}`.toLocaleLowerCase()
-      return terms.every((term) => searchText.includes(term))
+      if (!terms.every((term) => searchText.includes(term))) continue
+      const group = groups.get(model.provider)
+      if (group) group.push(model)
+      else groups.set(model.provider, [model])
+    }
+    return providers.flatMap((provider) => {
+      const providerModels = groups.get(provider)
+      return providerModels
+        ? [{
+            provider,
+            models: providerModels.toSorted((left, right) =>
+              compareModelDisplayOrder(left, right, pinnedModelKeys)),
+          }]
+        : []
     })
-  }, [activeProviders, models, query])
-  const groupedModels = useMemo(() => providers.flatMap((provider) => {
-    const providerModels = filteredModels.filter((model) => model.provider === provider)
-    return providerModels.length > 0 ? [{ provider, models: providerModels }] : []
-  }), [filteredModels, providers])
+  }, [excludedProviders, hiddenModelKeys, models, pinnedModelKeys, providers, query, showHiddenModels])
+
+  const closePicker = (restoreFocus: boolean) => {
+    setOpen(false)
+    if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus())
+  }
 
   const toggleProvider = (provider: string) => {
-    const next = new Set(activeProviders)
-    if (next.has(provider)) next.delete(provider)
-    else next.add(provider)
-    setEnabledProviders(next.size === providers.length ? undefined : next)
+    setExcludedProviders((current) => {
+      const next = new Set(current)
+      if (next.has(provider)) next.delete(provider)
+      else next.add(provider)
+      return next
+    })
+  }
+
+  const togglePinnedModel = (model: PrimeModel) => {
+    const next = new Set(pinnedModelKeys)
+    const key = modelKey(model)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setPinnedModelKeys(next)
+    writeStoredModelKeys(pinnedModelsStorageKey, next)
+  }
+
+  const toggleHiddenModel = (model: PrimeModel) => {
+    const next = new Set(hiddenModelKeys)
+    const key = modelKey(model)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setHiddenModelKeys(next)
+    writeStoredModelKeys(hiddenModelsStorageKey, next)
   }
 
   useLayoutEffect(() => {
@@ -91,12 +159,21 @@ export function ModelPicker({
 
     placePicker()
     window.addEventListener("resize", placePicker)
-    window.addEventListener("scroll", placePicker, true)
+    window.addEventListener("scroll", placePicker, { capture: true, passive: true })
     return () => {
       window.removeEventListener("resize", placePicker)
       window.removeEventListener("scroll", placePicker, true)
     }
   }, [open, side])
+
+  useLayoutEffect(() => {
+    if (!open || !positioned) return
+    const frame = window.requestAnimationFrame(() => {
+      selectedOptionRef.current?.scrollIntoView({ block: "nearest" })
+      if (!showSearch) selectedOptionRef.current?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [open, positioned, selected?.id, selected?.provider, showSearch])
 
   useEffect(() => {
     if (!open) return
@@ -105,11 +182,12 @@ export function ModelPicker({
       if (
         event.target instanceof Node &&
         !rootRef.current?.contains(event.target) &&
-        !document.querySelector("[data-model-picker-popup]")?.contains(event.target)
-      ) setOpen(false)
+        !popupRef.current?.contains(event.target) &&
+        !(event.target instanceof Element && event.target.closest("[data-slot=select-content]"))
+      ) closePicker(false)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false)
+      if (event.key === "Escape") closePicker(true)
     }
     document.addEventListener("pointerdown", closeOnOutsidePointer)
     document.addEventListener("keydown", closeOnEscape)
@@ -120,12 +198,12 @@ export function ModelPicker({
   }, [open])
 
   return (
-    <div {...stylex.props(styles.relative)} ref={rootRef}>
+    <div className="model-picker" ref={rootRef}>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Model: ${selected?.label ?? "Select model"}`}
-        {...stylex.props(styles.flex, styles.h7, styles.maxW48, styles.itemsCenter, styles.gap15, styles.roundedMd, styles.px25, styles.textXs, styles.textZinc500, styles.transition, styles.hoverBgZinc100, styles.hoverTextZinc900, styles.focusVisibleOutline2, styles.focusVisibleOutlineOffset1, styles.focusVisibleOutlineZinc500, styles.disabledCursorNotAllowed, styles.disabledOpacity50, styles.darkHoverBgZinc800, styles.darkHoverTextZinc100)}
+        className="model-trigger"
         disabled={disabled}
         onClick={() => {
           setQuery("")
@@ -134,108 +212,145 @@ export function ModelPicker({
         ref={triggerRef}
         type="button"
       >
-        <span {...stylex.props(styles.grid, styles.size4, styles.shrink0, styles.placeItemsCenter, styles.rounded, styles.bgZinc200, styles.text9px, styles.fontSemibold, styles.uppercase, styles.textZinc600, styles.darkBgZinc800, styles.darkTextZinc300)}>
-          {selected?.provider.slice(0, 1) ?? "M"}
-        </span>
-        <span {...stylex.props(styles.minW0, styles.flex1, styles.truncate)}>{selected?.label ?? "Select model"}</span>
+        <span className="model-trigger__label">{selected?.label ?? "Select model"}</span>
         <ChevronIcon />
       </button>
 
       {open && position ? createPortal(
         <div
           aria-label="Model picker"
-          {...stylex.props(styles.fixed, styles.z100, styles.flex, styles.flexCol, styles.overflowHidden, styles.roundedXl, styles.border, styles.borderZinc200, styles.bgWhite95, styles.textZinc900, styles.shadow2xl, styles.backdropBlurXl, styles.darkBorderWhite10, styles.darkBgZinc90095, styles.darkTextZinc100)}
+          className="model-popup"
           data-model-picker-popup
+          ref={popupRef}
           role="dialog"
           style={position}
         >
-          <div {...stylex.props(styles.borderB, styles.borderZinc200, styles.p2, styles.darkBorderZinc800)}>
-            <div {...stylex.props(styles.flex, styles.itemsCenter, styles.gap2, styles.roundedMd, styles.px2, styles.focusWithinRingZinc400)}>
-              <SearchIcon />
-              <input
-                aria-label="Search models"
-                autoFocus
-                {...stylex.props(styles.h9, styles.minW0, styles.flex1, styles.bgTransparent, styles.textSm, styles.outlineNone, styles.placeholderTextZinc400)}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search models..."
-                value={query}
-              />
-            </div>
-          </div>
-          <div {...stylex.props(styles.h52px, styles.shrink0, styles.borderB, styles.borderZinc200, styles.darkBorderZinc800)}>
-            <div aria-label="Model companies" {...stylex.props(styles.hFull, styles.overflowXAuto, styles.overflowYHidden, styles.px2)}>
-              <div {...stylex.props(styles.flex, styles.hFull, styles.minWMax, styles.itemsCenter, styles.gap1)}>
-                {providers.map((provider) => {
-                  const enabled = activeProviders.has(provider)
-                  return (
-                    <button
-                      aria-label={provider}
-                      aria-pressed={enabled}
-                      {...stylex.props(
-                        styles.relative,
-                        styles.inlineFlex,
-                        styles.size9,
-                        styles.shrink0,
-                        styles.itemsCenter,
-                        styles.justifyCenter,
-                        styles.roundedLg,
-                        styles.text11px,
-                        styles.fontSemibold,
-                        styles.uppercase,
-                        styles.leadingNone,
-                        enabled ? styles.bgZinc900 : styles.bgZinc100,
-                        enabled ? styles.textWhite : styles.textZinc500,
-                        enabled && styles.ringZinc900,
-                        enabled ? styles.darkBgZinc100 : styles.darkBgZinc800,
-                        enabled && styles.darkTextZinc900,
-                        enabled && styles.darkRingZinc100,
-                        !enabled && styles.hoverBgZinc200,
-                        !enabled && styles.darkHoverBgZinc700,
-                      )}
-                      key={provider}
-                      onClick={() => toggleProvider(provider)}
-                      title={provider}
-                      type="button"
-                    >
-                      {companyMark(provider)}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-          <div aria-label="Models" {...stylex.props(styles.minH0, styles.overflowYAuto, styles.p15)} role="listbox">
+          {showSearch ? <div className="model-search">
+            <SearchIcon />
+            <input
+              aria-label="Search models"
+              autoFocus
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search models…"
+              value={query}
+            />
+          </div> : null}
+          {showProviderFilters ? <div aria-label="Model companies" className="provider-filters">
+            {providers.map((provider) => {
+              const enabled = !excludedProviders.has(provider)
+              return (
+                <button
+                  aria-label={provider}
+                  aria-pressed={enabled}
+                  className="provider-filter"
+                  key={provider}
+                  onClick={() => toggleProvider(provider)}
+                  title={provider}
+                  type="button"
+                >
+                  {companyMark(provider)}
+                </button>
+              )
+            })}
+          </div> : null}
+          {hiddenModelKeys.size > 0 ? (
+            <button
+              aria-pressed={showHiddenModels}
+              className="hidden-models-toggle"
+              onClick={() => setShowHiddenModels((current) => !current)}
+              type="button"
+            >
+              {showHiddenModels ? "Hide hidden" : `Show hidden (${hiddenModelKeys.size})`}
+            </button>
+          ) : null}
+          <div aria-label="Models" className="model-options" role="listbox">
             {groupedModels.length > 0 ? groupedModels.map(({ provider, models: providerModels }) => (
-              <section aria-label={provider} key={provider}>
-                <p {...stylex.props(styles.px25, styles.pb1, styles.pt2, styles.text11px, styles.fontMedium, styles.uppercase, styles.trackingWide, styles.textZinc400)}>{provider}</p>
+              <section aria-label={provider} className="model-group" key={provider}>
+                {showProviderFilters ? <p>{provider}</p> : null}
                 {providerModels.map((model) => {
-                  const isSelected = model.id === selectedModelId
+                  const isSelected = model.id === selectedModel?.id &&
+                    model.provider === selectedModel.provider
+                  const isPinned = pinnedModelKeys.has(modelKey(model))
+                  const isHidden = hiddenModelKeys.has(modelKey(model))
+                  const profile = getModelProfile(model)
                   return (
-                    <button
-                      aria-selected={isSelected}
-                      {...stylex.props(styles.flex, styles.wFull, styles.itemsCenter, styles.gap3, styles.roundedLg, styles.px25, styles.py2, styles.textLeft, styles.hoverBgZinc100, styles.focusVisibleBgZinc100, styles.focusVisibleOutlineNone, styles.darkHoverBgZinc800, styles.darkFocusVisibleBgZinc800)}
-                      key={`${model.provider}:${model.id}`}
-                      onClick={() => {
-                        onSelect(model)
-                        setOpen(false)
-                      }}
-                      role="option"
-                      type="button"
+                    <div
+                      className={`model-option-row${isSelected ? " model-option-row--selected" : ""}${isHidden ? " model-option-row--hidden" : ""}`}
+                      key={modelKey(model)}
                     >
-                      <span {...stylex.props(styles.grid, styles.size7, styles.shrink0, styles.placeItemsCenter, styles.roundedMd, styles.bgZinc100, styles.text10px, styles.fontSemibold, styles.uppercase, styles.textZinc500, styles.darkBgZinc800, styles.darkTextZinc300)}>
-                        {model.provider.slice(0, 1)}
-                      </span>
-                      <span {...stylex.props(styles.minW0, styles.flex1)}>
-                        <span {...stylex.props(styles.block, styles.truncate, styles.textSm, styles.fontMedium)}>{model.label}</span>
-                        <span {...stylex.props(styles.block, styles.truncate, styles.textXs, styles.capitalize, styles.textZinc400)}>{model.provider}</span>
-                      </span>
-                      {isSelected ? <CheckIcon /> : null}
-                    </button>
+                      <button
+                        aria-selected={isSelected}
+                        className="model-option"
+                        onClick={() => {
+                          onSelect(model)
+                          closePicker(true)
+                        }}
+                        ref={isSelected ? selectedOptionRef : undefined}
+                        role="option"
+                        title={`${model.label} · ${model.id}`}
+                        type="button"
+                      >
+                        <span className="model-option__copy">
+                          <span className="model-option__label">
+                            <span>{model.label}</span>
+                            {profile ? <small className="model-option__tier">{profile.tier}</small> : null}
+                          </span>
+                        </span>
+                        {isSelected ? <CheckIcon /> : null}
+                      </button>
+                      {isSelected ? (
+                        <div className="model-effort-control">
+                          <span>effort</span>
+                          <Select
+                            disabled={disabled}
+                            onValueChange={(value) => {
+                              if (value === null || !isPrimeEffort(value)) return
+                              void onEffortChange(value).catch((cause: unknown) => {
+                                onEffortError(cause instanceof Error
+                                  ? cause.message
+                                  : "Prime Agent effort change failed")
+                              })
+                            }}
+                            value={isPrimeEffort(acceptedEffort) ? acceptedEffort : "medium"}
+                          >
+                            <SelectTrigger aria-label={`Effort for ${model.label}`} size="sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="start">
+                              <SelectGroup>
+                              {effortLevels.map((effort) => (
+                                  <SelectItem key={effort} value={effort}>{effort}</SelectItem>
+                              ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null}
+                      <button
+                        aria-label={`${isPinned ? "Unpin" : "Pin"} ${model.label}`}
+                        aria-pressed={isPinned}
+                        className="model-option__pin"
+                        onClick={() => togglePinnedModel(model)}
+                        title={`${isPinned ? "Unpin" : "Pin"} ${model.label}`}
+                        type="button"
+                      >
+                        <PinIcon filled={isPinned} />
+                      </button>
+                      <button
+                        aria-label={`${isHidden ? "Show" : "Hide"} ${model.label}`}
+                        className="model-option__hide"
+                        onClick={() => toggleHiddenModel(model)}
+                        title={`${isHidden ? "Show" : "Hide"} ${model.label}`}
+                        type="button"
+                      >
+                        <VisibilityIcon hidden={isHidden} />
+                      </button>
+                    </div>
                   )
                 })}
               </section>
             )) : (
-              <p {...stylex.props(styles.px3, styles.py8, styles.textCenter, styles.textSm, styles.textZinc400)}>No models found</p>
+              <p className="model-empty" role="status">No models match “{query}”.</p>
             )}
           </div>
         </div>,
@@ -245,16 +360,71 @@ export function ModelPicker({
   )
 }
 
+function compareModelDisplayOrder(
+  left: PrimeModel,
+  right: PrimeModel,
+  pinnedModelKeys: ReadonlySet<string>,
+) {
+  const pinRank = Number(pinnedModelKeys.has(modelKey(right))) -
+    Number(pinnedModelKeys.has(modelKey(left)))
+  if (pinRank !== 0) return pinRank
+  const leftProfile = getModelProfile(left)
+  const rightProfile = getModelProfile(right)
+  if (leftProfile || rightProfile) {
+    return (leftProfile?.rank ?? Number.MAX_SAFE_INTEGER) -
+      (rightProfile?.rank ?? Number.MAX_SAFE_INTEGER)
+  }
+  return right.id.localeCompare(left.id, undefined, { numeric: true, sensitivity: "base" })
+}
+
+function modelKey(model: Pick<PrimeModel, "id" | "provider">) {
+  return `${model.provider}:${model.id}`
+}
+
+function readPinnedModelKeys(): ReadonlySet<string> {
+  return readStoredModelKeys(pinnedModelsStorageKey)
+}
+
+function readHiddenModelKeys(): ReadonlySet<string> {
+  return readStoredModelKeys(hiddenModelsStorageKey)
+}
+
+function readStoredModelKeys(storageKey: string): ReadonlySet<string> {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]")
+    return new Set(Array.isArray(stored) ? stored.filter((value): value is string =>
+      typeof value === "string") : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeStoredModelKeys(storageKey: string, modelKeys: ReadonlySet<string>) {
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify([...modelKeys]))
+  } catch {
+    return
+  }
+}
+
+function getModelProfile(model: PrimeModel) {
+  return modelProfiles.get(`${model.provider}:${model.id}`)
+}
+
+function isPrimeEffort(value: string | undefined): value is PrimeEffort {
+  return effortLevels.some((effort) => effort === value)
+}
+
 function companyMark(provider: string) {
   const words = provider.split(/[^a-zA-Z0-9]+/).filter(Boolean)
   return words.length > 1
     ? words.slice(0, 2).map((word) => word[0]).join("")
-    : provider.slice(0, 1)
+    : provider.slice(0, 2)
 }
 
 function ChevronIcon() {
   return (
-    <svg aria-hidden="true" {...stylex.props(styles.size35, styles.shrink0, styles.textZinc400)} fill="none" viewBox="0 0 14 14">
+    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 14 14">
       <path d="m4 5.5 3 3 3-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
   )
@@ -262,7 +432,7 @@ function ChevronIcon() {
 
 function SearchIcon() {
   return (
-    <svg aria-hidden="true" {...stylex.props(styles.size4, styles.shrink0, styles.textZinc400)} fill="none" viewBox="0 0 16 16">
+    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
       <circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.4" />
       <path d="m10 10 3 3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
     </svg>
@@ -271,8 +441,26 @@ function SearchIcon() {
 
 function CheckIcon() {
   return (
-    <svg aria-hidden="true" {...stylex.props(styles.size4, styles.shrink0)} fill="none" viewBox="0 0 16 16">
-      <path d="m3.5 8 3 3 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
+      <path d="m3.5 8 3 3 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+function PinIcon({ filled }: Readonly<{ filled: boolean }>) {
+  return (
+    <svg aria-hidden="true" className="control-icon" fill={filled ? "currentColor" : "none"} viewBox="0 0 16 16">
+      <path d="M5.5 2.75h5l-.65 3.1 1.65 1.65v1h-3v4.75l-.5.75-.5-.75V8.5h-3v-1l1.65-1.65-.65-3.1Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
+    </svg>
+  )
+}
+
+function VisibilityIcon({ hidden }: Readonly<{ hidden: boolean }>) {
+  return (
+    <svg aria-hidden="true" className="control-icon" fill="none" viewBox="0 0 16 16">
+      <path d="M2 8s2-3.25 6-3.25S14 8 14 8s-2 3.25-6 3.25S2 8 2 8Z" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.5" />
+      {hidden ? <path d="m3 3 10 10" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" /> : null}
     </svg>
   )
 }

@@ -16,6 +16,7 @@ import {
 
 import type {
   PrimeModel,
+  PrimeSessionState,
   PrimeSessionChangeEnvelope,
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
@@ -32,7 +33,16 @@ import {
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
-import { chooseAvailableSessionName } from "./session-name"
+import {
+  chooseAvailableSessionName,
+  deriveSessionName,
+  isGenericSessionName,
+  isUnavailableSessionNameError,
+} from "./session-name"
+import {
+  createPrimeAgentRecoveryRetry,
+  runPrimeAgentRecoveryLoop,
+} from "./recovery-retry"
 
 type CommandBody = DaemonCommand extends infer Command
   ? Command extends { id?: string }
@@ -40,11 +50,17 @@ type CommandBody = DaemonCommand extends infer Command
     : never
   : never
 
-type PrimeAgentConfig = Readonly<{
-  socketPath: string
-  agentDir?: string
-  executablePath: string
-}>
+type PrimeAgentEndpoint =
+  | Readonly<{
+      ownership: "external"
+      socketPath: string
+    }>
+  | Readonly<{
+      ownership: "managed"
+      socketPath: string
+      agentDir?: string
+      executablePath: string
+    }>
 
 type SessionAttachment = {
   readonly sessionId: string
@@ -61,8 +77,13 @@ type SessionAttachment = {
 }
 
 const STREAM_REFRESH_INTERVAL_MS = 50
+const RECOVERY_RETRY_INTERVAL_MS = 1_000
 const MAX_REFRESH_FAILURES = 2
 const CREATE_SESSION_TIMEOUT_MS = 60_000
+const CREATE_SESSION_NAME_RETRIES = 3
+const ATTACHMENT_STARTUP_TIMEOUT_MS = 10_000
+const ATTACHMENT_STARTUP_RETRY_MS = 100
+const SESSION_CATALOG_REFRESH_MS = 1_000
 const PRIME_AGENT_DAEMON_WORKER_ENV = [
   "PRIME_AGENT_INTERNAL_DAEMON_WORKER",
   "PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN",
@@ -81,44 +102,83 @@ export class PrimeAgentService extends Service.create({
   key: "primeAgent",
   deps: { rpc: RpcService },
 }) {
-  private readonly config = readPrimeAgentConfig()
+  private readonly endpoint = readPrimeAgentEndpoint()
   private readonly attachments = new Map<string, SessionAttachment>()
   private readonly attachmentPromises = new Map<string, Promise<SessionAttachment>>()
   private readonly summaries = new Map<string, PrimeSessionSummary>()
+  private stateRevision = 0
+  private selectedSessionId: string | undefined
+  private catalogSessions: readonly PrimeSessionSummary[] = []
+  private catalogRefresh: Promise<void> | undefined
   private client: DaemonClient | undefined
   private connecting: Promise<DaemonClient> | undefined
   private unsubscribeClientClose: (() => void) | undefined
   private recoveryPromise: Promise<void> | undefined
+  private readonly recoveryRetry = createPrimeAgentRecoveryRetry(RECOVERY_RETRY_INTERVAL_MS)
+  private recoveryRequested = false
   private disposed = false
 
   /** Registers one cleanup owner for every Prime Agent resource. */
   evaluate() {
     this.setup("prime-agent-runtime", () => () => this.disposeRuntime())
+    this.setup("prime-agent-catalog", () => {
+      const timer = setInterval(() => {
+        void this.refreshSessionCatalog().catch(() => undefined)
+      }, SESSION_CATALOG_REFRESH_MS)
+      return () => clearInterval(timer)
+    })
   }
 
-  /** Lists sessions currently visible through the shared daemon. */
-  async listSessions() {
-    const data = await this.request({ type: "list" })
-    const sessions = readSessionList(data).map(toSessionSummary)
-    for (const session of sessions) this.summaries.set(session.id, session)
-    return sessions
+  /** Reads the newest authoritative session state. */
+  async getSessionState(): Promise<PrimeSessionState> {
+    await this.refreshSessionCatalog()
+    return this.sessionState()
+  }
+
+  /** Selects the session displayed by Ernie, or clears selection. */
+  async selectSession(input: { sessionId?: string }) {
+    const sessionId = input.sessionId?.trim()
+    if (sessionId && !this.catalogSessions.some(({ id }) => id === sessionId)) {
+      throw new Error("The selected Prime Agent session is unavailable")
+    }
+    if (sessionId === this.selectedSessionId) return
+    this.selectedSessionId = sessionId
+    this.publishSessionState()
   }
 
   /** Creates one resident Prime Agent session without attaching a renderer. */
   async createSession(input: { cwd: string; name?: string }) {
-    const name = chooseAvailableSessionName(input.name, await this.listSessions())
-    const data = await this.request(
-      {
-        type: "create",
-        name,
-        config: { cwd: input.cwd },
-        lifecycle: "resident",
-      },
-      CREATE_SESSION_TIMEOUT_MS,
-    )
-    const session = toSessionSummary(readRecord(data, "create response"))
-    this.summaries.set(session.id, session)
-    return session
+    const data = await this.request({ type: "list", all: true })
+    const knownSessions = readSessionList(data).map(toSessionSummary)
+    const rejectedNames = new Set<string>()
+    let lastCollision: unknown
+
+    for (let attempt = 0; attempt <= CREATE_SESSION_NAME_RETRIES; attempt += 1) {
+      const name = chooseAvailableSessionName(input.name, knownSessions, rejectedNames)
+      try {
+        const created = await this.request(
+          {
+            type: "create",
+            name,
+            config: { cwd: input.cwd },
+            lifecycle: "resident",
+          },
+          CREATE_SESSION_TIMEOUT_MS,
+        )
+        const session = toSessionSummary(readRecord(created, "create response"))
+        this.summaries.set(session.id, session)
+        this.upsertCatalogSession(session)
+        return session
+      } catch (error) {
+        if (!name || !isUnavailableSessionNameError(error, name)) throw error
+        rejectedNames.add(name)
+        lastCollision = error
+      }
+    }
+
+    throw new Error("Prime Agent session name stayed unavailable after retries", {
+      cause: lastCollision,
+    })
   }
 
   /** Attaches one logical connection and returns its current projected snapshot. */
@@ -134,7 +194,8 @@ export class PrimeAgentService extends Service.create({
     commandId: string
     content: string
   }) {
-    const connection = await this.getReadyConnection(input.sessionId)
+    const { attachment, connection } = await this.getReadyAttachment(input.sessionId)
+    await this.nameDraftSessionFromPrompt(attachment, connection, input.content)
     await connection.prompt(input.content, { source: "interactive" })
     return { admissionId: input.admissionId, commandId: input.commandId }
   }
@@ -173,7 +234,29 @@ export class PrimeAgentService extends Service.create({
     await connection.setModel(input.provider, input.modelId)
   }
 
+  async getRecurrentDepth(input: { sessionId: string }) {
+    const connection = await this.getReadyConnection(input.sessionId)
+    return (await connection.getRlmMaxDepthStatus()).maxDepth
+  }
+
+  async setEffort(input: {
+    sessionId: string
+    effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+  }) {
+    const connection = await this.getReadyConnection(input.sessionId)
+    await connection.setThinkingLevel(input.effort)
+  }
+
+  async setRecurrentDepth(input: { sessionId: string; recurrentDepth: number }) {
+    const connection = await this.getReadyConnection(input.sessionId)
+    await connection.setRlmMaxDepth(input.recurrentDepth)
+  }
+
   private async getReadyConnection(sessionId: string) {
+    return (await this.getReadyAttachment(sessionId)).connection
+  }
+
+  private async getReadyAttachment(sessionId: string) {
     if (this.recoveryPromise) {
       const recoveryAvailability = checkPrimeAgentCommandAvailability<DaemonAgentConnection>({
         sessionId,
@@ -192,7 +275,30 @@ export class PrimeAgentService extends Service.create({
       connection: attachment.connection,
     })
     if (!availability.ok) throw availability.error
-    return availability.connection
+    return { attachment, connection: availability.connection }
+  }
+
+  private async nameDraftSessionFromPrompt(
+    attachment: SessionAttachment,
+    connection: DaemonAgentConnection,
+    prompt: string,
+  ) {
+    if (
+      attachment.snapshot.session.lifecycle !== "draft" ||
+      !isGenericSessionName(attachment.snapshot.session.name)
+    ) return
+
+    const derivedName = deriveSessionName(prompt)
+    if (!derivedName) return
+
+    try {
+      await this.refreshSessionCatalog()
+      const name = chooseAvailableSessionName(derivedName, this.catalogSessions)
+      if (!name) return
+      await connection.setSessionName(name)
+    } catch {
+      // A display-name failure must never reject the user's prompt.
+    }
   }
 
   private async getAttachment(sessionId: string) {
@@ -208,7 +314,8 @@ export class PrimeAgentService extends Service.create({
     const creation = this.createAttachment(
       await this.getClient(),
       sessionId,
-      existing?.snapshot.session ?? this.summaries.get(sessionId),
+      existing?.snapshot,
+      this.summaries.get(sessionId),
     )
     this.attachmentPromises.set(sessionId, creation)
     try {
@@ -223,6 +330,30 @@ export class PrimeAgentService extends Service.create({
   private async createAttachment(
     client: DaemonClient,
     sessionId: string,
+    previousSnapshot?: PrimeSessionSnapshot,
+    previousSession?: PrimeSessionSummary,
+  ) {
+    const deadline = Date.now() + ATTACHMENT_STARTUP_TIMEOUT_MS
+
+    while (true) {
+      try {
+        return await this.createAttachmentOnce(
+          client,
+          sessionId,
+          previousSnapshot,
+          previousSession,
+        )
+      } catch (error) {
+        if (!isSessionWorkerStartingError(error) || Date.now() >= deadline) throw error
+        await new Promise<void>((resolve) => setTimeout(resolve, ATTACHMENT_STARTUP_RETRY_MS))
+      }
+    }
+  }
+
+  private async createAttachmentOnce(
+    client: DaemonClient,
+    sessionId: string,
+    previousSnapshot?: PrimeSessionSnapshot,
     previousSession?: PrimeSessionSummary,
   ) {
     let attachment: SessionAttachment | undefined
@@ -241,8 +372,11 @@ export class PrimeAgentService extends Service.create({
     try {
       await connection.attach()
       const snapshot = projectPrimeSessionSnapshot(
-        enrichPrimeSessionSnapshot({ snapshot: await connection.getInitialSnapshot() }),
-        previousSession,
+        enrichPrimeSessionSnapshot({
+          snapshot: await connection.getInitialSnapshot(),
+          previous: previousSnapshot,
+        }),
+        previousSnapshot?.session ?? previousSession,
       )
       if (snapshot.session.id !== sessionId) {
         throw new Error("Prime Agent attached a different session than Ernie requested")
@@ -261,6 +395,7 @@ export class PrimeAgentService extends Service.create({
         disposed: false,
       }
       this.summaries.set(sessionId, snapshot.session)
+      this.upsertCatalogSession(snapshot.session)
       return attachment
     } catch (error) {
       unsubscribe()
@@ -318,6 +453,8 @@ export class PrimeAgentService extends Service.create({
       attachment.generation = crypto.randomUUID()
       attachment.revision = 0
       attachment.snapshot = snapshot
+      this.summaries.set(attachment.sessionId, snapshot.session)
+      this.upsertCatalogSession(snapshot.session)
       this.emitSnapshot(attachment)
     } catch {
       this.failAttachment(attachment)
@@ -397,6 +534,7 @@ export class PrimeAgentService extends Service.create({
 
     attachment.snapshot = snapshot
     this.summaries.set(attachment.sessionId, snapshot.session)
+    this.upsertCatalogSession(snapshot.session)
     for (const change of changes) {
       attachment.revision += 1
       const envelope: PrimeSessionChangeEnvelope = {
@@ -417,6 +555,64 @@ export class PrimeAgentService extends Service.create({
     this.ctx.rpc.emit.app.primeSessionSnapshot(parsed.value)
   }
 
+  private refreshSessionCatalog() {
+    if (this.catalogRefresh) return this.catalogRefresh
+    const refresh = this.readSessionCatalog()
+    this.catalogRefresh = refresh
+    return refresh.finally(() => {
+      if (this.catalogRefresh === refresh) this.catalogRefresh = undefined
+    })
+  }
+
+  private async readSessionCatalog() {
+    const data = await this.request({ type: "list", all: true })
+    if (this.disposed) return
+    const listedSessions = readSessionList(data).map(toSessionSummary)
+    const sessions = listedSessions.map((session) =>
+      this.attachments.get(session.id)?.snapshot.session ?? session)
+    this.summaries.clear()
+    for (const session of sessions) this.summaries.set(session.id, session)
+    this.replaceCatalogSessions(sessions)
+  }
+
+  private upsertCatalogSession(session: PrimeSessionSummary) {
+    const index = this.catalogSessions.findIndex(({ id }) => id === session.id)
+    if (index === -1) {
+      this.replaceCatalogSessions([...this.catalogSessions, session])
+      return
+    }
+    if (sameSessionSummary(this.catalogSessions[index], session)) return
+    this.replaceCatalogSessions(this.catalogSessions.map((existing) =>
+      existing.id === session.id ? session : existing))
+  }
+
+  private replaceCatalogSessions(sessions: readonly PrimeSessionSummary[]) {
+    const selectedSessionId = this.selectedSessionId &&
+      sessions.some(({ id }) => id === this.selectedSessionId)
+      ? this.selectedSessionId
+      : sessions[0]?.id
+    if (
+      sameSessionCatalog(this.catalogSessions, sessions) &&
+      selectedSessionId === this.selectedSessionId
+    ) return
+    this.catalogSessions = sessions
+    this.selectedSessionId = selectedSessionId
+    this.publishSessionState()
+  }
+
+  private publishSessionState() {
+    this.stateRevision += 1
+    this.ctx.rpc.emit.app.primeSessionStateChanged(this.sessionState())
+  }
+
+  private sessionState(): PrimeSessionState {
+    return {
+      revision: this.stateRevision,
+      ...(this.selectedSessionId ? { selectedSessionId: this.selectedSessionId } : {}),
+      sessions: this.catalogSessions,
+    }
+  }
+
   private failAttachment(attachment: SessionAttachment, duringRecovery = false) {
     if (attachment.disposed || (this.recoveryPromise && !duringRecovery)) return
     this.updateProjectedSnapshot(attachment, {
@@ -427,12 +623,31 @@ export class PrimeAgentService extends Service.create({
   }
 
   private beginRecovery() {
+    this.recoveryRequested = true
     if (this.disposed || this.recoveryPromise) return
-    const recovery = this.recoverAttachments().catch(() => this.failAllAttachments())
-    const tracked = recovery.then(() => {
+    const recovery = this.recoverUntilReady()
+    const tracked = recovery.finally(() => {
       if (this.recoveryPromise === tracked) this.recoveryPromise = undefined
+      if (this.recoveryRequested && !this.disposed) this.beginRecovery()
     })
     this.recoveryPromise = tracked
+  }
+
+  private async recoverUntilReady() {
+    await runPrimeAgentRecoveryLoop({
+      attempt: async () => {
+        this.recoveryRequested = false
+        const recovered = await this.recoverAttachments().catch(() => {
+          this.failAllAttachments()
+          return false
+        })
+        const ready = recovered && !this.recoveryRequested && this.client?.isConnected === true
+        if (ready) this.recoveryRetry.clear()
+        return ready
+      },
+      shouldStop: () => this.disposed,
+      wait: () => this.recoveryRetry.wait(),
+    })
   }
 
   private async recoverAttachments() {
@@ -451,34 +666,52 @@ export class PrimeAgentService extends Service.create({
     try {
       client = await this.replaceClient()
     } catch {
-      if (!this.disposed) {
-        for (const oldAttachment of previous) {
-          const failed = failedAttachment(oldAttachment)
-          this.installAttachment(failed)
-          this.emitSnapshot(failed)
-        }
-      }
-      return
+      this.installFailedAttachments(previous)
+      return false
     }
     if (this.disposed) {
       client.close()
-      return
+      return false
     }
 
+    const replacements: SessionAttachment[] = []
     for (const oldAttachment of previous) {
       try {
         const attachment = await this.createAttachment(
           client,
           oldAttachment.sessionId,
-          oldAttachment.snapshot.session,
+          oldAttachment.snapshot,
         )
-        this.installAttachment(attachment)
-        this.emitSnapshot(attachment)
+        if (this.disposed) {
+          await this.releaseAttachment(attachment)
+          await Promise.allSettled(replacements.map((replacement) =>
+            this.releaseAttachment(replacement)
+          ))
+          return false
+        }
+        replacements.push(attachment)
       } catch {
-        const failed = failedAttachment(oldAttachment)
-        this.installAttachment(failed)
-        this.emitSnapshot(failed)
+        await Promise.allSettled(replacements.map((replacement) =>
+          this.releaseAttachment(replacement)
+        ))
+        this.installFailedAttachments(previous)
+        return false
       }
+    }
+
+    for (const attachment of replacements) {
+      this.installAttachment(attachment)
+      this.emitSnapshot(attachment)
+    }
+    return true
+  }
+
+  private installFailedAttachments(previous: readonly SessionAttachment[]) {
+    if (this.disposed) return
+    for (const oldAttachment of previous) {
+      const failed = failedAttachment(oldAttachment)
+      this.installAttachment(failed)
+      this.emitSnapshot(failed)
     }
   }
 
@@ -546,14 +779,17 @@ export class PrimeAgentService extends Service.create({
 
   private async openClient() {
     try {
-      return await connectClient(this.config.socketPath)
-    } catch {
-      startDaemon(this.config)
+      return await connectClient(this.endpoint.socketPath)
+    } catch (cause) {
+      if (this.endpoint.ownership === "external") {
+        throw new Error("The configured Prime Agent socket is unavailable", { cause })
+      }
+      startDaemon(this.endpoint)
       const deadline = Date.now() + 10_000
       let lastError: unknown
       while (Date.now() < deadline) {
         try {
-          return await connectClient(this.config.socketPath)
+          return await connectClient(this.endpoint.socketPath)
         } catch (error) {
           lastError = error
           await delay(150)
@@ -567,13 +803,18 @@ export class PrimeAgentService extends Service.create({
     if (this.disposed) return
     this.disposed = true
     const recovery = this.recoveryPromise
+    this.recoveryRetry.clear()
     const attachments = [...this.attachments.values()]
     this.attachments.clear()
     this.attachmentPromises.clear()
     await Promise.allSettled(attachments.map((attachment) => this.releaseAttachment(attachment)))
-    this.detachClient()
     await recovery?.catch(() => undefined)
+    this.detachClient()
   }
+}
+
+function isSessionWorkerStartingError(error: unknown) {
+  return error instanceof Error && error.message === "Session worker is starting"
 }
 
 function snapshotEnvelope(attachment: SessionAttachment): PrimeSessionSnapshotEnvelope {
@@ -617,7 +858,7 @@ async function connectClient(socketPath: string) {
   }
 }
 
-function startDaemon(config: PrimeAgentConfig) {
+function startDaemon(config: Extract<PrimeAgentEndpoint, { ownership: "managed" }>) {
   mkdirSync(dirname(config.socketPath), { recursive: true })
   const packageEntry = import.meta.resolve("prime-agent")
   const cliPath = fileURLToPath(new URL("./bundle/cli.js", packageEntry))
@@ -635,11 +876,15 @@ function startDaemon(config: PrimeAgentConfig) {
   child.unref()
 }
 
-function readPrimeAgentConfig(): PrimeAgentConfig {
+function readPrimeAgentEndpoint(): PrimeAgentEndpoint {
   const socketOverride = readAbsolutePath(
     process.env.ERNIE_PRIME_AGENT_SOCKET,
     "ERNIE_PRIME_AGENT_SOCKET",
   )
+  if (socketOverride && process.env.ERNIE_PRIME_AGENT_START_DAEMON !== "1") {
+    return { ownership: "external", socketPath: socketOverride }
+  }
+
   const agentDir = readAbsolutePath(
     process.env.ERNIE_PRIME_AGENT_AGENT_DIR,
     "ERNIE_PRIME_AGENT_AGENT_DIR",
@@ -649,6 +894,7 @@ function readPrimeAgentConfig(): PrimeAgentConfig {
     "ERNIE_PRIME_AGENT_EXECUTABLE",
   ) ?? process.execPath
   return {
+    ownership: "managed",
     socketPath: socketOverride ?? join(
       homedir(),
       "Library",
@@ -702,6 +948,26 @@ function toSessionSummary(value: Record<string, unknown>): PrimeSessionSummary {
 function readLifecycle(value: unknown): PrimeSessionSummary["lifecycle"] {
   if (value === "archived" || value === "draft" || value === "live") return value
   throw new Error("Prime Agent returned an invalid session lifecycle")
+}
+
+function sameSessionCatalog(
+  left: readonly PrimeSessionSummary[],
+  right: readonly PrimeSessionSummary[],
+) {
+  return left.length === right.length && left.every((session, index) =>
+    sameSessionSummary(session, right[index]))
+}
+
+function sameSessionSummary(left: PrimeSessionSummary, right: PrimeSessionSummary | undefined) {
+  return right !== undefined &&
+    left.id === right.id &&
+    left.cwd === right.cwd &&
+    left.name === right.name &&
+    left.lifecycle === right.lifecycle &&
+    left.state === right.state &&
+    left.model?.id === right.model?.id &&
+    left.model?.provider === right.model?.provider &&
+    left.model?.label === right.model?.label
 }
 
 function readModel(value: unknown) {

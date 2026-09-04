@@ -1,24 +1,41 @@
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./app.stylex"
-import { Agentation } from "agentation"
+import { useState } from "react"
 import { View } from "@zenbujs/core/react"
+import { PanelLeftOpenIcon } from "lucide-react"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
 import { ChatWorkspace } from "./chat-workspace"
-import { Titlebar } from "./titlebar"
 
+// @lat: [[product#Product contract#Responsive workspace]]
 export function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
   return (
-    <div {...stylex.props(styles.flex, styles.minHScreen, styles.flexCol, styles.bgZinc50, styles.textZinc950, styles.darkBgZinc950, styles.darkTextZinc50)}>
-      <Titlebar />
-      <main {...stylex.props(styles.grid, styles.minH0, styles.flex1, styles.appColumns)}>
-        <aside aria-label="Sidebar" {...stylex.props(styles.minH0)}>
-          <View {...stylex.props(styles.hFull, styles.wFull)} name={SIDEBAR_VIEW_TYPE} />
-        </aside>
+    <div className="app-shell">
+      <a className="skip-link" href="#ernie-workspace">Skip to workspace</a>
+      <main className={sidebarOpen ? "app-main" : "app-main app-main--sidebar-closed"}>
+        {sidebarOpen ? (
+          <div aria-label="Session navigation" className="app-sidebar-slot">
+            <View
+              args={{ onClose: () => setSidebarOpen(false) }}
+              {...stylex.props(styles.sidebarView)}
+              name={SIDEBAR_VIEW_TYPE}
+            />
+          </div>
+        ) : (
+          <button
+            aria-controls="ernie-sidebar"
+            aria-expanded="false"
+            aria-label="Open sidebar"
+            className="sidebar-open-button"
+            onClick={() => setSidebarOpen(true)}
+            type="button"
+          >
+            <PanelLeftOpenIcon />
+          </button>
+        )}
         <ChatWorkspace />
       </main>
-      {import.meta.env.DEV && import.meta.env.VITE_ERNIE_CYPRESS !== "1"
-        ? <Agentation endpoint="http://127.0.0.1:4747" />
-        : null}
     </div>
   )
 }

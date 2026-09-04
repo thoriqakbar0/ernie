@@ -12,7 +12,7 @@ if (browserHmrSentinel && !path.isAbsolute(browserHmrSentinel)) {
 
 export default defineConfig({
   root: path.resolve(__dirname, "src", "renderer"),
-  plugins: [stylex.vite(), react()],
+  plugins: [stylex.vite({ useCSSLayers: { before: ["reset"] } }), react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src", "renderer"),

@@ -1,154 +1,202 @@
-import * as stylex from "@stylexjs/stylex"
-import { styles } from "./sidebar.stylex"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Popover } from "@base-ui/react/popover"
+import { useViewArgs } from "@zenbujs/core/react"
+import { FolderIcon, PanelLeftCloseIcon } from "lucide-react"
+import { useIdle } from "phase/react"
+import type { PrimeSessionSummary } from "../../packages/prime-agent"
 import {
   useCreatePrimeSession,
   usePrimeSessionSelection,
-  usePrimeSessions,
+  usePrimeSessionState,
 } from "../prime-agent-state"
+import { ErnieMark } from "./ernie-mark"
+import { PlusIcon } from "./plus-icon"
+import { getWorkspaceName } from "./workspace-name"
 
 export function Sidebar() {
-  const sessions = usePrimeSessions()
+  const { onClose } = useViewArgs<{ onClose: () => void }>()
+  const idle = useIdle({ timeout: 500 })
+  const sessions = usePrimeSessionState()
   const createSession = useCreatePrimeSession()
   const { selectedSessionId, selectSession } = usePrimeSessionSelection()
-  const [conversationsExpanded, setConversationsExpanded] = useState(true)
+  const visibleSessions = useMemo(
+    () => (sessions.data ?? [])
+      .filter(({ lifecycle }) => lifecycle !== "archived")
+      .toSorted(
+        (left, right) => sessionStatePriority(left.state) - sessionStatePriority(right.state),
+      ),
+    [sessions.data],
+  )
+  const renderedSessions = idle
+    ? visibleSessions
+    : visibleSessions.filter((session, index) => index < 24 || session.id === selectedSessionId)
+  const workspaceGroups = useMemo(() => {
+    const groups = new Map<string, PrimeSessionSummary[]>()
+    for (const session of renderedSessions) {
+      const group = groups.get(session.cwd)
+      if (group) group.push(session)
+      else groups.set(session.cwd, [session])
+    }
+    return [...groups].map(([cwd, groupedSessions]) => ({ cwd, sessions: groupedSessions }))
+  }, [renderedSessions])
 
   return (
-    <aside
-      aria-label="Sidebar"
-      {...stylex.props(styles.flex, styles.hScreen, styles.wFull, styles.flexCol, styles.borderR, styles.borderZinc20080, styles.bgZinc50, styles.textZinc950, styles.darkBorderZinc800, styles.darkBgZinc950, styles.darkTextZinc50)}
-    >
-      <div {...stylex.props(styles.flex, styles.h52px, styles.shrink0, styles.itemsCenter, styles.justifyBetween, styles.px3)}>
-        <div {...stylex.props(styles.flex, styles.minW0, styles.itemsCenter, styles.gap2)}>
-          <ErnieMark />
-          <span {...stylex.props(styles.truncate, styles.textSm, styles.fontMedium, styles.trackingTight)}>Ernie</span>
+    <aside aria-label="Sidebar" className="session-sidebar" id="ernie-sidebar">
+      <div className="sidebar-brand">
+        <div className="sidebar-brand__identity">
+          <ErnieMark className="sidebar-brand__mark" />
+          <p className="sidebar-brand__name">Ernie</p>
         </div>
-        <button
-          aria-label="New conversation"
-          {...stylex.props(styles.grid, styles.size7, styles.placeItemsCenter, styles.roundedMd, styles.textZinc500, styles.transition, styles.hoverBgZinc20080, styles.hoverTextZinc950, styles.focusVisibleOutline2, styles.focusVisibleOutlineOffset2, styles.focusVisibleOutlineZinc500, styles.darkHoverBgZinc800, styles.darkHoverTextWhite)}
-          disabled={createSession.isPending}
-          onClick={() => createSession.mutate()}
-          type="button"
-        >
-          <PlusIcon />
-        </button>
+        <div className="sidebar-brand__actions">
+          <button
+            aria-controls="ernie-sidebar"
+            aria-expanded="true"
+            aria-label="Close sidebar"
+            className="sidebar-close-button"
+            onClick={onClose}
+            type="button"
+          >
+            <PanelLeftCloseIcon />
+          </button>
+          <button
+            aria-label="New conversation"
+            className="new-session-button"
+            disabled={createSession.isPending}
+            onClick={() => createSession.mutate()}
+            type="button"
+          >
+            <PlusIcon />
+          </button>
+        </div>
       </div>
 
-      <nav aria-label="Conversations" {...stylex.props(styles.minH0, styles.flex1, styles.overflowYAuto, styles.px2, styles.py2)}>
-        <button
-          aria-controls="today-conversations"
-          aria-expanded={conversationsExpanded}
-          {...stylex.props(styles.flex, styles.h8, styles.wFull, styles.itemsCenter, styles.justifyBetween, styles.roundedMd, styles.px2, styles.textXs, styles.fontMedium, styles.textZinc500, styles.hoverTextZinc700, styles.focusVisibleOutline2, styles.focusVisibleOutlineOffset1, styles.focusVisibleOutlineZinc500, styles.darkHoverTextZinc300)}
-          onClick={() => setConversationsExpanded((expanded) => !expanded)}
-          type="button"
-        >
-          <span>Conversations</span>
-          <ChevronIcon expanded={conversationsExpanded} />
-        </button>
-        {conversationsExpanded ? (
-          <ul {...stylex.props(styles.spaceY05, styles.px05)} id="today-conversations">
-            {sessions.data?.length === 0 ? (
-              <li {...stylex.props(styles.flex, styles.h8, styles.itemsCenter, styles.px2, styles.textXs, styles.textZinc400, styles.darkTextZinc600)}>
-                No conversations yet
-              </li>
-            ) : sessions.data?.map((session) => (
-              <li key={session.id}>
-                <button
-                  aria-current={session.id === selectedSessionId ? "page" : undefined}
-                  {...stylex.props(
-                    styles.flex,
-                    styles.h8,
-                    styles.wFull,
-                    styles.minW0,
-                    styles.itemsCenter,
-                    styles.gap2,
-                    styles.roundedMd,
-                    styles.px2,
-                    styles.textLeft,
-                    styles.textSm,
-                    styles.transition,
-                    styles.focusVisibleOutline2,
-                    styles.focusVisibleOutlineOffset1,
-                    styles.focusVisibleOutlineZinc500,
-                    session.id === selectedSessionId ? styles.bgZinc20075 : styles.textZinc600,
-                    session.id === selectedSessionId && styles.fontMedium,
-                    session.id === selectedSessionId && styles.textZinc950,
-                    session.id === selectedSessionId ? styles.darkBgZinc800 : styles.darkTextZinc400,
-                    session.id === selectedSessionId && styles.darkTextZinc50,
-                    session.id !== selectedSessionId && styles.hoverBgZinc20055,
-                    session.id !== selectedSessionId && styles.hoverTextZinc950,
-                    session.id !== selectedSessionId && styles.darkHoverBgZinc900,
-                    session.id !== selectedSessionId && styles.darkHoverTextZinc100,
-                  )}
-                  onClick={() => selectSession(session.id)}
-                  type="button"
-                >
-                  <SessionStateDot state={session.state} />
-                  <span {...stylex.props(styles.minW0, styles.flex1, styles.truncate)}>{session.name ?? session.cwd}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+      <nav aria-label="Conversations" className="sidebar-nav">
+        <div className="session-creation-feedback">
+          {createSession.isPending ? <p role="status">Creating conversation…</p> : null}
+          {createSession.isError ? (
+            <p role="alert">
+              <span>{getErrorMessage(createSession.error)}</span>. Select New conversation to try again.
+            </p>
+          ) : null}
+        </div>
+        <ul className="sidebar-session-list">
+          {sessions.isPending ? (
+            <li className="sidebar-placeholder" role="status">Loading sessions…</li>
+          ) : sessions.isError ? (
+            <li className="sidebar-placeholder sidebar-placeholder--error" role="alert">Unable to load sessions</li>
+          ) : visibleSessions.length === 0 ? (
+            <li className="sidebar-placeholder">No sessions yet</li>
+          ) : workspaceGroups.map((group) => (
+            <WorkspaceSessionGroup
+              cwd={group.cwd}
+              key={group.cwd}
+              onSelectSession={selectSession}
+              selectedSessionId={selectedSessionId}
+              sessions={group.sessions}
+            />
+          ))}
+        </ul>
       </nav>
-
-      <div {...stylex.props(styles.borderT, styles.borderZinc20080, styles.p2, styles.darkBorderZinc800)}>
-        <button
-          {...stylex.props(styles.flex, styles.wFull, styles.itemsCenter, styles.gap2, styles.roundedLg, styles.px25, styles.py2, styles.textSm, styles.textZinc600, styles.transition, styles.hoverBgZinc20070, styles.hoverTextZinc950, styles.focusVisibleOutline2, styles.focusVisibleOutlineOffset1, styles.focusVisibleOutlineZinc500, styles.darkTextZinc400, styles.darkHoverBgZinc900, styles.darkHoverTextZinc100)}
-          type="button"
-        >
-          <SettingsIcon />
-          Settings
-        </button>
-      </div>
     </aside>
   )
 }
 
-function ErnieMark() {
+type WorkspaceSessionGroupProps = Readonly<{
+  cwd: string
+  onSelectSession: (sessionId: string) => void
+  selectedSessionId: string | undefined
+  sessions: readonly PrimeSessionSummary[]
+}>
+
+function WorkspaceSessionGroup({
+  cwd,
+  onSelectSession,
+  selectedSessionId,
+  sessions,
+}: WorkspaceSessionGroupProps) {
+  const selectedSession = sessions.find(({ id }) => id === selectedSessionId)
+  const selectedInside = selectedSession !== undefined
+  const [open, setOpen] = useState(selectedInside)
+  const [showAll, setShowAll] = useState(false)
+  const collapsedSessions = selectedSession
+    ? [selectedSession, ...sessions.filter(({ id }) => id !== selectedSession.id)].slice(0, 5)
+    : sessions.slice(0, 5)
+  const displayedSessions = showAll ? sessions : collapsedSessions
+  const hiddenSessionCount = sessions.length - displayedSessions.length
+
+  useEffect(() => {
+    if (selectedInside) setOpen(true)
+  }, [selectedInside])
+
   return (
-    <svg aria-label="Ernie" {...stylex.props(styles.h35, styles.w4, styles.shrink0)} fill="none" viewBox="0 0 16 14">
-      <path d="M2 2h11M2 7h8M2 12h11" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-    </svg>
+    <li className="workspace-session-group">
+      <details
+        onToggle={(event) => setOpen(event.currentTarget.open)}
+        open={open}
+      >
+        <summary className="workspace-session-group__summary" title={cwd}>
+          <FolderIcon />
+          <Popover.Root>
+            <Popover.Trigger
+              aria-label={`Workspace details for ${getWorkspaceName(cwd)}`}
+              className="workspace-session-group__name"
+              onClick={(event) => event.stopPropagation()}
+              openOnHover
+            >
+              {getWorkspaceName(cwd)}
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Positioner align="start" side="right" sideOffset={8}>
+                <Popover.Popup className="workspace-session-popover">
+                  <strong>{getWorkspaceName(cwd)}</strong>
+                  <span>{cwd}</span>
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
+          <small>{sessions.length}</small>
+        </summary>
+        <ul className="workspace-session-group__sessions">
+          {displayedSessions.map((session) => (
+            <li key={session.id}>
+              <button
+                aria-current={session.id === selectedSessionId ? "page" : undefined}
+                aria-label={session.name ?? session.cwd}
+                className="session-button"
+                data-session-id={session.id}
+                data-session-state={session.state}
+                onClick={() => onSelectSession(session.id)}
+                title={`${session.name ?? getWorkspaceName(session.cwd)}\n${session.id}\n${session.cwd}`}
+                type="button"
+              >
+                <span className="session-button__name">{session.name ?? "Untitled conversation"}</span>
+              </button>
+            </li>
+          ))}
+          {sessions.length > collapsedSessions.length ? (
+            <li>
+              <button
+                aria-expanded={showAll}
+                className="workspace-session-group__more"
+                onClick={() => setShowAll((current) => !current)}
+                type="button"
+              >
+                {showAll ? "Show less" : `Show ${hiddenSessionCount} more`}
+              </button>
+            </li>
+          ) : null}
+        </ul>
+      </details>
+    </li>
   )
 }
 
-function SessionStateDot({ state }: Readonly<{ state: "idle" | "working" | "recovering" }>) {
-  return <span aria-hidden="true" {...stylex.props(
-    styles.size15,
-    styles.shrink0,
-    styles.roundedFull,
-    state === "working" ? styles.bgEmerald500 : state === "recovering" ? styles.bgAmber500 : styles.bgZinc300,
-    state === "idle" && styles.darkBgZinc700,
-  )} />
+function sessionStatePriority(state: "idle" | "recovering" | "working") {
+  if (state === "working") return 0
+  if (state === "recovering") return 1
+  return 2
 }
 
-function ChevronIcon({ expanded }: Readonly<{ expanded: boolean }>) {
-  return (
-    <svg
-      aria-hidden="true"
-      {...stylex.props(styles.size3, styles.transitionTransform, expanded && styles.rotate90)}
-      fill="none"
-      viewBox="0 0 12 12"
-    >
-      <path d="m4.5 2.5 3.5 3.5-3.5 3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.25" />
-    </svg>
-  )
-}
-
-function PlusIcon() {
-  return (
-    <svg aria-hidden="true" {...stylex.props(styles.size4)} fill="none" viewBox="0 0 16 16">
-      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-function SettingsIcon() {
-  return (
-    <svg aria-hidden="true" {...stylex.props(styles.size4)} fill="none" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" r="2.25" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M8 1.75v1.1M8 13.15v1.1M1.75 8h1.1M13.15 8h1.1M3.58 3.58l.78.78M11.64 11.64l.78.78M12.42 3.58l-.78.78M4.36 11.64l-.78.78" stroke="currentColor" strokeLinecap="round" strokeWidth="1.25" />
-    </svg>
-  )
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Prime Agent could not start a conversation"
 }

@@ -6,6 +6,9 @@ export type PrimeSessionSummary = Readonly<{
   lifecycle: "archived" | "draft" | "live"
   state: "idle" | "working" | "recovering"
   model?: PrimeModel
+  activitySummary?: string
+  activityAt?: string
+  workerFailed?: boolean
 }>
 
 /** One authoritative session-state revision published by Ernie's main process. */

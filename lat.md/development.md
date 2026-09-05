@@ -22,6 +22,16 @@ Follow the [agent-native workflow](../docs/workflow.md) for scenario context, co
 
 The [repository UI rules](../AGENTS.md#ui-iteration) control verification scope. The commands below describe available checks, not permission to run builds, automated tests, or smoke checks during UI work.
 
+## Codex cloud
+
+The [cloud setup guide](../scripts/cloud/README.md) records the Linux environment and recording commands.
+
+[Setup](../scripts/cloud/setup.sh) installs Nub, app dependencies, Electron, and browser recording tools; [maintenance](../scripts/cloud/maintenance.sh) refreshes branch dependencies. The setup command can embed these files before they are published.
+
+The cloud host runs as the `ernie` user under Xvfb. Electron's first import can download its binary, so setup and maintenance perform that import while network access is available. Use a shell directory change for tooling installs; the cloud Nub build rejects `install --cwd`.
+
+`ernie-record` saves videos, interaction traces, step screenshots, and timing data against an existing browser gateway. `ernie-frames` extracts recorded frames and a timestamped HTML viewer. These tools support the HMR inspection loop without replacing the Cypress suite.
+
 ## Browser and desktop proof
 
 Browser integration proves the production renderer against the real development gateway. Desktop smoke and Electron E2E prove the packaged process boundary.

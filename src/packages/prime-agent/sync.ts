@@ -157,6 +157,9 @@ const usefulContextSchema = Schema.Struct({
 })
 
 const sessionSummarySchema = Schema.Struct({
+  activitySummary: Schema.optionalKey(Schema.String),
+  activityAt: Schema.optionalKey(Schema.String),
+  workerFailed: Schema.optionalKey(Schema.Boolean),
   id: Schema.NonEmptyString,
   cwd: Schema.NonEmptyString,
   name: Schema.optionalKey(Schema.NonEmptyString),

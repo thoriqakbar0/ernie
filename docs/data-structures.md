@@ -71,12 +71,18 @@ Before adding a value, establish its identity, owner, update source, and lifetim
 
 For a boundary change, update its TypeScript contract, parser, producer, consumer, and relevant fixture together. Check the affected integration boundary when verification is authorized. Keep JSON-safe projections explicit at process boundaries.
 
-## Future Agent records
+## Persistent Agent records
 
-[ADR 0001](adr/0001-persistent-agent-product-model.md) defines an Agent with persistent identity and several conversations. Initially, each conversation corresponds to one Prime Agent session. This is an accepted product direction, not a current storage schema.
+[Agent contracts](../src/packages/agents/index.ts) define Effect schemas for the Zenbu roster. Agent UUIDs remain stable across name and workspace changes. Settings revisions reject stale edits; instruction revisions advance only when instructions change. Favorites use the persisted `pinned` field without changing creation order.
 
-Agent storage, existing-session association, and presence across concurrent sessions remain implementation decisions. Define those decisions before adding persisted records. Keep Agent identity separate from session execution and workspace location.
+An association maps one logical Prime session ID to an Agent ID or `null`, with explicit visit recency. Its optional immutable origin records the creating Agent, instruction revision and text, workspace, and provider/model defaults. Reassignment preserves origin. Legacy sessions have no origin or association until explicitly organized; neither absence implies an Agent assignment.
 
-## Keeping this guide current
+Creation request IDs support retry after a persisted creation succeeds. A created session whose assignment fails remains reachable through unassigned history. The service persists origin before reporting creation success. Expected mutation failures return a typed result and keep renderer form data available.
 
-Update this guide when a relationship or invariant changes. Keep exact field declarations in source, ownership in [architecture](architecture.md), and visible behavior in [UI guidance](ui.md). Link durable discoveries through the [domain map](../lat.md/domain.md).
+The catalog projection includes optional activity summary, activity timestamp, and explicit worker failure. Roster previews aggregate concurrent states without using idle as a completion signal. Conversation title is the fallback when activity text is unavailable.
+
+Draft text lives in an application-scoped, session-keyed map. Submission and empty-Agent creation clear only the draft entry captured when the action started. Later edits survive a delayed response, including identical text reentered after navigation. It is not stored in Zenbu or sent to Prime Agent until submission. Agent records and associations survive browser reload; unsent text does not.
+
+See [architecture ownership](architecture.md#agent-organization-boundary) for native configuration and [verification](agent-roster-verification.md) for integration coverage.
+
+The Zenbu envelope also stores `rosterWriteId`, a fresh write acknowledgement token. Development profiles have separate Zenbu databases even when they share native Prime sessions. Explicit reconciliation adds missing records and origins without replacing existing assignments or execution configuration.

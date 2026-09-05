@@ -1,8 +1,10 @@
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./workspace-picker.styles"
 import * as stylex from "@stylexjs/stylex"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckIcon, ChevronDownIcon, FolderIcon, SearchIcon } from "lucide-react"
+import { Effect } from "effect"
+import type { AgentResult } from "../../packages/agents"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
 import {
   Dialog,
@@ -18,7 +20,7 @@ import { getWorkspaceName } from "./workspace-name"
 type WorkspacePickerProps = Readonly<{
   activeSessionId: string
   sessions: readonly PrimeSessionSummary[]
-  onSelectSession: (sessionId: string) => void
+  onSelectSession: (sessionId: string) => Promise<AgentResult<void>>
 }>
 export function WorkspacePicker({
   activeSessionId,
@@ -27,6 +29,25 @@ export function WorkspacePicker({
 }: WorkspacePickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const [pending, setPending] = useState<string>()
+  const [error, setError] = useState<string>()
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (error) errorRef.current?.focus() }, [error])
+  const select = (workspace: PrimeSessionSummary) => {
+    if (pending) return
+    if (workspace.id === activeSessionId) { setOpen(false); return }
+    setPending(workspace.id)
+    setError(undefined)
+    void Effect.runPromise(Effect.tryPromise(() => onSelectSession(workspace.id)).pipe(
+      Effect.catch(() => Effect.succeed({ ok: false as const, error: "Couldn’t open this conversation. Try again or choose another workspace." })),
+      Effect.map((result) => {
+        setPending(undefined)
+        if (result.ok) setOpen(false)
+        else setError(result.error)
+      }),
+    ))
+  }
   const activeSession = sessions.find(({ id }) => id === activeSessionId)
   const workspaces = useMemo(() => {
     const byPath = new Map<string, PrimeSessionSummary>()
@@ -59,7 +80,7 @@ export function WorkspacePicker({
     <Dialog
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen)
-        if (!nextOpen) setQuery("")
+        if (!nextOpen) { setQuery(""); setError(undefined) }
       }}
       open={open}
     >
@@ -69,16 +90,20 @@ export function WorkspacePicker({
         {getWorkspaceName(activeSession?.cwd ?? "this workspace")}
         <ChevronDownIcon data-icon="inline-end" {...stylex.props(sharedStyles.controlIcon)} />
       </DialogTrigger>
-      <DialogContent xstyle={[styles.workspaceDialog]}>
-        <DialogHeader>
-          <DialogTitle>Open a workspace</DialogTitle>
+      <DialogContent xstyle={[styles.workspaceDialog]} aria-busy={Boolean(pending)}>
+        <DialogHeader xstyle={styles.header}>
+          <DialogTitle>Switch workspace</DialogTitle>
           <DialogDescription>
-            Choose a workspace to open a Prime Agent conversation.
+            Open the conversation shown for a workspace.
           </DialogDescription>
         </DialogHeader>
-        <InputGroup>
+        <label {...stylex.props(styles.searchLabel)} htmlFor="workspace-search">Find a workspace</label>
+        <InputGroup xstyle={styles.searchGroup}>
           <InputGroupInput
-            aria-label="Search workspaces"
+            ref={searchRef}
+            id="workspace-search"
+            disabled={Boolean(pending)}
+            xstyle={styles.searchInput}
             autoComplete="off"
             autoFocus
             onChange={(event) => setQuery(event.currentTarget.value)}
@@ -91,14 +116,19 @@ export function WorkspacePicker({
             <SearchIcon aria-hidden="true" {...stylex.props(sharedStyles.controlIcon)} />
           </InputGroupAddon>
         </InputGroup>
-        <p {...stylex.props(styles.workspaceDialogSummary)}>
+        <p role="status" {...stylex.props(styles.workspaceDialogSummary)}>
           {visibleWorkspaces.length === workspaces.length
             ? `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"}`
             : `${visibleWorkspaces.length} of ${workspaces.length} workspaces`}
         </p>
-        <div {...stylex.props(styles.workspaceDialogList)}>
+        {error ? <p ref={errorRef} tabIndex={-1} role="alert" {...stylex.props(styles.error)}>{error}</p> : null}
+        <div aria-label="Workspaces" {...stylex.props(styles.workspaceDialogList)}>
           {visibleWorkspaces.length === 0 ? (
-            <p {...stylex.props(styles.workspaceDialogEmpty)}>No matching workspace</p>
+            <div {...stylex.props(styles.workspaceDialogEmpty)}>
+              <strong>{query ? `No workspaces match “${query}”` : "No workspaces yet"}</strong>
+              <p>{query ? "Try another name or path." : "Create a conversation to add its workspace here."}</p>
+              {query ? <Button variant="bordered" onClick={() => { setQuery(""); searchRef.current?.focus() }}>Clear search</Button> : null}
+            </div>
           ) : (
             visibleWorkspaces.map((workspace) => {
               const active = workspace.id === activeSessionId
@@ -106,10 +136,8 @@ export function WorkspacePicker({
                 <Button
                   aria-current={active ? "true" : undefined}
                   key={workspace.cwd}
-                  onClick={() => {
-                    if (!active) onSelectSession(workspace.id)
-                    setOpen(false)
-                  }}
+                  aria-disabled={Boolean(pending)}
+                  onClick={() => select(workspace)}
                   type="button"
                   variant="ghost"
                   xstyle={[
@@ -118,19 +146,22 @@ export function WorkspacePicker({
                   ]}
                 >
                   <FolderIcon
+                    aria-hidden="true"
                     data-icon="inline-start"
                     {...stylex.props(sharedStyles.controlIcon, styles.optionIcon)}
                   />
                   <span {...stylex.props(styles.optionDetails)}>
-                    <strong {...stylex.props(styles.optionName)}>
+                    <span {...stylex.props(styles.optionHeading)}><strong {...stylex.props(styles.optionName)}>
                       {getWorkspaceName(workspace.cwd)}
-                    </strong>
+                    </strong>{active ? <span {...stylex.props(styles.currentLabel)}>Current</span> : null}</span>
                     <small {...stylex.props(styles.optionPath)}>
-                      {active ? `Current workspace · ${workspace.cwd}` : workspace.cwd}
+                      {workspace.cwd}
                     </small>
+                    <span {...stylex.props(styles.optionConversation)}>{pending === workspace.id ? "Opening conversation…" : workspace.name ?? "Untitled conversation"}</span>
                   </span>
                   {active ? (
                     <CheckIcon
+                      aria-hidden="true"
                       data-icon="inline-end"
                       {...stylex.props(sharedStyles.controlIcon, styles.optionIcon)}
                     />
@@ -140,6 +171,7 @@ export function WorkspacePicker({
             })
           )}
         </div>
+        {visibleWorkspaces.length > 4 ? <p {...stylex.props(styles.workspaceDialogSummary)}>Scroll to browse all workspaces.</p> : null}
       </DialogContent>
     </Dialog>
   )

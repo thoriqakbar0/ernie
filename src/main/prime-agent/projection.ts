@@ -23,8 +23,8 @@ export function projectPrimeSessionSnapshot(
 ): PrimeSessionSnapshot {
   const snapshot = readRecord(input, "connection snapshot")
   const state = readRecord(snapshot.state, "connection state")
-  const sessionId = readString(state.activeSessionId) ??
-    readString(state.sessionId) ??
+  const sessionId = readString(state.sessionId) ??
+    readString(state.activeSessionId) ??
     previousSession?.id
   const cwd = readString(state.cwd) ?? previousSession?.cwd
   if (!sessionId || !cwd) {
@@ -42,14 +42,21 @@ export function projectPrimeSessionSnapshot(
     : previousSession?.lifecycle ?? "live"
   const useful = projectUsefulSessionContext(snapshot, state, finalizedMessages, streamingMessage)
 
+  const name = readString(state.sessionName) ?? previousSession?.name
+  const model = readModel(state.model) ?? previousSession?.model
+  const activitySummary = readString(state.summary) ?? previousSession?.activitySummary
+
   return {
     session: {
       id: sessionId,
       cwd,
-      name: readString(state.sessionName) ?? previousSession?.name,
+      ...(name ? { name } : {}),
       lifecycle,
       state: readSessionState(state),
-      model: readModel(state.model) ?? previousSession?.model,
+      ...(model ? { model } : {}),
+      ...(activitySummary !== undefined ? { activitySummary } : {}),
+      ...(previousSession?.activityAt !== undefined ? { activityAt: previousSession.activityAt } : {}),
+      ...(previousSession?.workerFailed !== undefined ? { workerFailed: previousSession.workerFailed } : {}),
     },
     messages,
     useful,

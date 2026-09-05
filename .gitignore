@@ -17,3 +17,5 @@ lat.md/.cache/
 logs/
 static_analysis_semgrep_*/
 .codex
+
+artifacts/interactions/

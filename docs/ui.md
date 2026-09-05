@@ -4,9 +4,9 @@ Use this guide for visual and interaction changes. It records design requirement
 
 ## Product context
 
-The current interface presents Prime Agent sessions. A developer needs to understand the selected session, its workspace, its execution state, and the next available action.
+The interface presents persistent Agents and their Prime Agent conversations. Each Agent has editable identity and defaults. Prime Agent remains the authority for execution and transcripts.
 
-[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and their conversations. Apply it when product-model changes are in scope. Do not infer that its roster, routines, or task surfaces already exist.
+[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and their conversations. Apply it when product-model changes are in scope. The roster is implemented; routines and task surfaces remain future work.
 
 ## Current surface
 
@@ -26,7 +26,7 @@ Use these source entry points for the affected surface:
 | Component layout and responsive rules | Colocated `*.styles.ts` modules, described in the [StyleX map](../lat.md/styling.md) |
 | Document defaults and accessibility resets | [main.css](../src/renderer/main.css) |
 
-Inspect the current surface before choosing a layout change. Session navigation includes search and activity filtering; it still represents real Prime Agent sessions.
+Inspect the current surface before choosing a layout change. Agent search matches names and roles. Favorite Agents precede the remaining roster; creation order stays stable within each group. Activity never reorders rows.
 
 ## Visual direction
 
@@ -46,7 +46,7 @@ Requirements below define expected behavior. Verify the affected requirement dur
 
 Selection must keep the transcript, composer context, runtime state, and navigation marker aligned. A draft from one session must never appear in another. Rapid switching must converge on one selected session.
 
-Cross-session draft retention is a separate lifetime decision. Read [architecture ownership](architecture.md#ownership) before promising that switching away and back preserves text.
+Unsent text survives navigation for the application lifetime, keyed by session. Browser reload ends that lifetime. Read [architecture ownership](architecture.md#ownership).
 
 ### Creation and submission
 
@@ -100,3 +100,21 @@ Controlled scenarios should use production components through the [development s
 ## Keeping this guide current
 
 Update this document when a visual or interaction decision is accepted. Record a durable product-model decision in an ADR. Keep implementation ownership in the architecture map and verification evidence in the task handoff.
+
+## Agent roster
+
+Selecting an Agent opens its most recently visited conversation, or an empty composer. Creating from that composer retains entered text in the new conversation without submitting it. The workspace header owns conversation history, new conversation, settings, and searchable assignment. Unassigned history remains grouped by workspace; existing sessions receive no automatic Agent assignment.
+
+Settings edit name, avatar, role description, instructions, default workspace, and default provider/model. Failed saves and creation retain entered data for retry. Instructions and defaults affect future conversations. Reassignment changes organization without changing execution configuration or restarting the session.
+
+Rows use authoritative activity summaries, with conversation titles as fallback. Concurrent work, recovery, and worker failures appear as explicit counts. Idle state does not imply completion or an attention request. A working avatar moves gently; reduced-motion users receive the same static avatar and activity text.
+
+The selectable Robot, Eyes, Coffee, and Star avatars adapt the original geometry and palette from ta-0's `src/lib/about-peek-p5.ts`. Their SVG renderer is [AgentAvatar](../src/renderer/components/agent-avatar.tsx); no p5 runtime is required. See [roster verification](agent-roster-verification.md) for observed behavior and remaining checks.
+
+Use the star control to add or remove an Agent from favorites. A filled star marks a favorite. This presentation uses the existing persisted `pinned` flag; it does not change execution priority.
+
+## Workspace picker
+
+The draft workspace picker opens an existing conversation; it does not change a conversation's execution directory. Show the target conversation title and complete workspace path. Retain search and choices when selection fails, and close only after success. Keep pending selection explicit and prevent overlapping choices. The [picker review](workspace-picker-review.md) records coverage and limitations.
+
+Transcript entries retain accessible speaker attribution. Only system messages show a visible speaker heading; user and assistant entries start with their content.

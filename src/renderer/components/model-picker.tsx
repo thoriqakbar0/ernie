@@ -420,7 +420,12 @@ export function ModelPicker({
                       setQuery("")
                       setExcludedProviders(new Set())
                       if (!query && hiddenModelKeys.size > 0) setShowHiddenModels(true)
-                      window.requestAnimationFrame(() => searchInputRef.current?.focus())
+                      window.requestAnimationFrame(() => {
+                        const target = searchInputRef.current ?? selectedOptionRef.current
+                          ?? popupRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
+                          ?? triggerRef.current
+                        target?.focus()
+                      })
                     }}>{query ? "Clear search" : "Reset filters"}</button>
                   </div>
                 )}

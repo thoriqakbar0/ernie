@@ -53,7 +53,7 @@ export function AgentWorkspaceHeader({ agent, sessionId }: { agent?: Agent; sess
             <h2 {...stylex.props(rosterStyles.menuTitle)}>Conversations</h2>
             {conversations.length === 0 ? <><p {...stylex.props(rosterStyles.menuNote)}>No conversations yet.</p><button type="button" disabled={pending > 0} onClick={startConversation} {...stylex.props(rosterStyles.menuButton)}><PlusIcon {...stylex.props(rosterStyles.icon)}/>New conversation</button></> : conversations.map((session) => <button {...stylex.props(rosterStyles.menuButton, session.id === sessionId && rosterStyles.selected)} key={session.id} type="button" aria-current={session.id === sessionId ? "page" : undefined} onClick={() => {
               void execute(() => client.openConversation({ sessionId: session.id })).then((result) => { if (result.ok) setHistoryOpen(false) })
-            }}><span {...stylex.props(rosterStyles.menuButtonCopy)}><span {...stylex.props(rosterStyles.menuButtonTitle)}>{session.name ?? "Untitled conversation"}</span><small {...stylex.props(rosterStyles.menuButtonMeta)}>{getWorkspaceName(session.cwd)}</small></span><small {...stylex.props(rosterStyles.menuButtonStatus)}>{session.workerFailed ? "Worker failed" : session.state === "idle" ? "" : session.activitySummary ?? session.state}</small></button>)}
+            }}><span {...stylex.props(rosterStyles.menuButtonCopy)}><span {...stylex.props(rosterStyles.menuButtonTitle)}>{session.name ?? "Untitled conversation"}</span><small title={session.cwd} {...stylex.props(rosterStyles.menuButtonMeta)}>{getWorkspaceName(session.cwd)}</small></span><small {...stylex.props(rosterStyles.menuButtonStatus)}>{session.workerFailed ? "Worker failed" : session.state === "recovering" ? "Recovering…" : session.state === "working" ? session.activitySummary || "Working…" : ""}</small></button>)}
           </Popover.Popup></Popover.Positioner></Popover.Portal>
         </Popover.Root>
         <button {...stylex.props(rosterStyles.iconButton)} title="New conversation" aria-label="New conversation" disabled={pending > 0} type="button" onClick={startConversation}><PlusIcon {...stylex.props(rosterStyles.icon)}/></button>
@@ -91,7 +91,7 @@ export function EmptyAgentWorkspace({ agent }: { agent: Agent }) {
   const flow = useConversationFlow(`agent:${agent.id}`)
   const submitting = flow.submission.status === "creating" || flow.submission.status === "sending"
   return <div {...stylex.props(chatStyles.workspaceContent)}><div {...stylex.props(chatStyles.conversationPane, chatStyles.draftConversationPane)}>
-    <EmptyConversation agent={agent}/>
+    <EmptyConversation agent={agent} cwd={agent.cwd}/>
     <div data-composer-placement="hero" {...stylex.props(chatStyles.composerDock, chatStyles.composerPlacementHero)}>
       <PrimeComposer agentName={agent.name} connected draft={draft} draftHero feedback={flow.submission}
         acceptedEffort={undefined} modelChangePending={false} models={[]} modelsPending={false}

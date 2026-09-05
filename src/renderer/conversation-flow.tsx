@@ -66,6 +66,8 @@ export function ConversationFlowProvider({ children }: PropsWithChildren) {
         }
         stage = "submission"
         update(feedbackKey, { submission: { status: "sending" } })
+        // The created session now owns both the transferred draft and send feedback.
+        if (feedbackKey !== key) update(key, { submission: { status: "idle" } })
         if (!sendDrafts.current.has(sessionId)) sendDrafts.current.set(sessionId, clear)
         const submission = await commands.submit(sessionId, draft.content)
         if (submission.status === "accepted" || submission.status === "queued") {
@@ -97,7 +99,6 @@ export function ConversationFlowProvider({ children }: PropsWithChildren) {
         update(feedbackKey, { submission: { status: result.status === "unknown" ? "unknown" : "error", message: result.message } })
         break
     }
-    if (feedbackKey !== key) update(key, { submission: { status: "idle" } })
     pending.current.delete(key)
     pending.current.delete(feedbackKey)
   }

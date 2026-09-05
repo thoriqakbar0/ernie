@@ -8,7 +8,7 @@ export const avatarNames = { fern: "Robot", tide: "Eyes", ember: "Coffee", iris:
 /** SVG adaptation of Thoriq's ta-0 about-peek-p5 characters, retaining original geometry and colors. */
 export function AgentAvatar({ avatar, size = "default", working = false }: {
   avatar: Agent["avatar"]
-  size?: "default" | "large" | "small"
+  size?: "default" | "large"
   working?: boolean
 }) {
   const ink = "#20213c"
@@ -16,7 +16,6 @@ export function AgentAvatar({ avatar, size = "default", working = false }: {
   return <span {...stylex.props(
     rosterStyles.avatar,
     size === "large" && rosterStyles.avatarLarge,
-    size === "small" && rosterStyles.avatarSmall,
   )} data-working={working} aria-hidden="true">
     <svg {...stylex.props(rosterStyles.avatarSvg)} viewBox="-56 -60 112 112" fill="none" stroke={ink} strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round">
       <g {...stylex.props(working && rosterStyles.working)}>

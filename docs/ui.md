@@ -12,7 +12,9 @@ Read the [Agent-first interface specification](agent-first-interface-spec.md) wh
 
 ## Current surface
 
-The shell composes session navigation and the chat workspace. The workspace selects an empty, loading, opening-error, draft, or conversation view from session data. Empty Agents, draft conversations, and ongoing conversations use the same bottom composer.
+The shell composes Agent navigation and the chat workspace. Empty Agents and draft conversations pair a left-aligned introduction with the shared composer. Ongoing conversations dock that composer below the transcript. Attachment and opening errors keep composition available.
+
+The unselected workspace introduces the Agent model with the existing characters, a display heading, and a direct creation action. Display text uses Gelica when available and Georgia otherwise. An Agent introduction gives its name visual emphasis while preserving its role and execution workspace. Decoration stays out of active transcripts.
 
 Use these source entry points for the affected surface:
 
@@ -54,6 +56,8 @@ Unsent text and transcript reading positions survive navigation for the applicat
 
 Show pending creation and prevent duplicate creation while it is pending. Keep a creation error visible with a usable recovery action.
 
+Keep the Agent draft visible until creation returns and transfers draft ownership to the session. During attachment, keep the session draft editable and explain that opening is pending. Use the actual session workspace for an existing draft, even after Agent defaults change.
+
 Enter submits and Shift+Enter inserts a newline. Respect composition input and prevent empty submissions. Disable new submissions while the connection or recovery state prevents them. Keep Check send available because receipt inspection does not dispatch a message. Preserve typed text when a submission fails.
 
 During active work, distinguish follow-up submission from stopping execution. Derive command availability from authoritative state. A successful stop request must not fabricate a completed execution state.
@@ -66,11 +70,15 @@ Keep model rows compact and place reasoning effort in a separate footer. Show pi
 
 Opening a picker must place focus usefully inside it. Escape must close it and restore trigger focus. Expose expanded and selected states through accessible semantics. When search or provider filters are present, make their effects and empty results clear.
 
+After clearing model filters, focus the search input when present, otherwise a restored model option. Small model catalogs do not have a search input. Empty-state recovery controls meet the design system's 40px target minimum, or 44px at narrow widths.
+
 ### Errors and recovery
 
 Distinguish an opening error, command rejection, session recovery, and transport failure. Explain the consequence and available next action. Cancellation is not failure.
 
 The UI must not invent progress, permissions, completion, or recovery actions. Use the capabilities exposed by the runtime boundary.
+
+In conversation history, failure and recovery take precedence over activity summaries retained from earlier work.
 
 ## Responsive layout and accessibility
 

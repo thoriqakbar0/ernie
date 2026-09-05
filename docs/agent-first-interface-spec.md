@@ -170,6 +170,8 @@ The empty roster must explain the first useful action:
 
 Selecting **Add Agent** opens the existing settings form. Preserve entered values when creation fails.
 
+The unselected workspace starts with `your next idea, meet your Agent.` and the existing character illustrations. Its primary action opens the same settings form. Use left-aligned display typography and reserve illustration for empty states.
+
 ### Empty Agent search
 
 Search emptiness is a result state, not onboarding:
@@ -190,7 +192,7 @@ This is the main first-use empty state. It should introduce the Agent and make c
 Show:
 
 - the Agent avatar
-- heading: `What should {agentName} work on?`
+- heading: `what’s next, {agentName}?`
 - the Agent role when available
 - workspace: `Starts in {workspaceName}`
 - the shared composer with focus
@@ -207,6 +209,7 @@ The first send creates a conversation and submits the captured message. Keep one
 | --- | --- | --- |
 | Ready | Editable and focused | None |
 | Creating | Editable for later text | `Starting conversation…` |
+| Attaching | Editable with session-owned draft | `Opening conversation… You can keep writing.` |
 | Sending | Editable for later text | `Sending message…` |
 | Accepted | Clear only the submitted draft | `Sent` may appear briefly |
 | Queued | Clear only the submitted draft | `Queued after the current work` |
@@ -219,6 +222,8 @@ The first send creates a conversation and submits the captured message. Keep one
 **New conversation** creates and opens a draft Prime Agent session under the selected Agent. It does not copy messages from the previous conversation.
 
 Use the same empty introduction and composer as an Agent without conversations. The Agent's current instructions, workspace, provider, and model defaults apply when Ernie creates the draft session. The first message submits to that existing session.
+
+After creation, the introduction uses the session's actual workspace, not later Agent defaults. Native creation names the session `New conversation`.
 
 The draft survives Agent and conversation navigation for the application lifetime. A browser reload may clear it.
 
@@ -530,18 +535,17 @@ Inspect these scenarios through browser hot module replacement:
 1. Empty roster at standard and narrow desktop widths
 2. Agent with no conversations
 3. Draft conversation before its first message
-4. First-message creation in progress
+4. First-message creation and attachment in progress, including later draft edits
 5. Creation failure with the draft preserved
 6. Send failure before dispatch
 7. Unknown send with **Check send**
 8. Active conversation with a queued follow-up
 9. Reconnecting and failed transport
 10. Agent and conversation switching with separate drafts
-11. Empty Agent, workspace, and model searches
+11. Empty Agent, workspace, and model searches, including filter reset with eight or fewer models
 12. Keyboard-only creation, navigation, sending, and clearing
-13. Coding surface acquisition, update, close, and restoration
-14. Missing surface provider with a usable transcript fallback
-15. Partial surface acquisition with complete effect cleanup
+
+The later task-surface phase also requires coding surface acquisition, update, close, and restoration; missing-provider fallback; and cleanup after partial acquisition. These are not implemented by the conversation-home iteration.
 
 For every scenario, record:
 

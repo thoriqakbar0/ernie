@@ -66,6 +66,8 @@ The isolated `?browser=1&scenario=workspaces` route renders the production works
 
 The Agent scenario route also includes New Agent, Tool activity, and Long conversation presets. Reject mutations exercises creation failure; Reject sends exercises admission failure; Slow sends delays admission for four seconds so navigation and later drafts can be inspected. Synthetic replies wait one minute to allow follow-up and stop inspection. All controls stay inside the isolated mock boundary.
 
+Draft conversation starts with an empty session. Changed workspace gives that session a different workspace from its Agent's current default. Concurrent activity retains an old activity summary on a recovering conversation. Slow creation and attachment delays each boundary by four seconds; use it with Slow sends to inspect the full draft handoff. The four-model catalog exercises filter recovery without a search input.
+
 Context-provider edits can invalidate consumers during HMR in this checkout. If the browser reports a missing Agent or scroller provider, reload that browser tab while retaining the development service host. Record that recovery separately from uninterrupted component HMR.
 
 For send recovery, enable Lose send acknowledgement in the chat scenario, send once, then disable it and choose Check send. The receipt should recover without another transcript entry or queued item. Edit the draft before recovery to verify later text survives. Enable Disconnect Prime Agent to verify Check send still recovers a receipt while new sends remain disabled. See [send receipt lifetime](data-structures.md#send-receipts-and-recovery) for the difference between browser response loss and native uncertainty.

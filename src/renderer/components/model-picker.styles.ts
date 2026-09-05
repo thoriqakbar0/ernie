@@ -330,7 +330,7 @@ export const styles = stylex.create({
     fontSize: "12px",
   },
   modelEmptyAction: {
-    minHeight: "32px",
+    minHeight: { default: "40px", "@media (max-width: 720px)": "44px" },
     padding: "0 11px",
     borderWidth: "1px",
     borderStyle: "solid",

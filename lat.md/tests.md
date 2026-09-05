@@ -25,3 +25,7 @@ Two logical attachments sharing one daemon client receive only their own snapsho
 ### External daemon ownership
 
 Stopping Ernie closes its connection but leaves an externally selected Prime Agent daemon and socket usable.
+
+### Send receipt recovery
+
+A dropped browser response recovers an existing send. Changed payloads, native uncertainty, and owner restarts cannot silently dispatch that identity again.

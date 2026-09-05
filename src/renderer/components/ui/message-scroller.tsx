@@ -3,7 +3,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,11 +26,21 @@ function useMessageScroller() {
   if (!context) throw new Error("MessageScroller components require MessageScrollerProvider")
   return context
 }
+type ReadingPosition = Readonly<{ top: number; atEnd: boolean }>
+const ReadingPositions = createContext<Map<string, ReadingPosition> | undefined>(undefined)
+/** Keeps reading position for the application lifetime, independently of transcript remounts. */
+export function MessageReadingProvider({ children }: { children: ReactNode }) {
+  const [positions] = useState(() => new Map<string, ReadingPosition>())
+  return <ReadingPositions.Provider value={positions}>{children}</ReadingPositions.Provider>
+}
 function MessageScrollerProvider({
   children,
+  restorationKey,
 }: Readonly<{
   children: ReactNode
+  restorationKey?: string
 }>) {
+  const positions = useContext(ReadingPositions)
   const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const pinnedToEndRef = useRef(true)
@@ -39,21 +49,24 @@ function MessageScrollerProvider({
     const viewport = viewportRef.current
     if (!viewport) return
     viewport.scrollTo({
-      behavior,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : behavior,
       top: viewport.scrollHeight,
     })
   }, [])
-  useEffect(() => {
+  useLayoutEffect(() => {
     const viewport = viewportRef.current
     const content = contentRef.current
     if (!viewport || !content) return
     const updatePosition = () => {
+      if (viewport.clientHeight === 0) return
       const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
       const nextAtEnd = remaining <= 2
       pinnedToEndRef.current = nextAtEnd
       setAtEnd(nextAtEnd)
+      if (restorationKey) positions?.set(restorationKey, { top: viewport.scrollTop, atEnd: nextAtEnd })
     }
     const resizeObserver = new ResizeObserver(() => {
+      if (viewport.clientHeight === 0) return
       if (pinnedToEndRef.current) scrollToEnd("auto")
       updatePosition()
     })
@@ -62,13 +75,15 @@ function MessageScrollerProvider({
     viewport.addEventListener("scroll", updatePosition, {
       passive: true,
     })
-    scrollToEnd("auto")
+    const saved = restorationKey ? positions?.get(restorationKey) : undefined
+    if (saved && !saved.atEnd) viewport.scrollTop = saved.top
+    else scrollToEnd("auto")
     updatePosition()
     return () => {
       resizeObserver.disconnect()
       viewport.removeEventListener("scroll", updatePosition)
     }
-  }, [scrollToEnd])
+  }, [scrollToEnd, positions, restorationKey])
   const value = useMemo(
     () => ({
       atEnd,

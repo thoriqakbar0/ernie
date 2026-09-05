@@ -61,3 +61,11 @@ Update [UI guidance](ui.md) for an accepted visual or interaction rule. Update t
 Open `?browser=1&scenario=agents` on the running development server for isolated production-component scenarios. Presets cover empty and populated rosters, concurrent activity, reconnects, failed connections, and long names. The rejection control exercises mutation failures without touching live sessions. Follow [roster verification](agent-roster-verification.md) for the current evidence and opt-in integration checks.
 
 The isolated `?browser=1&scenario=workspaces` route renders the production workspace picker with populated, empty, long-path, failed-selection, and slow-selection cases. The failed-selection case rejects once so retry can be inspected within the same dialog.
+
+## Chat-flow scenarios
+
+The Agent scenario route also includes New Agent, Tool activity, and Long conversation presets. Reject mutations exercises creation failure; Reject sends exercises admission failure; Slow sends delays admission for four seconds so navigation and later drafts can be inspected. Synthetic replies wait one minute to allow follow-up and stop inspection. All controls stay inside the isolated mock boundary.
+
+Context-provider edits can invalidate consumers during HMR in this checkout. If the browser reports a missing Agent or scroller provider, reload that browser tab while retaining the development service host. Record that recovery separately from uninterrupted component HMR.
+
+For send recovery, enable Lose send acknowledgement in the chat scenario, send once, then disable it and choose Check send. The receipt should recover without another transcript entry or queued item. Edit the draft before recovery to verify later text survives. See [send receipt lifetime](data-structures.md#send-receipts-and-recovery) for the difference between browser response loss and native uncertainty.

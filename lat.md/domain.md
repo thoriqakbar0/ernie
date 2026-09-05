@@ -12,9 +12,9 @@ The shared contract is [[src/packages/prime-agent/index.ts#PrimeSessionSummary]]
 
 ## Command admission
 
-One chat session owns prompt admission before it calls the Prime Agent client.
+One chat session owns an immutable send until admission is known. Main-service receipts prevent repeat dispatch within one service epoch.
 
-[[src/packages/chat-session/index.ts#createChatSession]] prevents overlapping draft submissions and returns an explicit accepted or rejected result.
+[[src/packages/chat-session/index.ts#createChatSession]] shares pending work and preserves the original request during recovery. [[src/main/prime-agent/send-receipts.ts#SendReceipts]] retains receipt evidence and refuses stale epochs; uncertain native delivery never triggers automatic redelivery.
 
 ## Session synchronization
 

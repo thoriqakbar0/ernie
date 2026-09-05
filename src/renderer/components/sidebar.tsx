@@ -30,6 +30,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
   const selectedAgentId = selectedSessionId
     ? roster.associations.find((item) => item.sessionId === selectedSessionId)?.agentId
     : roster.selectedAgentId
+  const openOnMobile = () => { if (window.matchMedia("(max-width: 720px)").matches) onClose() }
   const [historyOpen, setHistoryOpen] = useState(false)
   const agents = roster.agents.filter((agent) => `${agent.name} ${agent.role}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
     .toSorted((a, b) => Number(b.pinned) - Number(a.pinned) || a.createdAt - b.createdAt || a.id.localeCompare(b.id))
@@ -53,10 +54,12 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
       <ul {...stylex.props(rosterStyles.list)}>
         {agents.map((agent) => {
           const conversations = sessions.data.filter((session) => roster.associations.some((item) => item.sessionId === session.id && item.agentId === agent.id))
-          const preview = sessions.isPending ? "Loading conversations…" : sessions.isError ? "Activity unavailable" : describeAgentActivity(conversations)
+          const preview = sessions.isPending ? "Loading conversations…" : sessions.isError ? "Activity unavailable" : conversations.some((session) => session.state !== "idle" || session.workerFailed)
+            ? describeAgentActivity(conversations)
+            : [...conversations].sort((a, b) => (roster.associations.find((item) => item.sessionId === b.id)?.visitedAt ?? 0) - (roster.associations.find((item) => item.sessionId === a.id)?.visitedAt ?? 0))[0]?.name ?? agent.role ?? "Start a conversation"
           return <li key={agent.id} {...stylex.props(rosterStyles.item)}>
             <button {...stylex.props(rosterStyles.row, selectedAgentId === agent.id && rosterStyles.selected)} type="button" aria-current={selectedAgentId === agent.id ? "page" : undefined} disabled={pending > 0}
-              onClick={() => { void execute(() => client.select({ agentId: agent.id })) }} title={`${agent.name}\n${agent.role}\n${preview}`}>
+              onClick={() => { void execute(() => client.select({ agentId: agent.id })).then((result) => { if (result.ok) openOnMobile() }) }} title={`${agent.name}\n${agent.role}\n${preview}`}>
               <AgentAvatar avatar={agent.avatar} working={conversations.some((session) => session.state === "working")}/>
               <span {...stylex.props(rosterStyles.rowText)}><strong {...stylex.props(rosterStyles.name)}>{agent.name}</strong><span {...stylex.props(rosterStyles.preview)}>{preview}</span></span>
             </button>
@@ -69,7 +72,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
       {historyOpen ? <ul {...stylex.props(rosterStyles.historyList)}>
         {sessions.isPending ? <li role="status">Loading conversations…</li> : null}
         {sessions.isError ? <li role="alert">Conversation history is unavailable. {sessions.error instanceof Error ? sessions.error.message : "Try reloading."}</li> : null}
-        {groups.map(([cwd, grouped]) => <WorkspaceSessionGroup key={cwd} cwd={cwd} sessions={grouped} selectedSessionId={selectedSessionId} onSelectSession={(sessionId) => { void execute(() => client.openConversation({ sessionId })) }}/>) }
+        {groups.map(([cwd, grouped]) => <WorkspaceSessionGroup key={cwd} cwd={cwd} sessions={grouped} selectedSessionId={selectedSessionId} onSelectSession={(sessionId) => { void execute(() => client.openConversation({ sessionId })).then((result) => { if (result.ok) openOnMobile() }) }}/>) }
         {sessions.isSuccess && groups.length === 0 ? <li {...stylex.props(rosterStyles.empty)}>No unassigned conversations</li> : null}
       </ul> : null}
     </nav>

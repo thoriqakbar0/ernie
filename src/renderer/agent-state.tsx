@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type PropsWithChildren } from "react"
+import { createContext, useContext, useMemo, useRef, useState, type PropsWithChildren } from "react"
 import { useDb, useRpc } from "@zenbujs/core/react"
 import { Effect, Option, Schema } from "effect"
 import { AgentFailure, Roster, emptyRoster, type AgentResult } from "../packages/agents"
@@ -31,7 +31,7 @@ function LiveAgentState({ children }: PropsWithChildren) {
     openConversation: (input) => rpc.app.agents.openConversation(input),
     createConversation: (input) => rpc.app.agents.createConversation(input),
   }))
-  const raw = useDb((root) => root.app.roster)
+  const raw = useDb((root) => root.app?.roster)
   const roster = useMemo(() => Option.getOrUndefined(Schema.decodeUnknownOption(Roster)(raw)), [raw])
   return <AgentState roster={roster ?? emptyRoster} client={client} readError={raw !== undefined && !roster ? "The saved Agent roster could not be read." : undefined}>{children}</AgentState>
 }
@@ -63,22 +63,49 @@ const draftsContext = createContext<{
   drafts: ReadonlyMap<string, DraftEntry>
   setDraft: (key: string, value: string) => void
   clearDraft: (key: string, expected: DraftEntry | undefined) => void
+  capture: (key: string) => { content: string; clear: () => void; transfer: (sessionId: string) => () => void }
 } | undefined>(undefined)
 /** Retains unsent text by session (or empty Agent) for this application lifetime. */
 export function ConversationDraftProvider({ children }: PropsWithChildren) {
   const [drafts, setDrafts] = useState<ReadonlyMap<string, DraftEntry>>(() => new Map())
+  const current = useRef(drafts)
+  current.current = drafts
+  const clear = (key: string, expected: DraftEntry | undefined) => setDrafts((previous) => {
+    if (previous.get(key) !== expected) return previous
+    const next = new Map(previous)
+    next.delete(key)
+    return next
+  })
   return <draftsContext.Provider value={{ drafts, setDraft: (key, value) => setDrafts((previous) => {
     const next = new Map(previous)
     if (value) next.set(key, { content: value })
     else next.delete(key)
     return next
-  }), clearDraft: (key, expected) => setDrafts((previous) => {
-    // A late submission must not erase edits made after navigating back to this session.
-    if (previous.get(key) !== expected) return previous
-    const next = new Map(previous)
-    next.delete(key)
-    return next
-  }) }}>{children}</draftsContext.Provider>
+  }), clearDraft: clear, capture: (key) => {
+    const entry = current.current.get(key)
+    return { content: entry?.content ?? "", clear: () => clear(key, entry), transfer: (sessionId) => {
+      // Keep later edits at either destination while the captured message is sent.
+      setDrafts((previous) => {
+        const next = new Map(previous)
+        const source = previous.get(key)
+        if (!next.has(sessionId)) {
+          // Edits made during creation become the visible session draft; the captured text still sends.
+          const transferred = source ?? entry
+          if (transferred) next.set(sessionId, transferred)
+          next.delete(key)
+        } else if (source === entry) next.delete(key)
+        return next
+      })
+      return () => clear(sessionId, entry)
+    } }
+  } }}>{children}</draftsContext.Provider>
+}
+
+/** Captures a draft version for an operation that can outlive its originating view. */
+export function useDraftCapture() {
+  const state = useContext(draftsContext)
+  if (!state) throw new Error("ConversationDraftProvider is missing")
+  return state.capture
 }
 /** Reads one isolated draft without tying its lifetime to a workspace remount. */
 export function useConversationDraft(key: string) {

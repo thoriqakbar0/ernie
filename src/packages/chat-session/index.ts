@@ -1,73 +1,55 @@
-import type {
-  PromptAdmission,
-  PrimeAgentClient,
-} from "../prime-agent"
+import type { PrimeAgentClient, SendRequest, SendReceipt } from "../prime-agent"
 
-/** The caller-visible result of trying to submit the current draft. */
-export type SubmitDraftResult =
-  | Readonly<{ status: "admitted"; admission: PromptAdmission }>
-  | Readonly<{ status: "ignored"; reason: "empty" | "pending" }>
+/** Delivery outcome and the exact content it describes. */
+export type SubmitDraftResult = SendReceipt & Readonly<{ content: string }>
 
-/** Coordinates draft ownership with Prime Agent. */
+/** Owns send identity across prompt, queue, and acknowledgement recovery. */
 export interface ChatSession {
-  /** Submits a non-empty draft once and waits for Prime Agent admission. */
+  /** Sends a draft, or recovers the unresolved send without replacing its payload. */
   submitDraft(content: string): Promise<SubmitDraftResult>
-
-  /** Queues a non-empty follow-up for the active turn. */
-  followUp(content: string): Promise<"queued" | "ignored-empty">
-
-  /** Requests that Prime Agent stop active work. */
+  /** Queues a follow-up, or recovers the unresolved send with its original mode. */
+  followUp(content: string): Promise<SubmitDraftResult>
+  /** Explicitly releases uncertainty after the user checks the conversation. */
+  releaseUncertainSend(): void
+  /** Requests cancellation, independently of send acknowledgement. */
   stop(): Promise<void>
 }
 
 /** Dependencies controlled by Ernie's composition root. */
 export type ChatSessionDependencies = Readonly<{
-  primeAgent: PrimeAgentClient
+  primeAgent: Pick<PrimeAgentClient, "getSendEpoch" | "sendMessage" | "abort" | "waitForIdle">
   sessionId: string
   createId: () => string
 }>
 
-/** Creates one chat session coordinator with a single pending admission. */
-export function createChatSession({
-  primeAgent,
-  sessionId,
-  createId,
-}: ChatSessionDependencies): ChatSession {
-  let admissionPending = false
-
+/** Coordinates one immutable send and shares concurrent callers' result. */
+export function createChatSession({ primeAgent, sessionId, createId }: ChatSessionDependencies): ChatSession {
+  let unresolved: SendRequest | undefined
+  let pending: Promise<SubmitDraftResult> | undefined
+  const send = (content: string, mode: SendRequest["mode"]): Promise<SubmitDraftResult> => {
+    if (pending) return pending
+    const operation = async (): Promise<SubmitDraftResult> => {
+      if (!unresolved) {
+        if (!content.trim()) return { status: "not-sent", content, message: "Write a message before sending." }
+        let epoch: string
+        try { epoch = await primeAgent.getSendEpoch() }
+        catch { return { status: "not-sent", content, message: "The connection was not ready. Your message was not sent; try again." } }
+        unresolved = { epoch, commandId: createId(), sessionId, content, mode }
+      }
+      const request = unresolved
+      let receipt: SendReceipt
+      try { receipt = await primeAgent.sendMessage(request) }
+      catch { receipt = { status: "unknown", message: "The send acknowledgement was lost. Check send to recover its result without sending again." } }
+      if (receipt.status !== "unknown") unresolved = undefined
+      return { ...receipt, content: request.content }
+    }
+    pending = operation().finally(() => { pending = undefined })
+    return pending
+  }
   return {
-    async submitDraft(content) {
-      if (!content.trim()) {
-        return { status: "ignored", reason: "empty" }
-      }
-
-      if (admissionPending) {
-        return { status: "ignored", reason: "pending" }
-      }
-
-      admissionPending = true
-
-      try {
-        const admission = await primeAgent.prompt({
-          sessionId,
-          admissionId: createId(),
-          commandId: createId(),
-          content,
-        })
-
-        return { status: "admitted", admission }
-      } finally {
-        admissionPending = false
-      }
-    },
-
-    async followUp(content) {
-      if (!content.trim()) return "ignored-empty"
-
-      await primeAgent.followUp({ sessionId, content })
-      return "queued"
-    },
-
+    submitDraft: (content) => send(content, "prompt"),
+    followUp: (content) => send(content, "follow-up"),
+    releaseUncertainSend() { if (!pending) unresolved = undefined },
     async stop() {
       await primeAgent.abort({ sessionId })
       await primeAgent.waitForIdle({ sessionId })

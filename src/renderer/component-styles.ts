@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex"
+import { theme } from "./theme.stylex"
 
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
@@ -16,19 +17,15 @@ export const styles = stylex.create({
     width: "min(100%, 719px)",
   },
   composerGroup: {
-    borderColor: {
-      default: "transparent",
-      ':has([data-slot="input-group-control"]:focus-visible)': "transparent",
-    },
-    boxShadow: {
-      default: null,
-      ':has([data-slot="input-group-control"]:focus-visible)': "none",
-    },
-    outlineStyle: {
-      default: null,
-      ':has([data-slot="input-group-control"]:focus-visible)': "none",
-    },
+    borderRadius: 20,
+    borderColor: { default: theme["--rule"], ':has([data-slot="input-group-control"]:focus-visible)': theme["--focus"] },
+    backgroundColor: theme["--surface"],
+    opacity: { default: 1, ":has(:disabled)": 1 },
   },
+  composerActions: { display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" },
+  composerDefault: { color: theme["--muted"], fontSize: 12 },
+  composerFeedback: { minHeight: 22, padding: "6px 12px 0", color: theme["--muted"], fontSize: 12, lineHeight: 1.5 },
+  composerError: { color: theme["--danger"] },
   srOnly: {
     position: "absolute",
     width: "1px",
@@ -54,11 +51,12 @@ export const styles = stylex.create({
     },
   },
   composerField: {
-    minHeight: 40,
+    minHeight: 56,
+    padding: "14px 16px",
     maxHeight: 160,
     overflowY: "auto",
   },
   composerAction: {
-    marginLeft: "auto",
+    borderRadius: 999,
   },
 })

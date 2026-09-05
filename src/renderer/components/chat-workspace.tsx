@@ -1,25 +1,22 @@
 import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
-import { useActionState, useEffect, useRef, useState } from "react"
-import type { PrimeModel, PrimeSessionSummary } from "../../packages/prime-agent"
+import { useEffect, useRef, useState } from "react"
+import type { PrimeModel } from "../../packages/prime-agent"
 import { useAgents, useConversationDraft } from "../agent-state"
-import type { AgentResult } from "../../packages/agents"
+import type { Agent } from "../../packages/agents"
 import { AgentWorkspaceHeader, EmptyAgentWorkspace } from "./agent-workspace"
 import { styles as rosterStyles } from "./agent-roster.styles"
+import { useConversationFlow } from "../conversation-flow"
+import { EmptyConversation } from "./empty-conversation"
 import { ConversationTranscript } from "./conversation-transcript"
 import { PrimeComposer } from "./prime-composer"
-import { PrimeEmptyState } from "./prime-empty-state"
 import { SessionNotice } from "./session-notice"
 import { WorkspaceLoading } from "./workspace-loading"
-import { WorkspacePicker } from "./workspace-picker"
 import {
-  useCreatePrimeSession,
   usePrimeSessionActions,
   usePrimeModels,
   usePrimeSessionSelection,
   usePrimeSessionSnapshot,
-  usePrimeSessionState,
-  useWorkspacePath,
 } from "../prime-agent-state"
 type ModelSelection = Readonly<{
   modelId: string
@@ -42,16 +39,10 @@ const idleModelChange: ModelChangeState = {
 }
 const emptyModels: readonly PrimeModel[] = []
 export function ChatWorkspace() {
-  const { selectSession, selectedSessionId: sessionId } = usePrimeSessionSelection()
-  const sessions = usePrimeSessionState()
-  const createSession = useCreatePrimeSession()
-  const workspacePath = useWorkspacePath()
-  const { roster, client, execute, error } = useAgents()
+  const { selectedSessionId: sessionId } = usePrimeSessionSelection()
+  const { roster, error } = useAgents()
   const activeAgentId = sessionId ? roster.associations.find((item) => item.sessionId === sessionId)?.agentId : roster.selectedAgentId
   const activeAgent = roster.agents.find((agent) => agent.id === activeAgentId)
-  const noSessions = sessions.isSuccess && sessions.data.length === 0
-  const waitingForCreatedSession = createSession.isPending && sessionId === undefined
-  const showEmptyState = (noSessions && sessionId === undefined) || waitingForCreatedSession
   return (
     <section
       aria-label="Chat workspace"
@@ -63,51 +54,19 @@ export function ChatWorkspace() {
       {error ? <p role="alert" {...stylex.props(rosterStyles.feedback)}>{error}</p> : null}
       {!sessionId ? (
         activeAgent ? <EmptyAgentWorkspace key={activeAgent.id} agent={activeAgent}/> : <div {...stylex.props(rosterStyles.welcome)}><h1 {...stylex.props(rosterStyles.welcomeTitle)}>Who will you work with?</h1><p {...stylex.props(rosterStyles.welcomeNote)}>Add an Agent, or open a conversation from history.</p></div>
-      ) : showEmptyState ? (
-        <div {...stylex.props(styles.workspaceContent)}>
-          <PrimeEmptyState
-            creating={createSession.isPending}
-            cwd={workspacePath.data ?? "this workspace"}
-            error={createSession.isError ? getErrorMessage(createSession.error) : undefined}
-            onCreate={(prompt) => createSession.mutate(prompt)}
-          />
-        </div>
-      ) : sessionId ? (
-        <PrimeSessionWorkspace
-          initialPromptError={
-            createSession.data?.attached.snapshot.session.id === sessionId
-              ? createSession.data.initialPromptError
-              : undefined
-          }
-          key={sessionId}
-          onSelectSession={(sessionId) => execute(() => client.openConversation({ sessionId }))}
-          sessionId={sessionId}
-          sessions={sessions.data}
-        />
-      ) : (
-        <div {...stylex.props(styles.workspaceContent)}>
-          <WorkspaceLoading />
-        </div>
-      )}
+      ) : <PrimeSessionWorkspace agent={activeAgent} key={sessionId} sessionId={sessionId}/>}
     </section>
   )
 }
-function PrimeSessionWorkspace({
-  initialPromptError,
-  onSelectSession,
-  sessionId,
-  sessions,
-}: Readonly<{
-  initialPromptError: string | undefined
-  onSelectSession: (sessionId: string) => Promise<AgentResult<void>>
-  sessionId: string
-  sessions: readonly PrimeSessionSummary[]
-}>) {
+function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; sessionId: string }>) {
   const snapshotQuery = usePrimeSessionSnapshot(sessionId)
   const actions = usePrimeSessionActions(sessionId)
   const models = usePrimeModels(sessionId)
-  const [draft, setDraft, clearSubmittedDraft] = useConversationDraft(sessionId)
-  const [commandError, setCommandError] = useState(initialPromptError)
+  const [draft, setDraft] = useConversationDraft(sessionId)
+  const flow = useConversationFlow(sessionId)
+  const submitting = flow.submission.status === "creating" || flow.submission.status === "sending"
+  const stopping = flow.stop.status === "stopping"
+  const [commandError, setCommandError] = useState<string>()
   const [modelChange, setModelChange] = useState<ModelChangeState>(idleModelChange)
   const modelSelectionRevision = useRef(0)
   useEffect(
@@ -116,28 +75,8 @@ function PrimeSessionWorkspace({
     },
     [],
   )
-  const [, submitAction, submitting] = useActionState(
-    async (_previous: undefined, formData: FormData): Promise<undefined> => {
-      const content = formData.get("message")
-      if (typeof content !== "string" || !content.trim()) return
-      setCommandError(undefined)
-      try {
-        await actions.submit(content)
-        clearSubmittedDraft()
-      } catch (cause) {
-        setCommandError(cause instanceof Error ? cause.message : "Prime Agent command failed")
-      }
-    },
-    undefined,
-  )
-  const [, stopAction, stopping] = useActionState(async (): Promise<undefined> => {
-    setCommandError(undefined)
-    try {
-      await actions.stop()
-    } catch (cause) {
-      setCommandError(cause instanceof Error ? cause.message : "Prime Agent command failed")
-    }
-  }, undefined)
+  const submitAction = () => flow.send({ sessionId })
+  const stopAction = () => flow.stopAction(sessionId)
   if (snapshotQuery.isError) {
     return (
       <div role="alert" {...stylex.props(styles.openError)}>
@@ -161,7 +100,7 @@ function PrimeSessionWorkspace({
   const draftHero =
     snapshot.session.lifecycle === "draft" && snapshot.messages.length === 0 && !working
   const actionError =
-    (modelChange.status === "error" ? modelChange.message : undefined) ?? commandError
+    (modelChange.status === "error" ? modelChange.message : undefined) ?? (flow.stop.status === "error" ? flow.stop.message : undefined) ?? commandError
   return (
     <>
       {snapshot.transport.status === "reconnecting" ? (
@@ -189,31 +128,14 @@ function PrimeSessionWorkspace({
       ) : null}
 
       <div {...stylex.props(styles.workspaceContent)}>
-        <div {...stylex.props(styles.sessionStage, draftHero && styles.sessionStageDraft)}>
-          <div
-            {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}
-          >
-            {draftHero ? null : <ConversationTranscript messages={snapshot.messages} />}
-            {draftHero ? (
-              <h1 {...stylex.props(styles.draftHeroTitle)}>
-                What should we build in{" "}
-                <WorkspacePicker
-                  activeSessionId={sessionId}
-                  onSelectSession={onSelectSession}
-                  sessions={sessions}
-                />
-                ?
-              </h1>
-            ) : null}
-            <div
-              data-composer-placement={draftHero ? "hero" : "docked"}
-              {...stylex.props(
-                !draftHero && styles.composerDock,
-                draftHero && styles.composerPlacement,
-                draftHero && styles.composerPlacementHero,
-              )}
-            >
+        <div {...stylex.props(styles.sessionStage)}>
+          <div {...stylex.props(styles.conversationPane)}>
+            {draftHero ? <EmptyConversation agent={agent}/> : <ConversationTranscript sessionId={sessionId} agentName={agent?.name} messages={snapshot.messages} snapshot={snapshot}/>}
+            <div data-composer-placement="docked" {...stylex.props(styles.composerDock)}>
               <PrimeComposer
+                agentName={agent?.name}
+                feedback={flow.submission}
+                releaseSend={() => flow.release(sessionId)}
                 acceptedEffort={snapshot.useful.sessionContext?.thinkingLevel}
                 connected={connected}
                 draft={draft}

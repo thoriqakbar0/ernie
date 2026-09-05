@@ -4,6 +4,7 @@ import type { PrimeAgentService } from "../main/prime-agent/service"
 import type { AgentsService } from "../main/services/agents"
 import { type AgentResult, Roster } from "../packages/agents"
 import { Effect } from "effect"
+import { SendReceipt } from "../packages/prime-agent"
 import { SessionManager } from "prime-agent"
 import { nativeConversationConfig } from "../main/prime-agent/agent-config"
 import assert from "node:assert/strict"
@@ -395,6 +396,18 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   unwrapAgentResult(await connection.agents.save({ ...settings, id: first.id, instructions: "Future conversations only", expectedRevision: retried.revision }))
   const rejected = await connection.agents.assign({ sessionId, agentId: "missing-agent" })
   assert.equal(rejected.ok, false)
+  const epoch = await connection.prime.getSendEpoch()
+  const send = { epoch, commandId: "receipt-fixture", sessionId, content: "/name Receipt fixture", mode: "prompt" as const }
+  // This native fixture returns an error for the prompt. Keep the uncertain
+  // receipt across renderer reconnection rather than trying that command again.
+  const receipts = await Promise.all([connection.prime.sendMessage(send), connection.prime.sendMessage(send)])
+  assert.equal(Schema.decodeUnknownSync(SendReceipt)(receipts[0]).status, "unknown")
+  assert.deepEqual(receipts[0], receipts[1])
+  connection.close()
+  connection = await connectRosterRpc(runtimeFile)
+  closeRpc = connection.close
+  assert.deepEqual(await connection.prime.sendMessage(send), receipts[0])
+  assert.equal((await connection.prime.sendMessage({ ...send, content: "Different" })).status, "unknown")
   connection.close()
   host.kill("SIGTERM")
   assert.equal(await waitForExit(host, 10_000), true)
@@ -403,6 +416,8 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   await waitForOutput(host, "Runtime:", 45_000)
   connection = await connectRosterRpc(runtimeFile)
   closeRpc = connection.close
+  assert.notEqual(await connection.prime.getSendEpoch(), epoch)
+  assert.equal((await connection.prime.sendMessage(send)).status, "unknown")
   const roster = Schema.decodeUnknownSync(Roster)(unwrapAgentResult(await connection.agents.getRoster()))
   const association = roster.associations.find((item) => item.sessionId === sessionId)
   assert.equal(association?.agentId, "fixture-b")
@@ -447,7 +462,7 @@ async function connectRosterRpc(runtimeFile: string) {
     socket.addEventListener("error", () => reject(new Error("Fixture RPC connection failed")), { once: true })
   })
   const frame = Schema.Struct({ ch: Schema.String, data: Schema.String })
-  const rpc = await connectRpc<{ app: { agents: Pick<AgentsService, "getRoster" | "save" | "assign" | "createConversation" | "reconcileRoster">; primeAgent: Pick<PrimeAgentService, "attachSession"> } }>({
+  const rpc = await connectRpc<{ app: { agents: Pick<AgentsService, "getRoster" | "save" | "assign" | "createConversation" | "reconcileRoster">; primeAgent: Pick<PrimeAgentService, "attachSession" | "getSendEpoch" | "sendMessage"> } }>({
     version: "0",
     send: (data) => socket.send(JSON.stringify({ ch: "rpc", data })),
     subscribe: (callback) => {

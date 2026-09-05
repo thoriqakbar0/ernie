@@ -40,8 +40,8 @@ export const styles = stylex.create({
     },
     gridTemplateRows: {
       default: null,
-      "@media (max-width: 720px)": "minmax(240px, 38vh) minmax(0, 1fr)",
-      "@media (max-width: 480px)": "minmax(220px, 38vh) minmax(0, 1fr)",
+      "@media (max-width: 720px)": "minmax(0, 1fr)",
+      "@media (max-width: 480px)": "minmax(0, 1fr)",
     },
   },
   appMainSidebarClosed: {
@@ -51,6 +51,8 @@ export const styles = stylex.create({
       "@media (max-width: 720px)": "minmax(0, 1fr)",
     },
   },
+  workspaceSlot: { display: "grid", minWidth: 0, minHeight: 0 },
+  workspaceBehindSidebar: { display: { default: "grid", "@media (max-width: 720px)": "none" } },
   appSidebarSlot: {
     minHeight: "0",
     minWidth: "0",

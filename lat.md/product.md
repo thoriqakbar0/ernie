@@ -18,10 +18,16 @@ These states depend on the authoritative contract in [[runtime#Prime Agent runti
 
 ## Responsive workspace
 
-The same production components run in browser development and Electron. Narrow windows move session navigation and activity into document flow.
+The same production components run in browser development and Electron. Narrow windows show either the Agent list or the chat; selecting a row opens the chat.
 
 [[src/renderer/components/app.tsx#App]] defines the main renderer layout.
 
 ## Product boundaries
 
 The current UI does not add rename, archive, delete, retry, or permission commands. It does not replace the Prime Agent protocol or Zenbu view structure.
+
+## Messaging Agents
+
+Agents act as persistent contacts. One send creates and submits an empty Agent conversation; active conversations queue follow-ups. Activity remains session-scoped, and idle never proves task success.
+
+[[src/renderer/conversation-flow.tsx#ConversationFlowProvider]] owns submission and stop feedback across navigation. [[src/renderer/components/prime-composer.tsx#PrimeComposer]] presents one input interaction for every chat state. See [UI guidance](../docs/ui.md#message-to-work-flow) for the complete flow.

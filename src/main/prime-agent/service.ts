@@ -33,6 +33,8 @@ import {
   diffPrimeSessionSnapshots,
   projectPrimeSessionSnapshot,
 } from "./projection"
+import { SendRequest, type SendReceipt } from "../../packages/prime-agent"
+import { SendReceipts } from "./send-receipts"
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
@@ -116,6 +118,7 @@ export class PrimeAgentService extends Service.create({
   key: "primeAgent",
   deps: { rpc: RpcService, agentStore: AgentStoreService },
 }) {
+  private readonly sendReceipts = new SendReceipts()
   private readonly endpoint = readPrimeAgentEndpoint()
   private readonly attachments = new Map<string, SessionAttachment>()
   private readonly attachmentPromises = new Map<string, Promise<SessionAttachment>>()
@@ -213,23 +216,30 @@ export class PrimeAgentService extends Service.create({
     return snapshotEnvelope(await this.getAttachment(input.sessionId))
   }
 
-  /** Submits one prompt through its owning logical attachment. */
-  async prompt(input: {
-    sessionId: string
-    admissionId: string
-    commandId: string
-    content: string
-  }) {
-    const { attachment, connection } = await this.getReadyAttachment(input.sessionId)
-    await this.nameDraftSessionFromPrompt(attachment, connection, input.content)
-    await connection.prompt(input.content, { source: "interactive" })
-    return { admissionId: input.admissionId, commandId: input.commandId }
-  }
+  /** Returns the identity of this in-memory receipt owner. */
+  async getSendEpoch(): Promise<string> { return this.sendReceipts.epoch }
 
-  /** Queues one follow-up through its owning logical attachment. */
-  async followUp(input: { sessionId: string; content: string }) {
-    const connection = await this.getReadyConnection(input.sessionId)
-    await connection.followUp(input.content)
+  /** Reserves an immutable send before entering the native transport. */
+  async sendMessage(input: SendRequest): Promise<SendReceipt> {
+    const request = Schema.decodeUnknownSync(SendRequest)(input)
+    return this.sendReceipts.send(request, async () => {
+      const { attachment, connection } = await this.getReadyAttachment(request.sessionId)
+      if (request.mode === "prompt") {
+        await this.nameDraftSessionFromPrompt(attachment, connection, request.content)
+      }
+      if (request.mode === "prompt") return async () => {
+        await connection.prompt(request.content, { source: "interactive" })
+        return { status: "accepted" }
+      }
+      const { activeSessionId } = Schema.decodeUnknownSync(Schema.Struct({ activeSessionId: Schema.NonEmptyString }))(await connection.getState())
+      const client = await this.getClient()
+      return async () => {
+        // The native convenience wrapper discards queued:false for a coalesced follow-up.
+        const response = requireSuccess(await client.request({ type: "follow_up", activeSessionId, message: request.content }))
+        const { queued } = Schema.decodeUnknownSync(Schema.Struct({ queued: Schema.Boolean }))(response)
+        return queued ? { status: "queued" } : { status: "not-sent", message: "Prime Agent already has an equivalent follow-up pending. This message was not added again." }
+      }
+    })
   }
 
   /** Requests cancellation through its owning logical attachment. */

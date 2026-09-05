@@ -80,7 +80,7 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
   if (snapshotQuery.isError) {
     return (
       <div role="alert" {...stylex.props(styles.openError)}>
-        <h2>Unable to open this session</h2>
+        <h2>Unable to open this conversation</h2>
         <p {...stylex.props(styles.errorDescription)}>{getErrorMessage(snapshotQuery.error)}.</p>
         <button
           onClick={() => void snapshotQuery.refetch()}
@@ -123,15 +123,15 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
       ) : null}
       {actionError ? (
         <SessionNotice tone="danger">
-          <strong>The session wasn’t updated.</strong> {actionError}. Try the action again.
+          <strong>The conversation wasn’t updated.</strong> {actionError}. Try the action again.
         </SessionNotice>
       ) : null}
 
       <div {...stylex.props(styles.workspaceContent)}>
         <div {...stylex.props(styles.sessionStage)}>
-          <div {...stylex.props(styles.conversationPane)}>
+          <div {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}>
             {draftHero ? <EmptyConversation agent={agent}/> : <ConversationTranscript sessionId={sessionId} agentName={agent?.name} messages={snapshot.messages} snapshot={snapshot}/>}
-            <div data-composer-placement="docked" {...stylex.props(styles.composerDock)}>
+            <div data-composer-placement={draftHero ? "hero" : "docked"} {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}>
               <PrimeComposer
                 agentName={agent?.name}
                 feedback={flow.submission}

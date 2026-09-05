@@ -43,11 +43,11 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
   const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
   const message = feedback?.status === "error" || uncertain ? feedback.message
     : feedback?.status === "creating" ? "Starting conversation…"
-    : feedback?.status === "sending" ? "Sending…"
-    : feedback?.status === "queued" && working ? "Follow-up queued."
-    : feedback?.status === "accepted" && working ? "Message accepted."
+    : feedback?.status === "sending" ? "Sending message…"
+    : feedback?.status === "queued" && working ? "Queued after the current work."
+    : feedback?.status === "accepted" && working ? "Sent."
     : undefined
-  return <form action={submitAction} data-chat-composer {...stylex.props(sharedStyles.primeComposer)}>
+  return <form action={submitAction} data-chat-composer {...stylex.props(sharedStyles.primeComposer, draftHero && sharedStyles.primeComposerHero)}>
     <InputGroup xstyle={[sharedStyles.composerGroup]}>
       <label htmlFor={inputId} {...stylex.props(sharedStyles.srOnly)}>Message {agentName}</label>
       <InputGroupTextarea

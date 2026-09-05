@@ -11,10 +11,10 @@ export const styles = stylex.create({
     backgroundColor: theme["--surface"],
     color: theme["--ink"],
   },
-  emptyConversation: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", alignItems: "center", justifyContent: "center", gap: 12, padding: "32px 24px", textAlign: "center" },
-  emptyTitle: { fontSize: "clamp(22px, 3vw, 28px)", fontWeight: 500, color: theme["--ink-strong"] },
-  emptyRole: { color: theme["--ink"], fontSize: 14 },
-  emptyNote: { maxWidth: "44ch", fontSize: 13, lineHeight: 1.6, color: theme["--muted"] },
+  emptyConversation: { display: "flex", width: "min(calc(100% - 48px), 720px)", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" },
+  emptyTitle: { maxWidth: "20ch", marginTop: 6, fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1.08, color: theme["--ink-strong"], overflowWrap: "anywhere" },
+  emptyRole: { maxWidth: "42ch", color: theme["--ink"], fontSize: 14, lineHeight: 1.5 },
+  emptyWorkspace: { color: theme["--muted"], fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
   workspaceContent: {
     position: "relative",
     minWidth: "0",
@@ -87,7 +87,8 @@ export const styles = stylex.create({
     },
     alignContent: "center",
     justifyItems: "center",
-    gap: "24px",
+    gridTemplateRows: "auto auto",
+    gap: "22px",
     overflowY: "auto",
     paddingBlock: {
       default: "48px",
@@ -137,5 +138,7 @@ export const styles = stylex.create({
       default: "min(calc(100% - 48px), 719px)",
       "@media (max-width: 720px)": "min(calc(100% - 32px), 719px)",
     },
+    padding: "0",
+    backgroundColor: "transparent",
   },
 })

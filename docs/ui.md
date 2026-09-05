@@ -6,6 +6,8 @@ Use this guide for visual and interaction changes. It records design requirement
 
 The interface presents persistent Agents and their Prime Agent conversations. Each Agent has editable identity and defaults. Prime Agent remains the authority for execution and transcripts.
 
+Read the [Agent-first interface specification](agent-first-interface-spec.md) when changing the Agent roster, conversation home, empty states, or their end-to-end backend flow.
+
 [ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and their conversations. Apply it when product-model changes are in scope. The roster is implemented; routines and task surfaces remain future work.
 
 ## Current surface

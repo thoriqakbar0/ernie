@@ -15,7 +15,7 @@ const styles = stylex.create({
   toolbar: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", padding: "8px 14px", fontSize: 12, color: theme["--ink"], backgroundColor: theme["--surface-strong"] },
   app: { flexGrow: 1, minHeight: 0 },
 })
-const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Tool activity", "Long conversation"] as const
+const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Draft conversation", "Tool activity", "Long conversation"] as const
 type Preset = typeof presets[number]
 
 /** Isolated production UI scenarios. No scenario client can reach a live session. */
@@ -114,11 +114,13 @@ function createSeed(preset: Preset): { roster: Roster; snapshots: PrimeSessionSn
     activitySummary: index === 0 ? "Reading the navigation contract" : undefined,
     activityAt: `2026-09-05T10:0${index}:00Z`,
   }))
+  if (preset === "New Agent") return { roster: { agents, selectedAgentId: agents[3].id, associations: [] }, snapshots: [] }
+  if (preset === "Draft conversation") summaries[0] = { ...summaries[0], lifecycle: "draft" }
   const snapshots = summaries.map((session): PrimeSessionSnapshot => {
-    const messages = preset === "Long conversation" ? Array.from({ length: 35 }, (_, index) => ({ id: `${session.id}-${index}`, role: index % 2 ? "assistant" as const : "user" as const, content: `Message ${index + 1}. ` + "Inspect the login flow and preserve the existing workspace context. ".repeat(8) })) : [{ id: `${session.id}-message`, role: "assistant" as const, content: "What would you like to work on? This is a synthetic conversation; no live commands are sent." }]
+    const messages = preset === "Draft conversation" && session.id === summaries[0].id ? [] : preset === "Long conversation" ? Array.from({ length: 35 }, (_, index) => ({ id: `${session.id}-${index}`, role: index % 2 ? "assistant" as const : "user" as const, content: `Message ${index + 1}. ` + "Inspect the login flow and preserve the existing workspace context. ".repeat(8) })) : [{ id: `${session.id}-message`, role: "assistant" as const, content: "What would you like to work on? This is a synthetic conversation; no live commands are sent." }]
     const fixture = createPrimeUsefulSessionFixture(session, messages)
     const useful = preset === "Tool activity" ? { ...fixture, structuredMessages: [...fixture.structuredMessages, { role: "toolResult", toolCallId: "example-read", toolName: "read", isError: false, content: [{ type: "text", text: "Synthetic output: the login form validates the email before submitting." }] }, { role: "toolResult", toolCallId: "example-check", toolName: "bash", isError: true, content: [{ type: "text", text: "Synthetic output: the login check failed because the fixture has no server." }] }] } : fixture
     return { session, messages, useful, transport: preset === "Reconnect" ? { status: "reconnecting" } : preset === "Failed connection" ? { status: "failed", error: "Synthetic disconnected runtime" } : { status: "connected" } }
   })
-  return { snapshots, roster: { agents, selectedAgentId: agents[0].id, associations: summaries.slice(0,5).filter((_, index) => preset !== "New Agent" || index !== 3).map((session,index) => ({ sessionId: session.id, agentId: preset === "Concurrent activity" ? agents[0].id : agents[Number(session.id.split("-")[1]) % 4].id, visitedAt: index === 0 ? 10 : index })) } }
+  return { snapshots, roster: { agents, selectedAgentId: agents[0].id, associations: summaries.slice(0,5).map((session,index) => ({ sessionId: session.id, agentId: preset === "Concurrent activity" ? agents[0].id : agents[Number(session.id.split("-")[1]) % 4].id, visitedAt: index === 0 ? 10 : index })) } }
 }

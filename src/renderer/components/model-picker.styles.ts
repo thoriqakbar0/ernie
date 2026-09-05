@@ -320,10 +320,23 @@ export const styles = stylex.create({
       "background-color 100ms ease-out, color 100ms ease-out, opacity 100ms ease-out, scale 150ms ease-out",
   },
   modelEmpty: {
+    display: "grid",
+    justifyItems: "center",
+    gap: "12px",
     margin: "0",
     padding: "34px 18px",
     color: theme["--muted"],
     textAlign: "center",
     fontSize: "12px",
+  },
+  modelEmptyAction: {
+    minHeight: "32px",
+    padding: "0 11px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: theme["--rule"],
+    borderRadius: "8px",
+    color: theme["--ink"],
+    backgroundColor: { default: "transparent", ":hover": theme["--surface"] },
   },
 })

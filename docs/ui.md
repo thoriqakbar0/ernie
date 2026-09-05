@@ -60,6 +60,8 @@ During active work, distinguish follow-up submission from stopping execution. De
 
 Show the authoritative selection and make pending changes understandable. A rejected change must leave the accepted value visible and explain the failure.
 
+Keep model rows compact and place reasoning effort in a separate footer. Show pin and visibility actions on hover, keyboard focus, or touch. If no effort is reported, display Default instead of guessing a level.
+
 Opening a picker must place focus usefully inside it. Escape must close it and restore trigger focus. Expose expanded and selected states through accessible semantics. When search or provider filters are present, make their effects and empty results clear.
 
 ### Errors and recovery

@@ -43,7 +43,7 @@ type ModelProfile = Readonly<{
 }>
 const pickerGap = 8
 const viewportInset = 12
-const preferredPickerWidth = 260
+const preferredPickerWidth = 320
 const searchVisibilityThreshold = 8
 const pinnedModelsStorageKey = "ernie:pinned-models:v1"
 const hiddenModelsStorageKey = "ernie:hidden-models:v1"
@@ -342,7 +342,6 @@ export function ModelPicker({
                             key={modelKey(model)}
                             {...stylex.props(
                               styles.modelOptionRow,
-                              isSelected && styles.modelOptionRowSelected,
                               isHidden && styles.modelOptionRowHidden,
                               stylex.defaultMarker(),
                             )}
@@ -360,7 +359,6 @@ export function ModelPicker({
                               {...stylex.props(
                                 styles.modelOption,
                                 styles.rowOption,
-                                isSelected && styles.selectedOption,
                               )}
                             >
                               <span {...stylex.props(styles.modelOptionCopy)}>
@@ -382,42 +380,6 @@ export function ModelPicker({
                                 />
                               ) : null}
                             </button>
-                            {isSelected ? (
-                              <div {...stylex.props(styles.modelEffortControl)}>
-                                <span>effort</span>
-                                <Select
-                                  disabled={disabled}
-                                  onValueChange={(value) => {
-                                    if (value === null || !isPrimeEffort(value)) return
-                                    void onEffortChange(value).catch((cause: unknown) => {
-                                      onEffortError(
-                                        cause instanceof Error
-                                          ? cause.message
-                                          : "Prime Agent effort change failed",
-                                      )
-                                    })
-                                  }}
-                                  value={isPrimeEffort(acceptedEffort) ? acceptedEffort : "medium"}
-                                >
-                                  <SelectTrigger
-                                    aria-label={`Effort for ${model.label}`}
-                                    size="sm"
-                                    xstyle={[styles.effortTrigger]}
-                                  >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent align="start">
-                                    <SelectGroup>
-                                      {effortLevels.map((effort) => (
-                                        <SelectItem key={effort} value={effort}>
-                                          {effort}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            ) : null}
                             <button
                               aria-label={`${isPinned ? "Unpin" : "Pin"} ${model.label}`}
                               aria-pressed={isPinned}
@@ -426,7 +388,6 @@ export function ModelPicker({
                               type="button"
                               {...stylex.props(
                                 styles.modelOptionPin,
-                                isSelected && styles.selectedPin,
                               )}
                             >
                               <PinIcon filled={isPinned} xstyle={[sharedStyles.controlIcon]} />
@@ -438,7 +399,6 @@ export function ModelPicker({
                               type="button"
                               {...stylex.props(
                                 styles.modelOptionHide,
-                                isSelected && styles.selectedHide,
                               )}
                             >
                               <VisibilityIcon
@@ -457,10 +417,48 @@ export function ModelPicker({
                   </p>
                 )}
               </div>
+              {selected ? (
+                <ModelEffortControl
+                  acceptedEffort={acceptedEffort}
+                  disabled={disabled}
+                  modelLabel={selected.label}
+                  onEffortChange={onEffortChange}
+                  onEffortError={onEffortError}
+                />
+              ) : null}
             </div>,
             document.body,
           )
         : null}
+    </div>
+  )
+}
+/** Keeps reasoning settings separate from model navigation and reports rejected changes. */
+function ModelEffortControl({
+  acceptedEffort, disabled, modelLabel, onEffortChange, onEffortError,
+}: Pick<ModelPickerProps, "acceptedEffort" | "disabled" | "onEffortChange" | "onEffortError"> & { modelLabel: string }) {
+  return (
+    <div {...stylex.props(styles.modelEffortControl)}>
+      <span>Reasoning effort</span>
+      <Select
+        disabled={disabled}
+        onValueChange={(value) => {
+          if (value === null || !isPrimeEffort(value)) return
+          void onEffortChange(value).catch((cause: unknown) => {
+            onEffortError(cause instanceof Error ? cause.message : "Prime Agent effort change failed")
+          })
+        }}
+        value={isPrimeEffort(acceptedEffort) ? acceptedEffort : null}
+      >
+        <SelectTrigger aria-label={`Effort for ${modelLabel}`} size="sm" xstyle={[styles.effortTrigger]}>
+          <SelectValue placeholder="Default" />
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectGroup>
+            {effortLevels.map((effort) => <SelectItem key={effort} value={effort}>{effort}</SelectItem>)}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

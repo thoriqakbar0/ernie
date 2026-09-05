@@ -169,25 +169,14 @@ export const styles = stylex.create({
   modelOptionRow: {
     display: "flex",
     alignItems: "center",
-    borderRadius: "12px",
-    transition: "background-color 100ms ease-out, box-shadow 150ms ease-out",
+    borderRadius: "7px",
+    transition: "background-color 100ms ease-out",
     backgroundColor: {
-      default: null,
-      ':has(> [role="option"]:hover)': "color-mix(in srgb, var(--rule) 38%, transparent)",
-      ':has(> [role="option"]:focus-visible)': "color-mix(in srgb, var(--rule) 38%, transparent)",
-      ':has(> [role="option"][aria-selected="true"])':
-        "color-mix(in srgb, var(--focus-soft) 62%, var(--surface))",
+      default: "transparent",
+      ":hover": theme["--surface-muted"],
+      ":focus-within": theme["--surface-muted"],
+      ':has(> [role="option"][aria-selected="true"])': theme["--surface-muted"],
     },
-    boxShadow: {
-      default: null,
-      ':has(> [role="option"][aria-selected="true"])':
-        "inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent)",
-    },
-  },
-  modelOptionRowSelected: {
-    flexWrap: "wrap",
-    gap: "2px",
-    padding: "4px",
   },
   modelOptionRowHidden: {
     opacity: "0.55",
@@ -215,11 +204,6 @@ export const styles = stylex.create({
     width: "auto",
     minWidth: "0",
     flex: "1",
-  },
-  selectedOption: {
-    width: "100%",
-    flex: "0 0 100%",
-    borderRadius: "8px",
   },
   modelOptionCopy: {
     display: "flex",
@@ -254,13 +238,17 @@ export const styles = stylex.create({
   },
   modelEffortControl: {
     display: "flex",
-    minHeight: "34px",
+    flexShrink: "0",
+    minHeight: "52px",
     alignItems: "center",
-    gap: "8px",
-    marginInlineStart: "4px",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "8px 12px",
+    borderTopWidth: "1px",
+    borderTopStyle: "solid",
+    borderTopColor: theme["--rule"],
     color: theme["--muted"],
-    fontSize: "10px",
-    fontWeight: "680",
+    fontSize: "12px",
   },
   effortTrigger: {
     minWidth: "82px",
@@ -293,12 +281,11 @@ export const styles = stylex.create({
       ":focus-visible": "1",
       ':is([aria-pressed="true"])': "1",
       [stylex.when.ancestor(":hover")]: 1,
+      [stylex.when.ancestor(":focus-within")]: 1,
+      "@media (hover: none)": "1",
     },
     transition:
       "background-color 100ms ease-out, color 100ms ease-out, opacity 100ms ease-out, scale 150ms ease-out",
-  },
-  selectedPin: {
-    opacity: "1",
   },
   modelOptionHide: {
     scale: {
@@ -326,12 +313,11 @@ export const styles = stylex.create({
       default: "0",
       ":focus-visible": "1",
       [stylex.when.ancestor(":hover")]: 1,
+      [stylex.when.ancestor(":focus-within")]: 1,
+      "@media (hover: none)": "1",
     },
     transition:
       "background-color 100ms ease-out, color 100ms ease-out, opacity 100ms ease-out, scale 150ms ease-out",
-  },
-  selectedHide: {
-    opacity: "1",
   },
   modelEmpty: {
     margin: "0",

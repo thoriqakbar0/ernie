@@ -9,6 +9,8 @@ import { SendRequest, SendReceipt } from "../packages/prime-agent"
 // @lat: [[tests#Behavior specifications#Daemon boundary#Send receipt recovery]]
 test("chat recovery crosses a dropped HTTP response without repeating delivery", async (t) => {
   let ledger = new SendReceipts()
+  let loseRequest = false
+  let delayedRequest: SendRequest | undefined
   let loseResponse = false
   let rejectPreparation = false
   let loseNativeAck = false
@@ -19,7 +21,12 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
       for await (const chunk of request) chunks.push(Buffer.from(chunk))
       if (request.url === "/epoch") { response.end(JSON.stringify(ledger.epoch)); return }
       const send = Schema.decodeUnknownSync(SendRequest)(JSON.parse(Buffer.concat(chunks).toString()))
-      const receipt = await ledger.send(send, async () => {
+      if (loseRequest && request.url !== "/check") {
+        delayedRequest = send
+        response.destroy()
+        return
+      }
+      const receipt = request.url === "/check" ? await ledger.check(send) : await ledger.send(send, async () => {
         if (rejectPreparation) throw new Error("fixture disconnected before dispatch")
         return async () => {
           deliveries.push(send)
@@ -39,6 +46,7 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
   const url = `http://127.0.0.1:${address.port}`
   const client = {
     getSendEpoch: async () => Schema.decodeUnknownSync(Schema.NonEmptyString)(await (await fetch(`${url}/epoch`)).json()),
+    checkSend: async (request: SendRequest) => Schema.decodeUnknownSync(SendReceipt)(await (await fetch(`${url}/check`, { method: "POST", body: JSON.stringify(request) })).json()),
     sendMessage: async (request: SendRequest) => Schema.decodeUnknownSync(SendReceipt)(await (await fetch(url, { method: "POST", body: JSON.stringify(request) })).json()),
     abort: async () => {},
     waitForIdle: async () => {},
@@ -73,4 +81,14 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
   chat.releaseUncertainSend()
   assert.equal((await chat.submitDraft("explicit new send")).status, "accepted")
   assert.equal(deliveries.length, 5)
+  loseRequest = true
+  assert.equal((await chat.submitDraft("request never received")).status, "unknown")
+  loseRequest = false
+  assert.equal((await chat.followUp("newer text")).status, "not-sent")
+  assert.equal(deliveries.length, 5)
+  assert.ok(delayedRequest)
+  assert.equal((await client.sendMessage(delayedRequest)).status, "not-sent")
+  assert.equal(deliveries.length, 5)
+  assert.equal((await chat.submitDraft("explicit retry")).status, "accepted")
+  assert.equal(deliveries.length, 6)
 })

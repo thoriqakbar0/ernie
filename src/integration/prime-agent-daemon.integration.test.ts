@@ -406,7 +406,7 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   connection.close()
   connection = await connectRosterRpc(runtimeFile)
   closeRpc = connection.close
-  assert.deepEqual(await connection.prime.sendMessage(send), receipts[0])
+  assert.deepEqual(await connection.prime.checkSend(send), receipts[0])
   assert.equal((await connection.prime.sendMessage({ ...send, content: "Different" })).status, "unknown")
   connection.close()
   host.kill("SIGTERM")
@@ -423,11 +423,19 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   assert.equal(association?.agentId, "fixture-b")
   assert.equal(association?.origin?.instructions, settings.instructions)
   assert.equal(association?.origin?.instructionRevision, first.instructionRevision)
-  // Attach through Ernie, restart only the fixture daemon, then let Ernie recover itself.
-  await connection.prime.attachSession({ sessionId })
+  // Concurrent renderer requests must share one logical attachment.
+  t.diagnostic("checking concurrent attachment before daemon restart")
+  const attachments = await Promise.all(Array.from({ length: 3 }, () => connection.prime.attachSession({ sessionId })))
+  assert.equal(new Set(attachments.map((attachment) => attachment.generation)).size, 1)
+  // Restart only the fixture daemon, then let Ernie recover itself.
   await stopDaemon(daemonClient, daemon)
+  t.diagnostic("checking receipts while daemon is offline")
+  const absentSend = { ...send, epoch: await connection.prime.getSendEpoch(), commandId: "absent-before-check" }
+  assert.equal((await connection.prime.checkSend(absentSend)).status, "not-sent")
+  assert.equal((await connection.prime.sendMessage(absentSend)).status, "not-sent")
   daemon = startDaemon(socketPath, join(root, "agent"))
   daemonClient = await connectDaemon(socketPath)
+  t.diagnostic("checking attachment after daemon restart")
   await connection.prime.attachSession({ sessionId })
   const catalog = Schema.decodeUnknownSync(Schema.Struct({ sessions: Schema.Array(Schema.Struct({ sessionId: Schema.optionalKey(Schema.String), activeSessionId: Schema.optionalKey(Schema.String) })) }))(requireSuccess(await daemonClient.request({ type: "list", all: true })))
   const recoveredId = catalog.sessions.find((session) => session.sessionId === sessionId)?.activeSessionId
@@ -462,7 +470,7 @@ async function connectRosterRpc(runtimeFile: string) {
     socket.addEventListener("error", () => reject(new Error("Fixture RPC connection failed")), { once: true })
   })
   const frame = Schema.Struct({ ch: Schema.String, data: Schema.String })
-  const rpc = await connectRpc<{ app: { agents: Pick<AgentsService, "getRoster" | "save" | "assign" | "createConversation" | "reconcileRoster">; primeAgent: Pick<PrimeAgentService, "attachSession" | "getSendEpoch" | "sendMessage"> } }>({
+  const rpc = await connectRpc<{ app: { agents: Pick<AgentsService, "getRoster" | "save" | "assign" | "createConversation" | "reconcileRoster">; primeAgent: Pick<PrimeAgentService, "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"> } }>({
     version: "0",
     send: (data) => socket.send(JSON.stringify({ ch: "rpc", data })),
     subscribe: (callback) => {

@@ -21,6 +21,7 @@ import {
 type PrimeAgentRpc = Readonly<{
   getSendEpoch(): Promise<string>
   sendMessage(input: SendRequest): Promise<SendReceipt>
+  checkSend(input: SendRequest): Promise<SendReceipt>
   getSessionState(): Promise<PrimeSessionState>
   selectSession(input: { sessionId?: string }): Promise<void>
   createSession(input: CreateSessionRequest): Promise<PrimeSessionSnapshot["session"]>
@@ -102,6 +103,7 @@ export function createZenbuPrimeAgentClient(
       }
     },
     getSendEpoch: async () => Schema.decodeUnknownSync(Schema.NonEmptyString)(await rpc.getSendEpoch()),
+    checkSend: async (request) => Schema.decodeUnknownSync(SendReceipt)(await rpc.checkSend(request)),
     sendMessage: async (request) => Schema.decodeUnknownSync(SendReceipt)(await rpc.sendMessage(request)),
     abort: (request: SessionAction) => rpc.abort(request),
     waitForIdle: (request: SessionAction) => rpc.waitForIdle(request),

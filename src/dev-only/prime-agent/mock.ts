@@ -19,6 +19,8 @@ import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixt
 
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
+  /** Changes fixture transport without replacing sessions or receipts. */
+  setTransport(transport: PrimeSessionTransport): void
   /** Releases timers, listeners, and pending idle waits. */
   dispose(): void
 }
@@ -197,7 +199,23 @@ export function createMockPrimeAgentClient(
   })
 
   return {
+    setTransport(transport) {
+      for (const session of sessions.values()) {
+        session.transport = transport
+        emitChange(session, { type: "transport", transport })
+      }
+    },
     getSendEpoch: () => Promise.resolve(sendEpoch),
+    async checkSend(request) {
+      if (request.epoch !== sendEpoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending again." }
+      const existing = receipts.get(request.commandId)
+      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) return { status: "unknown", message: "This identity belongs to another send." }
+      const result = existing?.result ?? Promise.resolve<SendReceipt>({ status: "not-sent", message: "Ernie did not receive this send. Your message was not sent; try again." })
+      receipts.set(request.commandId, { request, result })
+      const receipt = await result
+      await options.afterSend?.()
+      return receipt
+    },
     async sendMessage(request) {
       if (request.epoch !== sendEpoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending again." }
       const existing = receipts.get(request.commandId)

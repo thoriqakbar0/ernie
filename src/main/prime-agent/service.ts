@@ -219,6 +219,11 @@ export class PrimeAgentService extends Service.create({
   /** Returns the identity of this in-memory receipt owner. */
   async getSendEpoch(): Promise<string> { return this.sendReceipts.epoch }
 
+  /** Inspects a receipt without attaching to the daemon or dispatching a message. */
+  async checkSend(input: SendRequest): Promise<SendReceipt> {
+    return this.sendReceipts.check(Schema.decodeUnknownSync(SendRequest)(input))
+  }
+
   /** Reserves an immutable send before entering the native transport. */
   async sendMessage(input: SendRequest): Promise<SendReceipt> {
     const request = Schema.decodeUnknownSync(SendRequest)(input)
@@ -338,28 +343,30 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async getAttachment(sessionId: string) {
-    const existing = this.attachments.get(sessionId)
-    if (existing?.connection) return existing
-    if (existing) {
-      await this.releaseAttachment(existing)
-      this.attachments.delete(sessionId)
-    }
-
     const pending = this.attachmentPromises.get(sessionId)
     if (pending) return pending
-    const creation = this.createAttachment(
-      await this.getClient(),
-      sessionId,
-      existing?.snapshot,
-      this.summaries.get(sessionId),
-    )
-    this.attachmentPromises.set(sessionId, creation)
-    try {
-      const attachment = await creation
+    const existing = this.attachments.get(sessionId)
+    if (existing?.connection) return existing
+
+    // Reserve before cleanup or client acquisition can yield to another caller.
+    const creation = Promise.resolve().then(async () => {
+      if (existing) {
+        await this.releaseAttachment(existing)
+        if (this.attachments.get(sessionId) === existing) this.attachments.delete(sessionId)
+      }
+      const client = await this.getClient()
+      // Recovery can install the attachment while client acquisition is pending.
+      const recovered = this.attachments.get(sessionId)
+      if (recovered?.connection) return recovered
+      const attachment = await this.createAttachment(client, sessionId, existing?.snapshot, this.summaries.get(sessionId))
       this.installAttachment(attachment)
       return attachment
+    })
+    this.attachmentPromises.set(sessionId, creation)
+    try {
+      return await creation
     } finally {
-      this.attachmentPromises.delete(sessionId)
+      if (this.attachmentPromises.get(sessionId) === creation) this.attachmentPromises.delete(sessionId)
     }
   }
 
@@ -371,6 +378,18 @@ export class PrimeAgentService extends Service.create({
   ) {
     const deadline = Date.now() + ATTACHMENT_STARTUP_TIMEOUT_MS
     let resumed = false
+
+    // Native snapshot events carry the active ID before attach returns. Starting
+    // with the logical ID can discard snapshot-begin and accept only its end.
+    if (!this.sessionTargets.get(sessionId)?.activeSessionId) {
+      const listed = requireSuccess(await client.request({ type: "list", all: true }))
+      const session = readSessionList(listed).map(toCatalogSession).find((item) => item.summary.id === sessionId)
+      if (session) this.sessionTargets.set(sessionId, session.target)
+      if (!session?.target.activeSessionId) {
+        await this.resumeSession(client, sessionId)
+        resumed = true
+      }
+    }
 
     while (true) {
       try {
@@ -400,7 +419,8 @@ export class PrimeAgentService extends Service.create({
   ) {
     let attachment: SessionAttachment | undefined
     let eventBeforeReady = false
-    const activeSessionId = this.sessionTargets.get(sessionId)?.activeSessionId ?? sessionId
+    const activeSessionId = this.sessionTargets.get(sessionId)?.activeSessionId
+    if (!activeSessionId) throw new Error("Prime Agent attachment requires an active session identity")
     const connection = new DaemonAgentConnection(client, activeSessionId, {
       closeClientOnDispose: false,
     })

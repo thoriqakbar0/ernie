@@ -28,4 +28,4 @@ Stopping Ernie closes its connection but leaves an externally selected Prime Age
 
 ### Send receipt recovery
 
-A dropped browser response recovers an existing send. Changed payloads, native uncertainty, and owner restarts cannot silently dispatch that identity again.
+Receipt inspection never dispatches, even when the original request arrives late. Concurrent attachments share a generation. Restart recovery resolves the native active ID before consuming snapshot events.

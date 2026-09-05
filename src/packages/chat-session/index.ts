@@ -17,7 +17,7 @@ export interface ChatSession {
 
 /** Dependencies controlled by Ernie's composition root. */
 export type ChatSessionDependencies = Readonly<{
-  primeAgent: Pick<PrimeAgentClient, "getSendEpoch" | "sendMessage" | "abort" | "waitForIdle">
+  primeAgent: Pick<PrimeAgentClient, "getSendEpoch" | "sendMessage" | "checkSend" | "abort" | "waitForIdle">
   sessionId: string
   createId: () => string
 }>
@@ -29,6 +29,7 @@ export function createChatSession({ primeAgent, sessionId, createId }: ChatSessi
   const send = (content: string, mode: SendRequest["mode"]): Promise<SubmitDraftResult> => {
     if (pending) return pending
     const operation = async (): Promise<SubmitDraftResult> => {
+      const recovering = unresolved !== undefined
       if (!unresolved) {
         if (!content.trim()) return { status: "not-sent", content, message: "Write a message before sending." }
         let epoch: string
@@ -38,7 +39,7 @@ export function createChatSession({ primeAgent, sessionId, createId }: ChatSessi
       }
       const request = unresolved
       let receipt: SendReceipt
-      try { receipt = await primeAgent.sendMessage(request) }
+      try { receipt = await (recovering ? primeAgent.checkSend(request) : primeAgent.sendMessage(request)) }
       catch { receipt = { status: "unknown", message: "The send acknowledgement was lost. Check send to recover its result without sending again." } }
       if (receipt.status !== "unknown") unresolved = undefined
       return { ...receipt, content: request.content }

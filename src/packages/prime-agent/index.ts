@@ -240,6 +240,9 @@ export interface PrimeAgentClient {
   /** Dispatches once per identity, or retrieves its existing receipt. */
   sendMessage(request: SendRequest): Promise<SendReceipt>
 
+  /** Inspects delivery and closes a missing identity against late dispatch. */
+  checkSend(request: SendRequest): Promise<SendReceipt>
+
   /** Reads the newest authoritative session state. */
   getSessionState(): Promise<PrimeSessionState>
 

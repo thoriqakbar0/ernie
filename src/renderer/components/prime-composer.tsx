@@ -39,8 +39,8 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
 }: PrimeComposerProps) {
   const inputId = "chat-message"
   const feedbackId = useId()
-  const unavailable = !connected || recovering || submitting || stopping
   const uncertain = feedback?.status === "unknown"
+  const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
   const message = feedback?.status === "error" || uncertain ? feedback.message
     : feedback?.status === "creating" ? "Starting conversation…"
     : feedback?.status === "sending" ? "Sending…"
@@ -84,7 +84,7 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
     <div id={feedbackId} {...stylex.props(sharedStyles.composerFeedback)}>
       {message ? <p role={feedback?.status === "error" ? "alert" : "status"} {...stylex.props(feedback?.status === "error" && sharedStyles.composerError)}>{message}</p> : null}
       {uncertain && releaseSend ? <><p>Your next action checks the original send. Sending again may duplicate it.</p><button type="button" disabled={unavailable} onClick={() => { void releaseSend() }}>I’ve checked; allow a new send</button></> : null}
-      {working && !uncertain ? <p>Sent messages are queued after the current work.</p> : !connected || recovering ? <p>You can keep writing. Sending resumes when the connection is ready.</p> : null}
+      {working && connected && !recovering && !uncertain ? <p>Sent messages are queued after the current work.</p> : !connected || recovering ? <p>You can keep writing. New messages need a connection.</p> : null}
     </div>
   </form>
 }

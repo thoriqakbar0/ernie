@@ -50,3 +50,14 @@ The guarded-send change adds these checks to the earlier UI evidence:
 - Isolated Zenbu/daemon integration: an uncertain native receipt survives renderer reconnect. A changed payload is refused, and the old epoch remains unknown after the service restarts. The fixture also reruns Agent persistence and daemon recovery checks.
 
 The two focused integration tests passed. TypeScript, StyleX, visible-outline, dependency-boundary, and lat checks passed. No automated browser tests or builds ran. The shared live daemon was not restarted or used for prompts. Successful model execution and automatic resolution of native acknowledgement loss remain outside this evidence.
+
+## Review corrections
+
+The review identifies and fixes four failure paths:
+
+- Receipt recovery previously called the send endpoint. If the original request never reached Ernie, Check send could dispatch it. The HTTP integration now drops that request, checks its receipt, and delivers the original late. Neither operation dispatches the message. An explicit fresh retry still works.
+- A daemon disconnect disabled Check send. Browser HMR now confirms receipt recovery while the daemon is disconnected, with new sends disabled.
+- Empty-Agent creation retained an old session ID after reassignment. Browser HMR now confirms that Star creates a fresh conversation after assigning its first conversation to Robot. The second transcript contains only the second message.
+- Native attachment could use a logical ID before the catalog supplied its active ID. Snapshot filtering could then discard the beginning of the snapshot. The service resolves active identity before attachment and reserves concurrent acquisition. The real integration checks a shared generation across three concurrent callers, offline receipt inspection, and attachment after daemon restart.
+
+These changes address the observed snapshot failure. The focused daemon integration passes after the fix; broader verification runs through the commit hook.

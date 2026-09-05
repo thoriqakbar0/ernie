@@ -34,6 +34,7 @@ export default function AgentRosterScenarios() {
 function Scenario({ preset }: { preset: Preset }) {
   const [seed] = useState(() => createSeed(preset))
   const [rejectSend, setRejectSend] = useState(false)
+  const [disconnected, setDisconnected] = useState(false)
   const [loseAck, setLoseAck] = useState(false)
   const [slowSend, setSlowSend] = useState(false)
   const sendOptions = useRef({ rejectSend, slowSend, loseAck })
@@ -95,7 +96,7 @@ function Scenario({ preset }: { preset: Preset }) {
     }
   })
   return <>
-    <div {...stylex.props(styles.toolbar)}><label><input type="checkbox" checked={reject} onChange={(event) => setReject(event.target.checked)}/> Reject mutations</label><label><input type="checkbox" checked={rejectSend} onChange={(event) => setRejectSend(event.target.checked)}/> Reject sends</label><label><input type="checkbox" checked={slowSend} onChange={(event) => setSlowSend(event.target.checked)}/> Slow sends (4s)</label><label><input type="checkbox" checked={loseAck} onChange={(event) => setLoseAck(event.target.checked)}/> Lose send acknowledgement</label><span>Switching scenarios resets fixture state.</span></div>
+    <div {...stylex.props(styles.toolbar)}><label><input type="checkbox" checked={reject} onChange={(event) => setReject(event.target.checked)}/> Reject mutations</label><label><input type="checkbox" checked={rejectSend} onChange={(event) => setRejectSend(event.target.checked)}/> Reject sends</label><label><input type="checkbox" checked={slowSend} onChange={(event) => setSlowSend(event.target.checked)}/> Slow sends (4s)</label><label><input type="checkbox" checked={loseAck} onChange={(event) => setLoseAck(event.target.checked)}/> Lose send acknowledgement</label><label><input type="checkbox" checked={disconnected} onChange={(event) => { const disconnected = event.target.checked; setDisconnected(disconnected); prime.setTransport(disconnected ? { status: "failed", error: "Synthetic daemon disconnect" } : { status: "connected" }) }}/> Disconnect Prime Agent</label><span>Switching scenarios resets fixture state.</span></div>
     <div {...stylex.props(styles.app)}><PrimeAgentStateProvider client={prime} getWorkspacePath={async () => "/example/workspace"}><App roster={roster} agentClient={client}/></PrimeAgentStateProvider></div>
   </>
 }

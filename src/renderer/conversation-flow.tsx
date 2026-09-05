@@ -30,7 +30,6 @@ export function ConversationFlowProvider({ children }: PropsWithChildren) {
   const [states, setStates] = useState<ReadonlyMap<string, FlowState>>(() => new Map())
   const stateRef = useRef(states)
   const requests = useRef(new Map<string, string>())
-  const created = useRef(new Map<string, string>())
   const pending = useRef(new Set<string>())
   const sendDrafts = useRef(new Map<string, () => void>())
   const update = (key: string, patch: Partial<FlowState>) => {
@@ -55,16 +54,12 @@ export function ConversationFlowProvider({ children }: PropsWithChildren) {
         if ("sessionId" in target) sessionId = target.sessionId
         else {
           update(key, { submission: { status: "creating" } })
-          const previous = created.current.get(key)
-          if (previous) sessionId = previous
-          else {
-            const requestId = requests.current.get(key) ?? crypto.randomUUID()
-            requests.current.set(key, requestId)
-            const creation = await client.createConversation({ agentId: target.agentId, requestId })
-            if (!creation.ok) return { status: "creation-error" as const, message: creation.error }
-            sessionId = creation.value
-            created.current.set(key, sessionId)
-          }
+          const requestId = requests.current.get(key) ?? crypto.randomUUID()
+          requests.current.set(key, requestId)
+          const creation = await client.createConversation({ agentId: target.agentId, requestId })
+          if (!creation.ok) return { status: "creation-error" as const, message: creation.error }
+          sessionId = creation.value
+          requests.current.delete(key)
           pending.current.add(sessionId)
           feedbackKey = sessionId
           clear = draft.transfer(sessionId)
@@ -90,8 +85,11 @@ export function ConversationFlowProvider({ children }: PropsWithChildren) {
       case "queued":
         update(feedbackKey, { submission: { status: result.status } })
         break
-      case "creation-error":
       case "failure":
+        sendDrafts.current.delete(feedbackKey)
+        update(feedbackKey, { submission: { status: "error", message: result.message } })
+        break
+      case "creation-error":
         update(feedbackKey, { submission: { status: "error", message: result.message } })
         break
       case "unknown":

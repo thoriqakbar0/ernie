@@ -52,7 +52,7 @@ Unsent text and transcript reading positions survive navigation for the applicat
 
 Show pending creation and prevent duplicate creation while it is pending. Keep a creation error visible with a usable recovery action.
 
-Enter submits and Shift+Enter inserts a newline. Respect composition input and prevent empty submissions. Disable submission while the connection or recovery state prevents it. Preserve typed text when a submission fails.
+Enter submits and Shift+Enter inserts a newline. Respect composition input and prevent empty submissions. Disable new submissions while the connection or recovery state prevents them. Keep Check send available because receipt inspection does not dispatch a message. Preserve typed text when a submission fails.
 
 During active work, distinguish follow-up submission from stopping execution. Derive command availability from authoritative state. A successful stop request must not fabricate a completed execution state.
 

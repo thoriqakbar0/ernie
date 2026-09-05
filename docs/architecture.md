@@ -68,3 +68,9 @@ Conversation creation saves immutable execution origin and uses native `appendSy
 `ConversationDraftProvider` captures object identity, not string equality, when clearing submitted text. `MessageReadingProvider` stores per-session scroll positions in application memory; transcript remounts restore them. Hidden mobile views do not overwrite positions with zero-sized layout observations.
 
 `describeConversationActivity` parses supported structured tool results with Effect Schema and projects presentation values. It consumes the existing accepted snapshot and creates no independent execution authority. The transcript places this projection in a session-level disclosure because the current display contract does not map every event to a submitted message.
+
+## Native attachment identity
+
+A logical session ID survives runtime restarts. Native snapshot events identify the current active session. Ernie resolves that active ID from the daemon catalog, or resumes the saved session, before constructing its logical connection. Otherwise, the connection can discard the beginning of a snapshot before the attach response updates its identity.
+
+Attachment acquisition reserves a shared promise before asynchronous cleanup or connection setup. Concurrent renderer calls receive one attachment generation. If recovery installs an attachment during client acquisition, the caller uses that attachment.

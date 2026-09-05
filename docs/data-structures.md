@@ -76,7 +76,7 @@ For a boundary change, update its TypeScript contract, parser, producer, consume
 
 An association maps one logical Prime session ID to an Agent ID or `null`, with explicit visit recency. Its optional immutable origin records the creating Agent, instruction revision and text, workspace, and provider/model defaults. Reassignment preserves origin. Legacy sessions have no origin or association until explicitly organized; neither absence implies an Agent assignment.
 
-Creation request IDs support retry after a persisted creation succeeds. A created session whose assignment fails remains reachable through unassigned history. The service persists origin before reporting creation success. Expected mutation failures return a typed result and keep renderer form data available.
+Creation request IDs support retry after a persisted creation succeeds. The renderer releases its creation request ID after success and uses the roster association thereafter. An Agent that becomes empty after reassignment creates a fresh conversation. A created session whose assignment fails remains reachable through unassigned history. The service persists origin before reporting creation success. Expected mutation failures return a typed result and keep renderer form data available.
 
 The catalog projection includes optional activity summary, activity timestamp, and explicit worker failure. Roster previews aggregate concurrent states without using idle as a completion signal. Conversation title is the fallback when activity text is unavailable.
 
@@ -100,7 +100,7 @@ The chat coordinator reserves a command ID and the service epoch before calling 
 
 `PrimeAgentService` parses the request and reserves its receipt before native dispatch. Repeated IDs share the same pending or completed result. A changed payload with the same ID returns unknown. Preparation failures return not-sent; a subsequent user retry can create a new identity because no message entered native dispatch. Errors after dispatch starts return unknown and never trigger automatic redelivery.
 
-A lost renderer RPC response can recover a completed receipt through Check send. A lost native acknowledgement remains unknown: the installed Prime Agent admission IDs support cancellation, not durable deduplication or passive status lookup. Ernie does not infer admission from matching transcript text. The user can inspect the conversation and explicitly allow a new send, which may duplicate an earlier message.
+A lost renderer RPC response can recover a completed receipt through Check send. This action calls `checkSend`, which never attaches to the daemon or dispatches a message. If no receipt exists, the service records not-sent before responding; a delayed original request then receives that same outcome. Checking a receipt remains available while the daemon is disconnected. A lost native acknowledgement remains unknown: the installed Prime Agent admission IDs support cancellation, not durable deduplication or passive status lookup. Ernie does not infer admission from matching transcript text. The user can inspect the conversation and explicitly allow a new send, which may duplicate an earlier message.
 
 Follow-ups inspect the native `queued` result. A false result means Prime Agent did not add another equivalent pending follow-up; Ernie retains the draft. Accepted and queued receipts describe admission, not eventual execution or successful completion.
 

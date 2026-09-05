@@ -34,7 +34,7 @@ Production code imports package entry points only. Cross-package dependencies re
 
 [[src/main/services/agents.ts#AgentsService]] owns typed Effect operations for roster settings, selection, and assignment. [[src/main/services/agent-store.ts#AgentStoreService]] persists them in Zenbu. [[src/renderer/agent-state.tsx#ConversationDraftProvider]] keeps session-keyed unsent text for the application lifetime. Prime Agent retains transcript and execution authority.
 
-Zenbu 0.6 swallows flush errors. Agent writes verify a fresh token and roster on disk. Native recovery records the session path at attachment and restores immutable origin; see `docs/architecture.md` for ownership details.
+Zenbu 0.6 swallows flush errors. Agent writes verify a fresh token and roster on disk. Native attachment resolves the active session ID before snapshot events arrive and shares pending acquisition. Recovery records the session path and restores immutable origin; see `docs/architecture.md` for ownership details.
 
 ## Conversation presentation
 

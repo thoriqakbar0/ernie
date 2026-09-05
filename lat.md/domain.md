@@ -14,7 +14,7 @@ The shared contract is [[src/packages/prime-agent/index.ts#PrimeSessionSummary]]
 
 One chat session owns an immutable send until admission is known. Main-service receipts prevent repeat dispatch within one service epoch.
 
-[[src/packages/chat-session/index.ts#createChatSession]] shares pending work and preserves the original request during recovery. [[src/main/prime-agent/send-receipts.ts#SendReceipts]] retains receipt evidence and refuses stale epochs; uncertain native delivery never triggers automatic redelivery.
+[[src/packages/chat-session/index.ts#createChatSession]] shares pending work and preserves the original request during recovery. [[src/main/prime-agent/send-receipts.ts#SendReceipts]] retains receipt evidence and refuses stale epochs; uncertain native delivery never triggers automatic redelivery. Receipt inspection closes missing identities against late requests and never dispatches a message.
 
 ## Session synchronization
 

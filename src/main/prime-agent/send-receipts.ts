@@ -8,6 +8,15 @@ export class SendReceipts {
 
   /** Replays an existing result; preparation failure guarantees no message dispatch. */
   async send(request: SendRequest, prepare: () => Promise<() => Promise<SendReceipt>>): Promise<SendReceipt> {
+    return this.resolve(request, prepare)
+  }
+
+  /** Checks delivery without dispatch; an absent identity rejects any late original request. */
+  async check(request: SendRequest): Promise<SendReceipt> {
+    return this.resolve(request)
+  }
+
+  private async resolve(request: SendRequest, prepare?: () => Promise<() => Promise<SendReceipt>>): Promise<SendReceipt> {
     if (request.epoch !== this.epoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending this message again." }
     const fingerprint = createHash("sha256").update(JSON.stringify([request.sessionId, request.mode, request.content])).digest("hex")
     const existing = this.entries.get(request.commandId)
@@ -19,6 +28,7 @@ export class SendReceipts {
     if (this.entries.size >= 10_000) return { status: "not-sent", message: "The send receipt limit was reached. Restart Ernie before sending a new message." }
     // The microtask starts after reservation, so concurrent calls share one dispatch.
     const result = Promise.resolve().then(async (): Promise<SendReceipt> => {
+      if (!prepare) return { status: "not-sent", message: "Ernie did not receive this send. Your message was not sent; try again." }
       let dispatch: () => Promise<SendReceipt>
       try { dispatch = await prepare() }
       catch { return { status: "not-sent", message: "The connection was not ready. Your message was not sent; try again." } }

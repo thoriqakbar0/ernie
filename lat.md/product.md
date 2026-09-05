@@ -31,3 +31,9 @@ The current UI does not add rename, archive, delete, retry, or permission comman
 Agents act as persistent contacts. One send creates and submits an empty Agent conversation; active conversations queue follow-ups. Activity remains session-scoped, and idle never proves task success.
 
 [[src/renderer/conversation-flow.tsx#ConversationFlowProvider]] owns submission and stop feedback across navigation. [[src/renderer/components/prime-composer.tsx#PrimeComposer]] presents one input interaction for every chat state. See [UI guidance](../docs/ui.md#message-to-work-flow) for the complete flow.
+
+## Conversation home
+
+The unselected workspace introduces persistent Agents with a direct creation action. Empty conversations pair Agent identity with the composer and actual workspace; attachment preserves editable text.
+
+[[src/renderer/components/agent-welcome.tsx#AgentWelcome]] opens the persisted settings flow. [[src/renderer/components/empty-conversation.tsx#EmptyConversation]] introduces new work. [[src/renderer/components/chat-workspace.tsx#ChatWorkspace]] keeps creation feedback visible until session draft ownership transfers.

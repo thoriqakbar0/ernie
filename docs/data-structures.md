@@ -90,6 +90,8 @@ The Zenbu envelope also stores `rosterWriteId`, a fresh write acknowledgement to
 
 Submission feedback distinguishes idle, creating, sending, accepted, queued, unknown, and error states. Stop feedback has its own idle, stopping, and error states. Both remain session-keyed outside mounted workspace components. An empty Agent initially uses its Agent draft key; creation associates subsequent submission feedback with the returned session ID.
 
+The Agent's creating state remains visible if native selection arrives before the creation response. After draft transfer, the session owns sending feedback. Attachment does not remove its composer; commands remain unavailable until the authoritative snapshot permits them.
+
 Runtime admission and queued follow-up acknowledgement are separate outcomes. The send receipt preserves one command identity across prompt and follow-up recovery; acknowledgement does not establish that the instruction has executed. No new task or unread record is persisted.
 
 Reading positions store a scroll offset and whether the reader was at the end, keyed by session for the application lifetime. Tool-output presentation accepts the native `toolResult` shape and only supported text content, preserving the tool error flag without interpreting it as overall task completion.

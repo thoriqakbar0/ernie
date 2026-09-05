@@ -10,7 +10,7 @@ The interface presents persistent Agents and their Prime Agent conversations. Ea
 
 ## Current surface
 
-The shell composes session navigation and the chat workspace. The workspace selects an empty, loading, opening-error, draft, or conversation view from session data. A draft uses the central composer; a conversation places the composer below its transcript.
+The shell composes session navigation and the chat workspace. The workspace selects an empty, loading, opening-error, draft, or conversation view from session data. Empty Agents, draft conversations, and ongoing conversations use the same bottom composer.
 
 Use these source entry points for the affected surface:
 
@@ -46,13 +46,13 @@ Requirements below define expected behavior. Verify the affected requirement dur
 
 Selection must keep the transcript, composer context, runtime state, and navigation marker aligned. A draft from one session must never appear in another. Rapid switching must converge on one selected session.
 
-Unsent text survives navigation for the application lifetime, keyed by session. Browser reload ends that lifetime. Read [architecture ownership](architecture.md#ownership).
+Unsent text and transcript reading positions survive navigation for the application lifetime, keyed by session. Browser reload ends that lifetime. Read [architecture ownership](architecture.md#ownership).
 
 ### Creation and submission
 
 Show pending creation and prevent duplicate creation while it is pending. Keep a creation error visible with a usable recovery action.
 
-Enter submits and Shift+Enter inserts a newline. Respect composition input and prevent empty submissions. Disable submission while the connection or recovery state prevents it. Preserve typed text when a submission fails.
+Enter submits and Shift+Enter inserts a newline. Respect composition input and prevent empty submissions. Disable new submissions while the connection or recovery state prevents them. Keep Check send available because receipt inspection does not dispatch a message. Preserve typed text when a submission fails.
 
 During active work, distinguish follow-up submission from stopping execution. Derive command availability from authoritative state. A successful stop request must not fabricate a completed execution state.
 
@@ -105,7 +105,7 @@ Update this document when a visual or interaction decision is accepted. Record a
 
 ## Agent roster
 
-Selecting an Agent opens its most recently visited conversation, or an empty composer. Creating from that composer retains entered text in the new conversation without submitting it. The workspace header owns conversation history, new conversation, settings, and searchable assignment. Unassigned history remains grouped by workspace; existing sessions receive no automatic Agent assignment.
+Selecting an Agent opens its most recently visited conversation, or an empty chat. Sending from that empty chat creates a conversation and submits the captured message in one action. The workspace header shows the Agent, conversation title, and actual session workspace. It owns conversation history and explicit new conversation creation; Conversation options contains settings and searchable assignment. Unassigned history remains grouped by workspace; existing sessions receive no automatic Agent assignment.
 
 Settings edit name, avatar, role description, instructions, default workspace, and default provider/model. Failed saves and creation retain entered data for retry. Instructions and defaults affect future conversations. Reassignment changes organization without changing execution configuration or restarting the session.
 
@@ -117,6 +117,20 @@ Use the star control to add or remove an Agent from favorites. A filled star mar
 
 ## Workspace picker
 
-The draft workspace picker opens an existing conversation; it does not change a conversation's execution directory. Show the target conversation title and complete workspace path. Retain search and choices when selection fails, and close only after success. Keep pending selection explicit and prevent overlapping choices. The [picker review](workspace-picker-review.md) records coverage and limitations.
+The standalone development workspace picker opens an existing conversation; it does not change a conversation's execution directory. Show the target conversation title and complete workspace path. Retain search and choices when selection fails, and close only after success. Keep pending selection explicit and prevent overlapping choices. The [picker review](workspace-picker-review.md) records coverage and limitations.
 
 Transcript entries retain accessible speaker attribution. Only system messages show a visible speaker heading; user and assistant entries start with their content.
+
+## Message-to-work flow
+
+Sending continues the displayed conversation. New conversation explicitly starts another Prime Agent session with the Agent’s defaults; earlier messages are not implicitly included. Quiet roster rows show the most recently visited conversation title. Active rows use authoritative activity, preserving concurrent recovery and failure counts.
+
+The shared composer keeps typing available during submission and disconnection. Enter sends, Shift+Enter adds a newline, and composition input never sends. Show starting, sending, accepted, queued, or error feedback near the composer. Admission confirms runtime ownership, not task success. Messages sent during active work queue after the current turn. Stop remains a separate button and settles only after authoritative idle state.
+
+Conversation creation failures retain the Agent draft and retry identity. If creation succeeds but submission fails, retain the created session and its draft. An uncertain admission is never automatically retried; explain that the conversation and connection must be inspected before resending. Later draft edits survive delayed responses.
+
+Inline execution details belong to the session. They expose supported action phases, active tool names, queued follow-ups, child states, and parsed textual tool results. Tool errors remain distinct from overall task success. No idle transition, animation, or assistant question creates a success or attention badge. Structured reasoning and raw arguments are not execution details.
+
+At widths up to 720 CSS pixels, the sidebar and chat occupy separate views. Selecting an Agent or history item opens its chat; Open sidebar returns to the roster. The header keeps secondary controls in Conversation options, with the full workspace path available there. Returning to a conversation restores its reading position; readers at the end follow new output, and earlier readers retain access to the latest-message control.
+
+This flow introduces no task database, durable unread markers, automatic result summaries, or cross-conversation memory. See [chat-flow verification](chat-flow-verification.md) for observed scenarios and limits.

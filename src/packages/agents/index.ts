@@ -76,6 +76,10 @@ export function describeAgentActivity(sessions: readonly PrimeSessionSummary[]) 
   const recovering = sessions.filter((session) => session.state === "recovering").length
   const failed = sessions.filter((session) => session.workerFailed).length
   const counts = [working ? `${working} working` : "", recovering ? `${recovering} recovering` : "", failed ? `${failed} failed` : ""].filter(Boolean)
+  if (working === 1 && !recovering && !failed) {
+    const active = sessions.find((session) => session.state === "working")
+    return active?.activitySummary ?? (active?.name ? `Working · ${active.name}` : "Working…")
+  }
   if (counts.length) return counts.join(" · ")
   const latest = [...sessions].sort((a, b) => (b.activityAt ?? "").localeCompare(a.activityAt ?? ""))[0]
   return latest?.activitySummary ?? latest?.name ?? (latest ? "Untitled conversation" : "No conversations yet")

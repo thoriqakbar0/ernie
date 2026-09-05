@@ -1,6 +1,7 @@
 import { styles } from "./conversation-transcript.styles"
 import * as stylex from "@stylexjs/stylex"
-import type { PrimeSessionMessage } from "../../packages/prime-agent"
+import type { PrimeSessionMessage, PrimeSessionSnapshot } from "../../packages/prime-agent"
+import { ConversationActivity } from "./conversation-activity"
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -11,16 +12,19 @@ import {
   useMessageScroller,
 } from "./ui/message-scroller"
 type ConversationTranscriptProps = Readonly<{
+  sessionId?: string
+  agentName?: string
+  snapshot?: PrimeSessionSnapshot
   messages: readonly PrimeSessionMessage[]
 }>
-export function ConversationTranscript({ messages }: ConversationTranscriptProps) {
+export function ConversationTranscript(props: ConversationTranscriptProps) {
   return (
-    <MessageScrollerProvider>
-      <Transcript messages={messages} />
+    <MessageScrollerProvider restorationKey={props.sessionId}>
+      <Transcript {...props} />
     </MessageScrollerProvider>
   )
 }
-function Transcript({ messages }: ConversationTranscriptProps) {
+function Transcript({ messages, snapshot, agentName }: ConversationTranscriptProps) {
   const { atEnd } = useMessageScroller()
   return (
     <MessageScroller xstyle={[styles.conversationTranscriptShell]}>
@@ -34,7 +38,7 @@ function Transcript({ messages }: ConversationTranscriptProps) {
           {messages.map((message) => (
             <MessageScrollerItem key={message.id}>
               <article
-                aria-label={message.role === "assistant" ? "Prime Agent message" : message.role === "user" ? "Your message" : "System message"}
+                aria-label={message.role === "assistant" ? `${agentName ?? "Prime Agent"} message` : message.role === "user" ? "Your message" : "System message"}
                 {...stylex.props(
                   styles.messageEntry,
                   message.role === "user" && styles.messageEntryUser,
@@ -56,6 +60,7 @@ function Transcript({ messages }: ConversationTranscriptProps) {
               </article>
             </MessageScrollerItem>
           ))}
+          {snapshot ? <ConversationActivity snapshot={snapshot}/> : null}
         </MessageScrollerContent>
       </MessageScrollerViewport>
       {!atEnd ? (

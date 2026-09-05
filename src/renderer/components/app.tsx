@@ -7,13 +7,15 @@ import { PanelLeftOpenIcon } from "lucide-react"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
 import type { Roster } from "../../packages/agents"
 import { AgentStateProvider, ConversationDraftProvider, type AgentClient } from "../agent-state"
+import { ConversationFlowProvider } from "../conversation-flow"
+import { MessageReadingProvider } from "./ui/message-scroller"
 import { ChatWorkspace } from "./chat-workspace"
 
 // @lat: [[product#Product contract#Responsive workspace]]
 export function App({ roster, agentClient }: { roster?: Roster; agentClient?: AgentClient } = {}) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   return (
-    <AgentStateProvider roster={roster} client={agentClient}><ConversationDraftProvider><div {...stylex.props(styles.appShell)}>
+    <AgentStateProvider roster={roster} client={agentClient}><ConversationDraftProvider><ConversationFlowProvider><MessageReadingProvider><div {...stylex.props(styles.appShell)}>
       <a href="#ernie-workspace" {...stylex.props(styles.skipLink)}>
         Skip to workspace
       </a>
@@ -40,8 +42,8 @@ export function App({ roster, agentClient }: { roster?: Roster; agentClient?: Ag
             <PanelLeftOpenIcon {...stylex.props(sharedStyles.controlIcon, styles.openIcon)} />
           </button>
         )}
-        <ChatWorkspace />
+        <div {...stylex.props(styles.workspaceSlot, sidebarOpen && styles.workspaceBehindSidebar)}><ChatWorkspace /></div>
       </main>
-    </div></ConversationDraftProvider></AgentStateProvider>
+    </div></MessageReadingProvider></ConversationFlowProvider></ConversationDraftProvider></AgentStateProvider>
   )
 }

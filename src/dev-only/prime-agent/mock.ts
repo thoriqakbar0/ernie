@@ -1,4 +1,6 @@
 import type {
+  SendRequest,
+  SendReceipt,
   AttachSessionRequest,
   CreateSessionRequest,
   PrimeAgentModelClient,
@@ -10,21 +12,23 @@ import type {
   PrimeSessionSnapshotEnvelope,
   PrimeSessionSummary,
   PrimeSessionTransport,
-  PromptAdmission,
-  PromptRequest,
+  PrimeUsefulSessionContext,
   SessionAction,
-  SessionTextAction,
 } from "../../packages/prime-agent"
 import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixtures"
 
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
+  /** Changes fixture transport without replacing sessions or receipts. */
+  setTransport(transport: PrimeSessionTransport): void
   /** Releases timers, listeners, and pending idle waits. */
   dispose(): void
 }
 
 type MockSession = {
   summary: PrimeSessionSummary
+  useful?: PrimeUsefulSessionContext
+  followUps: string[]
   messages: PrimeSessionMessage[]
   transport: PrimeSessionTransport
   generation: string
@@ -35,6 +39,7 @@ type MockSession = {
 }
 
 const initialSession: MockSession = {
+  followUps: [],
   summary: {
     id: "mock-session-1",
     cwd: "/Users/thor/work/ernie",
@@ -61,6 +66,9 @@ const initialSession: MockSession = {
 /** Selects the authoritative snapshots available when a mock client starts. */
 export type MockPrimeAgentClientOptions = Readonly<{
   initialSnapshots?: readonly PrimeSessionSnapshot[]
+  beforePrompt?: () => Promise<void>
+  afterSend?: () => Promise<void>
+  replyDelayMs?: number
 }>
 
 /** Creates an in-memory Prime Agent whose sessions retain independent state. */
@@ -73,6 +81,8 @@ export function createMockPrimeAgentClient(
   const sessions = new Map<string, MockSession>(
     seededSessions.map((session) => [session.summary.id, session]),
   )
+  const sendEpoch = crypto.randomUUID()
+  const receipts = new Map<string, { request: SendRequest; result: Promise<SendReceipt> }>()
   const stateListeners = new Set<(state: PrimeSessionState) => void>()
   let stateRevision = 0
   let selectedSessionId: string | undefined = seededSessions[0]?.summary.id
@@ -113,13 +123,19 @@ export function createMockPrimeAgentClient(
     }
   }
 
+  const usefulSnapshot = (session: MockSession): PrimeUsefulSessionContext => {
+    const fixture = createPrimeUsefulSessionFixture(session.summary, session.messages)
+    return { ...fixture, structuredMessages: [...(session.useful?.structuredMessages.filter((message) => message.role === "toolResult") ?? []), ...fixture.structuredMessages],
+      state: { ...fixture.state, activeToolNames: session.summary.state === "working" ? session.useful?.state.activeToolNames ?? [] : [],
+        sessionActions: { ...fixture.state.sessionActions, queuedCount: session.followUps.length, followUps: [...session.followUps] } } }
+  }
   const emitUsefulState = (session: MockSession) => {
-    const useful = createPrimeUsefulSessionFixture(session.summary, session.messages)
+    const useful = usefulSnapshot(session)
     emitChange(session, { type: "usefulState", state: useful.state })
   }
 
   const emitStructuredMessages = (session: MockSession) => {
-    const useful = createPrimeUsefulSessionFixture(session.summary, session.messages)
+    const useful = usefulSnapshot(session)
     emitChange(session, {
       type: "structured",
       structuredMessages: useful.structuredMessages,
@@ -161,15 +177,17 @@ export function createMockPrimeAgentClient(
     const timer = setTimeout(() => {
       session.timers.delete(timer)
       appendMessage(session, "assistant", `Mock Prime Agent received: ${content}`)
-      setState(session, "idle")
-    }, 450)
+      const next = session.followUps.shift()
+      if (next) { appendMessage(session, "user", next); scheduleReply(session, next) }
+      else setState(session, "idle")
+    }, options.replyDelayMs ?? 450)
     session.timers.add(timer)
   }
 
   const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
     session: session.summary,
     messages: session.messages,
-    useful: createPrimeUsefulSessionFixture(session.summary, session.messages),
+    useful: usefulSnapshot(session),
     transport: session.transport,
   })
 
@@ -181,6 +199,46 @@ export function createMockPrimeAgentClient(
   })
 
   return {
+    setTransport(transport) {
+      for (const session of sessions.values()) {
+        session.transport = transport
+        emitChange(session, { type: "transport", transport })
+      }
+    },
+    getSendEpoch: () => Promise.resolve(sendEpoch),
+    async checkSend(request) {
+      if (request.epoch !== sendEpoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending again." }
+      const existing = receipts.get(request.commandId)
+      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) return { status: "unknown", message: "This identity belongs to another send." }
+      const result = existing?.result ?? Promise.resolve<SendReceipt>({ status: "not-sent", message: "Ernie did not receive this send. Your message was not sent; try again." })
+      receipts.set(request.commandId, { request, result })
+      const receipt = await result
+      await options.afterSend?.()
+      return receipt
+    },
+    async sendMessage(request) {
+      if (request.epoch !== sendEpoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending again." }
+      const existing = receipts.get(request.commandId)
+      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) return { status: "unknown", message: "This identity belongs to another send." }
+      const result = existing?.result ?? Promise.resolve().then(async (): Promise<SendReceipt> => {
+        try { await options.beforePrompt?.() }
+        catch { return { status: "not-sent", message: "The scenario rejected this send before dispatch. Your text is kept; try again." } }
+        const session = getSession(request.sessionId)
+        if (request.mode === "follow-up") {
+          session.followUps.push(request.content)
+          emitUsefulState(session)
+          return { status: "queued" }
+        }
+        setState(session, "working")
+        appendMessage(session, "user", request.content)
+        scheduleReply(session, request.content)
+        return { status: "accepted" }
+      })
+      receipts.set(request.commandId, { request, result })
+      const receipt = await result
+      await options.afterSend?.()
+      return receipt
+    },
     getSessionState: () => Promise.resolve(state()),
 
     subscribeSessionState(listener) {
@@ -205,6 +263,7 @@ export function createMockPrimeAgentClient(
       }
       sessions.set(summary.id, {
         summary,
+        followUps: [],
         messages: [],
         transport: { status: "connected" },
         generation: `mock-generation-${crypto.randomUUID()}`,
@@ -227,28 +286,11 @@ export function createMockPrimeAgentClient(
       return () => session.listeners.delete(listener)
     },
 
-    prompt(request: PromptRequest): Promise<PromptAdmission> {
-      const session = getSession(request.sessionId)
-      setState(session, "working")
-      appendMessage(session, "user", request.content)
-      scheduleReply(session, request.content)
-      return Promise.resolve({
-        admissionId: request.admissionId,
-        commandId: request.commandId,
-      })
-    },
-
-    followUp(request: SessionTextAction) {
-      const session = getSession(request.sessionId)
-      appendMessage(session, "user", request.content)
-      scheduleReply(session, request.content)
-      return Promise.resolve()
-    },
-
     abort(request: SessionAction) {
       const session = getSession(request.sessionId)
       for (const timer of session.timers) clearTimeout(timer)
       session.timers.clear()
+      session.followUps = []
       setState(session, "idle")
       return Promise.resolve()
     },
@@ -306,6 +348,7 @@ export function createMockPrimeAgentClient(
 function cloneSession(session: MockSession): MockSession {
   return {
     summary: { ...session.summary },
+    followUps: [...session.followUps],
     messages: [...session.messages],
     transport: { ...session.transport },
     generation: session.generation,
@@ -322,6 +365,8 @@ function createSeededSession(
 ): MockSession {
   return {
     summary: { ...snapshot.session },
+    useful: snapshot.useful,
+    followUps: [...snapshot.useful.state.sessionActions.followUps],
     messages: [...snapshot.messages],
     transport: { ...snapshot.transport },
     generation: `mock-seed-generation-${index + 1}`,

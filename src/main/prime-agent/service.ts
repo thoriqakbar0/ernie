@@ -33,6 +33,8 @@ import {
   diffPrimeSessionSnapshots,
   projectPrimeSessionSnapshot,
 } from "./projection"
+import { SendRequest, type SendReceipt } from "../../packages/prime-agent"
+import { SendReceipts } from "./send-receipts"
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
 import { enrichPrimeSessionSnapshot } from "./snapshot"
@@ -116,6 +118,7 @@ export class PrimeAgentService extends Service.create({
   key: "primeAgent",
   deps: { rpc: RpcService, agentStore: AgentStoreService },
 }) {
+  private readonly sendReceipts = new SendReceipts()
   private readonly endpoint = readPrimeAgentEndpoint()
   private readonly attachments = new Map<string, SessionAttachment>()
   private readonly attachmentPromises = new Map<string, Promise<SessionAttachment>>()
@@ -213,23 +216,35 @@ export class PrimeAgentService extends Service.create({
     return snapshotEnvelope(await this.getAttachment(input.sessionId))
   }
 
-  /** Submits one prompt through its owning logical attachment. */
-  async prompt(input: {
-    sessionId: string
-    admissionId: string
-    commandId: string
-    content: string
-  }) {
-    const { attachment, connection } = await this.getReadyAttachment(input.sessionId)
-    await this.nameDraftSessionFromPrompt(attachment, connection, input.content)
-    await connection.prompt(input.content, { source: "interactive" })
-    return { admissionId: input.admissionId, commandId: input.commandId }
+  /** Returns the identity of this in-memory receipt owner. */
+  async getSendEpoch(): Promise<string> { return this.sendReceipts.epoch }
+
+  /** Inspects a receipt without attaching to the daemon or dispatching a message. */
+  async checkSend(input: SendRequest): Promise<SendReceipt> {
+    return this.sendReceipts.check(Schema.decodeUnknownSync(SendRequest)(input))
   }
 
-  /** Queues one follow-up through its owning logical attachment. */
-  async followUp(input: { sessionId: string; content: string }) {
-    const connection = await this.getReadyConnection(input.sessionId)
-    await connection.followUp(input.content)
+  /** Reserves an immutable send before entering the native transport. */
+  async sendMessage(input: SendRequest): Promise<SendReceipt> {
+    const request = Schema.decodeUnknownSync(SendRequest)(input)
+    return this.sendReceipts.send(request, async () => {
+      const { attachment, connection } = await this.getReadyAttachment(request.sessionId)
+      if (request.mode === "prompt") {
+        await this.nameDraftSessionFromPrompt(attachment, connection, request.content)
+      }
+      if (request.mode === "prompt") return async () => {
+        await connection.prompt(request.content, { source: "interactive" })
+        return { status: "accepted" }
+      }
+      const { activeSessionId } = Schema.decodeUnknownSync(Schema.Struct({ activeSessionId: Schema.NonEmptyString }))(await connection.getState())
+      const client = await this.getClient()
+      return async () => {
+        // The native convenience wrapper discards queued:false for a coalesced follow-up.
+        const response = requireSuccess(await client.request({ type: "follow_up", activeSessionId, message: request.content }))
+        const { queued } = Schema.decodeUnknownSync(Schema.Struct({ queued: Schema.Boolean }))(response)
+        return queued ? { status: "queued" } : { status: "not-sent", message: "Prime Agent already has an equivalent follow-up pending. This message was not added again." }
+      }
+    })
   }
 
   /** Requests cancellation through its owning logical attachment. */
@@ -328,28 +343,30 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async getAttachment(sessionId: string) {
-    const existing = this.attachments.get(sessionId)
-    if (existing?.connection) return existing
-    if (existing) {
-      await this.releaseAttachment(existing)
-      this.attachments.delete(sessionId)
-    }
-
     const pending = this.attachmentPromises.get(sessionId)
     if (pending) return pending
-    const creation = this.createAttachment(
-      await this.getClient(),
-      sessionId,
-      existing?.snapshot,
-      this.summaries.get(sessionId),
-    )
-    this.attachmentPromises.set(sessionId, creation)
-    try {
-      const attachment = await creation
+    const existing = this.attachments.get(sessionId)
+    if (existing?.connection) return existing
+
+    // Reserve before cleanup or client acquisition can yield to another caller.
+    const creation = Promise.resolve().then(async () => {
+      if (existing) {
+        await this.releaseAttachment(existing)
+        if (this.attachments.get(sessionId) === existing) this.attachments.delete(sessionId)
+      }
+      const client = await this.getClient()
+      // Recovery can install the attachment while client acquisition is pending.
+      const recovered = this.attachments.get(sessionId)
+      if (recovered?.connection) return recovered
+      const attachment = await this.createAttachment(client, sessionId, existing?.snapshot, this.summaries.get(sessionId))
       this.installAttachment(attachment)
       return attachment
+    })
+    this.attachmentPromises.set(sessionId, creation)
+    try {
+      return await creation
     } finally {
-      this.attachmentPromises.delete(sessionId)
+      if (this.attachmentPromises.get(sessionId) === creation) this.attachmentPromises.delete(sessionId)
     }
   }
 
@@ -361,6 +378,18 @@ export class PrimeAgentService extends Service.create({
   ) {
     const deadline = Date.now() + ATTACHMENT_STARTUP_TIMEOUT_MS
     let resumed = false
+
+    // Native snapshot events carry the active ID before attach returns. Starting
+    // with the logical ID can discard snapshot-begin and accept only its end.
+    if (!this.sessionTargets.get(sessionId)?.activeSessionId) {
+      const listed = requireSuccess(await client.request({ type: "list", all: true }))
+      const session = readSessionList(listed).map(toCatalogSession).find((item) => item.summary.id === sessionId)
+      if (session) this.sessionTargets.set(sessionId, session.target)
+      if (!session?.target.activeSessionId) {
+        await this.resumeSession(client, sessionId)
+        resumed = true
+      }
+    }
 
     while (true) {
       try {
@@ -390,7 +419,8 @@ export class PrimeAgentService extends Service.create({
   ) {
     let attachment: SessionAttachment | undefined
     let eventBeforeReady = false
-    const activeSessionId = this.sessionTargets.get(sessionId)?.activeSessionId ?? sessionId
+    const activeSessionId = this.sessionTargets.get(sessionId)?.activeSessionId
+    if (!activeSessionId) throw new Error("Prime Agent attachment requires an active session identity")
     const connection = new DaemonAgentConnection(client, activeSessionId, {
       closeClientOnDispose: false,
     })

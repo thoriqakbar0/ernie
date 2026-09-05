@@ -1,3 +1,6 @@
+export { SendRequest, SendReceipt } from "./send"
+import type { SendRequest, SendReceipt } from "./send"
+
 /** One session listed by Prime Agent. */
 export type PrimeSessionSummary = Readonly<{
   id: string
@@ -224,26 +227,6 @@ export type AttachSessionRequest = Readonly<{
   sessionId: string
 }>
 
-/** A request Ernie sends when it asks Prime Agent to own a turn. */
-export type PromptRequest = Readonly<{
-  sessionId: string
-  admissionId: string
-  commandId: string
-  content: string
-}>
-
-/** Prime Agent's confirmation that it owns the submitted turn. */
-export type PromptAdmission = Readonly<{
-  admissionId: string
-  commandId: string
-}>
-
-/** A queued instruction for the active Prime Agent turn. */
-export type SessionTextAction = Readonly<{
-  sessionId: string
-  content: string
-}>
-
 /** A Prime Agent action scoped to one attached session. */
 export type SessionAction = Readonly<{
   sessionId: string
@@ -251,6 +234,15 @@ export type SessionAction = Readonly<{
 
 /** The Prime Agent operations required by Ernie's first chat flow. */
 export interface PrimeAgentClient {
+  /** Identifies the current main-process receipt owner before dispatch. */
+  getSendEpoch(): Promise<string>
+
+  /** Dispatches once per identity, or retrieves its existing receipt. */
+  sendMessage(request: SendRequest): Promise<SendReceipt>
+
+  /** Inspects delivery and closes a missing identity against late dispatch. */
+  checkSend(request: SendRequest): Promise<SendReceipt>
+
   /** Reads the newest authoritative session state. */
   getSessionState(): Promise<PrimeSessionState>
 
@@ -268,12 +260,6 @@ export interface PrimeAgentClient {
 
   /** Subscribes to ordered changes after attachment. */
   subscribeSession(sessionId: string, listener: PrimeSessionEventListener): () => void
-
-  /** Submits one turn and resolves only after Prime Agent confirms ownership. */
-  prompt(request: PromptRequest): Promise<PromptAdmission>
-
-  /** Queues one follow-up after the active turn. */
-  followUp(request: SessionTextAction): Promise<void>
 
   /** Requests cancellation of active work in one session. */
   abort(request: SessionAction): Promise<void>

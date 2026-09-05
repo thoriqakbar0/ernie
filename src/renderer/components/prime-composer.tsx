@@ -1,14 +1,19 @@
 import { styles as sharedStyles } from "../component-styles"
 import * as stylex from "@stylexjs/stylex"
-import type { KeyboardEvent } from "react"
+import { useId, type KeyboardEvent } from "react"
 import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "./ui/input-group"
 import { ModelPicker } from "./model-picker"
+import type { ConversationSubmission } from "../conversation-flow"
+
 type PrimeComposerProps = Readonly<{
   connected: boolean
   draft: string
   draftHero: boolean
+  agentName?: string
+  feedback?: ConversationSubmission
+  releaseSend?: () => Promise<void>
   modelChangePending: boolean
   acceptedEffort: string | undefined
   models: readonly PrimeModel[]
@@ -20,112 +25,71 @@ type PrimeComposerProps = Readonly<{
   recovering: boolean
   selectedModel: PrimeModel | undefined
   sessionSelected: boolean
-  stopAction: () => void
+  stopAction: () => void | Promise<void>
   stopping: boolean
-  submitAction: (formData: FormData) => void
+  submitAction: (formData: FormData) => void | Promise<void>
   submitting: boolean
   working: boolean
 }>
-export function PrimeComposer({
-  connected,
-  acceptedEffort,
-  draft,
-  draftHero,
-  modelChangePending,
-  models,
-  modelsPending,
-  onDraftChange,
-  onEffortChange,
-  onEffortError,
-  onModelSelect,
-  recovering,
-  selectedModel,
-  sessionSelected,
-  stopAction,
-  stopping,
-  submitAction,
-  submitting,
-  working,
+
+/** Shared bottom composer for empty Agents, draft sessions, and ongoing conversations. */
+export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, agentName = "Agent", feedback, releaseSend,
+  modelChangePending, models, modelsPending, onDraftChange, onEffortChange, onEffortError, onModelSelect,
+  recovering, selectedModel, sessionSelected, stopAction, stopping, submitAction, submitting, working,
 }: PrimeComposerProps) {
-  const inputDisabled = !sessionSelected || !connected || recovering || submitting || stopping
-  return (
-    <form
-      action={submitAction}
-      data-chat-composer
-      {...stylex.props(sharedStyles.primeComposer, draftHero && sharedStyles.primeComposerHero)}
-    >
-      <InputGroup xstyle={[sharedStyles.composerGroup]}>
-        <label htmlFor="chat-message" {...stylex.props(sharedStyles.srOnly)}>
-          Message Prime Agent
-        </label>
-        <InputGroupTextarea
-          autoFocus={draftHero}
-          disabled={inputDisabled}
-          id="chat-message"
-          name="message"
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={submitOnEnter}
-          placeholder={
-            recovering
-              ? "Reconnecting to this session…"
-              : draftHero
-                ? "What should Ernie build?"
-                : working
-                  ? "Add a follow-up…"
-                  : "What should Ernie do next?"
-          }
-          rows={1}
-          value={draft}
-          xstyle={[sharedStyles.composerControl, sharedStyles.composerField]}
-        />
-        <InputGroupAddon align="block-end">
-          <ModelPicker
-            acceptedEffort={acceptedEffort}
-            disabled={
-              !sessionSelected || !connected || recovering || modelChangePending || modelsPending
-            }
-            models={models}
-            onEffortChange={onEffortChange}
-            onEffortError={onEffortError}
-            onSelect={onModelSelect}
-            selectedModel={selectedModel}
-            side={draftHero ? "bottom" : "top"}
-          />
-          {working ? (
-            <InputGroupButton
-              aria-label="Stop Prime Agent"
-              disabled={!connected || stopping}
-              formAction={stopAction}
-              size="sm"
-              type="submit"
-              variant="destructive"
-              xstyle={[sharedStyles.composerAction]}
-            >
-              <SquareIcon data-icon="inline-start" {...stylex.props(sharedStyles.controlIcon)} />
-              <span>{stopping ? "Stopping" : "Stop"}</span>
-            </InputGroupButton>
-          ) : (
-            <InputGroupButton
-              aria-label={draftHero ? "Start conversation" : "Send message"}
-              disabled={!draft.trim() || inputDisabled}
-              size="sm"
-              type="submit"
-              variant="default"
-              xstyle={[sharedStyles.composerAction]}
-            >
-              <span>
-                {submitting ? (draftHero ? "Starting" : "Sending") : draftHero ? "Start" : "Send"}
-              </span>
-              <ArrowUpIcon data-icon="inline-end" {...stylex.props(sharedStyles.controlIcon)} />
-            </InputGroupButton>
-          )}
-        </InputGroupAddon>
-      </InputGroup>
-    </form>
-  )
+  const inputId = "chat-message"
+  const feedbackId = useId()
+  const uncertain = feedback?.status === "unknown"
+  const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
+  const message = feedback?.status === "error" || uncertain ? feedback.message
+    : feedback?.status === "creating" ? "Starting conversation…"
+    : feedback?.status === "sending" ? "Sending…"
+    : feedback?.status === "queued" && working ? "Follow-up queued."
+    : feedback?.status === "accepted" && working ? "Message accepted."
+    : undefined
+  return <form action={submitAction} data-chat-composer {...stylex.props(sharedStyles.primeComposer)}>
+    <InputGroup xstyle={[sharedStyles.composerGroup]}>
+      <label htmlFor={inputId} {...stylex.props(sharedStyles.srOnly)}>Message {agentName}</label>
+      <InputGroupTextarea
+        autoFocus={draftHero}
+        id={inputId}
+        name="message"
+        aria-describedby={feedbackId}
+        onChange={(event) => onDraftChange(event.target.value)}
+        onKeyDown={(event) => submitOnEnter(event, unavailable || (!uncertain && !draft.trim()))}
+        placeholder={`Message ${agentName}…`}
+        rows={1}
+        value={draft}
+        xstyle={[sharedStyles.composerControl, sharedStyles.composerField]}
+      />
+      <InputGroupAddon align="block-end">
+        {sessionSelected ? <ModelPicker acceptedEffort={acceptedEffort}
+          disabled={!connected || recovering || modelChangePending || modelsPending}
+          models={models} onEffortChange={onEffortChange} onEffortError={onEffortError}
+          onSelect={onModelSelect} selectedModel={selectedModel} side="top"/>
+          : <span {...stylex.props(sharedStyles.composerDefault)}>Agent defaults</span>}
+        <div {...stylex.props(sharedStyles.composerActions)}>
+          {working || stopping ? <InputGroupButton aria-label="Stop Prime Agent" title="Stop current work"
+            disabled={!connected || stopping} onClick={() => { void stopAction() }} size="sm" type="button" variant="ghost">
+            <SquareIcon {...stylex.props(sharedStyles.controlIcon)}/><span>{stopping ? "Stopping…" : "Stop"}</span>
+          </InputGroupButton> : null}
+          <InputGroupButton aria-label={uncertain ? "Check send" : working ? "Queue follow-up" : "Send message"}
+            title={uncertain ? "Check send" : working ? "Queue follow-up" : "Send message"} disabled={(!uncertain && !draft.trim()) || unavailable}
+            size={uncertain ? "sm" : "icon-sm"} type="submit" variant="default" xstyle={[sharedStyles.composerAction]}>
+            {uncertain ? <span>Check send</span> : <ArrowUpIcon {...stylex.props(sharedStyles.controlIcon)}/>}
+          </InputGroupButton>
+        </div>
+      </InputGroupAddon>
+    </InputGroup>
+    <div id={feedbackId} {...stylex.props(sharedStyles.composerFeedback)}>
+      {message ? <p role={feedback?.status === "error" ? "alert" : "status"} {...stylex.props(feedback?.status === "error" && sharedStyles.composerError)}>{message}</p> : null}
+      {uncertain && releaseSend ? <><p>Your next action checks the original send. Sending again may duplicate it.</p><button type="button" disabled={unavailable} onClick={() => { void releaseSend() }}>I’ve checked; allow a new send</button></> : null}
+      {working && connected && !recovering && !uncertain ? <p>Sent messages are queued after the current work.</p> : !connected || recovering ? <p>You can keep writing. New messages need a connection.</p> : null}
+    </div>
+  </form>
 }
-function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
-  if (event.key !== "Enter" || event.shiftKey) return
+function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>, unavailable: boolean) {
+  if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return
   event.preventDefault()
-  event.currentTarget.form?.requestSubmit()
+  if (!unavailable) event.currentTarget.form?.requestSubmit()
 }

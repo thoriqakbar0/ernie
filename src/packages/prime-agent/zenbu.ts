@@ -1,3 +1,5 @@
+import { Schema } from "effect"
+import { SendRequest, SendReceipt } from "./index"
 import type {
   AttachSessionRequest,
   CreateSessionRequest,
@@ -8,9 +10,7 @@ import type {
   PrimeSessionSnapshot,
   PrimeSessionSnapshotEnvelope,
   PrimeSessionState,
-  PromptRequest,
   SessionAction,
-  SessionTextAction,
 } from "./index"
 import {
   parsePrimeSessionChangeEnvelope,
@@ -19,12 +19,13 @@ import {
 } from "./sync"
 
 type PrimeAgentRpc = Readonly<{
+  getSendEpoch(): Promise<string>
+  sendMessage(input: SendRequest): Promise<SendReceipt>
+  checkSend(input: SendRequest): Promise<SendReceipt>
   getSessionState(): Promise<PrimeSessionState>
   selectSession(input: { sessionId?: string }): Promise<void>
   createSession(input: CreateSessionRequest): Promise<PrimeSessionSnapshot["session"]>
   attachSession(input: { sessionId: string }): Promise<PrimeSessionSnapshotEnvelope>
-  prompt(input: PromptRequest): Promise<{ admissionId: string; commandId: string }>
-  followUp(input: SessionTextAction): Promise<void>
   abort(input: SessionAction): Promise<void>
   waitForIdle(input: SessionAction): Promise<void>
   getModels(input: SessionAction): Promise<readonly { id: string; provider: string; label: string }[]>
@@ -101,8 +102,9 @@ export function createZenbuPrimeAgentClient(
         listeners.delete(sessionId)
       }
     },
-    prompt: (request: PromptRequest) => rpc.prompt(request),
-    followUp: (request: SessionTextAction) => rpc.followUp(request),
+    getSendEpoch: async () => Schema.decodeUnknownSync(Schema.NonEmptyString)(await rpc.getSendEpoch()),
+    checkSend: async (request) => Schema.decodeUnknownSync(SendReceipt)(await rpc.checkSend(request)),
+    sendMessage: async (request) => Schema.decodeUnknownSync(SendReceipt)(await rpc.sendMessage(request)),
     abort: (request: SessionAction) => rpc.abort(request),
     waitForIdle: (request: SessionAction) => rpc.waitForIdle(request),
     getModels: (request: SessionAction) => rpc.getModels(request),

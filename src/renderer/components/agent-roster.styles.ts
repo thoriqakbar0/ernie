@@ -8,7 +8,7 @@ const blink = stylex.keyframes({ "0%, 94%, 100%": { transform: "scaleY(1)" }, "9
 export const styles = stylex.create({
   icon: { width: 17, height: 17, flexShrink: 0 },
   search: { padding: "2px 16px 16px" },
-  searchInput: { width: "100%", minWidth: 0, padding: "9px 11px", borderRadius: 9, backgroundColor: theme["--surface"], fontSize: 13 },
+  searchInput: { width: "100%", minWidth: 0, padding: "9px 11px", borderRadius: 12, borderWidth: 1, borderStyle: "solid", borderColor: theme["--rule"], backgroundColor: theme["--surface"], fontSize: 13 },
   nav: { minHeight: 0, flexGrow: 1, overflowY: "auto", overflowX: "hidden", paddingBottom: 16 },
   list: { display: "grid", gap: 5, listStyleType: "none", margin: 0, padding: "0 8px" },
   item: { position: "relative", display: "flex", alignItems: "center", minWidth: 0 },
@@ -35,7 +35,8 @@ export const styles = stylex.create({
   historyList: { listStyleType: "none", margin: 0, padding: "0 12px 20px" },
   workspaceGroup: { padding: "8px 6px", fontSize: 13, color: theme["--muted"], overflowWrap: "anywhere" },
   conversationButton: { display: "block", width: "100%", padding: "9px 12px", marginTop: 3, borderRadius: 8, textAlign: "left", fontSize: 13, color: theme["--ink"], overflowWrap: "anywhere", backgroundColor: { default: "transparent", ":hover": theme["--surface-strong"] } },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: { default: 16, "@media (max-width: 640px)": 6 }, padding: { default: "17px 24px", "@media (max-width: 640px)": "12px 12px 12px 48px" }, flexShrink: 0, minWidth: 0 },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: { default: 16, "@media (max-width: 640px)": 6 }, padding: { default: "15px 24px 15px 54px", "@media (max-width: 720px)": "12px 8px 12px 48px" }, flexShrink: 0, minWidth: 0, borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: theme["--rule"] },
+  workspacePath: { marginTop: 3, color: theme["--faint"], fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   identity: { display: "flex", alignItems: "center", gap: 9, minWidth: 0 },
   identityText: { minWidth: 0 },
   role: { margin: "3px 0 0", color: theme["--muted"], fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },

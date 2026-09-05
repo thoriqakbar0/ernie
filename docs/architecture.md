@@ -19,6 +19,7 @@ Assign each value and effect one owner before changing its presentation:
 | Session execution and transcript | Prime Agent, exposed through Ernie’s main-process boundary | Use authoritative snapshots and ordered updates |
 | Agent identity, defaults, and associations | `AgentsService` and `AgentStoreService` in the main process | Parse with Effect Schema and persist through Zenbu; serialize mutations |
 | Catalog and selected session | Revisioned state published by `PrimeAgentService` | Keep selection and catalog changes consistent |
+| Send identity and receipt recovery | Chat coordinator and main-service receipt ledger | Preserve immutable requests; see [send receipts](data-structures.md#send-receipts-and-recovery) for uncertainty and lifetime |
 | Renderer subscriptions, cache, and commands | `PrimeAgentStateProvider` and its runtime | Expose focused hooks; keep transport mechanics here |
 | Feature interaction | Workspace, composer, transcript, and navigation components | Coordinate behavior within the affected feature |
 | Temporary presentation | The nearest component that owns its lifetime | Keep menu visibility and similar state local |
@@ -26,7 +27,7 @@ Assign each value and effect one owner before changing its presentation:
 
 Derived values stay derived. A renderer cache mirrors server state; it does not create another authority for that state.
 
-`ConversationDraftProvider` owns session-keyed unsent text for the application lifetime. Empty Agent drafts have a separate Agent key and transfer to the created session. Session components remount safely without sharing text. Reloading the application clears this temporary state.
+`ConversationDraftProvider` owns session-keyed unsent text for the application lifetime. Empty Agent drafts have a separate Agent key. Creation transfers their current version to the session while submission uses the captured message; later edits remain visible. Session components remount safely without sharing text. Reloading the application clears this temporary state.
 
 ## Component boundaries
 
@@ -59,3 +60,17 @@ For visual behavior, read [UI guidance](ui.md). For the inspect, edit, and revie
 Conversation creation saves immutable execution origin and uses native `appendSystemPrompt`, workspace, provider, and model configuration. Native resume restores the saved instructions and workspace through `sessionPath`; it respects model changes already persisted by Prime Agent. Reassignment and later Agent edits preserve origin. No chat messages or repository instruction files substitute for native configuration.
 
 `reconcileRoster` imports missing records and immutable origins from another profile, rejects conflicting identities or origins, and preserves current selection and assignments. Recovery captures the session file when attachment succeeds; if needed, it queries the native catalog directly instead of waiting on its own recovery promise.
+
+## Conversation interaction ownership
+
+`ConversationFlowProvider` owns session-scoped admission and stop feedback for the application lifetime. It captures draft identity before starting an operation and uses explicit session IDs for subsequent commands. First-message creation reuses an Agent creation request ID, then uses the returned session for submission. Navigation does not relocate the command or erase its feedback. Expected creation and command failures become visible state through Effect; uncertain command outcomes are not automatically retried.
+
+`ConversationDraftProvider` captures object identity, not string equality, when clearing submitted text. `MessageReadingProvider` stores per-session scroll positions in application memory; transcript remounts restore them. Hidden mobile views do not overwrite positions with zero-sized layout observations.
+
+`describeConversationActivity` parses supported structured tool results with Effect Schema and projects presentation values. It consumes the existing accepted snapshot and creates no independent execution authority. The transcript places this projection in a session-level disclosure because the current display contract does not map every event to a submitted message.
+
+## Native attachment identity
+
+A logical session ID survives runtime restarts. Native snapshot events identify the current active session. Ernie resolves that active ID from the daemon catalog, or resumes the saved session, before constructing its logical connection. Otherwise, the connection can discard the beginning of a snapshot before the attach response updates its identity.
+
+Attachment acquisition reserves a shared promise before asynchronous cleanup or connection setup. Concurrent renderer calls receive one attachment generation. If recovery installs an attachment during client acquisition, the caller uses that attachment.

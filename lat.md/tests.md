@@ -25,3 +25,7 @@ Two logical attachments sharing one daemon client receive only their own snapsho
 ### External daemon ownership
 
 Stopping Ernie closes its connection but leaves an externally selected Prime Agent daemon and socket usable.
+
+### Send receipt recovery
+
+Receipt inspection never dispatches, even when the original request arrives late. Concurrent attachments share a generation. Restart recovery resolves the native active ID before consuming snapshot events.

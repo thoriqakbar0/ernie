@@ -11,6 +11,10 @@ export const styles = stylex.create({
     backgroundColor: theme["--surface"],
     color: theme["--ink"],
   },
+  emptyConversation: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", alignItems: "center", justifyContent: "center", gap: 12, padding: "32px 24px", textAlign: "center" },
+  emptyTitle: { fontSize: "clamp(22px, 3vw, 28px)", fontWeight: 500, color: theme["--ink-strong"] },
+  emptyRole: { color: theme["--ink"], fontSize: 14 },
+  emptyNote: { maxWidth: "44ch", fontSize: 13, lineHeight: 1.6, color: theme["--muted"] },
   workspaceContent: {
     position: "relative",
     minWidth: "0",

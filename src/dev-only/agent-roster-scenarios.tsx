@@ -15,7 +15,7 @@ const styles = stylex.create({
   toolbar: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", padding: "8px 14px", fontSize: 12, color: theme["--ink"], backgroundColor: theme["--surface-strong"] },
   app: { flexGrow: 1, minHeight: 0 },
 })
-const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names"] as const
+const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Tool activity", "Long conversation"] as const
 type Preset = typeof presets[number]
 
 /** Isolated production UI scenarios. No scenario client can reach a live session. */
@@ -33,7 +33,20 @@ export default function AgentRosterScenarios() {
 }
 function Scenario({ preset }: { preset: Preset }) {
   const [seed] = useState(() => createSeed(preset))
-  const [prime] = useState(() => createMockPrimeAgentClient({ initialSnapshots: seed.snapshots }))
+  const [rejectSend, setRejectSend] = useState(false)
+  const [disconnected, setDisconnected] = useState(false)
+  const [loseAck, setLoseAck] = useState(false)
+  const [slowSend, setSlowSend] = useState(false)
+  const sendOptions = useRef({ rejectSend, slowSend, loseAck })
+  sendOptions.current = { rejectSend, slowSend, loseAck }
+  const [prime] = useState(() => createMockPrimeAgentClient({ initialSnapshots: seed.snapshots, replyDelayMs: 60000,
+    afterSend: async () => { if (sendOptions.current.loseAck) throw new Error("Synthetic lost acknowledgement") },
+    beforePrompt: async () => {
+      const options = sendOptions.current
+      if (options.slowSend) await new Promise<void>((resolve) => setTimeout(resolve, 4000))
+      if (options.rejectSend) throw new Error("Synthetic prompt rejection")
+    },
+  }))
   const [roster, setRoster] = useState(seed.roster)
   const current = useRef(roster)
   current.current = roster
@@ -42,6 +55,7 @@ function Scenario({ preset }: { preset: Preset }) {
   rejecting.current = reject
   const update = (next: Roster) => { current.current = next; setRoster(next) }
   const [client] = useState<AgentClient>(() => {
+    const creations = new Map<string, string>()
     const command = <A,>(run: () => Promise<A>): Promise<AgentResult<A>> => Effect.runPromise(Effect.gen(function* () {
       if (rejecting.current) return { ok: false as const, error: "This scenario rejects mutations. Turn rejection off and retry." }
       return yield* Effect.tryPromise(run).pipe(Effect.match({
@@ -71,7 +85,10 @@ function Scenario({ preset }: { preset: Preset }) {
         update({ ...current.current, selectedAgentId: input.agentId, associations: [...current.current.associations.filter((item) => item.sessionId !== input.sessionId), { ...existing, ...input, visitedAt: existing?.visitedAt ?? Date.now() }] })
       }),
       createConversation: (input) => command(async () => {
+        const previous = creations.get(input.requestId)
+        if (previous) { await prime.selectSession({ sessionId: previous }); return previous }
         const session = await prime.createSession({ cwd: "/example/workspace", name: "New conversation" })
+        creations.set(input.requestId, session.id)
         update({ ...current.current, selectedAgentId: input.agentId, associations: [...current.current.associations, { sessionId: session.id, agentId: input.agentId, visitedAt: Date.now() }] })
         await prime.selectSession({ sessionId: session.id })
         return session.id
@@ -79,7 +96,7 @@ function Scenario({ preset }: { preset: Preset }) {
     }
   })
   return <>
-    <div {...stylex.props(styles.toolbar)}><label><input type="checkbox" checked={reject} onChange={(event) => setReject(event.target.checked)}/> Reject mutations</label><span>Switching scenarios resets fixture state.</span></div>
+    <div {...stylex.props(styles.toolbar)}><label><input type="checkbox" checked={reject} onChange={(event) => setReject(event.target.checked)}/> Reject mutations</label><label><input type="checkbox" checked={rejectSend} onChange={(event) => setRejectSend(event.target.checked)}/> Reject sends</label><label><input type="checkbox" checked={slowSend} onChange={(event) => setSlowSend(event.target.checked)}/> Slow sends (4s)</label><label><input type="checkbox" checked={loseAck} onChange={(event) => setLoseAck(event.target.checked)}/> Lose send acknowledgement</label><label><input type="checkbox" checked={disconnected} onChange={(event) => { const disconnected = event.target.checked; setDisconnected(disconnected); prime.setTransport(disconnected ? { status: "failed", error: "Synthetic daemon disconnect" } : { status: "connected" }) }}/> Disconnect Prime Agent</label><span>Switching scenarios resets fixture state.</span></div>
     <div {...stylex.props(styles.app)}><PrimeAgentStateProvider client={prime} getWorkspacePath={async () => "/example/workspace"}><App roster={roster} agentClient={client}/></PrimeAgentStateProvider></div>
   </>
 }
@@ -98,8 +115,10 @@ function createSeed(preset: Preset): { roster: Roster; snapshots: PrimeSessionSn
     activityAt: `2026-09-05T10:0${index}:00Z`,
   }))
   const snapshots = summaries.map((session): PrimeSessionSnapshot => {
-    const messages = [{ id: `${session.id}-message`, role: "assistant" as const, content: "This synthetic conversation uses the production transcript and composer. No live commands are sent." }]
-    return { session, messages, useful: createPrimeUsefulSessionFixture(session, messages), transport: preset === "Reconnect" ? { status: "reconnecting" } : preset === "Failed connection" ? { status: "failed", error: "Synthetic disconnected runtime" } : { status: "connected" } }
+    const messages = preset === "Long conversation" ? Array.from({ length: 35 }, (_, index) => ({ id: `${session.id}-${index}`, role: index % 2 ? "assistant" as const : "user" as const, content: `Message ${index + 1}. ` + "Inspect the login flow and preserve the existing workspace context. ".repeat(8) })) : [{ id: `${session.id}-message`, role: "assistant" as const, content: "What would you like to work on? This is a synthetic conversation; no live commands are sent." }]
+    const fixture = createPrimeUsefulSessionFixture(session, messages)
+    const useful = preset === "Tool activity" ? { ...fixture, structuredMessages: [...fixture.structuredMessages, { role: "toolResult", toolCallId: "example-read", toolName: "read", isError: false, content: [{ type: "text", text: "Synthetic output: the login form validates the email before submitting." }] }, { role: "toolResult", toolCallId: "example-check", toolName: "bash", isError: true, content: [{ type: "text", text: "Synthetic output: the login check failed because the fixture has no server." }] }] } : fixture
+    return { session, messages, useful, transport: preset === "Reconnect" ? { status: "reconnecting" } : preset === "Failed connection" ? { status: "failed", error: "Synthetic disconnected runtime" } : { status: "connected" } }
   })
-  return { snapshots, roster: { agents, selectedAgentId: agents[0].id, associations: summaries.slice(0,5).map((session,index) => ({ sessionId: session.id, agentId: preset === "Concurrent activity" ? agents[0].id : agents[index % 4].id, visitedAt: index })) } }
+  return { snapshots, roster: { agents, selectedAgentId: agents[0].id, associations: summaries.slice(0,5).filter((_, index) => preset !== "New Agent" || index !== 3).map((session,index) => ({ sessionId: session.id, agentId: preset === "Concurrent activity" ? agents[0].id : agents[Number(session.id.split("-")[1]) % 4].id, visitedAt: index === 0 ? 10 : index })) } }
 }

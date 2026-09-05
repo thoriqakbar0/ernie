@@ -107,7 +107,8 @@ class PrimeAgentRuntime {
     let initialPromptError: string | undefined
     if (initialPrompt?.trim()) {
       try {
-        await attached.chat.submitDraft(initialPrompt)
+        const sent = await attached.chat.submitDraft(initialPrompt)
+        if (sent.status === "unknown" || sent.status === "not-sent") initialPromptError = sent.message
       } catch (cause) {
         initialPromptError = cause instanceof Error ? cause.message : "Prime Agent command failed"
       }
@@ -128,6 +129,11 @@ class PrimeAgentRuntime {
       this.attachments.delete(sessionId)
       throw error
     }
+  }
+
+  async releaseSend(sessionId: string) {
+    const attachment = await this.getAttachment(sessionId)
+    attachment.chat.releaseUncertainSend()
   }
 
   async submit(sessionId: string, content: string) {
@@ -302,6 +308,16 @@ function usePrimeAgentRuntime() {
   const runtime = useContext(PrimeAgentRuntimeContext)
   if (!runtime) throw new Error("PrimeAgentStateProvider is missing")
   return runtime
+}
+
+/** Session-explicit commands for application-owned conversation operations. */
+export function useConversationCommands() {
+  const runtime = usePrimeAgentRuntime()
+  return useMemo(() => ({
+    submit: (sessionId: string, content: string) => runtime.submit(sessionId, content),
+    stop: (sessionId: string) => runtime.stop(sessionId),
+    release: (sessionId: string) => runtime.releaseSend(sessionId),
+  }), [runtime])
 }
 
 /** Reads Prime Agent's authoritative session state from its renderer mirror. */

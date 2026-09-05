@@ -8,7 +8,7 @@ Ernie currently renders Prime Agent sessions through React and Zenbu. The [domai
 
 Read [data structures](data-structures.md) for contract relationships, identifiers, revisions, and state lifetime.
 
-[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and related conversations. It is a target product model, not evidence that those capabilities exist. UI development improvements do not authorize that product migration.
+[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and related conversations. Persistent Agent identity and conversation organization are implemented. Routines, memory, and task surfaces remain target capabilities.
 
 ## Ownership
 
@@ -17,6 +17,7 @@ Assign each value and effect one owner before changing its presentation:
 | Responsibility | Owner | Change rule |
 | --- | --- | --- |
 | Session execution and transcript | Prime Agent, exposed through Ernie’s main-process boundary | Use authoritative snapshots and ordered updates |
+| Agent identity, defaults, and associations | `AgentsService` and `AgentStoreService` in the main process | Parse with Effect Schema and persist through Zenbu; serialize mutations |
 | Catalog and selected session | Revisioned state published by `PrimeAgentService` | Keep selection and catalog changes consistent |
 | Renderer subscriptions, cache, and commands | `PrimeAgentStateProvider` and its runtime | Expose focused hooks; keep transport mechanics here |
 | Feature interaction | Workspace, composer, transcript, and navigation components | Coordinate behavior within the affected feature |
@@ -25,7 +26,7 @@ Assign each value and effect one owner before changing its presentation:
 
 Derived values stay derived. A renderer cache mirrors server state; it does not create another authority for that state.
 
-Draft lifetime needs an explicit decision. `PrimeSessionWorkspace` currently owns draft text locally and remounts on session selection. Cross-session draft retention requires a session-keyed owner that survives that remount. Do not infer retention from session isolation.
+`ConversationDraftProvider` owns session-keyed unsent text for the application lifetime. Empty Agent drafts have a separate Agent key and transfer to the created session. Session components remount safely without sharing text. Reloading the application clears this temporary state.
 
 ## Component boundaries
 
@@ -39,7 +40,7 @@ Follow the [StyleX map](../lat.md/styling.md) for component styles and theme val
 
 Controlled scenarios should render production components through the existing client boundary. `PrimeAgentStateProvider` accepts a client and workspace-path provider. The development-only mock accepts initial snapshots.
 
-These source capabilities do not establish an available scenario launcher or complete scenario coverage. Inspect the current wiring before using them. Add only the scenario support required by the authorized change.
+The development-only `?browser=1&scenario=agents` route renders production roster, settings, and workspace components with isolated clients. It does not attach to live Prime sessions. See [verification](agent-roster-verification.md) for its presets and evidence limits.
 
 Keep fixtures and their actions separate from live sessions. Give subscriptions, timers, and pending operations explicit cleanup. Scenario behavior verifies presentation; live runtime evidence verifies integration.
 
@@ -48,3 +49,13 @@ Keep fixtures and their actions separate from live sessions. Give subscriptions,
 Update the linked `lat.md/` section when ownership or a runtime contract changes. Use an ADR for a durable decision with alternatives and consequences. Keep transient debugging notes and screenshot paths in the task handoff.
 
 For visual behavior, read [UI guidance](ui.md). For the inspect, edit, and review sequence, read the [development workflow](workflow.md).
+
+## Agent organization boundary
+
+`AgentsService` exposes typed creation, editing, pinning, selection, and assignment through Zenbu RPC. Effect owns validation, expected failures, serialized mutations, and asynchronous orchestration; Promises appear at the RPC boundary. `AgentStoreService` stores the roster in the existing Zenbu database. Each write changes a persistence token, flushes, and reads back the token and roster from disk before reporting success. Zenbu 0.6 swallows flush errors, so awaiting flush alone does not establish durability. A retry forces another write even when the in-memory settings already match. The Zenbu schema adapter uses its required Zod envelope; Effect Schema validates the roster itself.
+
+`PrimeAgentService` owns the single authoritative selected session. The stored selected Agent is navigation context, not a second selected session. Selecting an empty Agent clears session selection. Explicit conversation visits update recency; streaming activity does not.
+
+Conversation creation saves immutable execution origin and uses native `appendSystemPrompt`, workspace, provider, and model configuration. Native resume restores the saved instructions and workspace through `sessionPath`; it respects model changes already persisted by Prime Agent. Reassignment and later Agent edits preserve origin. No chat messages or repository instruction files substitute for native configuration.
+
+`reconcileRoster` imports missing records and immutable origins from another profile, rejects conflicting identities or origins, and preserves current selection and assignments. Recovery captures the session file when attachment succeeds; if needed, it queries the native catalog directly instead of waiting on its own recovery promise.

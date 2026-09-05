@@ -30,13 +30,19 @@ const browserDevelopment = search.get("browser") === "1"
 const browserWsUrl = browserDevelopment
   ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
   : undefined
+const AgentScenarios = import.meta.env.DEV && search.get("scenario") === "agents"
+  ? lazy(() => import("../dev-only/agent-roster-scenarios"))
+  : undefined
+const WorkspaceScenarios = import.meta.env.DEV && search.get("scenario") === "workspaces"
+  ? lazy(() => import("../dev-only/workspace-picker-scenarios"))
+  : undefined
 const content = route === null ? <App /> : <View name={route} />
 
 createRoot(rootElement).render(
   <ZenbuProvider wsUrl={browserWsUrl}>
-    <PrimeAgentStateProvider>
+    {WorkspaceScenarios ? <Suspense fallback={<p>Loading development scenario…</p>}><WorkspaceScenarios/></Suspense> : AgentScenarios ? <Suspense fallback={<p>Loading development scenario…</p>}><AgentScenarios/></Suspense> : <PrimeAgentStateProvider>
       {content}
       {Agentation ? <Suspense fallback={null}><Agentation /></Suspense> : null}
-    </PrimeAgentStateProvider>
+    </PrimeAgentStateProvider>}
   </ZenbuProvider>,
 )

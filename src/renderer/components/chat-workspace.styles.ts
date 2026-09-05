@@ -57,19 +57,10 @@ export const styles = stylex.create({
     color: theme["--ink"],
   },
   sessionStage: {
-    display: {
-      default: "grid",
-      "@media (max-width: 720px)": "block",
-    },
-    height: {
-      default: "100%",
-      "@media (max-width: 720px)": "auto",
-    },
+    display: "grid",
+    height: "100%",
     minWidth: "0",
-    minHeight: {
-      default: "0",
-      "@media (max-width: 720px)": "100%",
-    },
+    minHeight: "0",
     gridTemplateRows: "minmax(0, 1fr)",
   },
   sessionStageDraft: {
@@ -78,11 +69,7 @@ export const styles = stylex.create({
   conversationPane: {
     position: "relative",
     display: "flex",
-    height: {
-      default: "100%",
-      "@media (max-width: 720px)": "max(420px, calc(100dvh - 254px))",
-      "@media (max-width: 480px)": "max(420px, calc(100dvh - 228px))",
-    },
+    height: "100%",
     minWidth: "0",
     minHeight: "0",
     flexDirection: "column",

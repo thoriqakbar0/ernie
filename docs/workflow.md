@@ -55,3 +55,9 @@ Return a concise account of what changed, where it is visible, what was inspecte
 Use “HMR-verified” only after inspecting the updated renderer. Browser evidence does not verify Electron-specific behavior. If inspection is blocked, report the edit and the exact missing access or runtime dependency.
 
 Update [UI guidance](ui.md) for an accepted visual or interaction rule. Update the architecture map for changed ownership. A completed iteration meets its visible outcome; publishing and release remain separate actions.
+
+## Roster scenarios
+
+Open `?browser=1&scenario=agents` on the running development server for isolated production-component scenarios. Presets cover empty and populated rosters, concurrent activity, reconnects, failed connections, and long names. The rejection control exercises mutation failures without touching live sessions. Follow [roster verification](agent-roster-verification.md) for the current evidence and opt-in integration checks.
+
+The isolated `?browser=1&scenario=workspaces` route renders the production workspace picker with populated, empty, long-path, failed-selection, and slow-selection cases. The failed-selection case rejects once so retry can be inspected within the same dialog.

@@ -2,6 +2,10 @@ import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
 import { useActionState, useEffect, useRef, useState } from "react"
 import type { PrimeModel, PrimeSessionSummary } from "../../packages/prime-agent"
+import { useAgents, useConversationDraft } from "../agent-state"
+import type { AgentResult } from "../../packages/agents"
+import { AgentWorkspaceHeader, EmptyAgentWorkspace } from "./agent-workspace"
+import { styles as rosterStyles } from "./agent-roster.styles"
 import { ConversationTranscript } from "./conversation-transcript"
 import { PrimeComposer } from "./prime-composer"
 import { PrimeEmptyState } from "./prime-empty-state"
@@ -42,6 +46,9 @@ export function ChatWorkspace() {
   const sessions = usePrimeSessionState()
   const createSession = useCreatePrimeSession()
   const workspacePath = useWorkspacePath()
+  const { roster, client, execute, error } = useAgents()
+  const activeAgentId = sessionId ? roster.associations.find((item) => item.sessionId === sessionId)?.agentId : roster.selectedAgentId
+  const activeAgent = roster.agents.find((agent) => agent.id === activeAgentId)
   const noSessions = sessions.isSuccess && sessions.data.length === 0
   const waitingForCreatedSession = createSession.isPending && sessionId === undefined
   const showEmptyState = (noSessions && sessionId === undefined) || waitingForCreatedSession
@@ -52,7 +59,11 @@ export function ChatWorkspace() {
       tabIndex={-1}
       {...stylex.props(styles.chatWorkspace)}
     >
-      {showEmptyState ? (
+      <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId}/>
+      {error ? <p role="alert" {...stylex.props(rosterStyles.feedback)}>{error}</p> : null}
+      {!sessionId ? (
+        activeAgent ? <EmptyAgentWorkspace key={activeAgent.id} agent={activeAgent}/> : <div {...stylex.props(rosterStyles.welcome)}><h1 {...stylex.props(rosterStyles.welcomeTitle)}>Who will you work with?</h1><p {...stylex.props(rosterStyles.welcomeNote)}>Add an Agent, or open a conversation from history.</p></div>
+      ) : showEmptyState ? (
         <div {...stylex.props(styles.workspaceContent)}>
           <PrimeEmptyState
             creating={createSession.isPending}
@@ -69,7 +80,7 @@ export function ChatWorkspace() {
               : undefined
           }
           key={sessionId}
-          onSelectSession={selectSession}
+          onSelectSession={(sessionId) => execute(() => client.openConversation({ sessionId }))}
           sessionId={sessionId}
           sessions={sessions.data}
         />
@@ -88,14 +99,14 @@ function PrimeSessionWorkspace({
   sessions,
 }: Readonly<{
   initialPromptError: string | undefined
-  onSelectSession: (sessionId: string) => void
+  onSelectSession: (sessionId: string) => Promise<AgentResult<void>>
   sessionId: string
   sessions: readonly PrimeSessionSummary[]
 }>) {
   const snapshotQuery = usePrimeSessionSnapshot(sessionId)
   const actions = usePrimeSessionActions(sessionId)
   const models = usePrimeModels(sessionId)
-  const [draft, setDraft] = useState("")
+  const [draft, setDraft, clearSubmittedDraft] = useConversationDraft(sessionId)
   const [commandError, setCommandError] = useState(initialPromptError)
   const [modelChange, setModelChange] = useState<ModelChangeState>(idleModelChange)
   const modelSelectionRevision = useRef(0)
@@ -112,7 +123,7 @@ function PrimeSessionWorkspace({
       setCommandError(undefined)
       try {
         await actions.submit(content)
-        setDraft("")
+        clearSubmittedDraft()
       } catch (cause) {
         setCommandError(cause instanceof Error ? cause.message : "Prime Agent command failed")
       }

@@ -41,7 +41,7 @@ export const styles = stylex.create({
     gridTemplateRows: {
       default: null,
       "@media (max-width: 720px)": "minmax(240px, 38vh) minmax(0, 1fr)",
-      "@media (max-width: 480px)": "134px minmax(0, 1fr)",
+      "@media (max-width: 480px)": "minmax(220px, 38vh) minmax(0, 1fr)",
     },
   },
   appMainSidebarClosed: {

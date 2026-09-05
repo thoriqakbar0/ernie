@@ -6,5 +6,6 @@ export default definePlugin({
     "./src/main/services/*.ts",
     "./src/main/prime-agent/service.ts",
   ],
+  schema: "./src/main/schema.ts",
   events: "./src/main/events.ts",
 })

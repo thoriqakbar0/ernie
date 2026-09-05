@@ -5,19 +5,21 @@ import { useState } from "react"
 import { View } from "@zenbujs/core/react"
 import { PanelLeftOpenIcon } from "lucide-react"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
+import type { Roster } from "../../packages/agents"
+import { AgentStateProvider, ConversationDraftProvider, type AgentClient } from "../agent-state"
 import { ChatWorkspace } from "./chat-workspace"
 
 // @lat: [[product#Product contract#Responsive workspace]]
-export function App() {
+export function App({ roster, agentClient }: { roster?: Roster; agentClient?: AgentClient } = {}) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   return (
-    <div {...stylex.props(styles.appShell)}>
+    <AgentStateProvider roster={roster} client={agentClient}><ConversationDraftProvider><div {...stylex.props(styles.appShell)}>
       <a href="#ernie-workspace" {...stylex.props(styles.skipLink)}>
         Skip to workspace
       </a>
       <main {...stylex.props(styles.appMain, !sidebarOpen && styles.appMainSidebarClosed)}>
         {sidebarOpen ? (
-          <div aria-label="Session navigation" {...stylex.props(styles.appSidebarSlot)}>
+          <div aria-label="Agent navigation" {...stylex.props(styles.appSidebarSlot)}>
             <View
               args={{
                 onClose: () => setSidebarOpen(false),
@@ -40,6 +42,6 @@ export function App() {
         )}
         <ChatWorkspace />
       </main>
-    </div>
+    </div></ConversationDraftProvider></AgentStateProvider>
   )
 }

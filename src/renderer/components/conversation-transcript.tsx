@@ -34,16 +34,15 @@ function Transcript({ messages }: ConversationTranscriptProps) {
           {messages.map((message) => (
             <MessageScrollerItem key={message.id}>
               <article
+                aria-label={message.role === "assistant" ? "Prime Agent message" : message.role === "user" ? "Your message" : "System message"}
                 {...stylex.props(
                   styles.messageEntry,
                   message.role === "user" && styles.messageEntryUser,
                 )}
               >
-                <header {...stylex.props(styles.messageEntryHeader)}>
-                  <span {...stylex.props(styles.messageEntryRole)}>
-                    {message.role === "assistant" ? "Prime Agent" : message.role === "user" ? "You" : "System"}
-                  </span>
-                </header>
+                {message.role === "system" ? <header {...stylex.props(styles.messageEntryHeader)}>
+                  <span {...stylex.props(styles.messageEntryRole)}>System</span>
+                </header> : null}
                 <p
                   {...stylex.props(
                     styles.messageParagraph,

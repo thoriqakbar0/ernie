@@ -1,0 +1,10 @@
+{
+  "name": "ernie-cloud-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "frog": "1.1.0",
+    "lat.md": "0.12.2",
+    "playwright": "1.62.0"
+  }
+}

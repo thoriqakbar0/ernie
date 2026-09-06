@@ -16,7 +16,7 @@ import type {
 
 const recordSchema = Schema.Record(Schema.String, Schema.Unknown)
 
-/** Projects an unknown Prime Agent 0.8.1 connection snapshot into Ernie's JSON contract. */
+/** Projects an unknown Prime Agent connection snapshot into Ernie's JSON contract. */
 export function projectPrimeSessionSnapshot(
   input: unknown,
   previousSession?: PrimeSessionSummary,

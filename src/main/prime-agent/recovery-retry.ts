@@ -3,7 +3,7 @@ type CancelRecoveryRetry = () => void
 type ScheduleRecoveryRetry = (callback: () => void) => CancelRecoveryRetry
 
 /** Owns the cancellable delay between Prime Agent recovery attempts. */
-export class PrimeAgentRecoveryRetry {
+class PrimeAgentRecoveryRetry {
   private cancel: CancelRecoveryRetry | undefined
   private waiting: Promise<void> | undefined
   private resolveWaiting: (() => void) | undefined

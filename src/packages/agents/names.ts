@@ -1,7 +1,7 @@
 import { Random } from "effect"
 
 /** Curated first names for Agent suggestions; names are not unique identifiers. */
-export const agentFirstNames = [
+const agentFirstNames = [
   "Ernie", "Milo", "Ollie", "Theo", "Pip",
   "Cleo", "Remy", "Winnie", "Mabel", "Toby",
 ] as const

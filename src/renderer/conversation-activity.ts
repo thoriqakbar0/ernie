@@ -17,7 +17,7 @@ const decodeResult = Schema.decodeUnknownOption(ToolResult)
 const decodeText = Schema.decodeUnknownOption(TextPart)
 
 /** Safe presentation of an authoritative tool result; excludes reasoning and exposes only validated Python source. */
-export type ConversationToolResult = Readonly<{ id: string; name: string; failed: boolean; text: string; code?: string }>
+type ConversationToolResult = Readonly<{ id: string; name: string; failed: boolean; text: string; code?: string }>
 
 /** Projects supported runtime details without making task-level success or ownership claims. */
 export function describeConversationActivity(snapshot: PrimeSessionSnapshot) {

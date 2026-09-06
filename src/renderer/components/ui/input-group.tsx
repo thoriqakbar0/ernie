@@ -57,13 +57,6 @@ const styles = stylex.create({
     color: "var(--muted)",
     userSelect: "none",
   },
-  text: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 14,
-    color: "var(--muted)",
-  },
   control: {
     flex: 1,
     borderRadius: 0,
@@ -195,10 +188,6 @@ export function InputGroupButton({
       xstyle={[styles.button, sizes[size], xstyle]}
     />
   )
-}
-/** Supplementary text within a control group. */
-export function InputGroupText({ xstyle, ...props }: StyledProps<ComponentProps<"span">>) {
-  return <span {...props} {...stylex.props(styles.text, xstyle)} />
 }
 /** Removes the inner input border; the group owns the focus indicator. */
 export function InputGroupInput({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) {

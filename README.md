@@ -9,7 +9,8 @@ Read the guide that matches the change:
 - [Architecture](docs/architecture.md): state ownership, component boundaries, and scenario integration
 - [Data structures](docs/data-structures.md): contract relationships, identifiers, synchronization, and state lifetime
 - [UI](docs/ui.md): visual direction, interaction requirements, and adverse states
-- [Workflow](docs/workflow.md): agent-native inspection, iteration, and evidence
+- [Workflow](docs/workflow.md): browser iteration and isolated scenarios
+- [Verification](docs/verification.md): test boundaries and unresolved findings
 - [Code map](lat.md/lat.md): concepts linked to implementation
 
 The guides distinguish current implementation from accepted product direction and verification requirements.
@@ -42,7 +43,7 @@ Development state is isolated under `.zenbu/dev/browser/`:
 └── runtime.json
 ```
 
-Browser development reads the standard Prime Agent daemon and its existing sessions. Ernie starts it when unavailable and leaves it running on exit.
+Browser development shares a managed daemon endpoint for the installed Prime Agent version. Ernie starts it when unavailable and leaves it running on exit. See [daemon ownership](docs/architecture.md#prime-agent-version-boundary).
 
 Use a separate profile and port for concurrent worktrees or agents:
 
@@ -104,6 +105,12 @@ nub run test:e2e:open
 ```
 
 The browser integration and desktop smoke commands use temporary database, agent, socket, and Electron profile directories, then remove them on exit.
+
+### Unused code
+
+Run `nub run lint:unused` to check unused files, exports, and dependencies with Knip. `knip.json` declares Zenbu service discovery, injected views, Nub scripts, and browser entrypoints. Cypress and cloud tools have separate package scopes.
+
+Knip exceptions cover Zenbu's Electron builder, cloud CLI tools installed for shell scripts, and system binaries. Prime Agent companion packages resolve transitively through pinned overrides.
 
 ### Structural conventions
 

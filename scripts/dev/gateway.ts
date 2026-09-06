@@ -129,7 +129,7 @@ function proxyUpgrade(
   upstream.end()
 }
 
-export function resolveGatewayTarget(rawUrl: string | undefined, origin: string) {
+function resolveGatewayTarget(rawUrl: string | undefined, origin: string) {
   const path = rawUrl ?? "/"
   if (!path.startsWith("/") || path.startsWith("//")) {
     throw new Error("Development gateway accepts only origin-form request targets")
@@ -137,7 +137,7 @@ export function resolveGatewayTarget(rawUrl: string | undefined, origin: string)
   return new URL(path, origin)
 }
 
-export function isViteHmrUpgrade(protocols: string | string[] | undefined) {
+function isViteHmrUpgrade(protocols: string | string[] | undefined) {
   const values = Array.isArray(protocols) ? protocols : protocols === undefined ? [] : [protocols]
   return values
     .flatMap((value) => value.split(","))

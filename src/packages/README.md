@@ -1,20 +1,19 @@
 # Deep modules
 
-Copy `example` when you add a package:
+Add a package only when it owns a domain boundary:
 
 ```text
 src/packages/<name>/
   index.ts
   client.ts
   lib/
-  tests/
 ```
 
 Package root files are entry points. Import a package only through these files.
 
 Put implementation in `lib/`. Files in any package subfolder are private.
 
-Tests belong in `tests/`. Tests use entry points, including their own package's entry points.
+Integration tests live in `src/integration/` and use public entry points.
 
 Do not create barrel files that re-export a subtree. Add several small root entry points when callers need separate interfaces.
 

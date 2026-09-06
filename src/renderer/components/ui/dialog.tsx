@@ -13,9 +13,6 @@ function DialogTrigger({ ...props }: StyledProps<DialogPrimitive.Trigger.Props>)
 function DialogPortal({ ...props }: StyledProps<DialogPrimitive.Portal.Props>) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
-function DialogClose({ ...props }: StyledProps<DialogPrimitive.Close.Props>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
-}
 function DialogOverlay({ xstyle, ...props }: StyledProps<DialogPrimitive.Backdrop.Props>) {
   return (
     <DialogPrimitive.Backdrop
@@ -58,23 +55,6 @@ function DialogContent({
 function DialogHeader({ xstyle, ...props }: StyledProps<React.ComponentProps<"div">>) {
   return <div data-slot="dialog-header" {...stylex.props(styles.DialogHeader, xstyle)} {...props} />
 }
-function DialogFooter({
-  xstyle,
-  showCloseButton = false,
-  children,
-  ...props
-}: StyledProps<React.ComponentProps<"div">> & {
-  showCloseButton?: boolean
-}) {
-  return (
-    <div data-slot="dialog-footer" {...stylex.props(styles.DialogFooter, xstyle)} {...props}>
-      {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="bordered" />}>Close</DialogPrimitive.Close>
-      )}
-    </div>
-  )
-}
 function DialogTitle({ xstyle, ...props }: StyledProps<DialogPrimitive.Title.Props>) {
   return (
     <DialogPrimitive.Title
@@ -95,13 +75,9 @@ function DialogDescription({ xstyle, ...props }: StyledProps<DialogPrimitive.Des
 }
 export {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
   DialogTrigger,
 }
@@ -158,27 +134,6 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     gap: 8,
-  },
-  DialogFooter: {
-    marginInline: -16,
-    marginBottom: -16,
-    display: "flex",
-    flexDirection: {
-      default: "column-reverse",
-      "@media (min-width: 640px)": "row",
-    },
-    justifyContent: {
-      default: null,
-      "@media (min-width: 640px)": "flex-end",
-    },
-    gap: 8,
-    borderEndStartRadius: 12,
-    borderEndEndRadius: 12,
-    borderTopWidth: "1px",
-    borderTopStyle: "solid",
-    borderTopColor: "var(--rule)",
-    backgroundColor: "color-mix(in srgb, var(--surface-muted) 50%, transparent)",
-    padding: 16,
   },
   DialogTitle: {
     fontSize: 16,

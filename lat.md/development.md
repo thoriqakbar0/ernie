@@ -10,7 +10,9 @@ The development gateway prints its runtime and browser addresses. Browser integr
 
 ## Development profiles
 
-Each profile owns a state root, database, runtime descriptor, process owner, and Electron user data. Browser roles share the versioned managed daemon endpoint; desktop profiles own an agent directory and versioned socket within their state root. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
+Each profile owns a state root, database, runtime descriptor, process owner, and Electron user data.
+
+Browser roles share the versioned managed daemon endpoint; desktop profiles own an agent directory and versioned socket within their state root. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
 
 [[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects an external daemon and disables daemon ownership.
 

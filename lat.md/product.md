@@ -2,7 +2,7 @@
 
 Ernie helps a developer direct several Prime Agent sessions without losing the selected workspace, transcript, or runtime state.
 
-The detailed product source is [PRODUCT.md](../PRODUCT.md). The interaction source is [docs/ui.md](../docs/ui.md), and the visual rules are [DESIGN.md](../DESIGN.md).
+The detailed product source is [PRODUCT.md](../PRODUCT.md). Interaction and visual rules live in [docs/ui.md](../docs/ui.md).
 
 ## Session continuity
 

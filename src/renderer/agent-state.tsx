@@ -122,10 +122,3 @@ export function useConversationDraft(key: string) {
   const entry = state.drafts.get(key)
   return [entry?.content ?? "", (value: string) => state.setDraft(key, value), () => state.clearDraft(key, entry)] as const
 }
-
-/** Moves an empty Agent draft into the newly created session without submitting it. */
-export function useDraftTransfer() {
-  const state = useContext(draftsContext)
-  if (!state) throw new Error("ConversationDraftProvider is missing")
-  return (sessionId: string, content: string) => state.setDraft(sessionId, content)
-}

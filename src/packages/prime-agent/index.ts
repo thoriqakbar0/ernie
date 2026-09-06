@@ -221,7 +221,7 @@ export type PrimeSessionChangeEnvelope = Readonly<{
 }>
 
 /** One snapshot or ordered change delivered for a renderer attachment. */
-export type PrimeSessionSyncEvent =
+type PrimeSessionSyncEvent =
   | Readonly<{ type: "snapshot"; envelope: PrimeSessionSnapshotEnvelope }>
   | Readonly<{ type: "change"; envelope: PrimeSessionChangeEnvelope }>
 

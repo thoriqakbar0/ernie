@@ -6,7 +6,7 @@ export type PrimeAgentCommandAvailability<Connection> =
   | Readonly<{ ok: true; connection: Connection }>
   | Readonly<{ ok: false; error: PrimeAgentTransportUnavailableError }>
 
-export class PrimeAgentTransportUnavailableError extends Error {
+class PrimeAgentTransportUnavailableError extends Error {
   readonly _tag = "PrimeAgentTransportUnavailableError"
 
   constructor(

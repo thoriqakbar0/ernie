@@ -1,89 +1,50 @@
-# Architecture for changes
+# Architecture
 
-Use this guide when a change affects state ownership, component boundaries, or runtime integration. The [architecture map](../lat.md/architecture.md) links current responsibilities to source code. This guide explains how to extend those boundaries.
-
-## Current structure and product direction
-
-Ernie currently renders Prime Agent sessions through React and Zenbu. The [domain map](../lat.md/domain.md) describes session admission, synchronization, and renderer projection.
-
-Read [data structures](data-structures.md) for contract relationships, identifiers, revisions, and state lifetime.
-
-[ADR 0002](adr/0002-native-agent-roots.md) binds each Ernie Agent to one native root. It supersedes the Agent/conversation ownership in ADR 0001. Routines, memory, and task surfaces remain target capabilities.
+[ADR 0002](adr/0002-native-agent-roots.md) binds each Agent to one native root. Use the [code map](../lat.md/architecture.md) for implementation links and [data structures](data-structures.md) for protocol invariants.
 
 ## Ownership
 
+| Responsibility | Owner |
+| --- | --- |
+| Execution, names, configuration, transcript, descendants | Prime Agent |
+| Appearance, favorites, durable root binding, legacy origins | `AgentsService` and `AgentStoreService` |
+| Revisioned catalog, selected session, attachments, receipts | `PrimeAgentService` |
+| Renderer subscriptions, cache, commands | `PrimeAgentStateProvider` |
+| Session admission and stop feedback | `ConversationFlowProvider` |
+| Unsent text and draft versions | `ConversationDraftProvider` |
+| Session reading positions | `MessageReadingProvider` |
+| Shared appearance | StyleX theme and shared controls |
+
+Renderer caches mirror accepted runtime state. Menus and other temporary presentation belong to their owning component. Drafts, reading positions, and feedback survive navigation, but not application reload.
+
 ### Prime Agent version boundary
 
-Ernie pins the Prime Agent package family to 0.9.3 through GitHub release assets. Package overrides keep transitive companion packages on those same assets; the lockfile records their integrity.
+Prime Agent and companion overrides use pinned GitHub release assets. The lockfile owns versions and integrity hashes. Managed sockets include the installed version: browser development and the service share one endpoint; desktop profiles use a versioned socket within their state directory. Explicit socket overrides remain external.
 
-The managed socket name includes the installed Prime Agent version. Browser development and the service fallback use the same versioned endpoint. Desktop profiles use a versioned socket within their existing state directory. Explicit socket overrides remain external and unchanged. Before issuing session commands, Ernie requires protocol 7 and schema revision 26 or newer. Managed daemons must also report the installed package version. External daemons may report another package version when they meet that protocol and schema contract.
+Before session commands, require protocol 7, schema revision 26 or newer, and matching package version for managed daemons. External daemons may report another package version when the protocol and schema match. Incompatibility closes only Ernie's client. An unavailable managed endpoint may start a daemon; external endpoints report failure without replacement.
 
-An incompatible handshake closes only Ernie's client. It does not launch a replacement or stop the existing daemon. An unavailable managed endpoint can start a daemon; an unavailable external endpoint reports an error. Saved root files remain authoritative when changing endpoints, and native session leases still govern admission.
+Saved root files and native session leases remain authoritative across endpoint changes. Attachments use supervisor transport and catalog polling; roster subscriptions and direct transport require separate integration.
 
-The upgrade retains supervisor-routed attachments and catalog polling. Roster subscriptions and direct worker transport require separate integration; they are not implied by the package version.
+## Persistence and native identity
 
-### State and resource owners
+Effect owns validation, expected failures, serialization, and orchestration; Zenbu RPC exposes Promises. Zenbu's schema envelope uses Zod, with Effect Schema validating the roster.
 
-Assign each value and effect one owner before changing its presentation:
+Zenbu 0.6 swallows flush failures. `AgentStoreService` writes a fresh token, flushes, then verifies the token and roster on disk before reporting success. Retry forces a write even if in-memory settings already match.
 
-| Responsibility | Owner | Change rule |
-| --- | --- | --- |
-| Session execution and transcript | Prime Agent, exposed through Ernie’s main-process boundary | Use authoritative snapshots and ordered updates |
-| Agent appearance, favorites, durable root binding, and legacy origins | `AgentsService` and `AgentStoreService` | Serialize mutations; persist prepared identity before native admission |
-| Root name, configuration, and descendants | Prime Agent | Rename through native commands; retain immutable origin for restoration |
-| Catalog and selected session | Revisioned state published by `PrimeAgentService` | Keep selection and catalog changes consistent |
-| Send identity and receipt recovery | Chat coordinator and main-service receipt ledger | Preserve immutable requests; see [send receipts](data-structures.md#send-receipts-and-recovery) for uncertainty and lifetime |
-| Renderer subscriptions, cache, and commands | `PrimeAgentStateProvider` and its runtime | Expose focused hooks; keep transport mechanics here |
-| Feature interaction | Workspace, composer, transcript, and navigation components | Coordinate behavior within the affected feature |
-| Temporary presentation | The nearest component that owns its lifetime | Keep menu visibility and similar state local |
-| Shared appearance and controls | StyleX theme, colocated style modules, and `components/ui/` | Reuse established styles and interaction behavior |
+Prepare and persist a root identity before native admission. Resume its exact `sessionPath`, restoring immutable execution origin while respecting native model changes. Reconciliation imports missing records, rejects conflicting identities or origins, and preserves current selection and assignments. Legacy reassignment preserves execution origin.
 
-Derived values stay derived. A renderer cache mirrors server state; it does not create another authority for that state.
+The stored selected Agent is navigation context. `PrimeAgentService` owns selected-session state; explicit visits update recency, streaming does not.
 
-`ConversationDraftProvider` owns session-keyed unsent text for the application lifetime. Empty Agent drafts have a separate Agent key. Creation transfers their current version to the session while submission uses the captured message; later edits remain visible. Session components remount safely without sharing text. Reloading the application clears this temporary state.
+Resolve the active native ID from the catalog or saved root before constructing an attachment, so initial snapshot events match. Reserve attachment acquisition before asynchronous work; concurrent callers share its promise and generation. Recovery uses a captured session file or direct catalog lookup rather than awaiting itself.
 
-## Component boundaries
+## Conversation boundaries
 
-Extract a component when it owns a coherent interaction or an established repeated pattern. Keep feature policy with the feature. Shared controls own reusable interaction and appearance, not session commands.
+Commands capture explicit session IDs and draft identity before asynchronous work. Navigation cannot relocate them. Clear submitted drafts by captured object identity, not text equality; later edits survive. Hidden mobile views must not overwrite reading positions with zero-sized layout observations.
 
-Use the existing dependencies and public package entry points. Add a boundary when it hides real policy, resource ownership, or external translation. A folder or wrapper alone does not establish that boundary.
-
-Follow the [StyleX map](../lat.md/styling.md) for component styles and theme values. Keep document defaults in `main.css`.
+`describeConversationActivity` parses supported tool output from the accepted snapshot. It adds presentation, not another transcript or execution authority. Current activity belongs to the session because the display contract does not map every event to a submitted message.
 
 ## Development scenarios
 
-Controlled scenarios should render production components through the existing client boundary. `PrimeAgentStateProvider` accepts a client and workspace-path provider. The development-only mock accepts initial snapshots.
+Fixtures use production components through injected clients and workspace providers. They own their subscriptions and cleanup and must not issue live commands. [Workflow](workflow.md#browser-scenarios) describes controls; [verification](verification.md) records remaining gaps.
 
-The development-only `?browser=1&scenario=agents` route renders production roster, settings, and workspace components with isolated clients. It does not attach to live Prime sessions. See [verification](agent-roster-verification.md) for its presets and evidence limits.
-
-Keep fixtures and their actions separate from live sessions. Give subscriptions, timers, and pending operations explicit cleanup. Scenario behavior verifies presentation; live runtime evidence verifies integration.
-
-## Recording a decision
-
-Update the linked `lat.md/` section when ownership or a runtime contract changes. Use an ADR for a durable decision with alternatives and consequences. Keep transient debugging notes and screenshot paths in the task handoff.
-
-For visual behavior, read [UI guidance](ui.md). For the inspect, edit, and review sequence, read the [development workflow](workflow.md).
-
-## Agent organization boundary
-
-`AgentsService` exposes typed creation, editing, pinning, selection, and assignment through Zenbu RPC. Effect owns validation, expected failures, serialized mutations, and asynchronous orchestration; Promises appear at the RPC boundary. `AgentStoreService` stores the roster in the existing Zenbu database. Each write changes a persistence token, flushes, and reads back the token and roster from disk before reporting success. Zenbu 0.6 swallows flush errors, so awaiting flush alone does not establish durability. A retry forces another write even when the in-memory settings already match. The Zenbu schema adapter uses its required Zod envelope; Effect Schema validates the roster itself.
-
-`PrimeAgentService` owns the single authoritative selected session. The stored selected Agent is navigation context, not a second selected session. Selecting an empty Agent clears session selection. Explicit conversation visits update recency; streaming activity does not.
-
-Conversation creation saves immutable execution origin and uses native `appendSystemPrompt`, workspace, provider, and model configuration. Native resume restores the saved instructions and workspace through `sessionPath`; it respects model changes already persisted by Prime Agent. Reassignment and later Agent edits preserve origin. No chat messages or repository instruction files substitute for native configuration.
-
-`reconcileRoster` imports missing records and immutable origins from another profile, rejects conflicting identities or origins, and preserves current selection and assignments. Recovery captures the session file when attachment succeeds; if needed, it queries the native catalog directly instead of waiting on its own recovery promise.
-
-## Conversation interaction ownership
-
-`ConversationFlowProvider` owns session-scoped admission and stop feedback for the application lifetime. It captures draft identity before starting an operation and uses explicit session IDs for subsequent commands. First-message creation reuses an Agent creation request ID, then uses the returned session for submission. Navigation does not relocate the command or erase its feedback. Expected creation and command failures become visible state through Effect; uncertain command outcomes are not automatically retried.
-
-`ConversationDraftProvider` captures object identity, not string equality, when clearing submitted text. `MessageReadingProvider` stores per-session scroll positions in application memory; transcript remounts restore them. Hidden mobile views do not overwrite positions with zero-sized layout observations.
-
-`describeConversationActivity` parses supported structured tool results with Effect Schema and projects presentation values. It consumes the existing accepted snapshot and creates no independent execution authority. The transcript places this projection in a session-level disclosure because the current display contract does not map every event to a submitted message.
-
-## Native attachment identity
-
-A logical session ID survives runtime restarts. Native snapshot events identify the current active session. Ernie resolves that active ID from the daemon catalog, or resumes the saved session, before constructing its logical connection. Otherwise, the connection can discard the beginning of a snapshot before the attach response updates its identity.
-
-Attachment acquisition reserves a shared promise before asynchronous cleanup or connection setup. Concurrent renderer calls receive one attachment generation. If recovery installs an attachment during client acquisition, the caller uses that attachment.
+Keep exact styles in source and update `lat.md/` links when code ownership changes. Use an ADR for durable product decisions; keep transient debugging evidence in the task.

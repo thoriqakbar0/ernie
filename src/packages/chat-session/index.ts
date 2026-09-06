@@ -1,7 +1,7 @@
 import type { PrimeAgentClient, SendRequest, SendReceipt } from "../prime-agent"
 
 /** Delivery outcome and the exact content it describes. */
-export type SubmitDraftResult = SendReceipt & Readonly<{ content: string }>
+type SubmitDraftResult = SendReceipt & Readonly<{ content: string }>
 
 /** Owns send identity across prompt, queue, and acknowledgement recovery. */
 export interface ChatSession {

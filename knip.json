@@ -1,0 +1,57 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreDependencies": [
+    "electron-builder"
+  ],
+  "ignoreBinaries": [
+    "debtmap",
+    "ffmpeg",
+    "ffprobe"
+  ],
+  "workspaces": {
+    "scripts/cloud": {
+      "entry": [
+        "*.mjs"
+      ],
+      "project": [
+        "*.mjs"
+      ],
+      "ignoreDependencies": [
+        "frog",
+        "lat.md"
+      ]
+    },
+    ".": {
+      "entry": [
+        "zenbu.config.ts",
+        "zenbu.plugin.ts",
+        "src/main/services/*.ts",
+        "src/main/prime-agent/service.ts",
+        "src/main/schema.ts",
+        "src/main/events.ts",
+        "src/browser/main.ts",
+        "src/browser/hmr-sentinel.ts",
+        "src/renderer/components/sidebar.tsx",
+        "scripts/*.{ts,mjs}",
+        "src/integration/*.integration.test.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "scripts/**/*.{ts,mjs}",
+        "*.{ts,mjs}"
+      ]
+    },
+    "cypress": {
+      "entry": [
+        "run.ts",
+        "cypress.config.ts",
+        "support/e2e.ts",
+        "e2e/*.cy.ts"
+      ],
+      "project": [
+        "**/*.ts"
+      ],
+      "cypress": false
+    }
+  }
+}

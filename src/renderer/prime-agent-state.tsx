@@ -1,7 +1,6 @@
 import {
   QueryClient,
   QueryClientProvider,
-  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
@@ -416,35 +415,6 @@ export function usePrimeModels(sessionId: string | undefined) {
       return runtime.getModels(sessionId)
     },
     enabled: sessionId !== undefined,
-  })
-}
-
-export function usePrimeRecurrentDepth(sessionId: string | undefined) {
-  const runtime = usePrimeAgentRuntime()
-  return useQuery({
-    queryKey: sessionKeys.recurrentDepth(sessionId ?? "none"),
-    queryFn: () => {
-      if (!sessionId) throw new Error("No Prime Agent session is attached")
-      return runtime.getRecurrentDepth(sessionId)
-    },
-    enabled: sessionId !== undefined,
-  })
-}
-
-/** Creates a Prime Agent session and seeds its attached snapshot cache. */
-export function useCreatePrimeSession() {
-  const runtime = usePrimeAgentRuntime()
-  const queryClient = useQueryClient()
-  const { selectSession } = usePrimeSessionSelection()
-  return useMutation({
-    mutationFn: (initialPrompt?: string) => runtime.createSession(initialPrompt),
-    onSuccess: ({ attached }) => {
-      queryClient.setQueryData(
-        sessionKeys.snapshot(attached.snapshot.session.id),
-        attached.snapshot,
-      )
-      selectSession(attached.snapshot.session.id)
-    },
   })
 }
 

@@ -30,14 +30,11 @@
     "lint:boundaries": "depcruise src/packages",
     "lat:check": "nub dlx lat.md@0.12.2 check",
     "check": "zen link && tsc --noEmit && nub run lint:outline && nub run lint:stylex && nub run lint:boundaries && nub run lat:check && nub run test:integration && nub run test:integration:browser && zen build:source",
-    "konsistent": "konsistent"
+    "konsistent": "konsistent",
+    "lint:unused": "knip"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
-    "@earendil-works/pi-agent-core": "https://github.com/PrimeIntellect-ai/prime-agent/releases/download/v0.9.3/prime-agent-core-0.9.3.tgz",
-    "@earendil-works/pi-ai": "https://github.com/PrimeIntellect-ai/prime-agent/releases/download/v0.9.3/prime-agent-ai-0.9.3.tgz",
-    "@earendil-works/pi-tui": "https://github.com/PrimeIntellect-ai/prime-agent/releases/download/v0.9.3/prime-agent-tui-0.9.3.tgz",
-    "@fontsource-variable/geist": "^5.3.0",
     "@stylexjs/stylex": "0.19.0",
     "@stylexjs/unplugin": "0.19.0",
     "@tanstack/react-query": "^5.102.8",
@@ -46,7 +43,6 @@
     "agentation": "3.0.2",
     "effect": "^4.0.0-rc.112",
     "lucide-react": "^1.39.0",
-    "phase": "^0.5.4",
     "prime-agent": "https://github.com/PrimeIntellect-ai/prime-agent/releases/download/v0.9.3/prime-agent-0.9.3.tgz",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -54,18 +50,17 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "dependency-cruiser": "^18.2.0",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.0",
-    "global-jsdom": "^29.0.0",
     "husky": "^9.1.7",
     "konsistent": "^1.0.0-beta.4",
     "react-grab": "^0.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "knip": "6.34.0"
   },
   "repository": {
     "type": "git",

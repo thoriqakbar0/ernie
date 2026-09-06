@@ -87,15 +87,6 @@ function SelectContent({
     </SelectPrimitive.Portal>
   )
 }
-function SelectLabel({ xstyle, ...props }: StyledProps<SelectPrimitive.GroupLabel.Props>) {
-  return (
-    <SelectPrimitive.GroupLabel
-      data-slot="select-label"
-      {...stylex.props(styles.SelectLabel, xstyle)}
-      {...props}
-    />
-  )
-}
 function SelectItem({ xstyle, children, ...props }: StyledProps<SelectPrimitive.Item.Props>) {
   return (
     <SelectPrimitive.Item
@@ -110,15 +101,6 @@ function SelectItem({ xstyle, children, ...props }: StyledProps<SelectPrimitive.
         <CheckIcon {...stylex.props(controlStyles.icon)} {...stylex.props(controlStyles.icon)} />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
-  )
-}
-function SelectSeparator({ xstyle, ...props }: StyledProps<SelectPrimitive.Separator.Props>) {
-  return (
-    <SelectPrimitive.Separator
-      data-slot="select-separator"
-      {...stylex.props(styles.SelectSeparator, xstyle)}
-      {...props}
-    />
   )
 }
 function SelectScrollUpButton({
@@ -154,10 +136,6 @@ export {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectScrollDownButton,
-  SelectScrollUpButton,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 }
@@ -231,12 +209,6 @@ const styles = stylex.create({
     },
     transition: "opacity 100ms, scale 100ms",
   },
-  SelectLabel: {
-    paddingInline: 6,
-    paddingBlock: 4,
-    fontSize: 12,
-    color: "var(--muted)",
-  },
   SelectItem: {
     position: "relative",
     display: "flex",
@@ -285,13 +257,6 @@ const styles = stylex.create({
     height: 16,
     alignItems: "center",
     justifyContent: "center",
-  },
-  SelectSeparator: {
-    pointerEvents: "none",
-    marginInline: -4,
-    marginBlock: 4,
-    height: 1,
-    backgroundColor: "var(--rule)",
   },
   SelectScrollUpButton: {
     top: 0,

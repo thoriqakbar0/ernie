@@ -4,7 +4,7 @@ Use the Ernie environment for `thoriqakbar0/ernie`. Read the repository's `AGENT
 
 ## Environment configuration
 
-Select `thoriqakbar0/ernie`, the universal Ubuntu 24.04 image, and Node.js 22 for bootstrap. Setup installs Node 24.19.0 for the project because `phase` requires Node 24. Enable container caching and use manual setup. Generate the setup field with `nub --node scripts/cloud/render-setup.mjs`; paste its output into the environment's setup command. Set maintenance to `bash /opt/ernie-cloud/maintenance.sh`.
+Select `thoriqakbar0/ernie`, the universal Ubuntu 24.04 image, and Node.js 22 for bootstrap. Setup installs Node 24.19.0 for the project. Enable container caching and use manual setup. Generate the setup field with `nub --node scripts/cloud/render-setup.mjs`; paste its output into the environment's setup command. Set maintenance to `bash /opt/ernie-cloud/maintenance.sh`.
 
 The setup field embeds these files, so it works before this folder is pushed. Regenerate that field when changing the cloud helpers. Keep agent internet access off unless the requested task needs it. Setup and maintenance have network access for dependency downloads.
 

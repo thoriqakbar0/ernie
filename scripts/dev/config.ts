@@ -5,8 +5,8 @@ import { managedDaemonSocketName, managedDaemonSocketPath } from "../../src/main
 
 const DevRole = Schema.Literals(["all", "server", "web", "desktop"])
 
-export type DevRole = typeof DevRole.Type
-export type DaemonLifecycle = "shared" | "owned" | "external"
+type DevRole = typeof DevRole.Type
+type DaemonLifecycle = "shared" | "owned" | "external"
 
 export type DevConfig = Readonly<{
   role: DevRole

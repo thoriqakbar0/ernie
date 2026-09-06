@@ -319,7 +319,7 @@ const changeEnvelopeSchema = Schema.Struct({
 )
 
 /** Safe failure returned when a cross-process session payload is invalid. */
-export class PrimeSessionProtocolError extends Error {
+class PrimeSessionProtocolError extends Error {
   readonly _tag = "PrimeSessionProtocolError"
 
   /** Creates a safe error without retaining the rejected payload. */
@@ -365,10 +365,10 @@ export function parsePrimeSessionChangeEnvelope(
 }
 
 /** Maximum live changes retained while an authoritative snapshot is pending. */
-export const PRIME_SESSION_CHANGE_BUFFER_LIMIT = 256
+const PRIME_SESSION_CHANGE_BUFFER_LIMIT = 256
 
 /** Reason the renderer must request another authoritative session snapshot. */
-export type PrimeSessionRecoveryReason =
+type PrimeSessionRecoveryReason =
   | "buffer-overflow"
   | "generation-changed"
   | "revision-gap"

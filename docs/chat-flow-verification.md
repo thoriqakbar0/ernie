@@ -1,5 +1,7 @@
 # Message-to-work verification
 
+For the current one-root-per-Agent model, see [native Agent verification](native-agent-verification.md). The evidence below records the earlier conversation model.
+
 This record describes browser inspection of the implemented chat flow on 2026-09-05. Production components ran through the isolated Agent scenario at `http://127.0.0.1:4310/?browser=1&scenario=agents`. Fixtures were synthetic and did not send commands to live sessions.
 
 ## Observed behavior
@@ -61,3 +63,28 @@ The review identifies and fixes four failure paths:
 - Native attachment could use a logical ID before the catalog supplied its active ID. Snapshot filtering could then discard the beginning of the snapshot. The service resolves active identity before attachment and reserves concurrent acquisition. The real integration checks a shared generation across three concurrent callers, offline receipt inspection, and attachment after daemon restart.
 
 These changes address the observed snapshot failure. The focused daemon integration passes after the fix; broader verification runs through the commit hook.
+
+## Live lifecycle verification, 2026-09-06
+
+Browser inspection used `main` at `e8a6f1f`, plus the assignment-search correction described below. The browser gateway ran at `http://127.0.0.1:4311/?browser=1`. A separate Prime Agent daemon, Zenbu database, and workspace lived under `/tmp/ernie-live-20260906`. The daemon used the existing Prime Agent authentication through an auth-file symlink; sessions and execution stayed in the isolated profile. The shared daemon was not restarted.
+
+The live Agent used GPT-5.5 and instructions limiting tools to the verification workspace. Prompts contained synthetic markers and bounded sleep commands. These observations establish model execution in this profile:
+
+| Scenario | Observed result |
+| --- | --- |
+| First message | One send created a conversation, rendered one user message, and returned `LIVE_OK_20260906` |
+| Active work and queue | A bounded sleep kept the session working. A follow-up showed one queued item, then produced `QUEUED_OK_20260906` after `FIRST_TURN_DONE` |
+| Navigation during work | A separate empty Agent had its own draft. Returning restored `DRAFT_SURVIVES_NAVIGATION` and the original queued activity |
+| Stop | Stopping another bounded sleep removed the working state and stop control. The draft remained editable; no success badge or requested completion marker appeared |
+| Daemon disconnection | Stopping only the isolated daemon preserved the transcript and `DRAFT_SURVIVES_STOP_AND_RECONNECT`. The roster reported recovery and new sends became disabled |
+| Daemon restart | Restarting the same isolated profile restored command availability without reloading the browser. A new prompt returned `RECOVERED_OK_20260906` in the existing conversation |
+
+The restarted daemon initially rejected an attachment to the old active session. Ernie then resumed the saved conversation and recovered automatically. That transient rejection did not require a user retry. This inspection observed authoritative working and queued states; it did not measure individual text-stream chunk timing or throughput.
+
+## Result-state follow-up, 2026-09-06
+
+The isolated Agent and workspace scenarios used production components through browser HMR. Agent search reset restored its input focus. Conversation history closed with Escape and restored its trigger. Disabling both providers in the four-model catalog showed an empty result; Reset filters restored the options and focused the first model. The workspace picker cleared an empty search through the keyboard and returned focus to its input.
+
+Assignment search exposed a missing recovery state: an unmatched query left only Unassigned history visible. The header now explains the empty result and provides Clear search. HMR inspection confirmed the message, keyboard activation of Clear search, restored search focus, and Escape returning focus to Conversation options.
+
+The standard light surface was visually inspected. Chrome rendering controls became unavailable during the display-mode inspection, so dark mode, forced colors, and reduced motion are not verified by this follow-up. OS input-method composition and Electron renderer behavior remain outside this evidence. No build or automated test ran for this UI correction. Task surfaces remain a later delivery slice.

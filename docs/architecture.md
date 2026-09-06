@@ -8,7 +8,7 @@ Ernie currently renders Prime Agent sessions through React and Zenbu. The [domai
 
 Read [data structures](data-structures.md) for contract relationships, identifiers, revisions, and state lifetime.
 
-[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and related conversations. Persistent Agent identity and conversation organization are implemented. Routines, memory, and task surfaces remain target capabilities.
+[ADR 0002](adr/0002-native-agent-roots.md) binds each Ernie Agent to one native root. It supersedes the Agent/conversation ownership in ADR 0001. Routines, memory, and task surfaces remain target capabilities.
 
 ## Ownership
 
@@ -17,7 +17,8 @@ Assign each value and effect one owner before changing its presentation:
 | Responsibility | Owner | Change rule |
 | --- | --- | --- |
 | Session execution and transcript | Prime Agent, exposed through Ernie’s main-process boundary | Use authoritative snapshots and ordered updates |
-| Agent identity, defaults, and associations | `AgentsService` and `AgentStoreService` in the main process | Parse with Effect Schema and persist through Zenbu; serialize mutations |
+| Agent appearance, favorites, durable root binding, and legacy origins | `AgentsService` and `AgentStoreService` | Serialize mutations; persist prepared identity before native admission |
+| Root name, configuration, and descendants | Prime Agent | Rename through native commands; retain immutable origin for restoration |
 | Catalog and selected session | Revisioned state published by `PrimeAgentService` | Keep selection and catalog changes consistent |
 | Send identity and receipt recovery | Chat coordinator and main-service receipt ledger | Preserve immutable requests; see [send receipts](data-structures.md#send-receipts-and-recovery) for uncertainty and lifetime |
 | Renderer subscriptions, cache, and commands | `PrimeAgentStateProvider` and its runtime | Expose focused hooks; keep transport mechanics here |

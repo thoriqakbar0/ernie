@@ -9,6 +9,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, u
 import type { PropsWithChildren } from "react"
 import { useEvents, useRpc } from "@zenbujs/core/react"
 import type {
+  PrimeSessionInspection,
   PrimeAgentModelClient,
   PrimeSessionState,
   PrimeSessionSnapshot,
@@ -444,5 +445,18 @@ export function useCreatePrimeSession() {
       )
       selectSession(attached.snapshot.session.id)
     },
+  })
+}
+
+/** Read-only inspection keeps the selected root and its draft attached. */
+export function useNativeInspection(parentId: string, target: { kind: "child" | "saved"; id: string }) {
+  const rpc = useRpc()
+  return useQuery({ queryKey: ["native-inspection", parentId, target.kind, target.id],
+    queryFn: async (): Promise<PrimeSessionInspection> => {
+      if (target.kind === "child") return rpc.app.primeAgent.inspectChild({ parentSessionId: parentId, childId: target.id })
+      const { snapshot } = await rpc.app.primeAgent.attachSession({ sessionId: target.id })
+      return { source: "live", sessionId: snapshot.session.id, name: snapshot.session.name, messages: snapshot.messages, snapshot }
+    },
+    refetchInterval: 2000, retry: false,
   })
 }

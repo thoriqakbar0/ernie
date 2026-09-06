@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+import { readFile, readdir, mkdir, stat } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
 import { homedir } from "node:os"
@@ -10,6 +12,7 @@ import { ConversationOrigin, decodeAgentInput } from "../../packages/agents"
 import { nativeConversationConfig } from "./agent-config"
 import { AgentStoreService } from "../services/agent-store"
 import {
+  SessionManager,
   DaemonAgentConnection,
   DaemonClient,
   type AgentConnectionEvent,
@@ -18,6 +21,7 @@ import {
 } from "prime-agent"
 
 import type {
+  PrimeSessionInspection,
   PrimeModel,
   PrimeSessionState,
   PrimeSessionChangeEnvelope,
@@ -30,6 +34,7 @@ import {
   parsePrimeSessionSnapshotEnvelope,
 } from "../../packages/prime-agent/sync"
 import {
+  projectSavedMessages,
   diffPrimeSessionSnapshots,
   projectPrimeSessionSnapshot,
 } from "./projection"
@@ -167,6 +172,60 @@ export class PrimeAgentService extends Service.create({
     this.publishSessionState()
   }
 
+  /** Materializes a stable saved root before any daemon request can have an uncertain outcome. */
+  async prepareAgentRoot(input: { agentId: string; cwd: string; name: string }) {
+    if (!isAbsolute(input.cwd) || !(await stat(input.cwd)).isDirectory()) throw new Error("Choose an existing folder for your Agent.")
+    const directory = join(this.ctx.agentStore.rootDirectory(), createHash("sha256").update(input.agentId).digest("hex"))
+    await mkdir(directory, { recursive: true })
+    const files = (await readdir(directory)).filter((file) => file.endsWith(".jsonl"))
+    if (files.length > 1) throw new Error("Multiple saved roots need recovery before this Agent can open.")
+    const manager = files[0] ? SessionManager.open(join(directory, files[0])) : SessionManager.create(input.cwd, directory)
+    if (!files.length) { manager.appendSessionInfo(input.name); manager.flushNow() }
+    const sessionFile = manager.getSessionFile()
+    if (!sessionFile) throw new Error("Prime Agent could not prepare a durable session.")
+    return { status: "prepared" as const, sessionId: manager.getSessionId(), sessionFile }
+  }
+
+  /** Checks durable identity and root classification without opening or replacing a runtime. */
+  async inspectAgentRoot(input: { sessionId: string; sessionFile?: string }) {
+    await this.refreshSessionCatalog()
+    const sessionFile = input.sessionFile ?? this.sessionTargets.get(input.sessionId)?.sessionFile
+    if (!sessionFile) throw new Error("This saved Agent is unavailable. Reconnect or restore its original session file.")
+    await stat(sessionFile)
+    const manager = SessionManager.open(sessionFile)
+    if (manager.getSessionId() !== input.sessionId || (manager.getHeader()?.rlmDepth ?? 0) > 0) throw new Error("This session is not the requested native root.")
+    return { sessionId: input.sessionId, sessionFile, name: this.summaries.get(input.sessionId)?.name ?? manager.getSessionName(), cwd: manager.getCwd() }
+  }
+
+  /** Repeated activation opens the same saved root; the native session lease owns admission. */
+  async activateAgentRoot(input: { sessionId: string; sessionFile: string; name: string; origin?: ConversationOrigin; prepared: boolean }) {
+    await this.inspectAgentRoot(input)
+    const active = this.sessionTargets.get(input.sessionId)
+    if (!active?.activeSessionId || this.summaries.get(input.sessionId)?.workerFailed) {
+      const created = await this.request({ type: "create", sessionPath: input.sessionFile,
+        ...(input.prepared ? { name: input.name } : {}),
+        ...(input.origin ? { config: nativeConversationConfig(input.origin, !input.prepared) } : {}), lifecycle: "resident" }, CREATE_SESSION_TIMEOUT_MS)
+      const { summary, target } = toCatalogSession(readRecord(created, "root activation"))
+      if (summary.id !== input.sessionId) throw new Error("Prime Agent opened a different root. The saved binding was kept.")
+      this.sessionTargets.set(summary.id, target)
+      this.summaries.set(summary.id, summary)
+      this.upsertCatalogSession(summary)
+    }
+    await this.selectSession({ sessionId: input.sessionId })
+    return this.summaries.get(input.sessionId)
+  }
+
+  /** Renames only the bound native root, preserving native collision checks. */
+  async renameAgentRoot(input: { sessionId: string; sessionFile: string; name: string; expectedName?: string }) {
+    const current = await this.inspectAgentRoot(input)
+    if (current.name === input.name) return
+    if (input.expectedName !== undefined && current.name !== input.expectedName) throw new Error("The native name changed elsewhere. Reopen Customize before renaming.")
+    const activeSessionId = this.sessionTargets.get(input.sessionId)?.activeSessionId
+    await this.request(activeSessionId ? { type: "rename", activeSessionId, name: input.name }
+      : { type: "rename_saved_session", sessionPath: input.sessionFile, name: input.name })
+    await this.refreshSessionCatalog()
+  }
+
   /** Creates one resident Prime Agent session without attaching a renderer. */
   async createSession(input: { cwd: string; name?: string; origin?: ConversationOrigin; creationId?: string }) {
     const origin = input.origin ? await Effect.runPromise(decodeAgentInput(ConversationOrigin, input.origin)) : undefined
@@ -214,6 +273,31 @@ export class PrimeAgentService extends Service.create({
   async attachSession(input: { sessionId: string }): Promise<PrimeSessionSnapshotEnvelope> {
     if (this.recoveryPromise) await this.recoveryPromise
     return snapshotEnvelope(await this.getAttachment(input.sessionId))
+  }
+
+  /** Inspects a child admitted by this parent, without sending, resuming, or replacing it. */
+  async inspectChild(input: { parentSessionId: string; childId: string }): Promise<PrimeSessionInspection> {
+    const parent = await this.getAttachment(input.parentSessionId)
+    if (parent.snapshot.transport.status !== "connected") throw new Error("Reconnect the parent to inspect its subagents.")
+    const child = parent.snapshot.useful.children.find((item) => item.id === input.childId)
+    if (!child) throw new Error("This child is not in the parent’s native roster.")
+    if (!child.activeSessionId) {
+      const metadata = Schema.decodeUnknownSync(Schema.Struct({ type: Schema.Literal("rlm_subagent"), childId: Schema.NonEmptyString, sessionFile: Schema.NonEmptyString }))(JSON.parse(await readFile(join(child.sessionDir, "rlm-subagent.json"), "utf8")))
+      if (metadata.childId !== input.childId || dirname(metadata.sessionFile) !== child.sessionDir) throw new Error("The saved child identity does not match the native roster.")
+      await stat(metadata.sessionFile)
+      const manager = SessionManager.open(metadata.sessionFile)
+      const header = manager.getHeader()
+      if (!header || header.parentSession !== this.sessionTargets.get(input.parentSessionId)?.sessionFile || !(header.rlmDepth && header.rlmDepth > 0)) throw new Error("The saved transcript does not belong to this parent.")
+      const context = manager.buildSessionContext()
+      return { source: "saved", sessionId: manager.getSessionId(), name: manager.getSessionName(), messages: projectSavedMessages(context.messages, manager.getSessionId()) }
+    }
+    const connection = new DaemonAgentConnection(await this.getClient(), child.activeSessionId, { closeClientOnDispose: false })
+    try {
+      await connection.attach()
+      const snapshot = projectPrimeSessionSnapshot(enrichPrimeSessionSnapshot({ snapshot: await connection.getInitialSnapshot() }))
+      if (snapshot.useful.parent?.sessionId !== input.parentSessionId || snapshot.useful.parent.childId !== input.childId) throw new Error("The native child identity changed. Refresh the parent roster before inspecting it.")
+      return { source: "live", sessionId: snapshot.session.id, name: snapshot.session.name, messages: snapshot.messages, snapshot }
+    } finally { await connection.dispose() }
   }
 
   /** Returns the identity of this in-memory receipt owner. */
@@ -329,6 +413,8 @@ export class PrimeAgentService extends Service.create({
       !isGenericSessionName(attachment.snapshot.session.name)
     ) return
 
+    const roster = await Effect.runPromise(this.ctx.agentStore.read())
+    if (roster.agents.some((agent) => agent.root?.sessionId === attachment.sessionId)) return
     const derivedName = deriveSessionName(prompt)
     if (!derivedName) return
 
@@ -641,7 +727,7 @@ export class PrimeAgentService extends Service.create({
     const listedSessions = catalog.map(({ summary }) => summary)
     const sessions = listedSessions.map((session) => {
       const attached = this.attachments.get(session.id)?.snapshot.session
-      return attached ? { ...attached, activitySummary: session.activitySummary, activityAt: session.activityAt, workerFailed: session.workerFailed, ...(session.state === "recovering" ? { state: session.state } : {}) } : session
+      return attached ? { ...attached, name: session.name, cwd: session.cwd, rlmDepth: session.rlmDepth, activitySummary: session.activitySummary, activityAt: session.activityAt, workerFailed: session.workerFailed, ...(session.state === "recovering" ? { state: session.state } : {}) } : session
     })
     this.sessionTargets.clear()
     for (const { summary, target } of catalog) this.sessionTargets.set(summary.id, target)
@@ -1056,6 +1142,7 @@ function toCatalogSession(value: Record<string, unknown>): CatalogSession {
       model: readModel(value.model),
       activitySummary: readString(value.summary),
       activityAt: readString(value.lastActivityAt) ?? readString(value.modified),
+      ...(typeof value.rlmDepth === "number" && Number.isInteger(value.rlmDepth) && value.rlmDepth >= 0 ? { rlmDepth: value.rlmDepth } : {}),
       workerFailed: value.workerState === "failed",
     },
     target: {
@@ -1088,6 +1175,7 @@ function sameSessionSummary(left: PrimeSessionSummary, right: PrimeSessionSummar
     left.activitySummary === right.activitySummary &&
     left.activityAt === right.activityAt &&
     left.workerFailed === right.workerFailed &&
+    left.rlmDepth === right.rlmDepth &&
     left.model?.id === right.model?.id &&
     left.model?.provider === right.model?.provider &&
     left.model?.label === right.model?.label

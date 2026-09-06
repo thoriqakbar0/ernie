@@ -130,6 +130,7 @@ const usefulContextSchema = Schema.Struct({
     nodeId: Schema.optionalKey(Schema.NonEmptyString),
     childId: Schema.optionalKey(Schema.NonEmptyString),
   })),
+  childrenAvailable: Schema.optionalKey(Schema.Boolean),
   children: Schema.Array(rlmChildSchema).check(
     Schema.makeFilter((children) => {
       const ids = new Set<string>()
@@ -160,6 +161,7 @@ const sessionSummarySchema = Schema.Struct({
   activitySummary: Schema.optionalKey(Schema.String),
   activityAt: Schema.optionalKey(Schema.String),
   workerFailed: Schema.optionalKey(Schema.Boolean),
+  rlmDepth: Schema.optionalKey(Schema.Natural),
   id: Schema.NonEmptyString,
   cwd: Schema.NonEmptyString,
   name: Schema.optionalKey(Schema.NonEmptyString),
@@ -265,6 +267,7 @@ const sessionChangeSchema = Schema.Union(
         tree: jsonValueSchema,
         leafId: Schema.NullOr(Schema.NonEmptyString),
       })),
+      childrenAvailable: Schema.optionalKey(Schema.Boolean),
       children: Schema.Array(rlmChildSchema),
     }),
     Schema.Struct({
@@ -583,6 +586,7 @@ function replaceFamily(
     ...rest,
     ...(change.parent ? { parent: change.parent } : {}),
     ...(change.sessionTree ? { sessionTree: change.sessionTree } : {}),
+    childrenAvailable: change.childrenAvailable,
     children: change.children,
   }
 }

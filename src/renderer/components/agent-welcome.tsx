@@ -1,15 +1,14 @@
 import * as stylex from "@stylexjs/stylex"
-import { useState } from "react"
 import { ArrowUpRightIcon } from "lucide-react"
 import { useAgents } from "../agent-state"
 import { AgentAvatar } from "./agent-avatar"
-import { AgentSettingsDialog } from "./agent-settings"
+import { useAgentCreation } from "../agent-creation"
 import { styles } from "./agent-welcome.styles"
 
 /** Gives the unselected workspace a direct path into the persisted Agent roster. */
 export function AgentWelcome() {
   const { roster } = useAgents()
-  const [adding, setAdding] = useState(false)
+  const { setAdding } = useAgentCreation()
   return <div {...stylex.props(styles.welcome)}>
     <div {...stylex.props(styles.content)}>
       <h1 {...stylex.props(styles.title)}>your next idea,<br/><span {...stylex.props(styles.emphasis)}>meet your Agent.</span></h1>
@@ -27,6 +26,5 @@ export function AgentWelcome() {
       </button>
       <p {...stylex.props(styles.note)}>Your Agents stay. Each conversation gets its own space.</p>
     </div>
-    {adding ? <AgentSettingsDialog onClose={() => setAdding(false)}/> : null}
   </div>
 }

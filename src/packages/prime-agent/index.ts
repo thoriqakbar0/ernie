@@ -11,7 +11,17 @@ export type PrimeSessionSummary = Readonly<{
   model?: PrimeModel
   activitySummary?: string
   activityAt?: string
+  rlmDepth?: number
   workerFailed?: boolean
+}>
+
+/** A read-only transcript may come from a live child or its retained native session file. */
+export type PrimeSessionInspection = Readonly<{
+  sessionId: string
+  name?: string
+  source: "live" | "saved"
+  messages: readonly PrimeSessionMessage[]
+  snapshot?: PrimeSessionSnapshot
 }>
 
 /** One authoritative session-state revision published by Ernie's main process. */
@@ -135,6 +145,7 @@ export type PrimeUsefulSessionContext = Readonly<{
     nodeId?: string
     childId?: string
   }>
+  childrenAvailable?: boolean
   children: readonly PrimeRlmChild[]
   lastEventSequence?: number
   lastEventCursor?: Readonly<{ generation: string; sequence: number }>
@@ -182,6 +193,7 @@ export type PrimeSessionChange =
       type: "family"
       parent?: PrimeUsefulSessionContext["parent"]
       sessionTree?: PrimeUsefulSessionContext["sessionTree"]
+      childrenAvailable?: boolean
       children: readonly PrimeRlmChild[]
     }>
   | Readonly<{

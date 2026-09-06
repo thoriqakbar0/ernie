@@ -1,5 +1,7 @@
 # Ship an Agent-first conversation interface
 
+The root ownership and navigation rules in [ADR 0002](adr/0002-native-agent-roots.md) supersede the multiple-conversations-per-Agent model below. Current interaction rules live in [UI guidance](ui.md).
+
 This specification defines an Agent-first Ernie interface with the immediacy of a messaging app. It covers the visible experience and the backend path from the first message to Prime Agent execution, recovery, and conversation history.
 
 ## Outcome
@@ -168,7 +170,7 @@ The empty roster must explain the first useful action:
 - body: `Give each Agent a role and workspace, then start a conversation.`
 - primary action: `Add Agent`
 
-Selecting **Add Agent** opens the existing settings form. Preserve entered values when creation fails.
+Selecting **Add Agent** opens a compact creation composer in the workspace. Purpose is the primary input; Customize reveals name, generated character, instructions, and folder. Optional working preferences and a native folder chooser replace the technical setup fields. See [UI guidance](ui.md#agent-roster) for the implemented flow. Preserve entered values when creation fails.
 
 The unselected workspace starts with `your next idea, meet your Agent.` and the existing character illustrations. Its primary action opens the same settings form. Use left-aligned display typography and reserve illustration for empty states.
 

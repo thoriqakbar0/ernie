@@ -47,7 +47,7 @@ function Transcript({ messages, snapshot, agentName }: ConversationTranscriptPro
                 {message.role === "system" ? <header {...stylex.props(styles.messageEntryHeader)}>
                   <span {...stylex.props(styles.messageEntryRole)}>System</span>
                 </header> : null}
-                <p
+                <div
                   {...stylex.props(
                     styles.messageParagraph,
                     styles.messageEntryContent,
@@ -55,8 +55,8 @@ function Transcript({ messages, snapshot, agentName }: ConversationTranscriptPro
                     message.role === "system" && styles.systemMessageContent,
                   )}
                 >
-                  {message.content}
-                </p>
+                  {message.content.split(/\n{2,}/).map((paragraph, paragraphIndex) => <p key={paragraphIndex} {...stylex.props(styles.messageParagraph)}>{message.role === "assistant" ? paragraph.split(/(`[^`\n]+`)/g).map((part, index) => part.startsWith("`") && part.endsWith("`") ? <code key={index} {...stylex.props(styles.inlineCode)}>{part.slice(1, -1)}</code> : part) : paragraph}</p>)}
+                </div>
               </article>
             </MessageScrollerItem>
           ))}

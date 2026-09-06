@@ -9,6 +9,9 @@ import { AgentFailure, Roster, decodeAgentInput } from "../../packages/agents"
 const persistedRoster = Schema.Struct({ app: Schema.Struct({ roster: Roster, rosterWriteId: Schema.String }) })
 /** Owns durable Agent data. This adapter never controls Prime Agent execution. */
 export class AgentStoreService extends Service.create({ key: "agentStore", deps: { db: DbService } }) {
+  /** Keeps prepared native session files beside this profile’s durable roster. */
+  rootDirectory() { return join(this.ctx.db.dbPath, "native-roots") }
+
   /** Reads and parses the Zenbu field at the persistence boundary. */
   read = Effect.fn("AgentStore.read")(() => decodeAgentInput(Roster, this.ctx.db.client.readRoot().app.roster))
 

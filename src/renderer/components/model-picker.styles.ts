@@ -77,6 +77,7 @@ export const styles = stylex.create({
     animationIterationCount: "1",
   },
   modelSearch: {
+    backgroundColor: { default: "transparent", ":focus-within": theme["--surface-muted"] },
     display: "flex",
     alignItems: "center",
     gap: "9px",

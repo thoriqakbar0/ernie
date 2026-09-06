@@ -1,14 +1,22 @@
 import * as stylex from "@stylexjs/stylex"
 import { theme } from "../theme.stylex"
+import { shellLayout } from "../shell-layout.stylex"
 
 const breathe = stylex.keyframes({ "0%, 100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-1.5px)" } })
+const idleSway = stylex.keyframes({ "0%, 100%": { transform: "translateY(0) rotate(-3deg)" }, "50%": { transform: "translateY(-4px) rotate(3deg)" } })
 const blink = stylex.keyframes({ "0%, 94%, 100%": { transform: "scaleY(1)" }, "97%": { transform: "scaleY(0.15)" } })
 
 /** Roster identity, workspace controls, and avatar variants using the shared theme. */
 export const styles = stylex.create({
+  avatarGroup: { display: "flex", flexDirection: "column", width: 48, flexShrink: 0 },
+  groupParent: { display: "flex", height: 36, transform: "scale(.86)", transformOrigin: "left top" },
+  groupChildren: { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", marginTop: -12, width: 48 },
+  groupChild: { display: "flex", justifyContent: "center", width: 24, height: 24 },
+  contextMenu: { minWidth: 190, padding: 5, borderRadius: 12, backgroundColor: theme["--surface"], borderWidth: 1, borderStyle: "solid", borderColor: theme["--rule"], boxShadow: "0 8px 30px #0002" },
+  contextItem: { padding: "10px 12px", borderRadius: 7, cursor: "pointer", fontSize: 13, outlineStyle: "none", backgroundColor: { default: "transparent", ':is([data-highlighted])': theme["--surface-muted"] } },
   icon: { width: 17, height: 17, flexShrink: 0 },
   search: { padding: "2px 16px 16px" },
-  searchInput: { width: "100%", minWidth: 0, padding: "9px 11px", borderRadius: 12, borderWidth: 1, borderStyle: "solid", borderColor: theme["--rule"], backgroundColor: theme["--surface"], fontSize: 13 },
+  searchInput: { width: "100%", minWidth: 0, padding: "9px 11px", borderRadius: 12, borderWidth: 1, borderStyle: "solid", borderColor: theme["--rule"], backgroundColor: theme["--surface"], fontSize: { default: 13, "@media (max-width: 720px)": 16 } },
   nav: { minHeight: 0, flexGrow: 1, overflowY: "auto", overflowX: "hidden", paddingBottom: 16 },
   list: { display: "grid", gap: 5, listStyleType: "none", margin: 0, padding: "0 8px" },
   item: { position: "relative", display: "flex", alignItems: "center", minWidth: 0 },
@@ -16,11 +24,12 @@ export const styles = stylex.create({
   selected: { backgroundColor: theme["--surface-strong"], borderWidth: { default: null, "@media (forced-colors: active)": 1 }, borderStyle: { default: null, "@media (forced-colors: active)": "solid" }, borderColor: { default: null, "@media (forced-colors: active)": "Highlight" } },
   rowText: { display: "grid", minWidth: 0, gap: 4 },
   name: { display: "block", fontSize: 14, fontWeight: 570, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  preview: { color: theme["--muted"], fontSize: 12, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  avatar: { display: "inline-flex", flexShrink: 0, flexBasis: 42, width: 42, height: 42 },
+  preview: { fontVariantNumeric: "tabular-nums", color: theme["--muted"], fontSize: 12, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  avatar: { backgroundColor: "transparent", display: "inline-flex", flexShrink: 0, flexBasis: 42, width: 42, height: 42 },
   avatarLarge: { width: { default: 88, "@media (max-width: 480px)": 56 }, height: { default: 88, "@media (max-width: 480px)": 56 }, flexBasis: { default: 88, "@media (max-width: 480px)": 56 } },
   avatarSmall: { width: 28, height: 28, flexBasis: 28 },
   avatarSvg: { width: "100%", height: "100%" },
+  idleMotion: { transformOrigin: "center", transformBox: "fill-box", animationName: { default: idleSway, "@media (prefers-reduced-motion: reduce)": "none" }, animationDuration: "3.2s", animationTimingFunction: "ease-in-out", animationIterationCount: "infinite" },
   working: { animationName: { default: breathe, "@media (prefers-reduced-motion: reduce)": "none" }, animationDuration: "2.5s", animationTimingFunction: "ease-in-out", animationIterationCount: "infinite" },
   workingEyes: { transformOrigin: "center", animationName: { default: blink, "@media (prefers-reduced-motion: reduce)": "none" }, animationDuration: "4s", animationIterationCount: "infinite" },
   favorite: { position: "absolute", right: 4, padding: 7, borderRadius: 6, color: { default: theme["--faint"], ":hover": theme["--ink"] } },
@@ -38,7 +47,9 @@ export const styles = stylex.create({
   historyEmpty: { padding: "12px 6px", color: theme["--muted"], fontSize: 12, lineHeight: 1.5 },
   workspaceGroup: { padding: "8px 6px", fontSize: 13, color: theme["--muted"], overflowWrap: "anywhere" },
   conversationButton: { display: "block", width: "100%", padding: "9px 12px", marginTop: 3, borderRadius: 8, textAlign: "left", fontSize: 13, color: theme["--ink"], overflowWrap: "anywhere", backgroundColor: { default: "transparent", ":hover": theme["--surface-strong"] } },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: { default: 16, "@media (max-width: 640px)": 6 }, padding: { default: "15px 24px 15px 54px", "@media (max-width: 720px)": "12px 8px 12px 48px" }, flexShrink: 0, minWidth: 0, borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: theme["--rule"] },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, minHeight: 60, paddingBlock: 8, paddingInlineEnd: 8, paddingInlineStart: shellLayout.headerInset, flexShrink: 0, minWidth: 0, borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: theme["--rule"] },
+  headerName: { minWidth: 0, overflowWrap: "anywhere", fontSize: 16, lineHeight: 1.35, fontWeight: 600 },
+  headerAction: { flexShrink: 0, alignSelf: "flex-start", width: 44, height: 44 },
   workspacePath: { marginTop: 3, color: theme["--faint"], fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   identity: { display: "flex", alignItems: "center", gap: 9, minWidth: 0 },
   identityText: { minWidth: 0 },

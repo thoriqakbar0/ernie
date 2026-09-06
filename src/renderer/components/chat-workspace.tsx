@@ -1,3 +1,7 @@
+import { useAgentCreation } from "../agent-creation"
+import { styles as settingsStyles } from "./agent-settings.styles"
+import { AgentNativeSessions } from "./agent-native-sessions"
+import { AgentSettingsDialog, AgentControls } from "./agent-settings"
 import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useRef, useState } from "react"
@@ -41,9 +45,10 @@ const idleModelChange: ModelChangeState = {
 }
 const emptyModels: readonly PrimeModel[] = []
 export function ChatWorkspace() {
+  const { adding, setAdding } = useAgentCreation()
   const { selectedSessionId: sessionId } = usePrimeSessionSelection()
   const { roster, error } = useAgents()
-  const activeAgentId = sessionId ? roster.associations.find((item) => item.sessionId === sessionId)?.agentId : roster.selectedAgentId
+  const activeAgentId = sessionId ? roster.agents.find((item) => item.root?.sessionId === sessionId)?.id : roster.selectedAgentId
   const activeAgent = roster.agents.find((agent) => agent.id === activeAgentId)
   const firstSend = useConversationFlow(`agent:${activeAgentId ?? ""}`)
   const creating = firstSend.submission.status === "creating"
@@ -54,9 +59,9 @@ export function ChatWorkspace() {
       tabIndex={-1}
       {...stylex.props(styles.chatWorkspace)}
     >
-      <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId}/>
+      {adding ? <header {...stylex.props(rosterStyles.header)}><h1 {...stylex.props(styles.creationTitle)}>New Agent</h1></header> : <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId}/>}
       {error ? <p role="alert" {...stylex.props(rosterStyles.feedback)}>{error}</p> : null}
-      {!sessionId || creating ? (
+      {adding ? <div {...stylex.props(settingsStyles.creationStage)}><AgentSettingsDialog onClose={() => setAdding(false)}/></div> : !sessionId || creating ? (
         activeAgent ? <EmptyAgentWorkspace key={activeAgent.id} agent={activeAgent}/> : <AgentWelcome/>
       ) : <PrimeSessionWorkspace agent={activeAgent} key={sessionId} sessionId={sessionId}/>}
     </section>
@@ -162,6 +167,7 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
                 submitting={submitting}
                 working={working}
               />
+              {agent ? <><AgentControls agent={agent} showTabs={draftHero}/>{draftHero && agent.root ? <AgentNativeSessions agent={agent} snapshot={snapshot}/> : null}</> : null}
             </div>
           </div>
         </div>

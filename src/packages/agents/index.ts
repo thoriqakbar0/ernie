@@ -1,8 +1,10 @@
 import { Effect, Schema } from "effect"
 import type { PrimeSessionSummary } from "../prime-agent"
 
-/** Saved appearance choices in Ernie's original avatar family. */
-export const Avatar = Schema.Literals(["fern", "tide", "ember", "iris"])
+/** A saved recipe generates the same character on every surface and after reload. */
+export const GeneratedAvatar = Schema.Struct({ kind: Schema.Literal("generated"), seed: Schema.Natural })
+/** Original characters remain readable alongside generated character recipes. */
+export const Avatar = Schema.Union([Schema.Literals(["fern", "tide", "ember", "iris"]), GeneratedAvatar])
 /** Editable defaults, applied only when a conversation is created. */
 export const AgentSettings = Schema.Struct({
   name: Schema.NonEmptyString,
@@ -14,9 +16,16 @@ export const AgentSettings = Schema.Struct({
   model: Schema.String,
 })
 export interface AgentSettings extends Schema.Schema.Type<typeof AgentSettings> {}
-/** Persistent identity, independent of name and workspace. */
+/** Durable native root binding; creation can be retried without allocating another session. */
+export const NativeRoot = Schema.Struct({
+  status: Schema.Literals(["prepared", "bound"]),
+  sessionId: Schema.NonEmptyString,
+  sessionFile: Schema.NonEmptyString,
+})
+/** Persistent presentation identity, optionally bound to a native root. */
 export const Agent = Schema.Struct({
   ...AgentSettings.fields,
+  root: Schema.optionalKey(NativeRoot),
   id: Schema.NonEmptyString,
   revision: Schema.Natural,
   instructionRevision: Schema.Natural,

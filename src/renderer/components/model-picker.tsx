@@ -468,7 +468,7 @@ function ModelEffortControl({
         </SelectTrigger>
         <SelectContent align="end">
           <SelectGroup>
-            {effortLevels.map((effort) => <SelectItem key={effort} value={effort}>{effort}</SelectItem>)}
+            {effortLevels.map((effort) => <SelectItem key={effort} value={effort}>{effort === "medium" ? "medium · built-in default" : effort}</SelectItem>)}
           </SelectGroup>
         </SelectContent>
       </Select>

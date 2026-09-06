@@ -24,7 +24,7 @@ export const styles = stylex.create({
   },
   composerActions: { display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" },
   composerDefault: { color: theme["--muted"], fontSize: 12 },
-  composerFeedback: { minHeight: 22, padding: "6px 12px 0", color: theme["--muted"], fontSize: 12, lineHeight: 1.5 },
+  composerFeedback: { minHeight: { default: 22, ":empty": 0 }, padding: { default: "6px 12px 0", ":empty": 0 }, color: theme["--muted"], fontSize: 12, lineHeight: 1.5 },
   composerError: { color: theme["--danger"] },
   srOnly: {
     position: "absolute",
@@ -51,6 +51,8 @@ export const styles = stylex.create({
     },
   },
   composerField: {
+    fontSize: { default: 14, "@media (max-width: 720px)": 16 },
+    lineHeight: 1.5,
     minHeight: 56,
     padding: "14px 16px",
     maxHeight: 160,

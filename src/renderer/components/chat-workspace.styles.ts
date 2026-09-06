@@ -3,6 +3,7 @@ import { theme } from "../theme.stylex"
 
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
+  creationTitle: { fontSize: 15, fontWeight: 500, marginBlock: 16 },
   chatWorkspace: {
     display: "flex",
     minWidth: "0",
@@ -13,11 +14,13 @@ export const styles = stylex.create({
   },
   emptyConversation: { display: "flex", width: { default: "min(calc(100% - 48px), 720px)", "@media (max-width: 720px)": "calc(100% - 32px)" }, flexDirection: "column", alignItems: "start", gap: 14, textAlign: "left" },
   emptyHeading: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, width: "100%", minWidth: 0 },
-  emptyTitle: { minWidth: 0, maxWidth: "19ch", margin: 0, fontFamily: '"gelica", Georgia, serif', fontSize: "clamp(36px, 4.8vw, 62px)", fontWeight: 500, letterSpacing: "-0.045em", lineHeight: 1.08, color: theme["--ink-strong"], overflowWrap: "anywhere" },
+  emptyTitle: { textWrap: "balance", minWidth: 0, maxWidth: "19ch", margin: 0, fontFamily: '"gelica", Georgia, serif', fontSize: "clamp(36px, 4.8vw, 62px)", fontWeight: 500, letterSpacing: "-0.045em", lineHeight: 1.08, color: theme["--ink-strong"], overflowWrap: "anywhere" },
   emptyAgentName: { fontStyle: "italic", color: theme["--focus"] },
   emptyAvatar: { display: "inline-flex", flexShrink: 0, transform: "rotate(7deg)", paddingRight: { default: 24, "@media (max-width: 720px)": 0 } },
   emptyRole: { maxWidth: "42ch", overflowWrap: "anywhere", color: theme["--ink"], fontSize: 14, lineHeight: 1.5 },
-  emptyWorkspace: { display: "flex", alignItems: "center", gap: 7, maxWidth: "100%", overflowWrap: "anywhere", color: theme["--muted"], fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
+  workspaceDetails: { maxWidth: "100%", color: theme["--muted"] },
+  workspacePath: { fontSize: 13, lineHeight: 1.5, overflowWrap: "anywhere", paddingBlock: 8 },
+  emptyWorkspace: { cursor: "pointer", minHeight: 40, borderRadius: 8, paddingInline: 8, backgroundColor: theme["--surface-muted"], outlineWidth: { default: 0, ":focus-visible": 2 }, outlineStyle: "solid", outlineOffset: 2, outlineColor: { default: theme["--ink"], "@media (forced-colors: active)": "Highlight" }, display: "flex", alignItems: "center", gap: 7, maxWidth: "100%", overflowWrap: "anywhere", color: theme["--muted"], fontSize: 13 },
   workspaceContent: {
     position: "relative",
     minWidth: "0",
@@ -88,7 +91,7 @@ export const styles = stylex.create({
       default: "100%",
       "@media (max-width: 720px)": "auto",
     },
-    alignContent: "safe center",
+    alignContent: "start",
     justifyItems: "center",
     gridTemplateRows: "auto auto",
     gap: "22px",
@@ -97,6 +100,7 @@ export const styles = stylex.create({
       default: "48px",
       "@media (max-width: 720px)": "36px",
     },
+    paddingTop: { default: "max(48px, calc(50dvh - 155px))", "@media (max-width: 720px)": "36px" },
     minHeight: {
       default: null,
       "@media (max-width: 720px)": "max(420px, calc(100dvh - 254px))",
@@ -117,6 +121,9 @@ export const styles = stylex.create({
     textAlign: "center",
   },
   composerDock: {
+    maxHeight: "60dvh",
+    overflowY: "auto",
+    overscrollBehavior: "contain",
     position: "relative",
     zIndex: "10",
     flex: "0 0 auto",
@@ -129,13 +136,15 @@ export const styles = stylex.create({
     },
     paddingBottom: {
       default: null,
-      "@media (max-width: 720px)": "12px",
+      "@media (max-width: 720px)": "max(8px, env(safe-area-inset-bottom))",
     },
   },
   composerPlacement: {
     pointerEvents: "none",
   },
   composerPlacementHero: {
+    maxHeight: "none",
+    overflowY: "visible",
     zIndex: "10",
     width: {
       default: "min(calc(100% - 48px), 719px)",

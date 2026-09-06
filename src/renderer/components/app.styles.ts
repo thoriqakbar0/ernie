@@ -51,7 +51,7 @@ export const styles = stylex.create({
       "@media (max-width: 720px)": "minmax(0, 1fr)",
     },
   },
-  workspaceSlot: { display: "grid", minWidth: 0, minHeight: 0 },
+  workspaceSlot: { backgroundColor: theme["--surface"], display: "grid", minWidth: 0, minHeight: 0 },
   workspaceBehindSidebar: { display: { default: "grid", "@media (max-width: 720px)": "none" } },
   appSidebarSlot: {
     minHeight: "0",
@@ -84,8 +84,8 @@ export const styles = stylex.create({
   },
   sidebarOpenButton: {
     display: "grid",
-    width: "34px",
-    height: "34px",
+    width: "44px",
+    height: "44px",
     placeItems: "center",
     borderWidth: "0",
     borderStyle: "solid",
@@ -108,8 +108,8 @@ export const styles = stylex.create({
     },
     position: "absolute",
     zIndex: "20",
-    top: "14px",
-    left: "14px",
+    insetBlockStart: "8px",
+    insetInlineStart: "8px",
   },
   openIcon: {
     width: "16px",

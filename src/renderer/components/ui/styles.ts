@@ -29,7 +29,6 @@ export const controlStyles = stylex.create({
     outlineStyle: "none",
     boxShadow: {
       default: "none",
-      ":focus-visible": "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
       ':is([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
     },
     transition: "color 150ms, background-color 150ms, border-color 150ms, box-shadow 150ms",

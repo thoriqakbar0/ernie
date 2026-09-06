@@ -4,11 +4,11 @@ Use this guide for visual and interaction changes. It records design requirement
 
 ## Product context
 
-The interface presents persistent Agents and their Prime Agent conversations. Each Agent has editable identity and defaults. Prime Agent remains the authority for execution and transcripts.
+Each Agent represents one native Prime Agent root. Ernie provides appearance and navigation; Prime Agent owns the name, configuration, transcript, execution, and children.
 
 Read the [Agent-first interface specification](agent-first-interface-spec.md) when changing the Agent roster, conversation home, empty states, or their end-to-end backend flow.
 
-[ADR 0001](adr/0001-persistent-agent-product-model.md) defines the accepted direction toward persistent Agents and their conversations. Apply it when product-model changes are in scope. The roster is implemented; routines and task surfaces remain future work.
+Apply [ADR 0002](adr/0002-native-agent-roots.md) for root ownership. Routines and task surfaces remain future work.
 
 ## Current surface
 
@@ -115,13 +115,19 @@ Update this document when a visual or interaction decision is accepted. Record a
 
 ## Agent roster
 
-Selecting an Agent opens its most recently visited conversation, or an empty chat. Sending from that empty chat creates a conversation and submits the captured message in one action. The workspace header shows the Agent, conversation title, and actual session workspace. It owns conversation history and explicit new conversation creation; Conversation options contains settings and searchable assignment. Unassigned history remains grouped by workspace; existing sessions receive no automatic Agent assignment.
+Selecting an Agent opens its most recently visited conversation, or an empty chat. Sending from that empty chat creates a conversation and submits the captured message in one action. The workspace header shows the Agent identity. Conversation titles remain in history and navigation; the workspace path remains in Conversation options. It owns conversation history and explicit new conversation creation; Conversation options contains settings and searchable assignment. The unassigned History section is temporarily hidden; existing sessions receive no automatic Agent assignment.
 
-Settings edit name, avatar, role description, instructions, default workspace, and default provider/model. Failed saves and creation retain entered data for retry. Instructions and defaults affect future conversations. Reassignment changes organization without changing execution configuration or restarting the session.
+Settings introduce the Agent through its name, character, and purpose. Instructions sit under an optional disclosure. The folder defaults to the selected conversation, selected Agent, or current workspace, in that order. Change folder opens the native directory chooser. Cancellation preserves the current folder and entered text. A successful creation opens the new Agent's empty conversation space.
+
+Provider and model fields are hidden during creation and editing. New Agents use the runtime default; editing preserves existing saved model settings. Failed saves retain entered data for retry. Instructions and defaults affect future conversations. Reassignment changes organization without changing execution configuration or restarting the session.
+
+Assignment search explains an empty result and offers Clear search, which restores input focus. Agent filtering does not change saved associations.
 
 Rows use authoritative activity summaries, with conversation titles as fallback. Concurrent work, recovery, and worker failures appear as explicit counts. Idle state does not imply completion or an attention request. A working avatar moves gently; reduced-motion users receive the same static avatar and activity text.
 
-The selectable Robot, Eyes, Coffee, and Star avatars adapt the original geometry and palette from ta-0's `src/lib/about-peek-p5.ts`. Their SVG renderer is [AgentAvatar](../src/renderer/components/agent-avatar.tsx); no p5 runtime is required. See [roster verification](agent-roster-verification.md) for observed behavior and remaining checks.
+New Agents receive a generated character recipe. The chooser shows twelve characters; More faces keeps the selected character and generates eleven alternatives. Eight silhouettes combine with colors and expressions. The saved seed preserves appearance across the roster, conversation, editing, and reload. Character previews sway and blink at varied tempos. Idle blinking is cosmetic and does not imply execution. Reduced motion disables both animations.
+
+Existing Robot, Eyes, Coffee, and Star identities retain their ta-0 artwork through [AgentAvatar](../src/renderer/components/agent-avatar.tsx). [GeneratedCharacter](../src/renderer/components/generated-avatar.tsx) renders new recipes as SVG without external assets or a generation service. See [creation verification](agent-creation-verification.md) for current evidence.
 
 Use the star control to add or remove an Agent from favorites. A filled star marks a favorite. This presentation uses the existing persisted `pinned` flag; it does not change execution priority.
 
@@ -133,14 +139,56 @@ Transcript entries retain accessible speaker attribution. Only system messages s
 
 ## Message-to-work flow
 
-Sending continues the displayed conversation. New conversation explicitly starts another Prime Agent session with the Agent’s defaults; earlier messages are not implicitly included. Quiet roster rows show the most recently visited conversation title. Active rows use authoritative activity, preserving concurrent recovery and failure counts.
+Sending continues the Agent’s bound root. The normal header has identity and settings; it has no New conversation or reassignment action. Sidebar subtitles show native subagent counts. Profiles with multiple legacy sessions require an explicit root choice. Other session files remain stored; the workspace does not display a Saved sessions section.
 
 The shared composer keeps typing available during submission and disconnection. Enter sends, Shift+Enter adds a newline, and composition input never sends. Show starting, sending, accepted, queued, or error feedback near the composer. Admission confirms runtime ownership, not task success. Messages sent during active work queue after the current turn. Stop remains a separate button and settles only after authoritative idle state.
 
 Conversation creation failures retain the Agent draft and retry identity. If creation succeeds but submission fails, retain the created session and its draft. An uncertain admission is never automatically retried; explain that the conversation and connection must be inspected before resending. Later draft edits survive delayed responses.
 
-Inline execution details belong to the session. They expose supported action phases, active tool names, queued follow-ups, child states, and parsed textual tool results. Tool errors remain distinct from overall task success. No idle transition, animation, or assistant question creates a success or attention badge. Structured reasoning and raw arguments are not execution details.
+Inline execution details belong to the session. They expose supported action phases, active tool names, queued follow-ups, child states, and parsed textual tool results. Tool errors remain distinct from overall task success. No idle transition, animation, or assistant question creates a success or attention badge. Structured reasoning and arbitrary raw arguments are not execution details. Validated Python source is shown beside its matching tool result.
 
-At widths up to 720 CSS pixels, the sidebar and chat occupy separate views. Selecting an Agent or history item opens its chat; Open sidebar returns to the roster. The header keeps secondary controls in Conversation options, with the full workspace path available there. Returning to a conversation restores its reading position; readers at the end follow new output, and earlier readers retain access to the latest-message control.
+At widths up to 720 CSS pixels, the sidebar and chat occupy separate views. Selecting an Agent or history item opens its chat; Open sidebar returns to the roster. The header opens inline Agent settings; the Folder panel exposes the working directory. Returning to a conversation restores its reading position; readers at the end follow new output, and earlier readers retain access to the latest-message control.
 
 This flow introduces no task database, durable unread markers, automatic result summaries, or cross-conversation memory. See [chat-flow verification](chat-flow-verification.md) for observed scenarios and limits.
+
+### Agent creation disclosure
+
+Add Agent opens an inline composer in the workspace. The purpose input receives focus. A name from `names.ts` and a generated avatar are ready to use. Customize reveals identity and character choices, Refine holds instructions, and Folder holds the native chooser. Only one section is open at a time. Cancel restores the previous conversation. Selecting another Agent or history entry closes creation after selection succeeds. Editing an existing Agent opens below its composer. Cancel returns focus to the opening control and preserves the conversation draft. Once the root is prepared, Refine and Folder show the saved configuration and explain the unavailable live-change capability. The purpose input becomes part of native instructions at creation.
+
+The workspace header has zero vertical padding, 11px right padding, and 20px left padding with the sidebar visible. A closed sidebar reserves 54px on the left for its reopen control. The existing 720px breakpoint reserves 48px. Negative padding is invalid CSS.
+
+Input focus uses the existing border color or a subtle container background, without an outer ring. The Agent creation textarea uses the shared content sizing, grows to 320px or 40% of viewport height, then scrolls. It has no manual resize handle.
+
+### Agent row actions and greeting
+
+Agent rows expose a context menu for opening, customizing, and toggling favorites. The empty conversation greeting is “what’s next?” without repeating the Agent name or role. Sidebar and greeting avatars animate gently with transparent backgrounds; reduced motion disables animation. Cosmetic motion does not indicate running work.
+
+### Native child inspection
+
+Native children appear beneath their root’s composer after admission. Each row shows the native name, state, and explicit reply receipt when available. Disconnection marks the last known roster. Unsupported roster access is stated explicitly.
+
+Opening a child inspects its own transcript without sending or replacing a runtime. Back to Agent closes inspection while the parent remains mounted with its draft. The parent uses its existing event feed; the open read-only inspection refreshes every two seconds. A retained child without an active target opens its saved transcript read-only. The service validates its native sidecar, child ID, parent session file, and child depth before reading it. Missing or mismatched files report unavailable; inspection never starts a replacement root.
+
+### Inline settings layout
+
+Existing Agent settings use a muted warm surface with explicit ink colors. Identity precedes a compact wrapping character gallery; the neutral save action aligns to the trailing edge. Disclosure controls show their selected state with both fill and underline. The name input and settings controls use a 2px keyboard focus perimeter. The working-folder disclosure exposes the complete wrapping path through native keyboard interaction.
+
+Agent sidebar subtitles show the direct native child-registry count, including retained completed children. Each bound root uses the shared snapshot subscription. Missing or unsupported data is unavailable, loading is explicit, and disconnected snapshots show a last-known marker. The count does not include independent legacy sessions or infer a Ready state.
+
+The conversation footer aligns settings and native-session disclosures to the composer’s 720px maximum width. Subagents start collapsed. Expanded child rows separate wrapping names, status, and an opening chevron. The dock scrolls within 60dvh to retain transcript space; the empty-state composer keeps its natural height.
+
+Creation greetings introduce the generated name with a playful variation selected once per form. Renaming updates the greeting and “Bring {name} to life” action without changing the variation. Optional creation panels use Base UI Collapsible with a 220ms height and opacity transition; reduced motion removes the transition. The workspace slot shares the workspace surface color.
+
+Sidebar group portraits render every available direct native child beneath the parent, wrapping into two compact columns without a child-count cap. The native count remains the authoritative total.
+
+Existing Agent settings controls give 120ms press feedback at scale 0.97. Their panel enters and exits with a 180ms opacity and transform transition from 6px above at scale 0.985, using cubic-bezier(0.23, 1, 0.32, 1). Reduced motion removes transforms and uses an 80ms fade. Closing unmounts the form after the exit transition.
+
+The empty conversation uses a viewport-based top inset rather than centering the combined composer and settings height. Opening settings therefore keeps the greeting and composer anchored; overflow remains scrollable. Switching Customize, Refine, and Folder fades and slides the new panel content 6px horizontally over 160ms, with an 80ms opacity-only reduced-motion alternative. Child portraits overlap the parent footprint and use the small avatar size.
+
+Conversations with messages omit the settings shortcuts and Subagents disclosure below the composer. Empty conversations retain them. The header settings action still opens the inline editor and its section controls.
+
+Transcript text uses 16px type with unitless 1.6 line height and the existing 66ch measure. System speaker labels stay at least 12px. Native child counts use tabular numerals. Empty-state headings balance wrapping; short settings descriptions use pretty wrapping. Composer, creation notes, and sidebar search inputs use 16px text on small screens. Font smoothing and optical sizing are set once on the root.
+
+The sidebar lists only Agents whose bound native root has a live conversation (or a draft currently working on its first message). Prepared empty roots and archived sessions are excluded. Idle live conversations stay visible. Filtering uses the native session catalog and never deletes Agent profiles or session files.
+
+The execution disclosure uses a compact Behind the scenes card with a tool count. Python calls pair validated source with matching output by tool-call ID. Code and output preserve whitespace in named, keyboard-scrollable regions. Completed describes the tool result, not overall task success. Assistant inline code uses monospace treatment; other message text remains unchanged.

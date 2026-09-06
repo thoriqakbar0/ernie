@@ -245,7 +245,7 @@ function waitForOutput(child: ChildProcess, expected: string, timeoutMs: number)
 
   return new Promise<void>((resolvePromise, reject) => {
     let output = ""
-    const timeout = setTimeout(() => finish(new Error(`Timed out waiting for ${expected}`)), timeoutMs)
+    const timeout = setTimeout(() => finish(new Error(`Timed out waiting for ${expected}: ${output.slice(-3000)}`)), timeoutMs)
     const onData = (chunk: Buffer | string) => {
       output += chunk.toString()
       if (output.includes(expected)) finish()
@@ -385,17 +385,57 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   assert.equal(retried.revision, first.revision + 1)
   const durableRoot = Schema.decodeUnknownSync(Schema.Struct({ app: Schema.Struct({ roster: Roster }) }))(JSON.parse(await readFile(rootFile, "utf8")))
   assert.equal(durableRoot.app.roster.agents.find((agent) => agent.id === first.id)?.name, "Saved after retry")
-  const importedRoster = { agents: [{ ...first, id: "imported-agent" }], associations: [], selectedAgentId: null }
+  const { root: importedRoot, ...unboundProfile } = first
+  const importedRoster = { agents: [{ ...unboundProfile, id: "imported-agent" }], associations: [], selectedAgentId: null }
   unwrapAgentResult(await connection.agents.reconcileRoster(importedRoster))
   assert.equal(unwrapAgentResult(await connection.agents.reconcileRoster(importedRoster)).addedAgents, 0)
-  assert.equal((await connection.agents.reconcileRoster({ ...importedRoster, agents: [{ ...first, id: "imported-agent", instructions: "Conflicting origin" }] })).ok, false)
+  assert.equal((await connection.agents.reconcileRoster({ ...importedRoster, agents: [{ ...unboundProfile, id: "imported-agent", instructions: "Conflicting origin" }] })).ok, false)
 
   const sessionId = unwrapAgentResult(await connection.agents.createConversation({ agentId: first.id, requestId: "fixture-create" }))
   assert.equal(unwrapAgentResult(await connection.agents.createConversation({ agentId: first.id, requestId: "fixture-create" })), sessionId)
-  unwrapAgentResult(await connection.agents.assign({ sessionId, agentId: "fixture-b" }))
-  unwrapAgentResult(await connection.agents.save({ ...settings, id: first.id, instructions: "Future conversations only", expectedRevision: retried.revision }))
+  assert.equal(first.root?.sessionId, sessionId)
+  assert.equal(unwrapAgentResult(await connection.agents.createConversation({ agentId: first.id, requestId: "different-click" })), sessionId)
+  assert.equal((await connection.agents.assign({ sessionId, agentId: "fixture-b" })).ok, false)
+  assert.equal((await connection.agents.save({ ...settings, id: first.id, instructions: "Future conversations only", expectedRevision: retried.revision })).ok, false)
+  const nativeList = requireSuccess(await daemonClient.request({ type: "list", all: true })) as { sessions: { sessionId: string; sessionName?: string }[] }
+  assert.equal(nativeList.sessions.filter((item) => item.sessionId === sessionId).length, 1)
+  assert.equal(nativeList.sessions.find((item) => item.sessionId === sessionId)?.sessionName, "Saved after retry")
+  const collision = await connection.agents.save({ ...settings, id: first.id, name: "Second Agent", expectedRevision: retried.revision })
+  assert.equal(collision.ok, false)
   const rejected = await connection.agents.assign({ sessionId, agentId: "missing-agent" })
   assert.equal(rejected.ok, false)
+  // Model a lost activation response: native root is already resident while Ernie has only prepared metadata.
+  const prepared = SessionManager.create(root, join(root, "prepared-root"))
+  prepared.appendSessionInfo("Prepared root")
+  prepared.flushNow()
+  const preparedPath = prepared.materializeSessionFile()
+  requireSuccess(await daemonClient.request({ type: "create", sessionPath: preparedPath, name: "Prepared root", config: { cwd: root }, lifecycle: "resident" }))
+  const preparedAgent = { ...unboundProfile, id: "prepared-agent", name: "Prepared root", root: { status: "prepared" as const, sessionId: prepared.getSessionId(), sessionFile: preparedPath } }
+  unwrapAgentResult(await connection.agents.reconcileRoster({ agents: [preparedAgent], associations: [{ sessionId: prepared.getSessionId(), agentId: preparedAgent.id, visitedAt: 1 }], selectedAgentId: null }))
+  const resolved = await Promise.all(["retry-1", "retry-2"].map((requestId) => connection.agents.createConversation({ agentId: preparedAgent.id, requestId })))
+  assert.ok(resolved.every((result) => unwrapAgentResult(result) === prepared.getSessionId()))
+  const resumedRoster = unwrapAgentResult(await connection.agents.getRoster())
+  assert.equal(resumedRoster.agents.find((item) => item.id === preparedAgent.id)?.root?.status, "bound")
+  assert.equal((await connection.agents.reconcileRoster({ agents: [{ ...preparedAgent, id: "duplicate-native-root" }], associations: [], selectedAgentId: null })).ok, false)
+
+  // Explicit legacy migration preserves two independent files and adopts native identity.
+  const oldRoots = ["Older root", "Chosen root"].map((name) => {
+    const manager = SessionManager.create(root, join(root, "legacy-roots"))
+    manager.appendSessionInfo(name)
+    manager.flushNow()
+    return { sessionId: manager.getSessionId(), path: manager.materializeSessionFile(), name }
+  })
+  for (const old of oldRoots) requireSuccess(await daemonClient.request({ type: "create", sessionPath: old.path, name: old.name, config: { cwd: root }, lifecycle: "resident" }))
+  const legacyAgent = { ...unboundProfile, id: "legacy-agent", name: "Legacy label" }
+  unwrapAgentResult(await connection.agents.reconcileRoster({ agents: [legacyAgent], associations: oldRoots.map((old) => ({ sessionId: old.sessionId, agentId: legacyAgent.id, visitedAt: 1 })), selectedAgentId: null }))
+  unwrapAgentResult(await connection.agents.select({ agentId: legacyAgent.id }))
+  assert.equal(unwrapAgentResult(await connection.agents.getRoster()).agents.find((item) => item.id === legacyAgent.id)?.root, undefined)
+  assert.equal((await connection.agents.createConversation({ agentId: legacyAgent.id, requestId: "ambiguous-root" })).ok, false)
+  const migrated = unwrapAgentResult(await connection.agents.bindRoot({ agentId: legacyAgent.id, sessionId: oldRoots[1]!.sessionId }))
+  assert.equal(migrated.name, "Chosen root")
+  assert.equal(migrated.root?.sessionId, oldRoots[1]!.sessionId)
+  assert.equal(unwrapAgentResult(await connection.agents.getRoster()).associations.filter((item) => item.agentId === legacyAgent.id).length, 2)
+  for (const old of oldRoots) assert.ok((await readFile(old.path, "utf8")).includes(old.sessionId))
   const epoch = await connection.prime.getSendEpoch()
   const send = { epoch, commandId: "receipt-fixture", sessionId, content: "/name Receipt fixture", mode: "prompt" as const }
   // This native fixture returns an error for the prompt. Keep the uncertain
@@ -420,7 +460,7 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   assert.equal((await connection.prime.sendMessage(send)).status, "unknown")
   const roster = Schema.decodeUnknownSync(Roster)(unwrapAgentResult(await connection.agents.getRoster()))
   const association = roster.associations.find((item) => item.sessionId === sessionId)
-  assert.equal(association?.agentId, "fixture-b")
+  assert.equal(association?.agentId, first.id)
   assert.equal(association?.origin?.instructions, settings.instructions)
   assert.equal(association?.origin?.instructionRevision, first.instructionRevision)
   // Concurrent renderer requests must share one logical attachment.
@@ -443,10 +483,10 @@ test("Agent durability, reconciliation, and recovery through the real Zenbu serv
   const recoveredPrompt = Schema.decodeUnknownSync(Schema.Struct({ systemPrompt: Schema.String }))(requireSuccess(await daemonClient.request({ type: "get_system_prompt", activeSessionId: recoveredId })))
   assert.ok(recoveredPrompt.systemPrompt.includes(settings.instructions))
   assert.equal(recoveredPrompt.systemPrompt.includes("Future conversations only"), false)
-  unwrapAgentResult(await connection.agents.assign({ sessionId, agentId: null }))
+  assert.equal((await connection.agents.assign({ sessionId, agentId: null })).ok, false)
   const unassigned = Schema.decodeUnknownSync(Roster)(unwrapAgentResult(await connection.agents.getRoster()))
-  assert.equal(unassigned.associations.find((item) => item.sessionId === sessionId)?.agentId, null)
-  unwrapAgentResult(await connection.agents.save({ ...settings, id: "invalid-workspace", cwd: join(root, "absent"), expectedRevision: 0 }))
+  assert.equal(unassigned.associations.find((item) => item.sessionId === sessionId)?.agentId, first.id)
+  assert.equal((await connection.agents.save({ ...settings, id: "invalid-workspace", cwd: join(root, "absent"), expectedRevision: 0 })).ok, false)
   const failedCreation = await connection.agents.createConversation({ agentId: "invalid-workspace", requestId: "failed-create" })
   assert.equal(failedCreation.ok, false)
   const afterFailure = Schema.decodeUnknownSync(Roster)(unwrapAgentResult(await connection.agents.getRoster()))
@@ -470,7 +510,7 @@ async function connectRosterRpc(runtimeFile: string) {
     socket.addEventListener("error", () => reject(new Error("Fixture RPC connection failed")), { once: true })
   })
   const frame = Schema.Struct({ ch: Schema.String, data: Schema.String })
-  const rpc = await connectRpc<{ app: { agents: Pick<AgentsService, "getRoster" | "save" | "assign" | "createConversation" | "reconcileRoster">; primeAgent: Pick<PrimeAgentService, "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"> } }>({
+  const rpc = await connectRpc<{ app: { agents: Pick<AgentsService, "getRoster" | "save" | "assign" | "createConversation" | "reconcileRoster" | "select" | "bindRoot">; primeAgent: Pick<PrimeAgentService, "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"> } }>({
     version: "0",
     send: (data) => socket.send(JSON.stringify({ ch: "rpc", data })),
     subscribe: (callback) => {

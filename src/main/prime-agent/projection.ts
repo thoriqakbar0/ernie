@@ -50,6 +50,7 @@ export function projectPrimeSessionSnapshot(
     session: {
       id: sessionId,
       cwd,
+      ...optionalNumberField("rlmDepth", state.rlmDepth ?? previousSession?.rlmDepth),
       ...(name ? { name } : {}),
       lifecycle,
       state: readSessionState(state),
@@ -62,6 +63,11 @@ export function projectPrimeSessionSnapshot(
     useful,
     transport: { status: "connected" },
   }
+}
+
+/** Saved inspection projects transcript content without inventing live execution state. */
+export function projectSavedMessages(messages: unknown, sessionId: string): readonly PrimeSessionMessage[] {
+  return readStructuredMessages(messages, "saved native messages").flatMap((message, index) => toSessionMessage(message, sessionId, index))
 }
 
 /** Computes the smallest ordered JSON changes between two projected snapshots. */
@@ -107,6 +113,7 @@ export function diffPrimeSessionSnapshots(
       type: "family",
       ...(next.useful.parent ? { parent: next.useful.parent } : {}),
       ...(next.useful.sessionTree ? { sessionTree: next.useful.sessionTree } : {}),
+      childrenAvailable: next.useful.childrenAvailable,
       children: next.useful.children,
     })
   }
@@ -135,6 +142,7 @@ function projectUsefulSessionContext(
     ...projectSessionContext(snapshot.sessionContext),
     ...projectSessionTree(snapshot.sessionTree),
     ...projectParent(snapshot.parent),
+    childrenAvailable: typeof snapshot.childrenAvailable === "boolean" ? snapshot.childrenAvailable : snapshot.children !== undefined,
     children: (snapshot.children === undefined
       ? []
       : readArray(snapshot.children, "RLM children")).map(projectRlmChild),
@@ -422,6 +430,7 @@ function familyState(useful: PrimeUsefulSessionContext) {
   return {
     ...(useful.parent ? { parent: useful.parent } : {}),
     ...(useful.sessionTree ? { sessionTree: useful.sessionTree } : {}),
+    childrenAvailable: useful.childrenAvailable,
     children: useful.children,
   }
 }

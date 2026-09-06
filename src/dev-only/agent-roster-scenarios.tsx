@@ -66,6 +66,8 @@ function Scenario({ preset }: { preset: Preset }) {
       }))
     }))
     return {
+      bindRoot: () => Promise.resolve({ ok: false as const, error: "Native binding requires a connected runtime." }),
+      chooseWorkspace: () => command(async () => "/example/chosen-folder"),
       save: (input) => command(async () => {
         const previous = current.current.agents.find((agent) => agent.id === input.id)
         const agent: Agent = { ...input, revision: (previous?.revision ?? 0) + 1, instructionRevision: 1, pinned: previous?.pinned ?? false, createdAt: previous?.createdAt ?? Date.now() }

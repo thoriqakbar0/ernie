@@ -4,7 +4,7 @@ Ernie will organize work around persistent Agents. Each Agent can have several c
 
 ## Status
 
-Accepted on 2026-09-05. This record describes the target product model; it does not claim that implementation is complete.
+Accepted on 2026-09-05. The multiple-conversation ownership decision is superseded by [ADR 0002](0002-native-agent-roots.md), accepted on 2026-09-07. This record retains the earlier product rationale.
 
 ## Context
 

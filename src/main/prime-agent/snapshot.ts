@@ -15,6 +15,8 @@ export function enrichPrimeSessionSnapshot(
   const snapshot = input.snapshot as Record<string, unknown>
   return {
     ...snapshot,
+    childrenAvailable: snapshot.children !== undefined,
+    ...preservedField("children", snapshot.children, input.previous?.useful.children),
     ...preservedField("parent", snapshot.parent, input.previous?.useful.parent),
     ...preservedField("replay", snapshot.replay, input.previous?.useful.replay),
   }

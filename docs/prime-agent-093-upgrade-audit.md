@@ -53,7 +53,7 @@ Verified against 0.9.3:
 
 - TypeScript passes.
 - Seven socket-level handshake scenarios pass, covering old versions, missing schema metadata, and unsupported protocol versions.
-- Two logical attachments remain isolated on one daemon client.
+- Two logical attachments remain isolated on one daemon client. The same integration starts a real 0.9.3 daemon on the desktop launcher endpoint while a legacy socket fixture stays listening and receives no connections. Browser roles resolve to the shared versioned endpoint; explicit external overrides are preserved.
 - Saved instructions survive restart and native resume within 0.9.3.
 - The real Zenbu service boundary passes durability, reconciliation, receipt recovery, and attachment recovery checks.
 - External daemon ownership assertions passed, but the original launcher left a fixture host alive and required manual cleanup. A proposed direct-Node launcher change failed readiness on rerun and was reverted. This case is not a clean unattended pass; the fixture issue is recorded in the friction log.

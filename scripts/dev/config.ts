@@ -1,6 +1,7 @@
 import { isAbsolute, join, resolve } from "node:path"
 import { Schema } from "effect"
-import { defaultDaemonSocketPath } from "prime-agent"
+import { VERSION } from "prime-agent"
+import { managedDaemonSocketName, managedDaemonSocketPath } from "../../src/main/prime-agent/daemon-client"
 
 const DevRole = Schema.Literals(["all", "server", "web", "desktop"])
 
@@ -70,7 +71,7 @@ export function readDevConfig(
     databaseDirectory: join(stateRoot, "db"),
     agentDirectory: daemonLifecycle === "owned" ? join(stateRoot, "prime-agent") : undefined,
     daemonSocketPath: configuredDaemonSocket ?? (
-      daemonLifecycle === "shared" ? defaultDaemonSocketPath() : resolveDaemonSocketPath(stateRoot, profile)
+      daemonLifecycle === "shared" ? managedDaemonSocketPath() : resolveDaemonSocketPath(stateRoot, profile)
     ),
     daemonLifecycle,
     electronProfileDirectory: join(stateRoot, "electron-user-data"),
@@ -83,6 +84,6 @@ export function resolveDaemonSocketPath(
   platform: NodeJS.Platform = process.platform,
 ) {
   return platform === "win32"
-    ? ["", "", ".", "pipe", `ernie-prime-agent-${profile}`].join("\\")
-    : join(stateRoot, "prime-agent.sock")
+    ? ["", "", ".", "pipe", `ernie-prime-agent-${profile}-v${VERSION}`].join("\\")
+    : join(stateRoot, managedDaemonSocketName)
 }

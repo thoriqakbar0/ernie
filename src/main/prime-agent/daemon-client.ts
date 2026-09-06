@@ -1,3 +1,5 @@
+import { homedir } from "node:os"
+import { join } from "node:path"
 import { DAEMON_PROTOCOL_NAME, DAEMON_PROTOCOL_VERSION, DaemonClient, VERSION } from "prime-agent"
 
 export class IncompatiblePrimeDaemonError extends Error {
@@ -6,6 +8,13 @@ export class IncompatiblePrimeDaemonError extends Error {
 
 /** Version the managed endpoint without terminating a daemon that another checkout owns. */
 export const managedDaemonSocketName = `prime-agent-v${VERSION}.sock`
+
+/** Shared managed endpoint used by the launcher and service fallback. */
+export function managedDaemonSocketPath() {
+  return process.platform === "win32"
+    ? `\\\\.\\pipe\\ernie-prime-agent-v${VERSION}`
+    : join(homedir(), "Library", "Application Support", "Ernie", managedDaemonSocketName)
+}
 
 /** Validate the handshake before a client can issue session commands. */
 export async function connectPrimeDaemon(socketPath: string, ownership: "managed" | "external") {

@@ -2,7 +2,6 @@ import { createHash } from "node:crypto"
 import { readFile, readdir, mkdir, stat } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
-import { homedir } from "node:os"
 import { dirname, isAbsolute, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Service } from "@zenbujs/core/runtime"
@@ -10,7 +9,7 @@ import { RpcService } from "@zenbujs/core/services"
 import { Effect, Option, Schema } from "effect"
 import { ConversationOrigin, decodeAgentInput } from "../../packages/agents"
 import { nativeConversationConfig } from "./agent-config"
-import { connectPrimeDaemon, IncompatiblePrimeDaemonError, managedDaemonSocketName } from "./daemon-client"
+import { connectPrimeDaemon, IncompatiblePrimeDaemonError, managedDaemonSocketPath } from "./daemon-client"
 import { AgentStoreService } from "../services/agent-store"
 import {
   SessionManager,
@@ -1081,13 +1080,7 @@ function readPrimeAgentEndpoint(): PrimeAgentEndpoint {
   ) ?? process.execPath
   return {
     ownership: "managed",
-    socketPath: socketOverride ?? join(
-      homedir(),
-      "Library",
-      "Application Support",
-      "Ernie",
-      managedDaemonSocketName,
-    ),
+    socketPath: socketOverride ?? managedDaemonSocketPath(),
     agentDir,
     executablePath,
   }

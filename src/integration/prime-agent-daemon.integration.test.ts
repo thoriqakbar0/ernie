@@ -1,3 +1,6 @@
+import { createServer } from "node:net"
+import { readDevConfig } from "../../scripts/dev/config"
+import { managedDaemonSocketPath, connectPrimeDaemon } from "../main/prime-agent/daemon-client"
 import { connectRpc } from "@zenbujs/core/rpc"
 import { RuntimeDescriptor } from "../dev/runtime-descriptor"
 import type { PrimeAgentService } from "../main/prime-agent/service"
@@ -30,10 +33,30 @@ const createdSessionSchema = Schema.Struct({
 // @lat: [[tests#Behavior specifications#Daemon boundary#Logical attachment isolation]]
 test("one daemon client isolates two logical session attachments", { timeout: 30_000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ernie-prime-agent-"))
-  const socketPath = join(root, "daemon.sock")
+  const config = readDevConfig(["desktop"], { ERNIE_DEV_STATE_ROOT: root }, root)
+  const socketPath = config.daemonSocketPath
   const agentDir = join(root, "agent")
+  let legacyConnections = 0
+  const legacySocket = join(root, "prime-agent.sock")
+  const legacy = createServer((socket) => { legacyConnections++; socket.end() })
+  await new Promise<void>((resolve, reject) => {
+    legacy.once("error", reject)
+    legacy.listen(legacySocket, resolve)
+  })
+  t.after(() => new Promise<void>((resolve, reject) => legacy.close((error) => error ? reject(error) : resolve())))
+  assert.notEqual(socketPath, legacySocket)
+  for (const role of ["all", "server", "web"]) {
+    assert.equal(readDevConfig([role], {}, root).daemonSocketPath, managedDaemonSocketPath())
+  }
+  const external = readDevConfig(["server"], { ERNIE_PRIME_AGENT_SOCKET: legacySocket }, root)
+  assert.equal(external.daemonSocketPath, legacySocket)
+  assert.equal(external.daemonLifecycle, "external")
   const daemon = startDaemon(socketPath, agentDir)
   const client = await connectDaemon(socketPath)
+  const checked = await connectPrimeDaemon(socketPath, "managed")
+  checked.close()
+  assert.equal(legacyConnections, 0, "startup must not connect to the previous version's socket")
+  assert.equal(legacy.listening, true)
   const connections: DaemonAgentConnection[] = []
 
   t.after(async () => {

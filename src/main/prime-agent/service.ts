@@ -10,6 +10,7 @@ import { RpcService } from "@zenbujs/core/services"
 import { Effect, Option, Schema } from "effect"
 import { ConversationOrigin, decodeAgentInput } from "../../packages/agents"
 import { nativeConversationConfig } from "./agent-config"
+import { connectPrimeDaemon, IncompatiblePrimeDaemonError, managedDaemonSocketName } from "./daemon-client"
 import { AgentStoreService } from "../services/agent-store"
 import {
   SessionManager,
@@ -966,8 +967,9 @@ export class PrimeAgentService extends Service.create({
 
   private async openClient() {
     try {
-      return await connectClient(this.endpoint.socketPath)
+      return await connectPrimeDaemon(this.endpoint.socketPath, this.endpoint.ownership)
     } catch (cause) {
+      if (cause instanceof IncompatiblePrimeDaemonError) throw cause
       if (this.endpoint.ownership === "external") {
         throw new Error("The configured Prime Agent socket is unavailable", { cause })
       }
@@ -976,8 +978,9 @@ export class PrimeAgentService extends Service.create({
       let lastError: unknown
       while (Date.now() < deadline) {
         try {
-          return await connectClient(this.endpoint.socketPath)
+          return await connectPrimeDaemon(this.endpoint.socketPath, this.endpoint.ownership)
         } catch (error) {
+          if (error instanceof IncompatiblePrimeDaemonError) throw error
           lastError = error
           await delay(150)
         }
@@ -1041,18 +1044,6 @@ function failedAttachment(previous: SessionAttachment): SessionAttachment {
   }
 }
 
-async function connectClient(socketPath: string) {
-  const client = new DaemonClient(socketPath)
-  try {
-    await client.connect(500)
-    await client.waitForHello(1_000)
-    return client
-  } catch (error) {
-    client.close()
-    throw error
-  }
-}
-
 function startDaemon(config: Extract<PrimeAgentEndpoint, { ownership: "managed" }>) {
   mkdirSync(dirname(config.socketPath), { recursive: true })
   const packageEntry = import.meta.resolve("prime-agent")
@@ -1095,7 +1086,7 @@ function readPrimeAgentEndpoint(): PrimeAgentEndpoint {
       "Library",
       "Application Support",
       "Ernie",
-      "prime-agent-v0.8.1.sock",
+      managedDaemonSocketName,
     ),
     agentDir,
     executablePath,

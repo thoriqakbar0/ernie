@@ -12,6 +12,18 @@ Read [data structures](data-structures.md) for contract relationships, identifie
 
 ## Ownership
 
+### Prime Agent version boundary
+
+Ernie pins the Prime Agent package family to 0.9.3 through GitHub release assets. Package overrides keep transitive companion packages on those same assets; the lockfile records their integrity.
+
+The managed socket name includes the installed Prime Agent version. Before issuing session commands, Ernie requires protocol 7 and schema revision 26 or newer. Managed daemons must also report the installed package version. External daemons may report another package version when they meet that protocol and schema contract.
+
+An incompatible handshake closes only Ernie's client. It does not launch a replacement or stop the existing daemon. An unavailable managed endpoint can start a daemon; an unavailable external endpoint reports an error. Saved root files remain authoritative when changing endpoints, and native session leases still govern admission.
+
+The upgrade retains supervisor-routed attachments and catalog polling. Roster subscriptions and direct worker transport require separate integration; they are not implied by the package version.
+
+### State and resource owners
+
 Assign each value and effect one owner before changing its presentation:
 
 | Responsibility | Owner | Change rule |

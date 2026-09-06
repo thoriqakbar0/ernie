@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./sidebar.styles"
 import { styles as rosterStyles } from "./agent-roster.styles"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useViewArgs } from "@zenbujs/core/react"
 import { PanelLeftCloseIcon, StarIcon, HistoryIcon } from "lucide-react"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
@@ -26,6 +26,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
   const sessions = usePrimeSessionState()
   const { selectedSessionId } = usePrimeSessionSelection()
   const [search, setSearch] = useState("")
+  const searchRef = useRef<HTMLInputElement>(null)
   const [adding, setAdding] = useState(false)
   const selectedAgentId = selectedSessionId
     ? roster.associations.find((item) => item.sessionId === selectedSessionId)?.agentId
@@ -48,7 +49,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
         <button aria-controls="ernie-sidebar" aria-expanded="true" aria-label="Close sidebar" {...stylex.props(styles.sidebarCloseButton)} type="button" onClick={onClose}><PanelLeftCloseIcon {...stylex.props(rosterStyles.icon)}/></button>
       </div>
     </div>
-    <div {...stylex.props(rosterStyles.search)}><input {...stylex.props(rosterStyles.searchInput)} type="search" aria-label="Search Agents" placeholder="Search Agents" value={search} onChange={(event) => setSearch(event.target.value)}/></div>
+    <div {...stylex.props(rosterStyles.search)}><input ref={searchRef} {...stylex.props(rosterStyles.searchInput)} type="search" aria-label="Search Agents" placeholder="Search Agents" value={search} onChange={(event) => setSearch(event.target.value)}/></div>
     <nav {...stylex.props(rosterStyles.nav)} aria-label="Agents">
       {error ? <p {...stylex.props(rosterStyles.feedback)} role="alert">{error}</p> : null}
       <ul {...stylex.props(rosterStyles.list)}>
@@ -67,13 +68,22 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
           </li>
         })}
       </ul>
-      {agents.length === 0 ? <div {...stylex.props(rosterStyles.empty)}><p>{search ? "No matching Agents" : "A familiar place for your work."}</p>{!search ? <button type="button" {...stylex.props(rosterStyles.emptyAction)} onClick={() => setAdding(true)}>Add your first Agent</button> : <p>Search by name or role.</p>}</div> : null}
+      {agents.length === 0 ? <div role={search ? "status" : undefined} {...stylex.props(rosterStyles.empty)}>
+        <h2 {...stylex.props(rosterStyles.emptyTitle)}>{search ? `No Agents match “${search}”` : "Add an Agent to begin"}</h2>
+        {!search ? <p {...stylex.props(rosterStyles.emptyDescription)}>Give each Agent a role and workspace, then start a conversation.</p> : null}
+        <button type="button" {...stylex.props(rosterStyles.emptyAction)} onClick={() => {
+          if (search) {
+            setSearch("")
+            window.requestAnimationFrame(() => searchRef.current?.focus())
+          } else setAdding(true)
+        }}>{search ? "Clear search" : "Add Agent"}</button>
+      </div> : null}
       <button {...stylex.props(rosterStyles.history)} type="button" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}><HistoryIcon {...stylex.props(rosterStyles.icon)}/>History <span>{unassigned.length}</span></button>
       {historyOpen ? <ul {...stylex.props(rosterStyles.historyList)}>
         {sessions.isPending ? <li role="status">Loading conversations…</li> : null}
         {sessions.isError ? <li role="alert">Conversation history is unavailable. {sessions.error instanceof Error ? sessions.error.message : "Try reloading."}</li> : null}
         {groups.map(([cwd, grouped]) => <WorkspaceSessionGroup key={cwd} cwd={cwd} sessions={grouped} selectedSessionId={selectedSessionId} onSelectSession={(sessionId) => { void execute(() => client.openConversation({ sessionId })).then((result) => { if (result.ok) openOnMobile() }) }}/>) }
-        {sessions.isSuccess && groups.length === 0 ? <li {...stylex.props(rosterStyles.empty)}>No unassigned conversations</li> : null}
+        {sessions.isSuccess && groups.length === 0 ? <li {...stylex.props(rosterStyles.historyEmpty)}>No unassigned conversations.</li> : null}
       </ul> : null}
     </nav>
     {adding ? <AgentSettingsDialog onClose={() => setAdding(false)}/> : null}

@@ -15,7 +15,7 @@ const styles = stylex.create({
   toolbar: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", padding: "8px 14px", fontSize: 12, color: theme["--ink"], backgroundColor: theme["--surface-strong"] },
   app: { flexGrow: 1, minHeight: 0 },
 })
-const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Tool activity", "Long conversation"] as const
+const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Draft conversation", "Changed workspace", "Tool activity", "Long conversation"] as const
 type Preset = typeof presets[number]
 
 /** Isolated production UI scenarios. No scenario client can reach a live session. */
@@ -37,9 +37,11 @@ function Scenario({ preset }: { preset: Preset }) {
   const [disconnected, setDisconnected] = useState(false)
   const [loseAck, setLoseAck] = useState(false)
   const [slowSend, setSlowSend] = useState(false)
-  const sendOptions = useRef({ rejectSend, slowSend, loseAck })
-  sendOptions.current = { rejectSend, slowSend, loseAck }
+  const [slowOpen, setSlowOpen] = useState(false)
+  const sendOptions = useRef({ rejectSend, slowSend, loseAck, slowOpen })
+  sendOptions.current = { rejectSend, slowSend, loseAck, slowOpen }
   const [prime] = useState(() => createMockPrimeAgentClient({ initialSnapshots: seed.snapshots, replyDelayMs: 60000,
+    beforeAttach: async () => { if (sendOptions.current.slowOpen) await new Promise<void>((resolve) => setTimeout(resolve, 4000)) },
     afterSend: async () => { if (sendOptions.current.loseAck) throw new Error("Synthetic lost acknowledgement") },
     beforePrompt: async () => {
       const options = sendOptions.current
@@ -91,11 +93,13 @@ function Scenario({ preset }: { preset: Preset }) {
         creations.set(input.requestId, session.id)
         update({ ...current.current, selectedAgentId: input.agentId, associations: [...current.current.associations, { sessionId: session.id, agentId: input.agentId, visitedAt: Date.now() }] })
         await prime.selectSession({ sessionId: session.id })
+        if (sendOptions.current.slowOpen) await new Promise<void>((resolve) => setTimeout(resolve, 4000))
         return session.id
       }),
     }
   })
   return <>
+    <div {...stylex.props(styles.toolbar)}><label><input type="checkbox" checked={slowOpen} onChange={(event) => setSlowOpen(event.target.checked)}/> Slow creation and attachment (4s each)</label></div>
     <div {...stylex.props(styles.toolbar)}><label><input type="checkbox" checked={reject} onChange={(event) => setReject(event.target.checked)}/> Reject mutations</label><label><input type="checkbox" checked={rejectSend} onChange={(event) => setRejectSend(event.target.checked)}/> Reject sends</label><label><input type="checkbox" checked={slowSend} onChange={(event) => setSlowSend(event.target.checked)}/> Slow sends (4s)</label><label><input type="checkbox" checked={loseAck} onChange={(event) => setLoseAck(event.target.checked)}/> Lose send acknowledgement</label><label><input type="checkbox" checked={disconnected} onChange={(event) => { const disconnected = event.target.checked; setDisconnected(disconnected); prime.setTransport(disconnected ? { status: "failed", error: "Synthetic daemon disconnect" } : { status: "connected" }) }}/> Disconnect Prime Agent</label><span>Switching scenarios resets fixture state.</span></div>
     <div {...stylex.props(styles.app)}><PrimeAgentStateProvider client={prime} getWorkspacePath={async () => "/example/workspace"}><App roster={roster} agentClient={client}/></PrimeAgentStateProvider></div>
   </>
@@ -111,14 +115,18 @@ function createSeed(preset: Preset): { roster: Roster; snapshots: PrimeSessionSn
     id: `scenario-${index}`, name: ["Review the navigation", "Sketching the next idea", "Read the evidence", "A quiet draft", "Prepare the release notes", "Earlier unassigned work"][index], cwd: index === 5 ? "/example/earlier-work" : "/example/workspace", lifecycle: "live",
     state: preset === "Concurrent activity" && index < 2 ? "working" : preset === "Concurrent activity" && index === 2 ? "recovering" : "idle",
     workerFailed: preset === "Concurrent activity" && index === 3,
-    activitySummary: index === 0 ? "Reading the navigation contract" : undefined,
+    activitySummary: index === 0 || index === 2 ? "Reading the navigation contract" : undefined,
     activityAt: `2026-09-05T10:0${index}:00Z`,
   }))
+  if (preset === "New Agent") return { roster: { agents, selectedAgentId: agents[3].id, associations: [] }, snapshots: [] }
+  const draftConversation = preset === "Draft conversation" || preset === "Changed workspace"
+  if (draftConversation) summaries[0] = { ...summaries[0], lifecycle: "draft" }
+  if (preset === "Changed workspace") agents[0] = { ...agents[0], cwd: "/example/new-default" }
   const snapshots = summaries.map((session): PrimeSessionSnapshot => {
-    const messages = preset === "Long conversation" ? Array.from({ length: 35 }, (_, index) => ({ id: `${session.id}-${index}`, role: index % 2 ? "assistant" as const : "user" as const, content: `Message ${index + 1}. ` + "Inspect the login flow and preserve the existing workspace context. ".repeat(8) })) : [{ id: `${session.id}-message`, role: "assistant" as const, content: "What would you like to work on? This is a synthetic conversation; no live commands are sent." }]
+    const messages = draftConversation && session.id === summaries[0].id ? [] : preset === "Long conversation" ? Array.from({ length: 35 }, (_, index) => ({ id: `${session.id}-${index}`, role: index % 2 ? "assistant" as const : "user" as const, content: `Message ${index + 1}. ` + "Inspect the login flow and preserve the existing workspace context. ".repeat(8) })) : [{ id: `${session.id}-message`, role: "assistant" as const, content: "What would you like to work on? This is a synthetic conversation; no live commands are sent." }]
     const fixture = createPrimeUsefulSessionFixture(session, messages)
     const useful = preset === "Tool activity" ? { ...fixture, structuredMessages: [...fixture.structuredMessages, { role: "toolResult", toolCallId: "example-read", toolName: "read", isError: false, content: [{ type: "text", text: "Synthetic output: the login form validates the email before submitting." }] }, { role: "toolResult", toolCallId: "example-check", toolName: "bash", isError: true, content: [{ type: "text", text: "Synthetic output: the login check failed because the fixture has no server." }] }] } : fixture
     return { session, messages, useful, transport: preset === "Reconnect" ? { status: "reconnecting" } : preset === "Failed connection" ? { status: "failed", error: "Synthetic disconnected runtime" } : { status: "connected" } }
   })
-  return { snapshots, roster: { agents, selectedAgentId: agents[0].id, associations: summaries.slice(0,5).filter((_, index) => preset !== "New Agent" || index !== 3).map((session,index) => ({ sessionId: session.id, agentId: preset === "Concurrent activity" ? agents[0].id : agents[Number(session.id.split("-")[1]) % 4].id, visitedAt: index === 0 ? 10 : index })) } }
+  return { snapshots, roster: { agents, selectedAgentId: agents[0].id, associations: summaries.slice(0,5).map((session,index) => ({ sessionId: session.id, agentId: preset === "Concurrent activity" ? agents[0].id : agents[Number(session.id.split("-")[1]) % 4].id, visitedAt: index === 0 ? 10 : index })) } }
 }

@@ -126,7 +126,7 @@ export function WorkspacePicker({
           {visibleWorkspaces.length === 0 ? (
             <div {...stylex.props(styles.workspaceDialogEmpty)}>
               <strong>{query ? `No workspaces match “${query}”` : "No workspaces yet"}</strong>
-              <p>{query ? "Try another name or path." : "Create a conversation to add its workspace here."}</p>
+              <p>{query ? "Try another name or path." : "Start a conversation to add its workspace."}</p>
               {query ? <Button variant="bordered" onClick={() => { setQuery(""); searchRef.current?.focus() }}>Clear search</Button> : null}
             </div>
           ) : (

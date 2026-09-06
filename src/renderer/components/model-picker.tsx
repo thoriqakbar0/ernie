@@ -99,6 +99,7 @@ export function ModelPicker({
   const positioned = position !== undefined
   const rootRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const selectedOptionRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const selected = models.find(
@@ -288,6 +289,7 @@ export function ModelPicker({
                     autoFocus
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search models…"
+                    ref={searchInputRef}
                     value={query}
                     {...stylex.props(styles.modelSearchInput)}
                   />
@@ -412,9 +414,20 @@ export function ModelPicker({
                     </section>
                   ))
                 ) : (
-                  <p role="status" {...stylex.props(styles.modelEmpty)}>
-                    No models match “{query}”.
-                  </p>
+                  <div {...stylex.props(styles.modelEmpty)}>
+                    <p role="status">{query ? `No models match “${query}”` : "No models are available for these filters."}</p>
+                    <button type="button" {...stylex.props(styles.modelEmptyAction)} onClick={() => {
+                      setQuery("")
+                      setExcludedProviders(new Set())
+                      if (!query && hiddenModelKeys.size > 0) setShowHiddenModels(true)
+                      window.requestAnimationFrame(() => {
+                        const target = searchInputRef.current ?? selectedOptionRef.current
+                          ?? popupRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
+                          ?? triggerRef.current
+                        target?.focus()
+                      })
+                    }}>{query ? "Clear search" : "Reset filters"}</button>
+                  </div>
                 )}
               </div>
               {selected ? (

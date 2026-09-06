@@ -138,7 +138,7 @@ export class AgentsService extends Service.create({
       if (previousCreation?.origin && previousCreation.origin.agentId !== data.agentId) return yield* Effect.fail(new AgentFailure({ message: "This creation request belongs to another Agent." }))
       let sessionId = previousCreation?.sessionId
       if (!sessionId) {
-        const session = yield* this.native(() => this.ctx.prime.createSession({ cwd: agent.cwd, name: "New Prime Agent session", creationId: data.requestId, origin: {
+        const session = yield* this.native(() => this.ctx.prime.createSession({ cwd: agent.cwd, name: "New conversation", creationId: data.requestId, origin: {
           agentId: agent.id, instructionRevision: agent.instructionRevision, instructions: agent.instructions,
           cwd: agent.cwd, provider: agent.provider, model: agent.model,
         } }))

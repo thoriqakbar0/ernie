@@ -55,6 +55,7 @@ export const theme = stylex.defineVars({
     default: "#ce500a",
     "@media (prefers-color-scheme: dark)": "#ff6f1e",
   },
+  "--on-accent": "#2b1a07",
   "--focus": {
     default: "#ce500a",
     "@media (prefers-color-scheme: dark)": "#ff8d4d",

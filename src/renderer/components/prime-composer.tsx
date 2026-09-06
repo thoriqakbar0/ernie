@@ -9,6 +9,7 @@ import type { ConversationSubmission } from "../conversation-flow"
 
 type PrimeComposerProps = Readonly<{
   connected: boolean
+  opening?: boolean
   draft: string
   draftHero: boolean
   agentName?: string
@@ -32,10 +33,10 @@ type PrimeComposerProps = Readonly<{
   working: boolean
 }>
 
-/** Shared bottom composer for empty Agents, draft sessions, and ongoing conversations. */
+/** Keeps composition editable while creation, attachment, and sending settle. */
 export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, agentName = "Agent", feedback, releaseSend,
   modelChangePending, models, modelsPending, onDraftChange, onEffortChange, onEffortError, onModelSelect,
-  recovering, selectedModel, sessionSelected, stopAction, stopping, submitAction, submitting, working,
+  opening = false, recovering, selectedModel, sessionSelected, stopAction, stopping, submitAction, submitting, working,
 }: PrimeComposerProps) {
   const inputId = "chat-message"
   const feedbackId = useId()
@@ -43,11 +44,15 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
   const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
   const message = feedback?.status === "error" || uncertain ? feedback.message
     : feedback?.status === "creating" ? "Starting conversation…"
-    : feedback?.status === "sending" ? "Sending…"
-    : feedback?.status === "queued" && working ? "Follow-up queued."
-    : feedback?.status === "accepted" && working ? "Message accepted."
+    : feedback?.status === "sending" ? "Sending message…"
+    : feedback?.status === "queued" && working ? "Queued after the current work."
+    : feedback?.status === "accepted" && working ? "Sent."
     : undefined
-  return <form action={submitAction} data-chat-composer {...stylex.props(sharedStyles.primeComposer)}>
+  // Keep pending feedback urgent while external session selection changes during creation.
+  return <form onSubmit={(event) => {
+    event.preventDefault()
+    void submitAction(new FormData(event.currentTarget))
+  }} data-chat-composer {...stylex.props(sharedStyles.primeComposer, draftHero && sharedStyles.primeComposerHero)}>
     <InputGroup xstyle={[sharedStyles.composerGroup]}>
       <label htmlFor={inputId} {...stylex.props(sharedStyles.srOnly)}>Message {agentName}</label>
       <InputGroupTextarea
@@ -84,7 +89,9 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
     <div id={feedbackId} {...stylex.props(sharedStyles.composerFeedback)}>
       {message ? <p role={feedback?.status === "error" ? "alert" : "status"} {...stylex.props(feedback?.status === "error" && sharedStyles.composerError)}>{message}</p> : null}
       {uncertain && releaseSend ? <><p>Your next action checks the original send. Sending again may duplicate it.</p><button type="button" disabled={unavailable} onClick={() => { void releaseSend() }}>I’ve checked; allow a new send</button></> : null}
-      {working && connected && !recovering && !uncertain ? <p>Sent messages are queued after the current work.</p> : !connected || recovering ? <p>You can keep writing. New messages need a connection.</p> : null}
+      {opening ? <p role="status">Opening conversation… You can keep writing.</p>
+        : working && connected && !recovering && !uncertain ? <p>Sent messages are queued after the current work.</p>
+        : !connected || recovering ? <p>You can keep writing. New messages need a connection.</p> : null}
     </div>
   </form>
 }

@@ -67,6 +67,7 @@ const initialSession: MockSession = {
 export type MockPrimeAgentClientOptions = Readonly<{
   initialSnapshots?: readonly PrimeSessionSnapshot[]
   beforePrompt?: () => Promise<void>
+  beforeAttach?: () => Promise<void>
   afterSend?: () => Promise<void>
   replyDelayMs?: number
 }>
@@ -276,8 +277,9 @@ export function createMockPrimeAgentClient(
       return Promise.resolve(summary)
     },
 
-    attachSession(request: AttachSessionRequest) {
-      return Promise.resolve(snapshotEnvelope(getSession(request.sessionId)))
+    async attachSession(request: AttachSessionRequest) {
+      await options.beforeAttach?.()
+      return snapshotEnvelope(getSession(request.sessionId))
     },
 
     subscribeSession(sessionId, listener) {

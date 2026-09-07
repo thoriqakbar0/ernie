@@ -40,6 +40,12 @@ Each Agent binds one durable Prime Agent root. Preparation writes the native fil
 
 [[src/main/services/agents.ts#AgentsService]] owns serialized binding and presentation updates. [[src/main/prime-agent/service.ts#PrimeAgentService]] owns native activation, rename, and validated child inspection. [ADR 0002](../docs/adr/0002-native-agent-roots.md) records the ownership decision.
 
+## Subagent roster inspection
+
+Conversation activity exposes native child status, parent relationships, and reply previews without changing the selected session. Cached rosters remain inspectable with a last-known-state label.
+
+[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns preview selection and focus restoration. When a selected child disappears, selection clears and focus returns to a surviving roster control or the activity summary. Parent links resolve only within the supplied roster. Previews preserve source attribution and add no daemon commands.
+
 ## Agent settings feedback
 
 Agent edits remain local to the form until accepted by the save command. Unchanged forms cannot submit; rejected saves retain edits, and accepted saves announce success after closing.

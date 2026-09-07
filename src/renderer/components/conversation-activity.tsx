@@ -1,3 +1,4 @@
+import { SubagentActivity } from "./subagent-activity"
 import { RunInspector } from "./run-inspector"
 import Scritto from "@scritto/react"
 import * as stylex from "@stylexjs/stylex"
@@ -19,8 +20,8 @@ export function ConversationActivity({ snapshot }: { snapshot: PrimeSessionSnaps
       {activity.phase ? <p>Current phase: {activity.phase}</p> : null}
       {activity.tools.length ? <p>Active tools: {activity.tools.join(", ")}</p> : null}
       {activity.followUps.map((text, index) => <p key={index} {...stylex.props(styles.queuedMessage)}>Queued follow-up: {text}</p>)}
-      {activity.children.map((child) => <div key={child.id} {...stylex.props(styles.child)}><span>{child.label}</span><span {...stylex.props(styles.badge)}>{child.status}</span>{child.error ? <p>{child.error}</p> : null}</div>)}
-      <RunInspector results={activity.results} active={activity.active}/>
+      <SubagentActivity snapshot={snapshot}/>
+      {activity.results.length ? <RunInspector results={activity.results} active={activity.active}/> : null}
     </div>
   </details>
 }
@@ -32,7 +33,5 @@ const styles = stylex.create({
   queue: { color: theme["--ink"] },
   body: { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", minWidth: 0, gap: 4, padding: "0 12px 12px" },
   queuedMessage: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
-  child: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8, padding: 8, overflowWrap: "anywhere" },
-  badge: { display: "inline-flex", alignItems: "center", gap: 4, marginInlineStart: "auto", fontSize: 12, color: theme["--muted"] },
   focus: { outlineStyle: "solid", outlineWidth: { default: 0, ":focus-visible": 2 }, outlineOffset: 2, outlineColor: { default: theme["--ink"], "@media (forced-colors: active)": "Highlight" } },
 })

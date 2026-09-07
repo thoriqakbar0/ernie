@@ -58,6 +58,8 @@ Execution disclosure shows authoritative Working, recovery, failure, or disconne
 
 Tool runs use a horizontal marker strip. Hovering or selecting a marker reveals one run’s code and output; arrow keys, Home, and End move selection. The collapsed activity disclosure mounts no detail content, and expanded activity mounts only the selected run’s output. Failed runs have a distinct marker height and accessible status. Hover state is isolated in the run inspector and unchanged markers are memoized. Preview changes use a brief transform/opacity reveal, disabled with reduced motion.
 
+Subagent activity offers native roster previews inside the conversation activity panel. Parent links inspect an available parent entry; Back to conversation closes the preview and restores the opener’s focus. Reply previews and recaps retain their source labels. Disconnected or unavailable rosters show last known state. These previews do not attach, resume, cancel, or replace sessions.
+
 ## Response feedback
 
 Select text within an assistant response, then choose Comment on selection. Add several comments and review or remove them above the composer before sending. Feedback includes the exact excerpt, Agent name, and message identifier. Excerpts are quoted source data in the next user message.

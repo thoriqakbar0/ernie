@@ -2,7 +2,7 @@ import { useRef, useState } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { Effect } from "effect"
 import { type Agent, type AgentResult, type Roster, emptyRoster } from "../packages/agents"
-import type { PrimeSessionSnapshot, PrimeSessionSummary } from "../packages/prime-agent"
+import type { PrimeRlmChild, PrimeSessionSnapshot, PrimeSessionSummary } from "../packages/prime-agent"
 import { createPrimeUsefulSessionFixture } from "../packages/prime-agent/fixtures"
 import { createMockPrimeAgentClient } from "./prime-agent/mock"
 import { PrimeAgentStateProvider } from "../renderer/prime-agent-state"
@@ -15,7 +15,7 @@ const styles = stylex.create({
   toolbar: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", padding: "8px 14px", fontSize: 12, color: theme["--ink"], backgroundColor: theme["--surface-strong"] },
   app: { flexGrow: 1, minHeight: 0 },
 })
-const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Draft conversation", "Changed workspace", "Tool activity", "Long conversation"] as const
+const presets = ["Populated", "Empty", "Concurrent activity", "Reconnect", "Failed connection", "Long names", "New Agent", "Draft conversation", "Changed workspace", "Tool activity", "Subagent activity", "Long conversation"] as const
 type Preset = typeof presets[number]
 
 /** Isolated production UI scenarios. No scenario client can reach a live session. */
@@ -126,7 +126,14 @@ function createSeed(preset: Preset): { roster: Roster; snapshots: PrimeSessionSn
   if (preset === "Changed workspace") agents[0] = { ...agents[0], cwd: "/example/new-default" }
   const snapshots = summaries.map((session): PrimeSessionSnapshot => {
     const messages = draftConversation && session.id === summaries[0].id ? [] : preset === "Long conversation" ? Array.from({ length: 35 }, (_, index) => ({ id: `${session.id}-${index}`, role: index % 2 ? "assistant" as const : "user" as const, content: `Message ${index + 1}. ` + "Inspect the login flow and preserve the existing workspace context. ".repeat(8) })) : [{ id: `${session.id}-message`, role: "assistant" as const, content: "What would you like to work on? This is a synthetic conversation; no live commands are sent." }]
-    const fixture = createPrimeUsefulSessionFixture(session, messages)
+    const base = createPrimeUsefulSessionFixture(session, messages)
+    const children: readonly PrimeRlmChild[] = [
+      { id: "research", label: "Research", status: "running", sessionDir: "/example/research", activity: { kind: "waiting" }, repliedSinceTask: false },
+      { id: "sources", parentId: "research", label: "Check sources", status: "done", sessionDir: "/example/sources", repliedSinceTask: true, answerPreview: "Verified the three source documents.\nThe runtime owns child identity and lifecycle.", recap: "Reviewed the native contracts." },
+      { id: "checks", parentId: "research", label: "Check recovery", status: "error", sessionDir: "/example/checks", error: "The synthetic endpoint is unavailable.", repliedSinceTask: false },
+      { id: "cancelled", label: "Earlier approach", status: "cancelled", sessionDir: "/example/cancelled" },
+    ]
+    const fixture = preset === "Subagent activity" ? { ...base, childrenAvailable: true, children } : base
     const useful = preset === "Tool activity" ? { ...fixture, structuredMessages: [...fixture.structuredMessages, { role: "toolResult", toolCallId: "example-read", toolName: "read", isError: false, content: [{ type: "text", text: "Synthetic output: the login form validates the email before submitting." }] }, { role: "toolResult", toolCallId: "example-check", toolName: "bash", isError: true, content: [{ type: "text", text: "Synthetic output: the login check failed because the fixture has no server." }] }] } : fixture
     return { session, messages, useful, transport: preset === "Reconnect" ? { status: "reconnecting" } : preset === "Failed connection" ? { status: "failed", error: "Synthetic disconnected runtime" } : { status: "connected" } }
   })

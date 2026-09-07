@@ -8,6 +8,8 @@ Stable source capture publishes content-addressed checkpoints under an immutable
 
 [[src/host/history/controller.ts#HistoryController]] serializes mutations and records restoration state. [[src/host/history/source-store.ts#SourceStore]] enforces the capture manifest and verifies objects. [[src/packages/app-history/index.ts#HistoryRequest]] defines the public request grammar, which excludes activation.
 
+Checkpoint tree hashes include file-entry JSON field order: path, hash, size, executable. Schema decoding and capture retain that order so existing checkpoints remain verifiable.
+
 Capture rejects symlinked ancestors of nested manifest entries. Restore installs frozen dependencies and checks the prepared source identity before activation. Finished editing intervals retain their summaries independently of deduplicated source trees.
 
 ## Independent recovery

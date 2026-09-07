@@ -12,6 +12,13 @@ export default defineConfig({
   jsPlugins: reactDoctor.jsPlugins,
   overrides: [
     {
+      files: ["src/packages/app-history/index.ts", "src/host/history/source-store.ts"],
+      rules: {
+        // FileEntry field order is part of existing persisted checkpoint hashes.
+        "sort-keys": "off",
+      },
+    },
+    {
       files: ["src/renderer/prime-agent-state.tsx"],
       rules: {
         // Lazy state owns stable runtime clients; no replacement setter is needed.

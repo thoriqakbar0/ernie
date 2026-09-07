@@ -35,10 +35,10 @@ export const Origin = Schema.Literals([
 ])
 /** Manifest paths are revalidated against the immutable host policy on every read. */
 export const FileEntry = Schema.Struct({
-  executable: Schema.Boolean,
-  hash: Schema.String,
   path: Schema.String,
+  hash: Schema.String,
   size: Schema.Number,
+  executable: Schema.Boolean,
 })
 /** Checkpoint metadata is durable only after all referenced objects exist. */
 const CheckpointSchema = Schema.Struct({

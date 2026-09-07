@@ -218,11 +218,12 @@ export class SourceStore {
             await atomicWrite(nodePath.join(this.objects, hash), bytes)
           }
         }
+        // Field order is part of the persisted checkpoint tree hash.
         files.push({
-          executable: Boolean(info.mode & 0o111),
-          hash,
           path: relative,
+          hash,
           size: bytes.length,
+          executable: Boolean(info.mode & 0o111),
         })
       } else {
         throw new HistoryFailure({

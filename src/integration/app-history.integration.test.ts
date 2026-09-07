@@ -4,10 +4,11 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from "node:fs/promis
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { setTimeout } from "node:timers/promises"
-import { Effect } from "effect"
+import { Effect, Schema } from "effect"
+import { HistoryIndex } from "../packages/app-history"
 import { HistoryController } from "../host/history/controller"
 import type { HistoryConfig } from "../host/history/controller"
-import { sourceManifest } from "../host/history/source-store"
+import { hashContent, sourceManifest } from "../host/history/source-store"
 import { serveHistory, callHistory } from "../host/history/transport"
 
 // All filesystem operations use disposable roots; no real app or daemon is contacted.
@@ -486,6 +487,50 @@ test("finish retains summaries and overlapping registrations after automatic cap
       assert.equal(field(persisted, "proposedTitle"), "Second edit")
     } finally {
       reopened.stopWatching()
+    }
+  } finally {
+    await f.close()
+  }
+})
+
+test("persisted checkpoints from before lint migration remain restorable", async () => {
+  const f = await fixture()
+  try {
+    const indexPath = path.join(f.config.home, "index.json")
+    const index = Schema.decodeUnknownSync(HistoryIndex)(
+      JSON.parse(await readFile(indexPath, "utf-8")),
+    )
+    const checkpoints = index.checkpoints.map((checkpoint) => {
+      const files = checkpoint.files.map((file) =>
+        Object.fromEntries([
+          ["path", file.path],
+          ["hash", file.hash],
+          ["size", file.size],
+          ["executable", file.executable],
+        ]),
+      )
+      const tree = hashContent(JSON.stringify(files))
+      assert.equal(checkpoint.tree, tree, "new captures must retain the legacy tree identity")
+      return { ...checkpoint, files, tree }
+    })
+    await writeFile(indexPath, JSON.stringify({ ...index, checkpoints }))
+    const restored = await HistoryController.open(f.config)
+    try {
+      await writeFile(path.join(f.source, "src", "app.ts"), "changed")
+      const proposal = await Effect.runPromise(
+        restored.request({
+          checkpointId: index.currentCheckpointId,
+          method: "history.prepare_restore",
+          requestId: "legacy-restore",
+        }),
+      )
+      await restored.approve(field(proposal, "id"))
+      assert.equal(
+        await readFile(path.join(restored.activeGeneration, "src", "app.ts"), "utf-8"),
+        "original",
+      )
+    } finally {
+      restored.stopWatching()
     }
   } finally {
     await f.close()

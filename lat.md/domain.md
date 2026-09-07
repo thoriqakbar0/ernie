@@ -42,9 +42,9 @@ Each Agent binds one durable Prime Agent root. Preparation writes the native fil
 
 ## Subagent roster inspection
 
-Conversation activity exposes native child status, parent relationships, and reply previews without changing the selected session. Cached rosters remain inspectable with a last-known-state label.
+Subagent threads sit below the conversation header, separate from execution details. Native status and reply previews remain visible when execution details are collapsed. Cached rosters carry a last-known-state label.
 
-[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns preview selection and focus restoration. When a selected child disappears, selection clears and focus returns to a surviving roster control or the activity summary. Parent links resolve only within the supplied roster. Previews preserve source attribution and add no daemon commands.
+[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns child selection and a read-only side panel with a parent return path. [[src/renderer/components/subagent-conversation.tsx#SubagentConversation]] mounts native inspection only while open; failed refreshes preserve prior messages. ConversationMessages owns shared memoized message rendering without execution subscriptions. The parent draft stays attached; no child send, cancel, or resume action is exposed. Waiting derives only from native running activity waiting.
 
 ## Agent settings feedback
 

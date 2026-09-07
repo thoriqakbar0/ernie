@@ -1,3 +1,4 @@
+import { SubagentActivity } from "./subagent-activity"
 import { RuntimeStatus } from "./runtime-status"
 import { useAgentCreation } from "../agent-creation"
 import { AppChangeProtection } from "./app-change-protection"
@@ -244,6 +245,7 @@ const PrimeSessionWorkspace = ({
   }
   return (
     <>
+      {snapshot ? <SubagentActivity snapshot={snapshot} /> : null}
       <WorkspaceNotices
         snapshot={snapshot}
         connected={connected}

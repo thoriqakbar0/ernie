@@ -1,4 +1,3 @@
-import { SubagentActivity } from "./subagent-activity"
 import { RunInspector } from "./run-inspector"
 import Scritto from "@scritto/react"
 import * as stylex from "@stylexjs/stylex"
@@ -119,7 +118,6 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
               Queued follow-up: {text}
             </p>
           ))}
-          <SubagentActivity snapshot={snapshot} />
           {activity.results.length ? (
             <RunInspector results={activity.results} active={activity.active} />
           ) : null}

@@ -9,6 +9,7 @@ export const nativeConversationConfig = function nativeConversationConfig(
   return {
     appendSystemPrompt: origin.instructions ? [origin.instructions] : [],
     cwd: origin.cwd,
+    ...(!resume && origin.thinkingLevel ? { thinking: origin.thinkingLevel } : {}),
     ...(!resume && origin.model ? { model: origin.model, provider: origin.provider } : {}),
   }
 }

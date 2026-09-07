@@ -1,5 +1,5 @@
 import { InstalledPrimeDaemon, isPrimeDaemonAbsent } from "./installed-daemon"
-import { readModelCatalog } from "./model-catalog"
+import { readModelCatalog, projectModelCatalog } from "./model-catalog"
 import { createHash } from "node:crypto"
 import { readFile, readdir, mkdir, stat } from "node:fs/promises"
 import path from "node:path"
@@ -18,7 +18,7 @@ import { AgentStoreService } from "../services/agent-store"
 import { SessionManager, DaemonAgentConnection } from "prime-agent"
 import type { DaemonClient, AgentConnectionEvent, DaemonCommand, DaemonResponse } from "prime-agent"
 
-import { SendRequest } from "../../packages/prime-agent"
+import { SendRequest, PrimeEffortSchema, PrimeRlmMaxDepthSchema } from "../../packages/prime-agent"
 import type {
   PrimeDaemonConnection,
   PrimeSessionInspection,
@@ -433,6 +433,12 @@ export class PrimeAgentService extends Service.create({
       this.upsertCatalogSession(summary)
     }
     await this.selectSession({ sessionId: input.sessionId })
+    if (input.prepared && input.origin?.rlmMaxDepth !== undefined) {
+      await this.setRecurrentDepth({
+        recurrentDepth: input.origin.rlmMaxDepth,
+        sessionId: input.sessionId,
+      })
+    }
     return this.summaries.get(input.sessionId)
   }
 
@@ -516,6 +522,12 @@ export class PrimeAgentService extends Service.create({
               })
             }),
           )
+        }
+        if (origin?.rlmMaxDepth !== undefined) {
+          await this.setRecurrentDepth({
+            recurrentDepth: origin.rlmMaxDepth,
+            sessionId: session.id,
+          })
         }
         return session
       } catch (error) {
@@ -709,12 +721,7 @@ export class PrimeAgentService extends Service.create({
     }
     const connection = await this.getReadyConnection(input.sessionId)
     const models = await connection.getAvailableModels()
-    return models.map((model) => ({
-      cost: { input: model.cost.input, output: model.cost.output },
-      id: model.id,
-      label: model.name ?? model.id,
-      provider: model.provider,
-    }))
+    return projectModelCatalog(models)
   }
 
   /** Changes the model through the owning logical attachment. */
@@ -738,7 +745,7 @@ export class PrimeAgentService extends Service.create({
     effort: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
   }) {
     const connection = await this.getReadyConnection(input.sessionId)
-    await connection.setThinkingLevel(input.effort)
+    await connection.setThinkingLevel(Schema.decodeUnknownSync(PrimeEffortSchema)(input.effort))
     const attachment = this.attachments.get(input.sessionId)
     if (attachment) {
       this.scheduleRefresh(attachment, true)
@@ -746,8 +753,9 @@ export class PrimeAgentService extends Service.create({
   }
 
   async setRecurrentDepth(input: { sessionId: string; recurrentDepth: number }) {
+    const depth = Schema.decodeUnknownSync(PrimeRlmMaxDepthSchema)(input.recurrentDepth)
     const connection = await this.getReadyConnection(input.sessionId)
-    await connection.setRlmMaxDepth(input.recurrentDepth)
+    await connection.setRlmMaxDepth(depth)
   }
 
   private async getReadyConnection(sessionId: string) {

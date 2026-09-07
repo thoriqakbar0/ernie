@@ -46,3 +46,11 @@ The service supports catalog/selection, root preparation and activation, rename,
 The service receipt ledger is in-memory. Its `checkSend` path does not dispatch native work. Do not infer crash-safe exactly-once delivery from upstream journal support: this service does not explicitly enable `DaemonClient.enableRequestRecovery()`. See [receipt semantics](../data-structures.md#send-receipts-and-recovery).
 
 On disconnect, Ernie retains the last snapshot and tries recovery up to three times. A missing installation or incompatible greeting stops immediately. Explicit retry grants a fresh budget, and catalog polling pauses while disconnected. Disposal cancels recovery and releases resources. [Integration tests](../../src/integration/prime-agent-daemon.integration.test.ts) cover logical isolation, external lifecycle, native resume, and service recovery; their existence is not a claim that a particular checkout passed them.
+
+## Effort and RLM max depth
+
+Model catalog entries expose `supportedEfforts` from the installed native capability helper, including provider-specific differences. The attached snapshot exposes `useful.state.availableThinkingLevels` and `thinkingLevel`; unsupported effort requests follow Prime Agent's native clamping behavior.
+
+Draft Agent settings accept optional `thinkingLevel` and `rlmMaxDepth`. Initial effort uses native `config.thinking`. Native creation config has no depth field, so prepared-root activation applies `setRlmMaxDepth` before returning the bound root. Reopening a bound root does not reapply either draft choice.
+
+Depth accepts nonnegative safe integers, with zero disabling child delegation. Native precedence is chat, inherited, global, environment, then default 2. Ernie omits the setter's `global` option. Native `setThinkingLevel`, however, persists the session level and also updates Prime Agent's default thinking setting. Neither control is a per-message override.

@@ -51,3 +51,9 @@ Conversation activity exposes native child status, parent relationships, and rep
 Agent edits remain local to the form until accepted by the save command. Unchanged forms cannot submit; rejected saves retain edits, and accepted saves announce success after closing.
 
 [[src/renderer/components/agent-settings.tsx#AgentSettingsDialog]] compares edits with the opened values without changing optimistic revision checks. [[src/renderer/components/agent-settings.tsx#AgentControls]] owns the success announcement. Prepared roots keep instructions and working folders read-only; the folder remains visible in full.
+
+## Session generation controls
+
+Models expose native supported effort levels. Draft choices seed the native root; bound roots retain accepted settings across reopening. RLM max depth is a nonnegative safe integer and zero disables delegation.
+
+[[src/main/prime-agent/model-catalog.ts#projectModelCatalog]] projects capabilities through the installed native helper. [[src/main/prime-agent/agent-config.ts#nativeConversationConfig]] supplies initial effort; prepared-root activation applies depth before first send. Live effort changes also update Prime Agent's default effort, while depth changes stay chat-local. Native depth defaults to 2 when no chat, inherited, global, or environment override exists.

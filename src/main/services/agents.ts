@@ -44,7 +44,9 @@ const savedAgent = (
   pinned: previous?.pinned ?? false,
   provider: data.provider,
   revision: (previous?.revision ?? 0) + 1,
+  ...(data.rlmMaxDepth === undefined ? {} : { rlmMaxDepth: data.rlmMaxDepth }),
   role: data.role,
+  ...(data.thinkingLevel === undefined ? {} : { thinkingLevel: data.thinkingLevel }),
 })
 
 const validateSavedSettings = (
@@ -64,7 +66,7 @@ const validateSavedSettings = (
     }
     if (
       previous?.root &&
-      ["instructions", "cwd", "provider", "model"].some(
+      ["instructions", "cwd", "provider", "model", "thinkingLevel", "rlmMaxDepth"].some(
         (key) => previous[key as keyof Agent] !== data[key as keyof typeof data],
       )
     ) {
@@ -139,6 +141,8 @@ export class AgentsService extends Service.create({
             "cwd",
             "provider",
             "model",
+            "thinkingLevel",
+            "rlmMaxDepth",
           ] as const
           if (
             previous?.revision === data.expectedRevision + 1 &&
@@ -469,6 +473,8 @@ export class AgentsService extends Service.create({
             instructions: agent.instructions,
             model: agent.model,
             provider: agent.provider,
+            ...(agent.rlmMaxDepth === undefined ? {} : { rlmMaxDepth: agent.rlmMaxDepth }),
+            ...(agent.thinkingLevel === undefined ? {} : { thinkingLevel: agent.thinkingLevel }),
           }
           // Commit the durable file identity before daemon admission, including uncertain responses.
           yield* this.ctx.store.write({

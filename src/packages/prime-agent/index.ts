@@ -59,9 +59,22 @@ export type PrimeModel = Readonly<{
   cost?: { input: number; output: number }
   updatedAt?: string
   available?: boolean
+  supportedEfforts?: readonly PrimeEffort[]
 }>
 
-export type PrimeEffort = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+/** Native thinking levels; individual models expose a supported subset. */
+export const PrimeEffortSchema = Schema.Literals([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+])
+export type PrimeEffort = typeof PrimeEffortSchema.Type
+/** Native delegation ceiling, including zero to disable child delegation. */
+export const PrimeRlmMaxDepthSchema = Schema.Natural
 
 /** One JSON value that can safely cross Ernie's process boundary. */
 export type PrimeJsonValue =

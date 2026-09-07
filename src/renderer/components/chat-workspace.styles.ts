@@ -19,7 +19,7 @@ export const styles = stylex.create({
     maxHeight: "60dvh",
     overflowY: "auto",
     overscrollBehavior: "contain",
-    padding: "14px 28px max(18px, env(safe-area-inset-bottom))",
+    padding: "14px 28px max(8px, env(safe-area-inset-bottom))",
     paddingBottom: {
       "@media (max-width: 720px)": "max(8px, env(safe-area-inset-bottom))",
       default: null,

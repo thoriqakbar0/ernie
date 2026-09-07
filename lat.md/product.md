@@ -71,3 +71,5 @@ Custom model ID fields are removed from Agent settings. The composer dropdown se
 Failed first-message creation unlocks draft identity controls. Retries save current settings with the last acknowledged revision, preserving the Agent ID and creation request ID. Prepared roots retain immutable folder/model controls.
 
 Pre-session model catalogs load in a bounded worker thread because Prime Agent registry construction reads files synchronously. Concurrent requests share in-flight work; only validated model metadata returns to the host.
+
+Composer controls distinguish Reasoning from the configured RLM depth limit with visible labels, separate icons, title-case values, and hover/focus help. The live reasoning description retains the Prime Agent default side effect. Populated conversations reserve eight pixels plus the safe-area minimum below the composer hint.

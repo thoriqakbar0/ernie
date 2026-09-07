@@ -1,3 +1,4 @@
+import { BrainIcon, GitBranchIcon } from "lucide-react"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeEffort } from "../../packages/prime-agent"
 import { ComposerSelect } from "./composer-select"
@@ -43,8 +44,9 @@ export const InferenceControls = ({
   return (
     <div {...stylex.props(styles.controls)}>
       <ComposerSelect
-        label="Effort"
-        description={effortDescription}
+        label="Reasoning"
+        icon={BrainIcon}
+        description={`How much reasoning effort the model uses. ${effortDescription ?? "Applies when this conversation starts."}`}
         value={effort ?? defaultValue}
         options={[...defaults, ...effortOptions]}
         disabled={disabled || available.length === 0}
@@ -61,7 +63,9 @@ export const InferenceControls = ({
         }}
       />
       <ComposerSelect
-        label="RLM max depth"
+        label="RLM depth"
+        icon={GitBranchIcon}
+        description="Maximum subagent nesting for this conversation. Zero disables recursion. This is a limit, not the current depth."
         value={depthValue}
         options={[
           ...defaults,

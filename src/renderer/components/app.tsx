@@ -1,3 +1,4 @@
+import { BrowserWorkspace } from "./browser-workspace"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
@@ -72,7 +73,7 @@ export function App({ roster, agentClient, updates }: { roster?: Roster; agentCl
             <PanelLeftOpenIcon {...stylex.props(sharedStyles.controlIcon, styles.openIcon)} />
           </button>
         )}
-        <div id="ernie-main-content" tabIndex={-1} {...stylex.props(styles.workspaceSlot, sidebarOpen && styles.workspaceBehindSidebar)}><WorkspacePages /></div>
+        <div id="ernie-main-content" tabIndex={-1} {...stylex.props(styles.workspaceSlot, sidebarOpen && styles.workspaceBehindSidebar)}><BrowserWorkspace><WorkspacePages /></BrowserWorkspace></div>
       </main>
       {updates}
     </div></MessageReadingProvider></ConversationFlowProvider></AgentCreationProvider></ConversationDraftProvider></AgentStateProvider></AppNavigationProvider>

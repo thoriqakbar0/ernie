@@ -1,3 +1,4 @@
+import { BrowserService } from "./browser"
 import { Service } from "@zenbujs/core/runtime"
 import { HttpService, WindowService } from "@zenbujs/core/services"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
@@ -6,6 +7,7 @@ import { publishRuntimeDescriptor, readRendererMode, registerDesktopSmokeConnect
 export class InitService extends Service.create({
   key: "init",
   deps: {
+    browser: BrowserService,
     http: HttpService,
     window: WindowService,
   },
@@ -28,6 +30,6 @@ export class InitService extends Service.create({
       return
     }
 
-    await this.ctx.window.openWindow({})
+    await this.ctx.window.openWindow({ webContentsView: { webPreferences: { webviewTag: true } } })
   }
 }

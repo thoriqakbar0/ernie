@@ -64,6 +64,15 @@ export const styles = stylex.create({
   messageParagraph: {
     margin: "0",
   },
+  participantHeader: {
+    alignItems: "center",
+    color: theme["--ink"],
+    display: "flex",
+    fontSize: 13,
+    fontWeight: 500,
+    gap: 8,
+    marginBlockEnd: 8,
+  },
   systemMessageContent: {
     color: theme["--muted"],
     fontSize: "13px",

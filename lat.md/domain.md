@@ -59,3 +59,5 @@ Agent edits remain local to the form until accepted by the save command. Unchang
 Models expose native supported effort levels. Draft choices seed the native root; bound roots retain accepted settings across reopening. RLM max depth is a nonnegative safe integer and zero disables delegation.
 
 [[src/main/prime-agent/model-catalog.ts#projectModelCatalog]] projects capabilities through the installed native helper. [[src/main/prime-agent/agent-config.ts#nativeConversationConfig]] supplies initial effort; prepared-root activation applies depth before first send. Live effort changes also update Prime Agent's default effort, while depth changes stay chat-local. Native depth defaults to 2 when no chat, inherited, global, or environment override exists.
+
+SubagentAvatar owns the existing deterministic sidebar character recipe, reused by the participant list, child thread header, and assistant replies. Child transcripts label input as Task message rather than claiming the user personally sent it; assistant identity comes from the inspected child. Separate native threads are not merged into an invented group timeline.

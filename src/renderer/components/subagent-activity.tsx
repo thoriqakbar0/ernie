@@ -1,3 +1,4 @@
+import { SubagentAvatar } from "./subagent-avatar"
 import { useCallback, useMemo, useRef, useState } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { ArrowLeftIcon } from "lucide-react"
@@ -79,7 +80,14 @@ export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot 
                   <ArrowLeftIcon size={16} aria-hidden="true" />
                   Back to {parentName}
                 </button>
-                <DialogTitle>{selected.sessionName ?? selected.label}</DialogTitle>
+                <div {...stylex.props(styles.participant)}>
+                  <SubagentAvatar
+                    childId={selected.id}
+                    size="default"
+                    working={current && statusOf(selected) === "Running"}
+                  />
+                  <DialogTitle>{selected.sessionName ?? selected.label}</DialogTitle>
+                </div>
                 <DialogDescription>
                   {statusOf(selected)}
                   {current ? "" : " · last known state"}

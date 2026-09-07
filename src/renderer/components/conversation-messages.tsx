@@ -1,3 +1,4 @@
+import { SubagentAvatar } from "./subagent-avatar"
 import { MessageMarkdown } from "./message-markdown"
 import { AnnotatableResponse } from "./annotatable-response"
 import type { ResponseAnnotation } from "../response-annotation"
@@ -16,6 +17,7 @@ import {
 } from "./ui/message-scroller"
 
 export type ConversationMessagesProps = Readonly<{
+  participantId?: string
   sessionId?: string
   agentName?: string
   activity?: ReactNode
@@ -24,10 +26,12 @@ export type ConversationMessagesProps = Readonly<{
 }>
 const MessageRowContent = ({
   message,
+  participantId,
   agentName,
   onAnnotate,
 }: Readonly<{
   message: PrimeSessionMessage
+  participantId?: string
   onAnnotate?: (annotation: ResponseAnnotation) => void
   agentName?: string
 }>) => {
@@ -35,7 +39,7 @@ const MessageRowContent = ({
   if (message.role === "assistant") {
     label = `${agentName ?? "Prime Agent"} message`
   } else if (message.role === "user") {
-    label = "Your message"
+    label = participantId ? "Task message" : "Your message"
   }
   const paragraphOccurrences = new Map<string, number>()
   const content = (
@@ -71,6 +75,17 @@ const MessageRowContent = ({
         aria-label={label}
         {...stylex.props(styles.messageEntry, message.role === "user" && styles.messageEntryUser)}
       >
+        {participantId && message.role === "assistant" ? (
+          <header {...stylex.props(styles.participantHeader)}>
+            <SubagentAvatar childId={participantId} />
+            <span>{agentName ?? "Subagent"}</span>
+          </header>
+        ) : null}
+        {participantId && message.role === "user" ? (
+          <header {...stylex.props(styles.messageEntryHeader, styles.messageEntryRole)}>
+            Task message
+          </header>
+        ) : null}
         {message.role === "system" ? (
           <header {...stylex.props(styles.messageEntryHeader)}>
             <span {...stylex.props(styles.messageEntryRole)}>System</span>
@@ -95,7 +110,13 @@ const MessageRowContent = ({
 const MessageRow = memo(MessageRowContent)
 MessageRow.displayName = "MessageRow"
 
-const Transcript = ({ messages, activity, agentName, onAnnotate }: ConversationMessagesProps) => (
+const Transcript = ({
+  messages,
+  activity,
+  agentName,
+  participantId,
+  onAnnotate,
+}: ConversationMessagesProps) => (
   <MessageScroller xstyle={[styles.conversationTranscriptShell]}>
     <MessageScrollerViewport
       aria-label="Conversation transcript"
@@ -108,6 +129,7 @@ const Transcript = ({ messages, activity, agentName, onAnnotate }: ConversationM
           <MessageRow
             key={message.id}
             message={message}
+            participantId={participantId}
             agentName={agentName}
             onAnnotate={onAnnotate}
           />

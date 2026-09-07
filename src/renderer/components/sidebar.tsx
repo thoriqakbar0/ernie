@@ -1,3 +1,4 @@
+import { SubagentAvatar } from "./subagent-avatar"
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./sidebar.styles"
 import { styles as rosterStyles } from "./agent-roster.styles"
@@ -92,22 +93,11 @@ const AgentRosterAvatar = ({ agent, root }: { agent: Agent; root?: PrimeSessionS
         <AgentAvatar avatar={agent.avatar} animated working={root?.state === "working"} />
       </span>
       <span {...stylex.props(rosterStyles.groupChildren)}>
-        {children.map((child) => {
-          let seed = 2_166_136_261
-          for (const character of child.id) {
-            seed = Math.imul(seed ^ character.charCodeAt(0), 16_777_619) >>> 0
-          }
-          return (
-            <span key={child.id} {...stylex.props(rosterStyles.groupChild)}>
-              <AgentAvatar
-                avatar={{ kind: "generated", seed }}
-                size="small"
-                animated
-                working={child.status === "running"}
-              />
-            </span>
-          )
-        })}
+        {children.map((child) => (
+          <span key={child.id} {...stylex.props(rosterStyles.groupChild)}>
+            <SubagentAvatar childId={child.id} working={child.status === "running"} />
+          </span>
+        ))}
       </span>
     </span>
   )

@@ -1,3 +1,4 @@
+import { SubagentAvatar } from "./subagent-avatar"
 import { memo } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { ChevronRightIcon } from "lucide-react"
@@ -26,9 +27,12 @@ const ChildRowContent = ({
         {...stylex.props(styles.row)}
         onClick={(event) => onOpen(child, event.currentTarget)}
       >
-        <Icon size={15} aria-hidden="true" />
+        <SubagentAvatar childId={child.id} size="default" working={status === "Running"} />
         <span {...stylex.props(styles.name)}>{child.sessionName ?? child.label}</span>
-        <span {...stylex.props(styles.status)}>{status}</span>
+        <span {...stylex.props(styles.status)}>
+          <Icon size={12} aria-hidden="true" />
+          {status}
+        </span>
         <ChevronRightIcon size={14} aria-hidden="true" />
         {parentName ? <span {...stylex.props(styles.preview)}>From {parentName}</span> : null}
         <span {...stylex.props(styles.preview)}>

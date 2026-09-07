@@ -50,6 +50,7 @@ export const styles = stylex.create({
     transform: "none",
     width: "min(640px, 100%)",
   },
+  participant: { alignItems: "center", display: "flex", gap: 10, minWidth: 0 },
   preview: {
     WebkitBoxOrient: "vertical",
     WebkitLineClamp: 2,
@@ -80,13 +81,19 @@ export const styles = stylex.create({
     cursor: "pointer",
     display: "grid",
     gap: "4px 8px",
-    gridTemplateColumns: "16px minmax(0, 1fr) auto 16px",
+    gridTemplateColumns: "40px minmax(0, 1fr) auto 16px",
     minHeight: 48,
     padding: "10px 8px",
     textAlign: "start",
     width: "100%",
   },
-  status: { fontSize: 12, whiteSpace: "nowrap" },
+  status: {
+    alignItems: "center",
+    display: "inline-flex",
+    fontSize: 12,
+    gap: 4,
+    whiteSpace: "nowrap",
+  },
 })
 
 export const statusOf = (

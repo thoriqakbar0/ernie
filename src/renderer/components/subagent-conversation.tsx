@@ -58,6 +58,7 @@ export const SubagentConversation = ({
           </p>
           {inspection.data.messages.length ? (
             <ConversationMessages
+              participantId={childId}
               sessionId={`inspection:${parentId}:${childId}`}
               agentName={inspection.data.name}
               messages={inspection.data.messages}

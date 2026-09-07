@@ -65,7 +65,7 @@ export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot 
           finalFocus={() =>
             opener.current?.isConnected
               ? opener.current
-              : (rosterHeading.current ?? document.querySelector("#ernie-workspace"))
+              : (rosterHeading.current ?? document.querySelector<HTMLElement>("#ernie-workspace"))
           }
         >
           {selected ? (

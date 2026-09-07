@@ -23,6 +23,24 @@ import { CheckpointSource } from "./checkpoint-source"
 import { styles } from "./app-settings.styles"
 
 type Client = (input: HistoryRequest) => Promise<unknown>
+class HistoryRequestError extends Error {
+  readonly code: string
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = "HistoryRequestError"
+    this.code = code
+  }
+}
+const decodeHistoryResponse = (raw: unknown) => {
+  const response = Schema.decodeUnknownSync(HistoryResponse)(raw)
+  if (!response.ok) {
+    throw new HistoryRequestError(
+      response.error.code,
+      `${response.error.message} ${response.error.nextAction ?? ""}`,
+    )
+  }
+  return response.value
+}
 const origins = {
   baseline: "Initial app",
   before_restore: "Before restore",
@@ -294,15 +312,8 @@ export const AppHistoryPage = ({
   const rpc = useRpc()
   const { navigate } = useAppNavigation()
   const request = useCallback(
-    async (input: HistoryRequest) => {
-      const response = Schema.decodeUnknownSync(HistoryResponse)(
-        await (client ? client(input) : rpc.app.appHistory.request(input)),
-      )
-      if (!response.ok) {
-        throw new Error(`${response.error.message} ${response.error.nextAction ?? ""}`)
-      }
-      return response.value
-    },
+    async (input: HistoryRequest) =>
+      decodeHistoryResponse(await (client ? client(input) : rpc.app.appHistory.request(input))),
     [client, rpc],
   )
   const [items, setItems] = useState<readonly CheckpointSummary[]>([])
@@ -317,7 +328,11 @@ export const AppHistoryPage = ({
   }>()
   const source = sourceResult?.text
   const sourcePage = sourceResult?.next
-  const [errorMessage, setErrorMessage] = useState<string>()
+  const [historyError, setHistoryError] = useState<Error>()
+  const errorMessage =
+    historyError instanceof HistoryRequestError && historyError.code === "unsupported_workspace"
+      ? undefined
+      : historyError?.message
   const [notice, setNotice] = useState<string>()
   const [pending, setPending] = useState<string | null>(null)
   const busy = pending !== null
@@ -346,7 +361,7 @@ export const AppHistoryPage = ({
         await refresh(controller.signal)
       } catch (error) {
         if (!controller.signal.aborted) {
-          setErrorMessage(error instanceof Error ? error.message : "History unavailable")
+          setHistoryError(error instanceof Error ? error : new Error("History unavailable"))
         }
       }
     }
@@ -358,13 +373,13 @@ export const AppHistoryPage = ({
   }, [refresh])
   const act = async (operation: () => Promise<void>, label = "Updating…") => {
     setPending(label)
-    setErrorMessage(undefined)
+    setHistoryError(undefined)
     setNotice(undefined)
     try {
       await operation()
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "History could not complete this action.",
+      setHistoryError(
+        error instanceof Error ? error : new Error("History could not complete this action."),
       )
     } finally {
       setPending(null)
@@ -572,7 +587,7 @@ export const AppHistoryPage = ({
             ) : null}
           </>
         ) : null}
-        {!status && !errorMessage ? (
+        {!status && !historyError ? (
           <p>
             <output>Loading app history…</output>
           </p>

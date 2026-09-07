@@ -52,11 +52,11 @@ function ico(images) {
   return Buffer.concat([header, ...images.values()])
 }
 
-async function main() {
+function generateAssets() {
   // @lat: [[branding#Brand assets]]
   const production = new Map([16, 32, 48, 64, 128, 180, 256, 512, 1024].map((size) => [size, resize("production", size)]))
   const development = resize("development", 512)
-  const outputs = new Map([
+  return new Map([
     ["src/renderer/icon.png", production.get(512)],
     ["src/renderer/favicon.ico", ico(new Map([16, 32, 48, 64].map((size) => [size, production.get(size)])))],
     ["src/renderer/apple-touch-icon.png", production.get(180)],
@@ -72,21 +72,32 @@ async function main() {
       ["ic13", production.get(256)], ["ic14", production.get(512)],
     ]))],
   ])
+}
+
+async function verifyAssets(outputs) {
   const stale = []
   for (const [path, data] of outputs) {
-    const target = resolve(root, path)
-    if (check) {
-      const existing = await readFile(target).catch((error) => {
-        if (error.code === "ENOENT") return Buffer.alloc(0)
-        throw error
-      })
-      if (!existing.equals(data)) stale.push(path)
-    } else {
-      await mkdir(dirname(target), { recursive: true })
-      await writeFile(target, data)
-    }
+    const existing = await readFile(resolve(root, path)).catch((error) => {
+      if (error.code === "ENOENT") return Buffer.alloc(0)
+      throw error
+    })
+    if (!existing.equals(data)) stale.push(path)
   }
   if (stale.length) throw new Error(`Stale brand assets; run nub run brand:sync:\n${stale.join("\n")}`)
+}
+
+async function writeAssets(outputs) {
+  for (const [path, data] of outputs) {
+    const target = resolve(root, path)
+    await mkdir(dirname(target), { recursive: true })
+    await writeFile(target, data)
+  }
+}
+
+async function main() {
+  const outputs = generateAssets()
+  if (check) await verifyAssets(outputs)
+  else await writeAssets(outputs)
   console.log(`${check ? "Verified" : "Generated"} ${outputs.size} brand assets.`)
 }
 

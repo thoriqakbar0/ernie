@@ -34,11 +34,11 @@ The local authenticated socket, CLI, and stdio MCP share checkpoint identities a
 
 Admission follows fallible session preparation. Uncertain dispatch retains its editing interval until resolved; inactive managed roots cannot admit new work.
 
-## Customization entry
+## Appearance and customization
 
-Settings distinguishes local appearance preferences from managed-source customization. The customizer disclosure names the selected Agent workspace and opens the existing dedicated root without sending a prompt.
+Settings exposes local appearance preferences and App history. Managed-source customization remains a backend capability without a Settings disclosure.
 
-[[src/renderer/components/app-customization-entry.tsx#AppCustomizationEntry]] consumes the existing customization service and roster command owner. Pending opens prevent duplicate clicks; failed opens retain retry feedback. Navigation away suppresses a delayed return to conversation.
+[[src/main/services/app-history.ts#AppHistoryService]] retains the customization service and existing managed-source Agent workflow.
 
 [[src/renderer/components/appearance-settings.tsx#AppearanceSettings]] reports successful preference writes and retries only failed preference groups. Local preferences are outside source checkpoints. The App history page retains checkpoint browsing and recovery feedback.
 

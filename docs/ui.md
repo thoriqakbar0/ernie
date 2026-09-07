@@ -74,7 +74,7 @@ Settings and App history are separate pages inside the application shell. Conver
 
 The conversation model control shows the active provider name and model. OpenAI, Anthropic, and Google use local monochrome Remix Icon marks retrieved through better-icons (Apache-2.0); unknown providers retain their name and initials. Provider identity comes from the session model, not the welcome screen.
 
-All settings tab lists use the shared AnimatedTabs selection pill, including app customization/history and saved Agent settings. Selecting an active saved Agent tab closes its panel. Reduced motion disables the pill transition.
+All settings tab lists use the shared AnimatedTabs selection pill, including app appearance/history and saved Agent settings. Selecting an active saved Agent tab closes its panel. Reduced motion disables the pill transition.
 
 The welcome composer exposes draft model settings beside the Agent chip. It uses the selected session catalog when available and allows explicit provider/model IDs when no catalog exists. Both fields are required together; clearing both uses the runtime default. These values are saved only on first send. The folder panel stacks its label, full path, and change action.
 
@@ -96,6 +96,6 @@ Appearance also offers independent interface and monospace font dropdowns with l
 
 Appearance describes its local profile scope and announces successful writes. Retry saving preferences retries failed groups without requiring a different selection. Selecting a font reports the saved preference; platform availability still determines the displayed face.
 
-The Customize Ernie with an Agent disclosure identifies the selected Agent and conversation workspace from the existing roster. Open Ernie customizer invokes the existing service, which resolves the managed app source and opens its dedicated root. Opening does not dispatch an editing request. Pending opens prevent duplicate clicks; failures retain a retry action. Development without recovery explains that source customization requires the installed app. Inspect App history links to the existing checkpoint page.
+Settings contains Appearance and App history tabs. Managed-source customization remains available through the backend without a disclosure or launch controls in Settings.
 
 For a source change, request one scoped outcome, then inspect changed files, the observed interface result, and the returned checkpoint ID. A source checkpoint proves capture only. Native screenshot evidence and operation-to-checkpoint presentation follow their own host/history implementation; local appearance preferences remain outside source history.

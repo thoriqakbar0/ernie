@@ -9,7 +9,6 @@ export const styles = stylex.create({
     borderBottomWidth: 1,
     padding: 20,
   },
-  actions: { display: "flex", flexWrap: "wrap", gap: 8, marginBlock: 16 },
   appearance: { marginBottom: 24 },
   appearanceHint: { color: theme["--muted"], fontSize: 12, lineHeight: 1.5, marginBlock: "4px 0" },
   appearanceLabel: { fontSize: 14, fontWeight: 500, margin: 0 },

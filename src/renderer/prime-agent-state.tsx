@@ -163,8 +163,8 @@ class PrimeAgentRuntime {
     await attachment.chat.stop()
   }
 
-  getModels(sessionId: string) {
-    return this.client.getModels({ sessionId })
+  getModels(sessionId: string | undefined, all = false) {
+    return this.client.getModels({ sessionId, all })
   }
 
   setModel(sessionId: string, provider: string, modelId: string) {
@@ -406,15 +406,13 @@ export function usePrimeSessionActions(sessionId: string | undefined) {
 }
 
 /** Reads the model catalog owned by the attached Prime Agent session. */
-export function usePrimeModels(sessionId: string | undefined) {
+export function usePrimeModels(sessionId: string | undefined, all = false) {
   const runtime = usePrimeAgentRuntime()
   return useQuery({
-    queryKey: ["prime-agent", "models", sessionId ?? "none"],
+    queryKey: ["prime-agent", "models", sessionId ?? "none", all],
     queryFn: () => {
-      if (!sessionId) throw new Error("No Prime Agent session is attached")
-      return runtime.getModels(sessionId)
+      return runtime.getModels(sessionId, all)
     },
-    enabled: sessionId !== undefined,
   })
 }
 

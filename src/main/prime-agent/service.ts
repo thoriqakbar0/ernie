@@ -1,3 +1,4 @@
+import { readModelCatalog } from "./model-catalog"
 import { createHash } from "node:crypto"
 import { readFile, readdir, mkdir, stat } from "node:fs/promises"
 import { spawn } from "node:child_process"
@@ -361,12 +362,16 @@ export class PrimeAgentService extends Service.create({
   }
 
   /** Reads models through the owning logical attachment. */
-  async getModels(input: { sessionId: string }): Promise<readonly PrimeModel[]> {
+  async getModels(input: { sessionId?: string; all?: boolean }): Promise<readonly PrimeModel[]> {
+    if (!input.sessionId) {
+      return readModelCatalog(input.all)
+    }
     const connection = await this.getReadyConnection(input.sessionId)
     return (await connection.getAvailableModels()).map((model) => ({
       id: model.id,
       provider: model.provider,
       label: model.name ?? model.id,
+      cost: { input: model.cost.input, output: model.cost.output },
     }))
   }
 

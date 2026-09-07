@@ -1,5 +1,4 @@
 import { lazy, Suspense } from "react"
-import { InterfaceKit } from "interface-kit/react"
 import { createRoot } from "react-dom/client"
 import { View, ZenbuProvider } from "@zenbujs/core/react"
 import { App } from "./components/app"
@@ -51,6 +50,5 @@ createRoot(rootElement).render(
       {content}
     </PrimeAgentStateProvider>}
   </ZenbuProvider>}
-  {import.meta.env.DEV ? <InterfaceKit /> : null}
   </>,
 )

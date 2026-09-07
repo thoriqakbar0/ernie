@@ -1,8 +1,8 @@
+import { RuntimeStatus } from "./runtime-status"
 import { useAgentCreation } from "../agent-creation"
 import { AppChangeProtection } from "./app-change-protection"
 import { AgentNativeSessions } from "./agent-native-sessions"
-import { styles as settingsStyles } from "./agent-settings.styles"
-import { AgentControls, AgentSettingsDialog } from "./agent-settings"
+import { AgentControls } from "./agent-settings"
 import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useRef, useState } from "react"
@@ -46,7 +46,7 @@ const idleModelChange: ModelChangeState = {
 }
 const emptyModels: readonly PrimeModel[] = []
 export function ChatWorkspace() {
-  const { adding, setAdding } = useAgentCreation()
+  const { adding } = useAgentCreation()
   const { selectedSessionId: sessionId } = usePrimeSessionSelection()
   const { roster, error } = useAgents()
   const activeAgentId = sessionId ? roster.agents.find((item) => item.root?.sessionId === sessionId)?.id : roster.selectedAgentId
@@ -60,11 +60,12 @@ export function ChatWorkspace() {
       tabIndex={-1}
       {...stylex.props(styles.chatWorkspace)}
     >
-      {adding ? <header {...stylex.props(rosterStyles.header)}><h1 {...stylex.props(styles.creationTitle)}>New Agent</h1></header> : <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId}/>}
+      {!adding ? <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId}/> : null}
       {error ? <p role="alert" {...stylex.props(rosterStyles.feedback)}>{error}</p> : null}
-      {adding ? <div {...stylex.props(settingsStyles.creationStage)}><AgentSettingsDialog onClose={() => setAdding(false)}/></div> : !sessionId || creating ? (
+      {adding || (!sessionId && !activeAgent) ? <AgentWelcome/> : !sessionId || creating ? (
         activeAgent ? <EmptyAgentWorkspace key={activeAgent.id} agent={activeAgent}/> : <AgentWelcome/>
       ) : <PrimeSessionWorkspace agent={activeAgent} key={sessionId} sessionId={sessionId}/>}
+      <RuntimeStatus/>
     </section>
   )
 }

@@ -1,30 +1,19 @@
 import * as stylex from "@stylexjs/stylex"
-import { ArrowUpRightIcon } from "lucide-react"
-import { useAgents } from "../agent-state"
-import { AgentAvatar } from "./agent-avatar"
 import { useAgentCreation } from "../agent-creation"
+import { GeneratedCharacter } from "./generated-avatar"
+import { AgentSettingsDialog } from "./agent-settings"
 import { styles } from "./agent-welcome.styles"
 
-/** Gives the unselected workspace a direct path into the persisted Agent roster. */
+/** Opens first-message composition without creating a native Agent on mount. */
 export function AgentWelcome() {
-  const { roster } = useAgents()
   const { setAdding } = useAgentCreation()
   return <div {...stylex.props(styles.welcome)}>
     <div {...stylex.props(styles.content)}>
       <h1 {...stylex.props(styles.title)}>your next idea,<br/><span {...stylex.props(styles.emphasis)}>meet your Agent.</span></h1>
       <div aria-hidden="true" {...stylex.props(styles.characters)}>
-        <span {...stylex.props(styles.character, styles.robot)}><AgentAvatar avatar="fern" size="large"/></span>
-        <span {...stylex.props(styles.character, styles.eyes)}><AgentAvatar avatar="tide" size="large"/></span>
-        <span {...stylex.props(styles.character, styles.coffee)}><AgentAvatar avatar="ember" size="large"/></span>
-        <span {...stylex.props(styles.character, styles.star)}><AgentAvatar avatar="iris" size="large"/></span>
+        {[17, 42, 108, 256].map((seed) => <span key={seed} {...stylex.props(styles.character)}><GeneratedCharacter seed={seed} animated={false}/></span>) }
       </div>
-      <p {...stylex.props(styles.description)}>{roster.agents.length
-        ? "Pick an Agent to continue your work, or give a new one a role of its own."
-        : "A name, a role, a place to work. Make an Agent yours, then start with a conversation."}</p>
-      <button type="button" onClick={() => setAdding(true)} {...stylex.props(styles.action)}>
-        {roster.agents.length ? "Add an Agent" : "Create your first Agent"}<ArrowUpRightIcon size={18}/>
-      </button>
-      <p {...stylex.props(styles.note)}>Your Agents stay. Each conversation gets its own space.</p>
+      <AgentSettingsDialog onClose={() => setAdding(false)}/>
     </div>
   </div>
 }

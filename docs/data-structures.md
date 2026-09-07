@@ -32,7 +32,7 @@ Native family data distinguishes an unsupported roster from an empty roster and 
 
 ## Interaction lifetime
 
-[Architecture](architecture.md#ownership) assigns owners. Creation, sending, accepted, queued, unknown, and error feedback stays session-keyed outside workspace mounts. Stop has separate pending/error state. Empty-Agent drafts transfer to the returned session; early native selection must not erase pending creation feedback.
+[Architecture](architecture.md#ownership) assigns owners. Creation, sending, accepted, queued, unknown, and error feedback stays session-keyed outside workspace mounts. Stop has separate pending/error state. New-Agent sends save settings with a stable identity before opening the root; rejected attempts retain the same settings and message. Empty-Agent drafts transfer to the returned session; early native selection must not erase pending creation feedback.
 
 Reading positions retain offset and whether the reader was at the end. Drafts, reading positions, and unresolved renderer requests live in application memory and disappear on reload.
 

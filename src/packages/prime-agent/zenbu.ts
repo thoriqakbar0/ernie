@@ -28,7 +28,7 @@ type PrimeAgentRpc = Readonly<{
   attachSession(input: { sessionId: string }): Promise<PrimeSessionSnapshotEnvelope>
   abort(input: SessionAction): Promise<void>
   waitForIdle(input: SessionAction): Promise<void>
-  getModels(input: SessionAction): Promise<readonly { id: string; provider: string; label: string }[]>
+  getModels(input: { sessionId?: string; all?: boolean }): Promise<readonly import("./index").PrimeModel[]>
   setModel(input: SessionAction & { provider: string; modelId: string }): Promise<void>
   getRecurrentDepth(input: SessionAction): Promise<number>
   setEffort(input: SessionAction & { effort: PrimeEffort }): Promise<void>
@@ -107,7 +107,7 @@ export function createZenbuPrimeAgentClient(
     sendMessage: async (request) => Schema.decodeUnknownSync(SendReceipt)(await rpc.sendMessage(request)),
     abort: (request: SessionAction) => rpc.abort(request),
     waitForIdle: (request: SessionAction) => rpc.waitForIdle(request),
-    getModels: (request: SessionAction) => rpc.getModels(request),
+    getModels: (request: { sessionId?: string; all?: boolean }) => rpc.getModels(request),
     setModel: (request) => rpc.setModel(request),
     getRecurrentDepth: (request) => rpc.getRecurrentDepth(request),
     setEffort: (request) => rpc.setEffort(request),

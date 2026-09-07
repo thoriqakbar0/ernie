@@ -1,3 +1,4 @@
+import { ProviderBrand, providerName } from "./provider-brand"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./model-picker.styles"
 import * as stylex from "@stylexjs/stylex"
@@ -250,7 +251,7 @@ export function ModelPicker({
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={`Model: ${selected?.label ?? "Select model"}`}
+        aria-label={`Model: ${selected ? `${providerName(selected.provider)} · ${selected.label}` : "Select model"}`}
         disabled={disabled}
         onClick={() => {
           setQuery("")
@@ -260,7 +261,8 @@ export function ModelPicker({
         type="button"
         {...stylex.props(styles.modelTrigger)}
       >
-        <span {...stylex.props(styles.modelTriggerLabel)}>{selected?.label ?? "Select model"}</span>
+        {selected ? <ProviderBrand provider={selected.provider}/> : null}
+        <span {...stylex.props(styles.modelTriggerLabel)}>{selected ? `${providerName(selected.provider)} · ${selected.label}` : "Select model"}</span>
         <ChevronIcon xstyle={[sharedStyles.controlIcon]} />
       </button>
 
@@ -301,15 +303,15 @@ export function ModelPicker({
                     const enabled = !excludedProviders.has(provider)
                     return (
                       <button
-                        aria-label={provider}
+                        aria-label={providerName(provider)}
                         aria-pressed={enabled}
                         key={provider}
                         onClick={() => toggleProvider(provider)}
-                        title={provider}
+                        title={providerName(provider)}
                         type="button"
                         {...stylex.props(styles.providerFilter)}
                       >
-                        {companyMark(provider)}
+                        <ProviderBrand provider={provider}/>
                       </button>
                     )
                   })}
@@ -328,9 +330,9 @@ export function ModelPicker({
               <div aria-label="Models" role="listbox" {...stylex.props(styles.modelOptions)}>
                 {groupedModels.length > 0 ? (
                   groupedModels.map(({ provider, models: providerModels }) => (
-                    <section aria-label={provider} key={provider}>
+                    <section aria-label={providerName(provider)} key={provider}>
                       {showProviderFilters ? (
-                        <p {...stylex.props(styles.providerName)}>{provider}</p>
+                        <p {...stylex.props(styles.providerName)}><ProviderBrand provider={provider} label/></p>
                       ) : null}
                       {providerModels.map((model) => {
                         const isSelected =
@@ -502,7 +504,7 @@ function modelKey(model: Pick<PrimeModel, "id" | "provider">) {
 function readPinnedModelKeys(): ReadonlySet<string> {
   return readStoredModelKeys(pinnedModelsStorageKey)
 }
-function readHiddenModelKeys(): ReadonlySet<string> {
+export function readHiddenModelKeys(): ReadonlySet<string> {
   return readStoredModelKeys(hiddenModelsStorageKey)
 }
 function readStoredModelKeys(storageKey: string): ReadonlySet<string> {
@@ -517,7 +519,7 @@ function readStoredModelKeys(storageKey: string): ReadonlySet<string> {
     return new Set()
   }
 }
-function writeStoredModelKeys(storageKey: string, modelKeys: ReadonlySet<string>) {
+export function writeStoredModelKeys(storageKey: string, modelKeys: ReadonlySet<string>) {
   try {
     window.localStorage.setItem(storageKey, JSON.stringify([...modelKeys]))
   } catch {
@@ -529,15 +531,6 @@ function getModelProfile(model: PrimeModel) {
 }
 function isPrimeEffort(value: string | undefined): value is PrimeEffort {
   return effortLevels.some((effort) => effort === value)
-}
-function companyMark(provider: string) {
-  const words = provider.split(/[^a-zA-Z0-9]+/).filter(Boolean)
-  return words.length > 1
-    ? words
-        .slice(0, 2)
-        .map((word) => word[0])
-        .join("")
-    : provider.slice(0, 2)
 }
 function ChevronIcon({ xstyle }: { xstyle?: stylex.StyleXStyles }) {
   return (

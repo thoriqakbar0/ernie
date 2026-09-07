@@ -33,10 +33,7 @@ const styles = stylex.create({
         "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
       ':has([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
     },
-    backgroundColor: {
-      default: "transparent",
-      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 30%, transparent)",
-    },
+    backgroundColor: "var(--ernie-light, transparent) var(--ernie-dark, color-mix(in srgb, var(--rule) 30%, transparent))",
     opacity: {
       default: 1,
       ":has(:disabled)": 0.5,

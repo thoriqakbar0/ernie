@@ -134,7 +134,7 @@ export const styles = stylex.create({
       ':is([aria-pressed="true"])': theme["--surface"],
     },
     cursor: "pointer",
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontFamily: "var(--font-mono, ui-monospace, monospace)",
     fontSize: "10px",
     fontWeight: "800",
     textTransform: "uppercase",

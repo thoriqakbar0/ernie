@@ -79,3 +79,14 @@ All settings tab lists use the shared AnimatedTabs selection pill, including app
 The welcome composer exposes draft model settings beside the Agent chip. It uses the selected session catalog when available and allows explicit provider/model IDs when no catalog exists. Both fields are required together; clearing both uses the runtime default. These values are saved only on first send. The folder panel stacks its label, full path, and change action.
 
 A compact workspace footer shows the installed Prime Agent package version, session catalog readiness, and Ernie package version. It does not claim the version of an external daemon.
+### Theme preference
+
+Settings offers ten palettes, defaulting to Black & white, with System, Light, and Dark modes in the Appearance tab. Changes apply immediately and persist in local browser or app storage. Failed saves keep the current appearance and offer retry by selecting a mode. The native splash continues to follow system appearance.
+
+### Checkpoint browsing
+
+App history puts a white Save checkpoint action in the list header and moves Refresh and Review previous state into an actions disclosure. Status appears below the list. Screenshot stacks currently indicate no capture; they do not represent historical images. Rows distinguish current and selected checkpoints, with compact dates and file counts. Rows expand inline as accordions; Review previous state only inspects a checkpoint. The checkpoint detail footer omits restore and keep actions. Pending actions announce progress.
+
+Checkpoint details use a rounded surface with the changed-file count, a divider, and aligned metadata rows. Startup checks describe readiness only. Settings tabs use a rounded sliding indicator with a reduced-motion alternative.
+
+Appearance also offers independent interface and monospace font dropdowns with live samples. Font preferences persist locally; unavailable fonts use system fallbacks. Code and path text share the monospace preference. Character headings keep their display typeface.

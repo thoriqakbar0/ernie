@@ -6,6 +6,13 @@ import { PrimeAgentStateProvider } from "./prime-agent-state"
 import "./main.css"
 import { UpdateNotice } from "./components/update-notice"
 
+import { applyTypography, readTypography } from "./typography"
+import { applyAppearance, readAppearance, applyPalette, readPalette } from "./appearance"
+
+applyTypography(readTypography())
+applyAppearance(readAppearance())
+applyPalette(readPalette())
+
 const rootElement = document.getElementById("root")
 
 if (rootElement === null) {

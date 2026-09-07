@@ -29,7 +29,7 @@ export type Checkpoint = typeof Checkpoint.Type
 export const Customization = Schema.Struct({
   id: Schema.String, baselineId: Schema.String, workspace: Schema.String, startedAt: Schema.String,
   state: Schema.Literals(["editing", "finished"]), checkpointId: Schema.optional(Schema.String),
-  overlapping: Schema.Boolean,
+  overlapping: Schema.Boolean, summary: Schema.optional(Schema.String),
 })
 /** A proposal authorizes nothing until the independent host confirms its exact revision. */
 export const RestoreProposal = Schema.Struct({
@@ -68,7 +68,7 @@ export type HistoryRequest = typeof HistoryRequest.Type
 /** Concise controller projection used by both history presentations. */
 export const CheckpointSummary = Schema.Struct({
   id: Schema.String, tree: Schema.String, title: Schema.String, proposedTitle: Schema.NullOr(Schema.String), createdAt: Schema.String,
-  origin: Origin, complete: Schema.Boolean, fileCount: Schema.Number, changedFileCount: Schema.Number,
+  origin: Origin, captureOrigin: Schema.optional(Origin), customizations: Schema.optional(Schema.Array(Customization)), complete: Schema.Boolean, fileCount: Schema.Number, changedFileCount: Schema.Number,
   knownWorking: Schema.Boolean, kept: Schema.Boolean, restorable: Schema.Boolean, reason: Schema.NullOr(Schema.String),
 })
 export type CheckpointSummary = typeof CheckpointSummary.Type

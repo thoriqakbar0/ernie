@@ -206,3 +206,55 @@ test("retention bounds automatic checkpoints and preserves baseline and kept his
     assert.ok(index.checkpoints.some((item:{id:string})=>item.id===baseline))
   }finally{await f.close()}
 })
+
+test("nested manifest roots reject symlinked ancestors", async () => {
+  const f = await fixture()
+  try {
+    const outside = join(f.root, "outside")
+    await mkdir(join(outside, "brand"), { recursive: true })
+    await writeFile(join(outside, "brand", "private.txt"), "outside boundary")
+    await symlink(outside, join(f.source, "build"))
+    await assert.rejects(f.request({ method: "history.checkpoint", requestId: "ancestor", title: "Must fail" }), error => field(error, "code") === "capture_failed")
+  } finally { await f.close() }
+})
+
+test("dependency preparation cannot activate modified checkpoint source", async () => {
+  const opened: string[] = []
+  const f = await fixture({ install: async directory => { await writeFile(join(directory, "pnpm-lock.yaml"), "rewritten") }, open: async directory => { opened.push(directory) } })
+  try {
+    const baseline = field(await f.request({ method: "history.status" }), "currentCheckpointId")
+    await writeFile(join(f.source, "src", "app.ts"), "current app")
+    const proposal = field(await f.request({ method: "history.prepare_restore", checkpointId: baseline, requestId: "mutation" }), "id")
+    await assert.rejects(f.controller.approve(proposal), error => field(error, "code") === "dependency_failed")
+    assert.equal(f.controller.activeGeneration, f.source)
+    assert.equal(await readFile(join(f.source, "src", "app.ts"), "utf8"), "current app")
+    // Failure recovery may reopen the original generation; it must never activate the target.
+    assert.deepEqual(opened, [f.source])
+  } finally { await f.close() }
+})
+
+test("finish retains summaries and overlapping registrations after automatic capture", async () => {
+  const f = await fixture()
+  try {
+    const first = field(await f.request({ method: "customization.begin", requestId: "one" }), "id")
+    const second = field(await f.request({ method: "customization.begin", requestId: "two" }), "id")
+    f.controller.startWatching()
+    await writeFile(join(f.source, "src", "app.ts"), "edited")
+    await new Promise(resolve => setTimeout(resolve, 3500))
+    const automatic = field(await f.request({ method: "history.status" }), "currentCheckpointId")
+    const finished = await f.request({ method: "customization.finish", operationId: first, summary: "First edit" })
+    assert.equal(field(finished, "checkpointId"), automatic)
+    await f.request({ method: "customization.finish", operationId: second, summary: "Second edit" })
+    const result = await f.request({ method: "history.inspect", checkpointId: automatic })
+    assert.equal(field(result, "proposedTitle"), "Second edit")
+    assert.equal(field(result, "captureOrigin"), "external")
+    assert.ok(result && typeof result === "object" && "customizations" in result)
+    assert.ok(Array.isArray(result.customizations))
+    assert.equal(result.customizations.length, 2)
+    const reopened = await HistoryController.open(f.config)
+    try {
+      const persisted = await Effect.runPromise(reopened.request({ method: "history.inspect", checkpointId: automatic }))
+      assert.equal(field(persisted, "proposedTitle"), "Second edit")
+    } finally { reopened.stopWatching() }
+  } finally { await f.close() }
+})

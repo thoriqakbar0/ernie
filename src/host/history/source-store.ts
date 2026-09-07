@@ -41,6 +41,16 @@ export class SourceStore {
     if ((await lstat(root)).isSymbolicLink()) throw new HistoryFailure({ code: "unsupported_workspace", message: "The managed source root cannot be a symbolic link.", nextAction: "Use the installed app’s managed directory." })
     const files: Checkpoint["files"][number][] = []
     const visit = async (relative: string, optional = false): Promise<void> => {
+      // Nested manifest entries must validate ancestors before lstat follows them.
+      const parts = relative.split("/")
+      for (let depth = 1; depth < parts.length; depth++) {
+        const ancestor = await lstat(join(root, ...parts.slice(0, depth))).catch((error: unknown) => {
+          if (optional && error instanceof Error && "code" in error && error.code === "ENOENT") return undefined
+          throw error
+        })
+        if (!ancestor) return
+        if (ancestor.isSymbolicLink()) throw new HistoryFailure({ code: "capture_failed", message: `Cannot checkpoint symbolic link ancestor: ${parts.slice(0, depth).join("/")}`, nextAction: "Replace the link with an application directory." })
+      }
       const path = join(root, relative)
       const info = await lstat(path).catch((error: unknown) => {
         if (optional && error instanceof Error && "code" in error && error.code === "ENOENT") return undefined

@@ -13,8 +13,7 @@ export async function admitHistoryTurn(cwd: string, requestId: string) {
     const status = Schema.decodeUnknownSync(statusResult)(await callHistory(home, { method: "history.status" }))
     if (!status.ok || !status.value?.recoveryAvailable) throw new Error("History is unavailable")
     if (cwd !== status.value.workspace) {
-      if (cwd.startsWith(`${home}/generations/`)) throw new Error("This Agent has an inactive app generation. Open Customize Ernie again.")
-      return undefined
+      throw new Error("This Agent has an inactive app generation. Open Customize Ernie again.")
     }
     const result = Schema.decodeUnknownSync(beginResult)(await callHistory(home, { method: "customization.begin", requestId }))
     if (!result.ok || !result.value) throw new Error(result.error?.message ?? "Checkpoint capture failed")

@@ -8,6 +8,8 @@ Stable source capture publishes content-addressed checkpoints under an immutable
 
 [[src/host/history/controller.ts#HistoryController]] serializes mutations and records restoration state. [[src/host/history/source-store.ts#SourceStore]] enforces the capture manifest and verifies objects. [[src/packages/app-history/index.ts#HistoryRequest]] defines the public request grammar, which excludes activation.
 
+Capture rejects symlinked ancestors of nested manifest entries. Restore installs frozen dependencies and checks the prepared source identity before activation. Finished editing intervals retain their summaries independently of deduplicated source trees.
+
 ## Independent recovery
 
 The bundled parent process survives editable application startup failures. It owns native approval, generation opening, and readiness checks.
@@ -25,6 +27,8 @@ Settings contains Customize and App history tabs. Conversation state remains mou
 The local authenticated socket, CLI, and stdio MCP share checkpoint identities and errors. Editing clients register an interval before changing the managed application.
 
 [[src/host/history/transport.ts#serveHistory]] accepts only local authenticated requests. [[src/host/history/agent-cli.ts#agentMain]] exposes protocol operations and the bundled guide. [[src/main/prime-agent/history-admission.ts#admitHistoryTurn]] gates managed-source dispatch on a completed baseline capture.
+
+Admission follows fallible session preparation. Uncertain dispatch retains its editing interval until resolved; inactive managed roots cannot admit new work.
 
 ## Customization entry
 

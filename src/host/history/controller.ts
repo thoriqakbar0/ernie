@@ -113,7 +113,9 @@ export class HistoryController {
     const before = new Map(previous?.files.map(file => [file.path, file]))
     const after = new Map(files.map(file => [file.path, file]))
     const changedFileCount = [...new Set([...before.keys(), ...after.keys()])].filter(path => before.get(path)?.hash !== after.get(path)?.hash || before.get(path)?.executable !== after.get(path)?.executable).length
-    return { ...metadata, complete: integrity, changedFileCount, proposedTitle: checkpoint.operationId ? checkpoint.title : null, fileCount: files.length, restorable: integrity && this.compatible(checkpoint),
+    const customizations = this.index.operations.filter(operation => operation.state === "finished" && operation.checkpointId === checkpoint.id)
+    const proposedTitle = customizations.findLast(operation => operation.summary)?.summary ?? (checkpoint.operationId ? checkpoint.title : null)
+    return { ...metadata, captureOrigin: checkpoint.origin, customizations, title: proposedTitle ?? checkpoint.title, origin: customizations.length ? "customization" : checkpoint.origin, complete: integrity, changedFileCount, proposedTitle, fileCount: files.length, restorable: integrity && this.compatible(checkpoint),
       reason: !integrity ? "checkpoint_incomplete" : this.compatible(checkpoint) ? null : "checkpoint_incompatible" }
   }
   /** Public calls share validation, serialization, and bounded presentation. */
@@ -209,7 +211,7 @@ export class HistoryController {
           if (!operation) throw new HistoryFailure({ code: "invalid_request", message: "Customization operation not found.", nextAction: "Read history.status and use its operation ID." })
           if (operation.state === "finished") return operation
           const checkpoint = await this.capture("customization", request.summary, operation.id)
-          const finished = { ...operation, state: "finished" as const, checkpointId: checkpoint.id }
+          const finished = { ...operation, state: "finished" as const, checkpointId: checkpoint.id, summary: request.summary.slice(0, 200) }
           this.index = { ...this.index, operations: this.index.operations.map(item => item.id === operation.id ? finished : item) }
           await this.persist(); return finished
         }
@@ -287,6 +289,8 @@ export class HistoryController {
         await update("activating")
         await this.store.materialize(target, generation)
         await this.config.activation.install(generation).catch(() => { throw new HistoryFailure({ code: "dependency_failed", message: "Locked dependencies could not be prepared.", nextAction: "Check connectivity and retry from a new restore proposal." }) })
+        const prepared = await Effect.runPromise(this.store.capture(generation))
+        if (prepared.tree !== target.tree) throw new HistoryFailure({ code: "dependency_failed", message: "Dependency preparation changed the checkpoint source.", nextAction: "Repair the dependency manifest and lockfile, then save a new checkpoint." })
         const latest = await Effect.runPromise(this.store.capture(oldGeneration))
         if (latest.tree !== proposal.currentTree) throw new HistoryFailure({ code: "proposal_stale", message: "Files changed during preparation.", nextAction: "Stop external editing and review again." })
         this.index = { ...this.index, activeGeneration: generation, currentCheckpointId: target.id, inactiveGenerations: [...(this.index.inactiveGenerations ?? []).filter(item => item.path !== oldGeneration && item.path !== generation), { path: oldGeneration, tree: current.tree, changed: false }] }

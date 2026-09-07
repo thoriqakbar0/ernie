@@ -11,8 +11,12 @@ module.exports = async function afterPack(context) {
   const launcher = path.join(bundle, 'launcher.mjs')
   const source = await fs.readFile(launcher, 'utf8')
   const ending = 'main().catch((err) => {\n\tconsole.error("[launcher] fatal:", err);\n\tapp.exit(1);\n});'
-  if (!source.includes(ending)) throw new Error('Zenbu launcher changed; review history integration before packaging.')
-  await fs.writeFile(path.join(bundle,'zenbu-bootstrap.mjs'), source.replace(ending, '').replace('export {};', 'export { readAppConfig, appsDirFor, resolveMirror, readHostVersion, ensureAppsDir, ensureDepsInstalled, handoff };'))
+  const pnpmInstall = 'cliArgs: [\n\t\t\t\t\tentry.path,\n\t\t\t\t\t"install",\n\t\t\t\t\t"--reporter=append-only"\n\t\t\t\t]'
+  // The bundled Zenbu installer otherwise updates stale lockfiles during recovery.
+  // Fail packaging if its pinned launcher changes instead of silently losing this guarantee.
+  if ([ending, pnpmInstall, 'export {};'].some(fragment => source.split(fragment).length !== 2)) throw new Error('Zenbu launcher changed; review history integration before packaging.')
+  const bootstrap = source.replace(pnpmInstall, pnpmInstall.replace('"--reporter=append-only"', '"--frozen-lockfile",\n\t\t\t\t\t"--reporter=append-only"'))
+  await fs.writeFile(path.join(bundle,'zenbu-bootstrap.mjs'), bootstrap.replace(ending, '').replace('export {};', 'export { readAppConfig, appsDirFor, resolveMirror, readHostVersion, ensureAppsDir, ensureDepsInstalled, handoff };'))
   const requireFromVite = createRequire(require.resolve('vite', {paths:[project]}))
   const esbuild = requireFromVite('esbuild')
   const storeModule = path.join(project,'.zenbu','history-source-store.mjs')
@@ -67,6 +71,7 @@ if (cli !== -1) {
 } else {
   await app.whenReady();
   const cfg=readAppConfig();
+  if (cfg.packageManager.type !== 'pnpm') throw new Error('Ernie app history requires the bundled pnpm installer with frozen lockfiles.');
   const { homedir } = await import('node:os'); const { join } = await import('node:path');
   const source=join(homedir(),'.zenbu','apps','ernie'); const {version}=readHostVersion(app.getAppPath());
   const { existsSync } = await import('node:fs');

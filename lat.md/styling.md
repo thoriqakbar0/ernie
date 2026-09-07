@@ -24,6 +24,8 @@ Vendor styles remain vendor-owned. Generated Zenbu files do not belong to the fi
 
 `nub run lint:stylex` rejects legacy dependencies, authored component class names, inline JSX styles, and unsupported StyleX shorthands. `nub run lint:outline` checks CSS declarations and TypeScript style objects.
 
+Focus indicators use shadows; forced-colors mode uses the document's dashed Highlight border fallback, including summaries and focusable regions. Syntax highlighters pass token colors through dynamic StyleX styles.
+
 ## Quiet verification
 
 Use the existing development runtime and hot module replacement for UI feedback. Type checking and styling guards do not open windows.

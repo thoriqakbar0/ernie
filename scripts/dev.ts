@@ -1,24 +1,32 @@
-import { spawn, type ChildProcess } from "node:child_process"
+import { spawn } from "node:child_process"
+import type { ChildProcess } from "node:child_process"
 import { randomUUID } from "node:crypto"
+import { once } from "node:events"
 import { mkdir, rm } from "node:fs/promises"
 import { createRequire } from "node:module"
-import { dirname } from "node:path"
-import { fileURLToPath } from "node:url"
+import path from "node:path"
 
 import { readDevConfig } from "./dev/config.ts"
-import { startDevelopmentGateway, type DevelopmentGateway } from "./dev/gateway.ts"
+import { startDevelopmentGateway } from "./dev/gateway.ts"
+import type { DevelopmentGateway } from "./dev/gateway.ts"
 import { startOwnedProcess, stopOwnedProcess, waitForProcessExit } from "./dev/process.ts"
-import { acquireDevelopmentOwnership, readDevelopmentOwner, type DevelopmentOwnership } from "./dev/ownership.ts"
-import { assertRuntimeAttachment, readRuntimeDescriptor, removeRuntimeDescriptor, waitForRuntimeDescriptor } from "./dev/runtime.ts"
+import { acquireDevelopmentOwnership, readDevelopmentOwner } from "./dev/ownership.ts"
+import type { DevelopmentOwnership } from "./dev/ownership.ts"
+import {
+  assertRuntimeAttachment,
+  readRuntimeDescriptor,
+  removeRuntimeDescriptor,
+  waitForRuntimeDescriptor,
+} from "./dev/runtime.ts"
 import { shutdownPrimeAgentDaemon } from "./dev/prime-agent-daemon.ts"
 
-const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)))
+const projectRoot = path.dirname(import.meta.dirname)
 const config = readDevConfig(process.argv.slice(2), process.env, projectRoot)
 const require = createRequire(import.meta.url)
 const electronModule: unknown = require("electron")
 
 if (typeof electronModule !== "string") {
-  throw new Error("Electron did not resolve to an executable path")
+  throw new TypeError("Electron did not resolve to an executable path")
 }
 
 const electronExecutable = electronModule
@@ -28,23 +36,99 @@ let ownership: DevelopmentOwnership | undefined
 let closing = false
 
 const close = async () => {
-  if (closing) return
+  if (closing) {
+    return
+  }
   closing = true
   const failures: unknown[] = []
   await gateway?.close().catch((error: unknown) => failures.push(error))
   if (serverChild) {
     await stopOwnedProcess(serverChild).catch((error: unknown) => failures.push(error))
     if (config.daemonLifecycle === "owned") {
-      await shutdownPrimeAgentDaemon(config.daemonSocketPath).catch((error: unknown) => failures.push(error))
+      await shutdownPrimeAgentDaemon(config.daemonSocketPath).catch((error: unknown) =>
+        failures.push(error),
+      )
     }
   }
   await ownership?.release().catch((error: unknown) => failures.push(error))
-  if (failures.length > 0) throw new AggregateError(failures, "Ernie development cleanup failed")
+  if (failures.length > 0) {
+    throw new AggregateError(failures, "Ernie development cleanup failed")
+  }
 }
 
-const handleSignal = (signal: NodeJS.Signals) => {
-  void close().finally(() => process.exit(signal === "SIGINT" ? 130 : 143))
+const handleSignal = async (signal: NodeJS.Signals) => {
+  try {
+    await close()
+  } finally {
+    process.exit(signal === "SIGINT" ? 130 : 143)
+  }
 }
+
+const redactRuntimeToken = (value: string) =>
+  value
+    .replaceAll(/wsToken=[^&\s]+/gu, "wsToken=[redacted]")
+    .replaceAll(/(?<prefix>[?&]token=)[^&\s]+/gu, "$<prefix>[redacted]")
+
+const forwardRedactedOutput = (child: ChildProcess) => {
+  const { stdout } = child
+  const { stderr } = child
+  if (!stdout || !stderr) {
+    throw new Error("Managed Electron output was not captured")
+  }
+  stdout
+    .setEncoding("utf-8")
+    .on("data", (chunk: string) => process.stdout.write(redactRuntimeToken(chunk)))
+  stderr
+    .setEncoding("utf-8")
+    .on("data", (chunk: string) => process.stderr.write(redactRuntimeToken(chunk)))
+}
+
+const removeStaleDaemonSocket = async (socketPath: string) => {
+  if (process.platform !== "win32") {
+    await rm(socketPath, { force: true })
+  }
+}
+
+const printRuntime = (origin: string) => {
+  console.log("\nErnie development")
+  console.log(`Mode:     ${config.role}`)
+  console.log(`Profile:  ${config.profile}`)
+  console.log(`State:    ${config.stateRoot}`)
+  console.log(`Runtime:  ${origin}`)
+}
+
+const openBrowser = (url: string) => {
+  if (process.env.ERNIE_DEV_OPEN_BROWSER === "0") {
+    return
+  }
+  let command = "xdg-open"
+  if (process.platform === "darwin") {
+    command = "open"
+  } else if (process.platform === "win32") {
+    command = "cmd"
+  }
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url]
+  const child = spawn(command, args, { detached: true, stdio: "ignore" })
+  child.unref()
+}
+
+const isProcessRunning = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const probeRuntime = async (origin: string) => {
+  const response = await fetch(origin, { signal: AbortSignal.timeout(2000) })
+  if (!response.ok) {
+    throw new Error(`Zenbu service host health probe failed with ${response.status}`)
+  }
+}
+
+const waitForSignal = () => once(process, "exit")
 
 process.once("SIGINT", handleSignal)
 process.once("SIGTERM", handleSignal)
@@ -60,7 +144,9 @@ try {
       mkdir(config.electronProfileDirectory, { recursive: true }),
       removeRuntimeDescriptor(config.runtimeFile),
       ...(config.agentDirectory ? [mkdir(config.agentDirectory, { recursive: true })] : []),
-      ...(config.daemonLifecycle === "owned" ? [removeStaleDaemonSocket(config.daemonSocketPath)] : []),
+      ...(config.daemonLifecycle === "owned"
+        ? [removeStaleDaemonSocket(config.daemonSocketPath)]
+        : []),
     ])
 
     const environment = { ...process.env }
@@ -122,60 +208,4 @@ try {
   process.removeListener("SIGINT", handleSignal)
   process.removeListener("SIGTERM", handleSignal)
   await close()
-}
-
-function forwardRedactedOutput(child: ChildProcess) {
-  const stdout = child.stdout
-  const stderr = child.stderr
-  if (!stdout || !stderr) throw new Error("Managed Electron output was not captured")
-  stdout.setEncoding("utf8").on("data", (chunk: string) => process.stdout.write(redactRuntimeToken(chunk)))
-  stderr.setEncoding("utf8").on("data", (chunk: string) => process.stderr.write(redactRuntimeToken(chunk)))
-}
-
-function redactRuntimeToken(value: string) {
-  return value
-    .replace(/wsToken=[^&\s]+/g, "wsToken=[redacted]")
-    .replace(/([?&]token=)[^&\s]+/g, "$1[redacted]")
-}
-
-async function removeStaleDaemonSocket(socketPath: string) {
-  if (process.platform !== "win32") await rm(socketPath, { force: true })
-}
-
-function printRuntime(origin: string) {
-  console.log("\nErnie development")
-  console.log(`Mode:     ${config.role}`)
-  console.log(`Profile:  ${config.profile}`)
-  console.log(`State:    ${config.stateRoot}`)
-  console.log(`Runtime:  ${origin}`)
-}
-
-function openBrowser(url: string) {
-  if (process.env.ERNIE_DEV_OPEN_BROWSER === "0") return
-  const command = process.platform === "darwin"
-    ? "open"
-    : process.platform === "win32"
-      ? "cmd"
-      : "xdg-open"
-  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url]
-  const child = spawn(command, args, { detached: true, stdio: "ignore" })
-  child.unref()
-}
-
-function isProcessRunning(pid: number) {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function probeRuntime(origin: string) {
-  const response = await fetch(origin, { signal: AbortSignal.timeout(2_000) })
-  if (!response.ok) throw new Error(`Zenbu service host health probe failed with ${response.status}`)
-}
-
-function waitForSignal() {
-  return new Promise<never>(() => {})
 }

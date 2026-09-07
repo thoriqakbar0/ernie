@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Events
+
 Source: https://zenbulabs.mintlify.app/core/events
-
-
 
 Events let the main process send messages to the renderer process. They're useful for things like push notifications, streaming output, or reacting to something that happened on the server side. Unlike RPC (where the renderer calls the main process and waits for a response), events are one-way: the main process fires them and any listener in the renderer process receives them.
 
@@ -65,6 +64,6 @@ The returned function unsubscribes the listener, so return it from your effect's
 
 ## Events vs RPC vs database
 
-* **Events** are for transient updates that don't need to be persisted, like streaming terminal output or push notifications.
-* **RPC** is for getting the main process to run code the renderer process can't, like reading a file or calling a system API.
-* **Database** is for state that should persist and drive your UI.
+- **Events** are for transient updates that don't need to be persisted, like streaming terminal output or push notifications.
+- **RPC** is for getting the main process to run code the renderer process can't, like reading a file or calling a system API.
+- **Database** is for state that should persist and drive your UI.

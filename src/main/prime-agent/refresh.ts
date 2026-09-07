@@ -1,7 +1,4 @@
-import type {
-  PrimeSessionSnapshot,
-  PrimeSessionSummary,
-} from "../../packages/prime-agent"
+import type { PrimeSessionSnapshot, PrimeSessionSummary } from "../../packages/prime-agent"
 import { projectPrimeSessionSnapshot } from "./projection"
 
 type PrimeSessionRefreshInput = Readonly<{
@@ -10,10 +7,12 @@ type PrimeSessionRefreshInput = Readonly<{
   isCurrent: () => boolean
 }>
 
-export async function projectCurrentPrimeSessionRefresh(
+export const projectCurrentPrimeSessionRefresh = async (
   input: PrimeSessionRefreshInput,
-): Promise<PrimeSessionSnapshot | undefined> {
+): Promise<PrimeSessionSnapshot | undefined> => {
   const snapshot = await input.readSnapshot()
-  if (!input.isCurrent()) return undefined
+  if (!input.isCurrent()) {
+    return undefined
+  }
   return projectPrimeSessionSnapshot(snapshot, input.previousSession)
 }

@@ -6,129 +6,129 @@ Every command has the literal `type` shown in its heading and an optional wire `
 
 ## get_direct_worker_transport
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_model_catalog
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_available_models
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## set_model
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `provider` | yes | `string` |
-| `modelId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
+| `provider`        | yes      | `string` |
+| `modelId`         | yes      | `string` |
 
 ## cycle_model
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `direction` | no | `"forward" \| "backward"` |
+| Field             | Required | Type                      |
+| ----------------- | -------- | ------------------------- |
+| `activeSessionId` | yes      | `string`                  |
+| `direction`       | no       | `"forward" \| "backward"` |
 
 ## set_scoped_models
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `scopedModels` | yes | `AgentConnectionScopedModel[]` |
+| Field             | Required | Type                           |
+| ----------------- | -------- | ------------------------------ |
+| `activeSessionId` | yes      | `string`                       |
+| `scopedModels`    | yes      | `AgentConnectionScopedModel[]` |
 
 ## set_thinking_level
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `level` | yes | `ThinkingLevel` |
+| Field             | Required | Type            |
+| ----------------- | -------- | --------------- |
+| `activeSessionId` | yes      | `string`        |
+| `level`           | yes      | `ThinkingLevel` |
 
 ## set_service_tier
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `serviceTier` | yes | `ServiceTier` |
+| Field             | Required | Type          |
+| ----------------- | -------- | ------------- |
+| `activeSessionId` | yes      | `string`      |
+| `serviceTier`     | yes      | `ServiceTier` |
 
 ## cycle_thinking_level
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## set_transport
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `transport` | yes | `Transport` |
+| Field             | Required | Type        |
+| ----------------- | -------- | ----------- |
+| `activeSessionId` | yes      | `string`    |
+| `transport`       | yes      | `Transport` |
 
 ## set_auto_compaction
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `enabled` | yes | `boolean` |
+| Field             | Required | Type      |
+| ----------------- | -------- | --------- |
+| `activeSessionId` | yes      | `string`  |
+| `enabled`         | yes      | `boolean` |
 
 ## set_auto_retry
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `enabled` | yes | `boolean` |
+| Field             | Required | Type      |
+| ----------------- | -------- | --------- |
+| `activeSessionId` | yes      | `string`  |
+| `enabled`         | yes      | `boolean` |
 
 ## compact
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `customInstructions` | no | `string` |
+| Field                | Required | Type     |
+| -------------------- | -------- | -------- |
+| `activeSessionId`    | yes      | `string` |
+| `customInstructions` | no       | `string` |
 
 ## refine
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `instructions` | no | `string` |
-| `rollbackId` | no | `string` |
-| `global` | no | `boolean` |
+| Field             | Required | Type      |
+| ----------------- | -------- | --------- |
+| `activeSessionId` | yes      | `string`  |
+| `instructions`    | no       | `string`  |
+| `rollbackId`      | no       | `string`  |
+| `global`          | no       | `boolean` |
 
 ## abort_compaction
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## abort_retry
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_rlm_max_depth_status
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## set_rlm_max_depth
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `maxDepth` | yes | `number` |
-| `global` | no | `boolean` |
+| Field             | Required | Type      |
+| ----------------- | -------- | --------- |
+| `activeSessionId` | yes      | `string`  |
+| `maxDepth`        | yes      | `number`  |
+| `global`          | no       | `boolean` |
 
 ## retry_worker
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |

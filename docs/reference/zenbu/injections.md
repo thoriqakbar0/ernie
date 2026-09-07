@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Injections
+
 Source: https://zenbulabs.mintlify.app/core/injections
-
-
 
 An injection is a named value a plugin registers for other code to find. The value can be a React component or a function. Other code looks up injections by name, or filters them by optional metadata.
 
@@ -27,12 +26,12 @@ export class MyPluginService extends Service.create({ key: "myPlugin" }) {
 }
 ```
 
-| Field        | Required | Description                                                              |
-| ------------ | -------- | ------------------------------------------------------------------------ |
-| `name`       | yes      | Unique key in the registry. Last writer wins.                            |
-| `modulePath` | yes      | Path to the module. Relative paths resolve against the plugin directory. |
-| `exportName` | no       | Named export. Defaults to `default`.                                     |
-| `meta`       | no       | JSON-serializable object. Consumers filter on it.                        |
+| Field | Required | Description |
+| --- | --- | --- |
+| `name` | yes | Unique key in the registry. Last writer wins. |
+| `modulePath` | yes | Path to the module. Relative paths resolve against the plugin directory. |
+| `exportName` | no | Named export. Defaults to `default`. |
+| `meta` | no | JSON-serializable object. Consumers filter on it. |
 
 The call returns an unregister function. Wrap it in `this.setup(...)` so it cleans up on hot reload.
 
@@ -56,7 +55,7 @@ function LeftSidebar() {
 ```tsx theme={null}
 import { View } from "@zenbujs/core/react"
 
-<View name="my-plugin" args={{ workspaceId }} fallback={<Loading />} />
+;<View name="my-plugin" args={{ workspaceId }} fallback={<Loading />} />
 ```
 
 | Prop       | Description                                                             |
@@ -70,12 +69,12 @@ import { View } from "@zenbujs/core/react"
 
 The framework does not read `meta`. Consumers do. The conventional keys are:
 
-| Key     | Used for                                                                                          |
-| ------- | ------------------------------------------------------------------------------------------------- |
-| `kind`  | Slot discriminator.                                                                               |
-| `label` | Display text on tabs, palette entries, buttons.                                                   |
-| `icon`  | Inline SVG. Auto-filled from the plugin's `icons:` map when the key matches the injection `name`. |
-| `order` | Sort hint within a slot. Lower comes first.                                                       |
+| Key | Used for |
+| --- | --- |
+| `kind` | Slot discriminator. |
+| `label` | Display text on tabs, palette entries, buttons. |
+| `icon` | Inline SVG. Auto-filled from the plugin's `icons:` map when the key matches the injection `name`. |
+| `order` | Sort hint within a slot. Lower comes first. |
 
 ## Registering from React
 
@@ -120,10 +119,10 @@ this.setup("wrap-counter", () =>
 
 The `type` field controls how the wrapper relates to the original:
 
-* `replace` substitutes the original entirely.
-* `around` runs in place of the original. It receives the next function in the chain as its first argument; call it (or don't) to decide whether the original runs.
-* `before` runs first with the original arguments.
-* `after` runs last and receives the result followed by the original arguments. Returning a value other than `undefined` overrides the result.
+- `replace` substitutes the original entirely.
+- `around` runs in place of the original. It receives the next function in the chain as its first argument; call it (or don't) to decide whether the original runs.
+- `before` runs first with the original arguments.
+- `after` runs last and receives the result followed by the original arguments. Returning a value other than `undefined` overrides the result.
 
 `this.advise(...)` is sugar over `this.inject(...)` with `meta.kind: "advice"`. For the full reference, including how the wrapper module should be written for each `type`, see [Advice](/core/advice).
 

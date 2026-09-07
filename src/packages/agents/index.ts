@@ -5,76 +5,91 @@ const GeneratedAvatar = Schema.Struct({ kind: Schema.Literal("generated"), seed:
 /** Original characters remain readable alongside generated character recipes. */
 const Avatar = Schema.Union([Schema.Literals(["fern", "tide", "ember", "iris"]), GeneratedAvatar])
 /** Editable defaults, applied only when a conversation is created. */
-export const AgentSettings = Schema.Struct({
-  name: Schema.NonEmptyString,
+const AgentSettingsSchema = Schema.Struct({
   avatar: Avatar,
-  role: Schema.String,
-  instructions: Schema.String,
   cwd: Schema.NonEmptyString,
-  provider: Schema.String,
+  instructions: Schema.String,
   model: Schema.String,
+  name: Schema.NonEmptyString,
+  provider: Schema.String,
+  role: Schema.String,
 })
-export interface AgentSettings extends Schema.Schema.Type<typeof AgentSettings> {}
+export { AgentSettingsSchema as AgentSettings }
+export type AgentSettings = Schema.Schema.Type<typeof AgentSettingsSchema>
 /** Durable native root binding; creation can be retried without allocating another session. */
 const NativeRoot = Schema.Struct({
-  status: Schema.Literals(["prepared", "bound"]),
-  sessionId: Schema.NonEmptyString,
   sessionFile: Schema.NonEmptyString,
+  sessionId: Schema.NonEmptyString,
+  status: Schema.Literals(["prepared", "bound"]),
 })
 /** Persistent presentation identity, optionally bound to a native root. */
-export const Agent = Schema.Struct({
-  ...AgentSettings.fields,
-  root: Schema.optionalKey(NativeRoot),
+const AgentSchema = Schema.Struct({
+  ...AgentSettingsSchema.fields,
+  createdAt: Schema.Number,
   id: Schema.NonEmptyString,
-  revision: Schema.Natural,
   instructionRevision: Schema.Natural,
   pinned: Schema.Boolean,
-  createdAt: Schema.Number,
+  revision: Schema.Natural,
+  root: Schema.optionalKey(NativeRoot),
 })
-export interface Agent extends Schema.Schema.Type<typeof Agent> {}
+export { AgentSchema as Agent }
+export type Agent = Schema.Schema.Type<typeof AgentSchema>
 /** Immutable creation configuration; assignment never changes these fields. */
-export const ConversationOrigin = Schema.Struct({
+const ConversationOriginSchema = Schema.Struct({
   agentId: Schema.NonEmptyString,
+  cwd: Schema.NonEmptyString,
   instructionRevision: Schema.Natural,
   instructions: Schema.String,
-  cwd: Schema.NonEmptyString,
-  provider: Schema.String,
   model: Schema.String,
+  provider: Schema.String,
 })
-export interface ConversationOrigin extends Schema.Schema.Type<typeof ConversationOrigin> {}
+export { ConversationOriginSchema as ConversationOrigin }
+export type ConversationOrigin = Schema.Schema.Type<typeof ConversationOriginSchema>
 /** Session association and last explicit navigation time. */
 const Association = Schema.Struct({
-  sessionId: Schema.NonEmptyString,
-  creationId: Schema.optionalKey(Schema.NonEmptyString),
   agentId: Schema.NullOr(Schema.NonEmptyString),
+  creationId: Schema.optionalKey(Schema.NonEmptyString),
+  origin: Schema.optionalKey(ConversationOriginSchema),
+  sessionId: Schema.NonEmptyString,
   visitedAt: Schema.Number,
-  origin: Schema.optionalKey(ConversationOrigin),
 })
-interface Association extends Schema.Schema.Type<typeof Association> {}
 /** One persisted roster snapshot. Existing sessions have no implicit association. */
-export const Roster = Schema.Struct({
-  agents: Schema.Array(Agent),
+const RosterSchema = Schema.Struct({
+  agents: Schema.Array(AgentSchema),
   associations: Schema.Array(Association),
   selectedAgentId: Schema.NullOr(Schema.NonEmptyString),
 })
-export interface Roster extends Schema.Schema.Type<typeof Roster> {}
+export { RosterSchema as Roster }
+export type Roster = Schema.Schema.Type<typeof RosterSchema>
 /** Initial database value, containing no generated identities. */
 export const emptyRoster: Roster = { agents: [], associations: [], selectedAgentId: null }
 /** Expected mutation failure, projected without underlying runtime details. */
 export class AgentFailure extends Schema.TaggedError<AgentFailure>()("AgentFailure", {
-  message: Schema.String,
   cause: Schema.optionalKey(Schema.Defect()),
+  message: Schema.String,
 }) {}
 /** JSON-safe RPC outcome. */
 export type AgentResult<A> = { ok: true; value: A } | { ok: false; error: string }
 /** Executes an Effect at the Zenbu Promise boundary. */
-export function runAgentOperation<A>(operation: Effect.Effect<A, AgentFailure>): Promise<AgentResult<A>> {
-  return Effect.runPromise(operation.pipe(Effect.match({
-    onSuccess: (value): AgentResult<A> => ({ ok: true, value }),
-    onFailure: (error): AgentResult<A> => ({ ok: false, error: error.message }),
-  })))
-}
+export const runAgentOperation = <A>(
+  operation: Effect.Effect<A, AgentFailure>,
+): Promise<AgentResult<A>> =>
+  Effect.runPromise(
+    operation.pipe(
+      Effect.match({
+        onFailure: (error): AgentResult<A> => ({ error: error.message, ok: false }),
+        onSuccess: (value): AgentResult<A> => ({ ok: true, value }),
+      }),
+    ),
+  )
 /** Parses process and persistence input with an explicit failure value. */
 export const decodeAgentInput = <A>(schema: Schema.Codec<A>, input: unknown) =>
-  Schema.decodeUnknownEffect(schema)(input).pipe(Effect.mapError((cause) =>
-    new AgentFailure({ message: "The Agent data is invalid. Check the fields and try again.", cause })))
+  Schema.decodeUnknownEffect(schema)(input).pipe(
+    Effect.mapError(
+      (cause) =>
+        new AgentFailure({
+          cause,
+          message: "The Agent data is invalid. Check the fields and try again.",
+        }),
+    ),
+  )

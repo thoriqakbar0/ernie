@@ -1,8 +1,6 @@
-import { createChatSession, type ChatSession } from "../chat-session"
-import type {
-  PrimeAgentClient,
-  PrimeSessionSnapshot,
-} from "../prime-agent"
+import { createChatSession } from "../chat-session"
+import type { ChatSession } from "../chat-session"
+import type { PrimeAgentClient, PrimeSessionSnapshot } from "../prime-agent"
 import {
   createPrimeSessionSyncState,
   getPrimeSessionSnapshotEnvelope,
@@ -19,19 +17,19 @@ export interface AttachedPrimeSession {
   readonly chat: ChatSession
 
   /** Observes accepted snapshots after ordered event reconciliation. */
-  subscribe(listener: (snapshot: PrimeSessionSnapshot) => void): () => void
+  subscribe: (listener: (snapshot: PrimeSessionSnapshot) => void) => () => void
 
   /** Releases the Prime Agent event subscription owned by this attachment. */
-  dispose(): void
+  dispose: () => void
 }
 
 /** Session discovery and attachment operations used by Ernie. */
 export interface PrimeWorkspace {
   /** Creates and attaches one new Prime Agent session. */
-  createSession(input: Readonly<{ cwd: string; name?: string }>): Promise<AttachedPrimeSession>
+  createSession: (input: Readonly<{ cwd: string; name?: string }>) => Promise<AttachedPrimeSession>
 
   /** Attaches an existing session and recovers any event race from a snapshot. */
-  attachSession(sessionId: string): Promise<AttachedPrimeSession>
+  attachSession: (sessionId: string) => Promise<AttachedPrimeSession>
 }
 
 /** Dependencies controlled by Ernie's main-process composition root. */
@@ -41,10 +39,10 @@ export type PrimeWorkspaceDependencies = Readonly<{
 }>
 
 /** Creates Ernie's session discovery and attachment service. */
-export function createPrimeWorkspace({
+export const createPrimeWorkspace = ({
   primeAgent,
   createId,
-}: PrimeWorkspaceDependencies): PrimeWorkspace {
+}: PrimeWorkspaceDependencies): PrimeWorkspace => {
   const attach = async (sessionId: string) => {
     let sync = createPrimeSessionSyncState(sessionId)
     const listeners = new Set<(next: PrimeSessionSnapshot) => void>()
@@ -53,55 +51,70 @@ export function createPrimeWorkspace({
     let displayedSnapshot: PrimeSessionSnapshot | undefined
 
     const publish = (snapshot: PrimeSessionSnapshot) => {
-      if (snapshot === displayedSnapshot) return
+      if (snapshot === displayedSnapshot) {
+        return
+      }
       displayedSnapshot = snapshot
-      for (const listener of listeners) listener(snapshot)
+      for (const listener of listeners) {
+        listener(snapshot)
+      }
     }
 
     const publishAuthoritativeSnapshot = () => {
       const envelope = getPrimeSessionSnapshotEnvelope(sync)
-      if (envelope) publish(envelope.snapshot)
+      if (envelope) {
+        publish(envelope.snapshot)
+      }
     }
 
-    const synchronize = async () => {
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const envelope = await primeAgent.attachSession({ sessionId })
-        sync = reducePrimeSessionSnapshot(sync, envelope)
-        if (sync.status === "ready") {
-          publishAuthoritativeSnapshot()
-          return
-        }
+    const synchronize = async (attempt = 0): Promise<void> => {
+      const envelope = await primeAgent.attachSession({ sessionId })
+      sync = reducePrimeSessionSnapshot(sync, envelope)
+      if (sync.status === "ready") {
+        publishAuthoritativeSnapshot()
+        return
+      }
+      if (attempt < 3) {
+        return synchronize(attempt + 1)
       }
       throw new Error("Prime Agent session synchronization did not converge")
     }
 
     const beginRecovery = () => {
-      if (disposed || recoveryPromise) return
-      const recovery = synchronize().catch((cause: unknown) => {
-        if (disposed) return
-        const envelope = getPrimeSessionSnapshotEnvelope(sync)
-        if (!envelope) return
-        publish({
-          ...envelope.snapshot,
-          session: { ...envelope.snapshot.session, state: "recovering" },
-          transport: {
-            status: "failed",
-            error: cause instanceof Error
-              ? cause.message
-              : "Prime Agent session recovery failed",
-          },
-        })
-      })
-      const tracked = recovery.then(() => {
-        if (recoveryPromise === tracked) recoveryPromise = undefined
-      })
-      recoveryPromise = tracked
+      if (disposed || recoveryPromise) {
+        return
+      }
+      const recover = async () => {
+        try {
+          await synchronize()
+        } catch (error) {
+          if (disposed) {
+            return
+          }
+          const envelope = getPrimeSessionSnapshotEnvelope(sync)
+          if (!envelope) {
+            return
+          }
+          publish({
+            ...envelope.snapshot,
+            session: { ...envelope.snapshot.session, state: "recovering" },
+            transport: {
+              error: error instanceof Error ? error.message : "Prime Agent session recovery failed",
+              status: "failed",
+            },
+          })
+        } finally {
+          recoveryPromise = undefined
+        }
+      }
+      recoveryPromise = recover()
     }
 
     const unsubscribePrimeAgent = primeAgent.subscribeSession(sessionId, (event) => {
-      sync = event.type === "snapshot"
-        ? reducePrimeSessionSnapshot(sync, event.envelope)
-        : reducePrimeSessionChange(sync, event.envelope)
+      sync =
+        event.type === "snapshot"
+          ? reducePrimeSessionSnapshot(sync, event.envelope)
+          : reducePrimeSessionChange(sync, event.envelope)
       if (sync.status === "recovering") {
         beginRecovery()
       } else {
@@ -124,35 +137,37 @@ export function createPrimeWorkspace({
     }
     displayedSnapshot = initialEnvelope.snapshot
     const chat = createChatSession({
+      createId,
       primeAgent,
       sessionId: initialEnvelope.sessionId,
-      createId,
     })
 
     return {
-      get snapshot() {
-        if (!displayedSnapshot) throw new Error("Prime Agent session snapshot is unavailable")
-        return displayedSnapshot
-      },
       chat,
-      subscribe(listener: (next: PrimeSessionSnapshot) => void) {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
-      },
       dispose() {
         disposed = true
         listeners.clear()
         unsubscribePrimeAgent()
       },
+      get snapshot() {
+        if (!displayedSnapshot) {
+          throw new Error("Prime Agent session snapshot is unavailable")
+        }
+        return displayedSnapshot
+      },
+      subscribe(listener: (next: PrimeSessionSnapshot) => void) {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
     }
   }
 
   return {
+    attachSession: attach,
+
     async createSession(input) {
       const session = await primeAgent.createSession(input)
       return attach(session.id)
     },
-
-    attachSession: attach,
   }
 }

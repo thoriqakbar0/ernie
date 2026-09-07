@@ -1,14 +1,14 @@
-type CancelRecoveryRetry = () => void
-
-type ScheduleRecoveryRetry = (callback: () => void) => CancelRecoveryRetry
+import { setTimeout as delay } from "node:timers/promises"
 
 /** Owns the cancellable delay between Prime Agent recovery attempts. */
 class PrimeAgentRecoveryRetry {
-  private cancel: CancelRecoveryRetry | undefined
+  private readonly delayMs: number
+  private controller: AbortController | undefined
   private waiting: Promise<void> | undefined
-  private resolveWaiting: (() => void) | undefined
 
-  constructor(private readonly scheduleRetry: ScheduleRecoveryRetry) {}
+  constructor(delayMs: number) {
+    this.delayMs = delayMs
+  }
 
   /** Reports whether one retry delay is active. */
   get pending() {
@@ -17,36 +17,42 @@ class PrimeAgentRecoveryRetry {
 
   /** Returns the single shared delay before the next recovery attempt. */
   wait() {
-    if (this.waiting) return this.waiting
-    this.waiting = new Promise<void>((resolve) => {
-      this.resolveWaiting = resolve
-      this.cancel = this.scheduleRetry(() => this.finish())
-    })
+    if (this.waiting) {
+      return this.waiting
+    }
+    const controller = new AbortController()
+    this.controller = controller
+    this.waiting = this.waitForDelay(controller)
     return this.waiting
   }
 
   /** Cancels and settles the active delay during recovery or disposal. */
   clear() {
-    this.cancel?.()
-    this.finish()
+    this.controller?.abort()
+    this.controller = undefined
+    this.waiting = undefined
   }
 
-  private finish() {
-    const resolve = this.resolveWaiting
-    this.cancel = undefined
-    this.waiting = undefined
-    this.resolveWaiting = undefined
-    resolve?.()
+  private async waitForDelay(controller: AbortController) {
+    try {
+      await delay(this.delayMs, undefined, { signal: controller.signal })
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        throw error
+      }
+    } finally {
+      // A cancelled delay must not clear a newer wait.
+      if (this.controller === controller) {
+        this.controller = undefined
+        this.waiting = undefined
+      }
+    }
   }
 }
 
 /** Creates the production retry delay backed by a cancellable timer. */
-export function createPrimeAgentRecoveryRetry(delayMs: number) {
-  return new PrimeAgentRecoveryRetry((callback) => {
-    const timer = setTimeout(callback, delayMs)
-    return () => clearTimeout(timer)
-  })
-}
+export const createPrimeAgentRecoveryRetry = (delayMs: number) =>
+  new PrimeAgentRecoveryRetry(delayMs)
 
 type RunPrimeAgentRecoveryLoopOptions = Readonly<{
   attempt: () => Promise<boolean>
@@ -56,14 +62,14 @@ type RunPrimeAgentRecoveryLoopOptions = Readonly<{
 
 // @lat: [[runtime#Prime Agent runtime#External recovery]]
 /** Repeats one Prime Agent recovery attempt until it succeeds or the owner stops. */
-export async function runPrimeAgentRecoveryLoop({
+export const runPrimeAgentRecoveryLoop = async ({
   attempt,
   shouldStop,
   wait,
-}: RunPrimeAgentRecoveryLoopOptions) {
-  while (!shouldStop()) {
-    if (await attempt()) return
-    if (shouldStop()) return
-    await wait()
+}: RunPrimeAgentRecoveryLoopOptions): Promise<void> => {
+  if (shouldStop() || (await attempt()) || shouldStop()) {
+    return
   }
+  await wait()
+  return runPrimeAgentRecoveryLoop({ attempt, shouldStop, wait })
 }

@@ -6,83 +6,83 @@ Every command has the literal `type` shown in its heading and an optional wire `
 
 ## prompt
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `message` | yes | `string` |
-| `content` | no | `any[]` |
-| `images` | no | `ImageContent[]` |
-| `streamingBehavior` | no | `"steer" \| "followUp"` |
-| `queueIfBusy` | no | `boolean` |
-| `expandPromptTemplates` | no | `boolean` |
-| `source` | no | `InputSource` |
-| `agentMessageId` | no | `string` |
-| `customMessage` | no | `CustomMessage<unknown>` |
-| `admissionId` | no | `string` |
+| Field                   | Required | Type                     |
+| ----------------------- | -------- | ------------------------ |
+| `activeSessionId`       | yes      | `string`                 |
+| `message`               | yes      | `string`                 |
+| `content`               | no       | `any[]`                  |
+| `images`                | no       | `ImageContent[]`         |
+| `streamingBehavior`     | no       | `"steer" \| "followUp"`  |
+| `queueIfBusy`           | no       | `boolean`                |
+| `expandPromptTemplates` | no       | `boolean`                |
+| `source`                | no       | `InputSource`            |
+| `agentMessageId`        | no       | `string`                 |
+| `customMessage`         | no       | `CustomMessage<unknown>` |
+| `admissionId`           | no       | `string`                 |
 
 ## cancel_prompt_admission
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `admissionId` | yes | `string` |
-| `cancelOwned` | no | `boolean` |
+| Field             | Required | Type      |
+| ----------------- | -------- | --------- |
+| `activeSessionId` | yes      | `string`  |
+| `admissionId`     | yes      | `string`  |
+| `cancelOwned`     | no       | `boolean` |
 
 ## prompt_and_wait
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `message` | yes | `string` |
-| `content` | no | `any[]` |
-| `images` | no | `ImageContent[]` |
-| `streamingBehavior` | no | `"steer" \| "followUp"` |
-| `queueIfBusy` | no | `boolean` |
-| `expandPromptTemplates` | no | `boolean` |
-| `source` | no | `InputSource` |
-| `admissionId` | no | `string` |
+| Field                   | Required | Type                    |
+| ----------------------- | -------- | ----------------------- |
+| `activeSessionId`       | yes      | `string`                |
+| `message`               | yes      | `string`                |
+| `content`               | no       | `any[]`                 |
+| `images`                | no       | `ImageContent[]`        |
+| `streamingBehavior`     | no       | `"steer" \| "followUp"` |
+| `queueIfBusy`           | no       | `boolean`               |
+| `expandPromptTemplates` | no       | `boolean`               |
+| `source`                | no       | `InputSource`           |
+| `admissionId`           | no       | `string`                |
 
 ## steer
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `message` | yes | `string` |
-| `content` | no | `any[]` |
-| `images` | no | `ImageContent[]` |
-| `queueKey` | no | `string` |
-| `expandPromptTemplates` | no | `boolean` |
-| `agentMessageId` | no | `string` |
-| `customMessage` | no | `CustomMessage<unknown>` |
-| `prefixMessages` | no | `CustomMessage<unknown>[]` |
+| Field                   | Required | Type                       |
+| ----------------------- | -------- | -------------------------- |
+| `activeSessionId`       | yes      | `string`                   |
+| `message`               | yes      | `string`                   |
+| `content`               | no       | `any[]`                    |
+| `images`                | no       | `ImageContent[]`           |
+| `queueKey`              | no       | `string`                   |
+| `expandPromptTemplates` | no       | `boolean`                  |
+| `agentMessageId`        | no       | `string`                   |
+| `customMessage`         | no       | `CustomMessage<unknown>`   |
+| `prefixMessages`        | no       | `CustomMessage<unknown>[]` |
 
 ## follow_up
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `message` | yes | `string` |
-| `content` | no | `any[]` |
-| `images` | no | `ImageContent[]` |
-| `queueKey` | no | `string` |
-| `expandPromptTemplates` | no | `boolean` |
-| `agentMessageId` | no | `string` |
-| `customMessage` | no | `CustomMessage<unknown>` |
-| `prefixMessages` | no | `CustomMessage<unknown>[]` |
+| Field                   | Required | Type                       |
+| ----------------------- | -------- | -------------------------- |
+| `activeSessionId`       | yes      | `string`                   |
+| `message`               | yes      | `string`                   |
+| `content`               | no       | `any[]`                    |
+| `images`                | no       | `ImageContent[]`           |
+| `queueKey`              | no       | `string`                   |
+| `expandPromptTemplates` | no       | `boolean`                  |
+| `agentMessageId`        | no       | `string`                   |
+| `customMessage`         | no       | `CustomMessage<unknown>`   |
+| `prefixMessages`        | no       | `CustomMessage<unknown>[]` |
 
 ## restore_next_turn
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `messages` | yes | `CustomMessage<unknown>[]` |
+| Field             | Required | Type                       |
+| ----------------- | -------- | -------------------------- |
+| `activeSessionId` | yes      | `string`                   |
+| `messages`        | yes      | `CustomMessage<unknown>[]` |
 
 ## restore_actions
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `snapshot` | yes | `SessionActionRecoverySnapshot` |
+| Field             | Required | Type                            |
+| ----------------- | -------- | ------------------------------- |
+| `activeSessionId` | yes      | `string`                        |
+| `snapshot`        | yes      | `SessionActionRecoverySnapshot` |
 
 ## append_custom_message
 
@@ -93,87 +93,87 @@ Every command has the literal `type` shown in its heading and an optional wire `
 
 ## resume_queue
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## abort
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## wait_for_idle
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## wait_for_headless_completion
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `waitForRlmQuiescence` | no | `boolean` |
+| Field                  | Required | Type      |
+| ---------------------- | -------- | --------- |
+| `activeSessionId`      | yes      | `string`  |
+| `waitForRlmQuiescence` | no       | `boolean` |
 
 ## get_queue
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## mutate_queued_message
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `lane` | yes | `QueuedMessageLane` |
-| `index` | yes | `number` |
-| `expectedText` | yes | `string` |
-| `mutation` | yes | `QueuedMessageMutation` |
+| Field             | Required | Type                    |
+| ----------------- | -------- | ----------------------- |
+| `activeSessionId` | yes      | `string`                |
+| `lane`            | yes      | `QueuedMessageLane`     |
+| `index`           | yes      | `number`                |
+| `expectedText`    | yes      | `string`                |
+| `mutation`        | yes      | `QueuedMessageMutation` |
 
 ## clear_queue
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## abort_and_clear_queue
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## acquire_session_input_pause
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `leaseKey` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
+| `leaseKey`        | yes      | `string` |
 
 ## release_session_input_pause
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `pauseId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
+| `pauseId`         | yes      | `string` |
 
 ## set_steering_mode
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `mode` | yes | `AgentConnectionQueueMode` |
+| Field             | Required | Type                       |
+| ----------------- | -------- | -------------------------- |
+| `activeSessionId` | yes      | `string`                   |
+| `mode`            | yes      | `AgentConnectionQueueMode` |
 
 ## set_follow_up_mode
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `mode` | yes | `AgentConnectionQueueMode` |
+| Field             | Required | Type                       |
+| ----------------- | -------- | -------------------------- |
+| `activeSessionId` | yes      | `string`                   |
+| `mode`            | yes      | `AgentConnectionQueueMode` |
 
 ## get_system_prompt
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |

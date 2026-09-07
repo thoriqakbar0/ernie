@@ -1,154 +1,156 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import * as stylex from "@stylexjs/stylex"
-import { controlStyles, type StyledProps } from "./styles"
+import { controlStyles } from "./styles"
+import type { StyledProps } from "./styles"
+
 const styles = stylex.create({
-  root: {
-    display: "inline-flex",
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
+  bordered: {
+    backgroundColor: {
+      ":hover": {
+        "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 50%, transparent)",
+        default: "var(--surface-muted)",
+      },
+      ':is([aria-expanded="true"])': "var(--surface-muted)",
+      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 30%, transparent)",
+      default: "var(--surface)",
+    },
     borderColor: {
-      default: "transparent",
       ":focus-visible": "var(--focus)",
       ':is([aria-invalid="true"])': "var(--danger)",
+      default: "var(--rule)",
     },
-    backgroundColor: "transparent",
-    backgroundClip: "padding-box",
-    fontWeight: 500,
-    whiteSpace: "nowrap",
-    userSelect: "none",
-    pointerEvents: {
-      default: "auto",
-      ":disabled": "none",
-    },
-    transform: {
-      default: "none",
-      ":active:not([aria-haspopup])": "translateY(1px)",
-    },
+    color: "var(--ink)",
   },
   default: {
     backgroundColor: {
-      default: "var(--accent)",
       ":hover:not(:disabled)": "var(--accent-hover)",
+      default: "var(--accent)",
     },
     color: "var(--on-accent)",
   },
-  bordered: {
-    borderColor: {
-      default: "var(--rule)",
-      ":focus-visible": "var(--focus)",
-      ':is([aria-invalid="true"])': "var(--danger)",
-    },
+  destructive: {
     backgroundColor: {
-      default: "var(--surface)",
-      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 30%, transparent)",
       ":hover": {
-        default: "var(--surface-muted)",
-        "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 50%, transparent)",
+        "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--danger) 30%, transparent)",
+        default: "color-mix(in srgb, var(--danger) 20%, transparent)",
       },
-      ':is([aria-expanded="true"])': "var(--surface-muted)",
+      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--danger) 20%, transparent)",
+      default: "color-mix(in srgb, var(--danger) 10%, transparent)",
     },
-    color: "var(--ink)",
-  },
-  secondary: {
-    backgroundColor: {
-      default: "var(--surface-muted)",
-      ":hover": "color-mix(in oklch, var(--surface-muted), var(--ink) 5%)",
+    borderColor: {
+      ":focus-visible": "color-mix(in srgb, var(--danger) 40%, transparent)",
+      ':is([aria-invalid="true"])': "var(--danger)",
+      default: "transparent",
     },
-    color: "var(--ink)",
+    boxShadow: {
+      ":focus-visible": {
+        "@media (prefers-color-scheme: dark)":
+          "0 0 0 3px color-mix(in srgb, var(--danger) 40%, transparent)",
+        default: "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
+      },
+      default: "none",
+    },
+    color: "var(--danger)",
   },
   ghost: {
     backgroundColor: {
-      default: "transparent",
       ":hover": {
-        default: "var(--surface-muted)",
         "@media (prefers-color-scheme: dark)":
           "color-mix(in srgb, var(--surface-muted) 50%, transparent)",
+        default: "var(--surface-muted)",
       },
       ':is([aria-expanded="true"])': "var(--surface-muted)",
+      default: "transparent",
     },
     color: "var(--ink)",
   },
-  destructive: {
-    backgroundColor: {
-      default: "color-mix(in srgb, var(--danger) 10%, transparent)",
-      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--danger) 20%, transparent)",
-      ":hover": {
-        default: "color-mix(in srgb, var(--danger) 20%, transparent)",
-        "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--danger) 30%, transparent)",
-      },
-    },
-    color: "var(--danger)",
-    borderColor: {
-      default: "transparent",
-      ":focus-visible": "color-mix(in srgb, var(--danger) 40%, transparent)",
-      ':is([aria-invalid="true"])': "var(--danger)",
-    },
-    boxShadow: {
-      default: "none",
-      ":focus-visible": {
-        default: "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
-        "@media (prefers-color-scheme: dark)":
-          "0 0 0 3px color-mix(in srgb, var(--danger) 40%, transparent)",
-      },
-    },
-  },
   link: {
     color: "var(--accent)",
-    textUnderlineOffset: 4,
     textDecorationLine: {
-      default: "none",
       ":hover": "underline",
+      default: "none",
     },
+    textUnderlineOffset: 4,
+  },
+  root: {
+    alignItems: "center",
+    backgroundClip: "padding-box",
+    backgroundColor: "transparent",
+    borderColor: {
+      ":focus-visible": "var(--focus)",
+      ':is([aria-invalid="true"])': "var(--danger)",
+      default: "transparent",
+    },
+    display: "inline-flex",
+    flexShrink: 0,
+    fontWeight: 500,
+    justifyContent: "center",
+    pointerEvents: {
+      ":disabled": "none",
+      default: "auto",
+    },
+    transform: {
+      ":active:not([aria-haspopup])": "translateY(1px)",
+      default: "none",
+    },
+    userSelect: "none",
+    whiteSpace: "nowrap",
+  },
+  secondary: {
+    backgroundColor: {
+      ":hover": "color-mix(in oklch, var(--surface-muted), var(--ink) 5%)",
+      default: "var(--surface-muted)",
+    },
+    color: "var(--ink)",
   },
 })
 const sizes = stylex.create({
   default: {
+    gap: 6,
     height: 32,
-    gap: 6,
-    paddingInline: 10,
-  },
-  xs: {
-    height: 24,
-    gap: 4,
-    paddingInline: 8,
-    fontSize: 12,
-  },
-  sm: {
-    height: 28,
-    gap: 4,
-    paddingInline: 10,
-    fontSize: "0.8rem",
-  },
-  lg: {
-    height: 36,
-    gap: 6,
     paddingInline: 10,
   },
   icon: {
-    width: 32,
     height: 32,
     padding: 0,
-  },
-  "icon-xs": {
-    width: 24,
-    height: 24,
-    padding: 0,
-  },
-  "icon-sm": {
-    width: 28,
-    height: 28,
-    padding: 0,
+    width: 32,
   },
   "icon-lg": {
-    width: 36,
     height: 36,
     padding: 0,
+    width: 36,
+  },
+  "icon-sm": {
+    height: 28,
+    padding: 0,
+    width: 28,
+  },
+  "icon-xs": {
+    height: 24,
+    padding: 0,
+    width: 24,
+  },
+  lg: {
+    gap: 6,
+    height: 36,
+    paddingInline: 10,
+  },
+  sm: {
+    fontSize: "0.8rem",
+    gap: 4,
+    height: 28,
+    paddingInline: 10,
+  },
+  xs: {
+    fontSize: 12,
+    gap: 4,
+    height: 24,
+    paddingInline: 8,
   },
 })
 
 /** Accessible Base UI button with typed appearance and size variants. */
-export function Button({
+export const Button = ({
   xstyle,
   variant = "default",
   size = "default",
@@ -156,12 +158,10 @@ export function Button({
 }: StyledProps<ButtonPrimitive.Props> & {
   variant?: "default" | "bordered" | "secondary" | "ghost" | "destructive" | "link"
   size?: keyof typeof sizes
-}) {
-  return (
-    <ButtonPrimitive
-      data-slot="button"
-      {...props}
-      {...stylex.props(controlStyles.control, styles.root, styles[variant], sizes[size], xstyle)}
-    />
-  )
-}
+}) => (
+  <ButtonPrimitive
+    data-slot="button"
+    {...props}
+    {...stylex.props(controlStyles.control, styles.root, styles[variant], sizes[size], xstyle)}
+  />
+)

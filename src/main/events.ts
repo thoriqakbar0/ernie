@@ -5,7 +5,7 @@ import type {
   PrimeSessionState,
 } from "../packages/prime-agent"
 
-export type Events = {
+export interface Events {
   updateStateChanged: UpdateState
   primeSessionStateChanged: PrimeSessionState
   primeSessionChanged: PrimeSessionChangeEnvelope

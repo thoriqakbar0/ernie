@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # RPC
+
 Source: https://zenbulabs.mintlify.app/core/rpc
-
-
 
 When you define a service class in the main process, every public method becomes callable from the renderer process. Zenbu.js handles all the wiring between processes for you, so you just call methods like normal functions.
 
@@ -69,5 +68,5 @@ try {
 
 ## Method conventions
 
-* **Take a single object argument.** This keeps argument signatures stable as the API grows.
-* **Return JSON-serializable values.** Anything that round-trips through `JSON.stringify` works.
+- **Take a single object argument.** This keeps argument signatures stable as the API grows.
+- **Return JSON-serializable values.** Anything that round-trips through `JSON.stringify` works.

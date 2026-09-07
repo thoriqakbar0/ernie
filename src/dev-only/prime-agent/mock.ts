@@ -20,12 +20,12 @@ import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixt
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
   /** Changes fixture transport without replacing sessions or receipts. */
-  setTransport(transport: PrimeSessionTransport): void
+  setTransport: (transport: PrimeSessionTransport) => void
   /** Releases timers, listeners, and pending idle waits. */
-  dispose(): void
+  dispose: () => void
 }
 
-type MockSession = {
+interface MockSession {
   summary: PrimeSessionSummary
   useful?: PrimeUsefulSessionContext
   followUps: string[]
@@ -40,27 +40,28 @@ type MockSession = {
 
 const initialSession: MockSession = {
   followUps: [],
-  summary: {
-    id: "mock-session-1",
-    cwd: "/Users/thor/work/ernie",
-    name: "Build the chat workspace",
-    lifecycle: "live",
-    state: "idle",
-    model: { id: "gpt-5", provider: "openai", label: "GPT-5" },
-  },
+  generation: "mock-generation-1",
+  idleWaiters: new Set(),
+  listeners: new Set(),
   messages: [
     {
+      content:
+        "I’m the local Prime Agent mock. Send a message and I’ll exercise Ernie’s real session boundary.",
       id: "mock-assistant-1",
       role: "assistant",
-      content: "I’m the local Prime Agent mock. Send a message and I’ll exercise Ernie’s real session boundary.",
     },
   ],
-  transport: { status: "connected" },
-  generation: "mock-generation-1",
   revision: 1,
-  listeners: new Set(),
+  summary: {
+    cwd: "/Users/thor/work/ernie",
+    id: "mock-session-1",
+    lifecycle: "live",
+    model: { id: "gpt-5", label: "GPT-5", provider: "openai" },
+    name: "Build the chat workspace",
+    state: "idle",
+  },
   timers: new Set(),
-  idleWaiters: new Set(),
+  transport: { status: "connected" },
 }
 
 /** Selects the authoritative snapshots available when a mock client starts. */
@@ -72,13 +73,104 @@ export type MockPrimeAgentClientOptions = Readonly<{
   replyDelayMs?: number
 }>
 
+const cloneSession = (session: MockSession): MockSession => ({
+  followUps: [...session.followUps],
+  generation: session.generation,
+  idleWaiters: new Set(),
+  listeners: new Set(),
+  messages: [...session.messages],
+  revision: session.revision,
+  summary: { ...session.summary },
+  timers: new Set(),
+  transport: { ...session.transport },
+})
+
+const createSeededSession = (snapshot: PrimeSessionSnapshot, index: number): MockSession => ({
+  followUps: [...snapshot.useful.state.sessionActions.followUps],
+  generation: `mock-seed-generation-${index + 1}`,
+  idleWaiters: new Set(),
+  listeners: new Set(),
+  messages: [...snapshot.messages],
+  revision: 1,
+  summary: { ...snapshot.session },
+  timers: new Set(),
+  transport: { ...snapshot.transport },
+  useful: snapshot.useful,
+})
+
+const emitChange = (session: MockSession, change: PrimeSessionChange) => {
+  session.revision += 1
+  for (const listener of session.listeners) {
+    listener({
+      envelope: {
+        change,
+        generation: session.generation,
+        revision: session.revision,
+        sessionId: session.summary.id,
+      },
+      type: "change",
+    })
+  }
+}
+
+const usefulSnapshot = (session: MockSession): PrimeUsefulSessionContext => {
+  const fixture = createPrimeUsefulSessionFixture(session.summary, session.messages)
+  return {
+    ...fixture,
+    children: session.useful?.children ?? fixture.children,
+    childrenAvailable: session.useful?.childrenAvailable,
+    state: {
+      ...fixture.state,
+      activeToolNames:
+        session.summary.state === "working" ? (session.useful?.state.activeToolNames ?? []) : [],
+      sessionActions: {
+        ...fixture.state.sessionActions,
+        followUps: [...session.followUps],
+        queuedCount: session.followUps.length,
+      },
+    },
+    structuredMessages: [
+      ...(session.useful?.structuredMessages.filter((message) => message.role === "toolResult") ??
+        []),
+      ...fixture.structuredMessages,
+    ],
+  }
+}
+const emitUsefulState = (session: MockSession) => {
+  const useful = usefulSnapshot(session)
+  emitChange(session, { state: useful.state, type: "usefulState" })
+}
+
+const emitStructuredMessages = (session: MockSession) => {
+  const useful = usefulSnapshot(session)
+  emitChange(session, {
+    structuredMessages: useful.structuredMessages,
+    type: "structured",
+  })
+}
+
+const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
+  messages: session.messages,
+  session: session.summary,
+  transport: session.transport,
+  useful: usefulSnapshot(session),
+})
+
+const snapshotEnvelope = (session: MockSession): PrimeSessionSnapshotEnvelope => ({
+  generation: session.generation,
+  revision: session.revision,
+  sessionId: session.summary.id,
+  snapshot: snapshot(session),
+})
+
 /** Creates an in-memory Prime Agent whose sessions retain independent state. */
-export function createMockPrimeAgentClient(
+export const createMockPrimeAgentClient = (
   options: MockPrimeAgentClientOptions = {},
-): MockPrimeAgentClient {
-  const seededSessions = options.initialSnapshots === undefined
-    ? [cloneSession(initialSession)]
-    : options.initialSnapshots.map(createSeededSession)
+): MockPrimeAgentClient => {
+  const seededSessions =
+    options.initialSnapshots === undefined
+      ? [cloneSession(initialSession)]
+      : options.initialSnapshots.map(createSeededSession)
   const sessions = new Map<string, MockSession>(
     seededSessions.map((session) => [session.summary.id, session]),
   )
@@ -88,7 +180,7 @@ export function createMockPrimeAgentClient(
   let stateRevision = 0
   let selectedSessionId: string | undefined = seededSessions[0]?.summary.id
 
-  const state = (): PrimeSessionState => ({
+  const getState = (): PrimeSessionState => ({
     revision: stateRevision,
     ...(selectedSessionId ? { selectedSessionId } : {}),
     sessions: [...sessions.values()].map(({ summary }) => summary),
@@ -96,60 +188,29 @@ export function createMockPrimeAgentClient(
 
   const emitState = () => {
     stateRevision += 1
-    const next = state()
-    for (const listener of stateListeners) listener(next)
+    const next = getState()
+    for (const listener of stateListeners) {
+      listener(next)
+    }
   }
 
   const getSession = (sessionId: string) => {
     const session = sessions.get(sessionId)
-    if (!session) throw new Error(`Unknown mock Prime Agent session: ${sessionId}`)
-    return session
-  }
-
-  const emitChange = (
-    session: MockSession,
-    change: PrimeSessionChange,
-  ) => {
-    session.revision += 1
-    for (const listener of session.listeners) {
-      listener({
-        type: "change",
-        envelope: {
-          sessionId: session.summary.id,
-          generation: session.generation,
-          revision: session.revision,
-          change,
-        },
-      })
+    if (!session) {
+      throw new Error(`Unknown mock Prime Agent session: ${sessionId}`)
     }
-  }
-
-  const usefulSnapshot = (session: MockSession): PrimeUsefulSessionContext => {
-    const fixture = createPrimeUsefulSessionFixture(session.summary, session.messages)
-    return { ...fixture, children: session.useful?.children ?? fixture.children, childrenAvailable: session.useful?.childrenAvailable, structuredMessages: [...(session.useful?.structuredMessages.filter((message) => message.role === "toolResult") ?? []), ...fixture.structuredMessages],
-      state: { ...fixture.state, activeToolNames: session.summary.state === "working" ? session.useful?.state.activeToolNames ?? [] : [],
-        sessionActions: { ...fixture.state.sessionActions, queuedCount: session.followUps.length, followUps: [...session.followUps] } } }
-  }
-  const emitUsefulState = (session: MockSession) => {
-    const useful = usefulSnapshot(session)
-    emitChange(session, { type: "usefulState", state: useful.state })
-  }
-
-  const emitStructuredMessages = (session: MockSession) => {
-    const useful = usefulSnapshot(session)
-    emitChange(session, {
-      type: "structured",
-      structuredMessages: useful.structuredMessages,
-    })
+    return session
   }
 
   const setState = (session: MockSession, state: PrimeSessionSummary["state"]) => {
     session.summary = { ...session.summary, state }
-    emitChange(session, { type: "session", session: session.summary })
+    emitChange(session, { session: session.summary, type: "session" })
     emitState()
     emitUsefulState(session)
     if (state === "idle") {
-      for (const resolve of session.idleWaiters) resolve()
+      for (const resolve of session.idleWaiters) {
+        resolve()
+      }
       session.idleWaiters.clear()
     }
   }
@@ -161,15 +222,15 @@ export function createMockPrimeAgentClient(
   ) => {
     if (role === "user" && session.summary.lifecycle === "draft") {
       session.summary = { ...session.summary, lifecycle: "live" }
-      emitChange(session, { type: "session", session: session.summary })
+      emitChange(session, { session: session.summary, type: "session" })
     }
     const message = {
+      content,
       id: `${session.summary.id}-message-${session.revision + 1}`,
       role,
-      content,
     }
     session.messages = [...session.messages, message]
-    emitChange(session, { type: "message", message })
+    emitChange(session, { message, type: "message" })
     emitStructuredMessages(session)
     emitUsefulState(session)
   }
@@ -179,202 +240,186 @@ export function createMockPrimeAgentClient(
       session.timers.delete(timer)
       appendMessage(session, "assistant", `Mock Prime Agent received: ${content}`)
       const next = session.followUps.shift()
-      if (next) { appendMessage(session, "user", next); scheduleReply(session, next) }
-      else setState(session, "idle")
+      if (next) {
+        appendMessage(session, "user", next)
+        scheduleReply(session, next)
+      } else {
+        setState(session, "idle")
+      }
     }, options.replyDelayMs ?? 450)
     session.timers.add(timer)
   }
 
-  const snapshot = (session: MockSession): PrimeSessionSnapshot => ({
-    session: session.summary,
-    messages: session.messages,
-    useful: usefulSnapshot(session),
-    transport: session.transport,
-  })
-
-  const snapshotEnvelope = (session: MockSession): PrimeSessionSnapshotEnvelope => ({
-    sessionId: session.summary.id,
-    generation: session.generation,
-    revision: session.revision,
-    snapshot: snapshot(session),
-  })
-
   return {
-    setTransport(transport) {
-      for (const session of sessions.values()) {
-        session.transport = transport
-        emitChange(session, { type: "transport", transport })
-      }
-    },
-    getSendEpoch: () => Promise.resolve(sendEpoch),
-    async checkSend(request) {
-      if (request.epoch !== sendEpoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending again." }
-      const existing = receipts.get(request.commandId)
-      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) return { status: "unknown", message: "This identity belongs to another send." }
-      const result = existing?.result ?? Promise.resolve<SendReceipt>({ status: "not-sent", message: "Ernie did not receive this send. Your message was not sent; try again." })
-      receipts.set(request.commandId, { request, result })
-      const receipt = await result
-      await options.afterSend?.()
-      return receipt
-    },
-    async sendMessage(request) {
-      if (request.epoch !== sendEpoch) return { status: "unknown", message: "The send owner restarted. Check the conversation before sending again." }
-      const existing = receipts.get(request.commandId)
-      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) return { status: "unknown", message: "This identity belongs to another send." }
-      const result = existing?.result ?? Promise.resolve().then(async (): Promise<SendReceipt> => {
-        try { await options.beforePrompt?.() }
-        catch { return { status: "not-sent", message: "The scenario rejected this send before dispatch. Your text is kept; try again." } }
-        const session = getSession(request.sessionId)
-        if (request.mode === "follow-up") {
-          session.followUps.push(request.content)
-          emitUsefulState(session)
-          return { status: "queued" }
-        }
-        setState(session, "working")
-        appendMessage(session, "user", request.content)
-        scheduleReply(session, request.content)
-        return { status: "accepted" }
-      })
-      receipts.set(request.commandId, { request, result })
-      const receipt = await result
-      await options.afterSend?.()
-      return receipt
-    },
-    getSessionState: () => Promise.resolve(state()),
-
-    subscribeSessionState(listener) {
-      stateListeners.add(listener)
-      return () => stateListeners.delete(listener)
-    },
-
-    selectSession(request) {
-      selectedSessionId = request.sessionId
-      emitState()
-      return Promise.resolve()
-    },
-
-    createSession(request: CreateSessionRequest) {
-      const summary: PrimeSessionSummary = {
-        id: `mock-session-${crypto.randomUUID()}`,
-        cwd: request.cwd,
-        name: request.name,
-        lifecycle: "draft",
-        state: "idle",
-        model: { id: "gpt-5", provider: "openai", label: "GPT-5" },
-      }
-      sessions.set(summary.id, {
-        summary,
-        followUps: [],
-        messages: [],
-        transport: { status: "connected" },
-        generation: `mock-generation-${crypto.randomUUID()}`,
-        revision: 0,
-        listeners: new Set(),
-        timers: new Set(),
-        idleWaiters: new Set(),
-      })
-      emitState()
-      return Promise.resolve(summary)
-    },
-
-    async attachSession(request: AttachSessionRequest) {
-      await options.beforeAttach?.()
-      return snapshotEnvelope(getSession(request.sessionId))
-    },
-
-    subscribeSession(sessionId, listener) {
-      const session = getSession(sessionId)
-      session.listeners.add(listener)
-      return () => session.listeners.delete(listener)
-    },
-
     abort(request: SessionAction) {
       const session = getSession(request.sessionId)
-      for (const timer of session.timers) clearTimeout(timer)
+      for (const timer of session.timers) {
+        clearTimeout(timer)
+      }
       session.timers.clear()
       session.followUps = []
       setState(session, "idle")
       return Promise.resolve()
     },
-
-    waitForIdle(request: SessionAction) {
-      const session = getSession(request.sessionId)
-      if (session.summary.state === "idle") return Promise.resolve()
-      return new Promise<void>((resolve) => session.idleWaiters.add(resolve))
+    async attachSession(request: AttachSessionRequest) {
+      await options.beforeAttach?.()
+      return snapshotEnvelope(getSession(request.sessionId))
     },
-
-    getModels() {
-      return Promise.resolve([
-        { id: "gpt-5", provider: "openai", label: "GPT-5" },
-        { id: "gpt-5-mini", provider: "openai", label: "GPT-5 mini" },
-        { id: "o3", provider: "openai", label: "o3" },
-        { id: "claude-sonnet-4", provider: "anthropic", label: "Claude Sonnet 4" },
-      ])
+    async checkSend(request) {
+      if (request.epoch !== sendEpoch) {
+        return {
+          message: "The send owner restarted. Check the conversation before sending again.",
+          status: "unknown",
+        }
+      }
+      const existing = receipts.get(request.commandId)
+      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) {
+        return { message: "This identity belongs to another send.", status: "unknown" }
+      }
+      const result =
+        existing?.result ??
+        Promise.resolve<SendReceipt>({
+          message: "Ernie did not receive this send. Your message was not sent; try again.",
+          status: "not-sent",
+        })
+      receipts.set(request.commandId, { request, result })
+      const receipt = await result
+      await options.afterSend?.()
+      return receipt
     },
-
-    setModel(request) {
-      const session = getSession(request.sessionId)
-      const model = { id: request.modelId, provider: request.provider, label: request.modelId }
-      session.summary = { ...session.summary, model }
-      emitChange(session, { type: "session", session: session.summary })
+    createSession(request: CreateSessionRequest) {
+      const summary: PrimeSessionSummary = {
+        cwd: request.cwd,
+        id: `mock-session-${crypto.randomUUID()}`,
+        lifecycle: "draft",
+        model: { id: "gpt-5", label: "GPT-5", provider: "openai" },
+        name: request.name,
+        state: "idle",
+      }
+      sessions.set(summary.id, {
+        followUps: [],
+        generation: `mock-generation-${crypto.randomUUID()}`,
+        idleWaiters: new Set(),
+        listeners: new Set(),
+        messages: [],
+        revision: 0,
+        summary,
+        timers: new Set(),
+        transport: { status: "connected" },
+      })
       emitState()
-      return Promise.resolve()
+      return Promise.resolve(summary)
     },
-
-    setEffort() {
-      return Promise.resolve()
-    },
-
-    getRecurrentDepth() {
-      return Promise.resolve(1)
-    },
-
-    setRecurrentDepth() {
-      return Promise.resolve()
-    },
-
     dispose() {
       for (const session of sessions.values()) {
-        for (const timer of session.timers) clearTimeout(timer)
+        for (const timer of session.timers) {
+          clearTimeout(timer)
+        }
         session.timers.clear()
         session.listeners.clear()
-        for (const resolve of session.idleWaiters) resolve()
+        for (const resolve of session.idleWaiters) {
+          resolve()
+        }
         session.idleWaiters.clear()
       }
       sessions.clear()
       stateListeners.clear()
     },
-  }
-}
-
-function cloneSession(session: MockSession): MockSession {
-  return {
-    summary: { ...session.summary },
-    followUps: [...session.followUps],
-    messages: [...session.messages],
-    transport: { ...session.transport },
-    generation: session.generation,
-    revision: session.revision,
-    listeners: new Set(),
-    timers: new Set(),
-    idleWaiters: new Set(),
-  }
-}
-
-function createSeededSession(
-  snapshot: PrimeSessionSnapshot,
-  index: number,
-): MockSession {
-  return {
-    summary: { ...snapshot.session },
-    useful: snapshot.useful,
-    followUps: [...snapshot.useful.state.sessionActions.followUps],
-    messages: [...snapshot.messages],
-    transport: { ...snapshot.transport },
-    generation: `mock-seed-generation-${index + 1}`,
-    revision: 1,
-    listeners: new Set(),
-    timers: new Set(),
-    idleWaiters: new Set(),
+    getModels() {
+      return Promise.resolve([
+        { id: "gpt-5", label: "GPT-5", provider: "openai" },
+        { id: "gpt-5-mini", label: "GPT-5 mini", provider: "openai" },
+        { id: "o3", label: "o3", provider: "openai" },
+        { id: "claude-sonnet-4", label: "Claude Sonnet 4", provider: "anthropic" },
+      ])
+    },
+    getRecurrentDepth() {
+      return Promise.resolve(1)
+    },
+    getSendEpoch: () => Promise.resolve(sendEpoch),
+    getSessionState: () => Promise.resolve(getState()),
+    selectSession(request) {
+      selectedSessionId = request.sessionId
+      emitState()
+      return Promise.resolve()
+    },
+    async sendMessage(request) {
+      if (request.epoch !== sendEpoch) {
+        return {
+          message: "The send owner restarted. Check the conversation before sending again.",
+          status: "unknown",
+        }
+      }
+      const existing = receipts.get(request.commandId)
+      if (existing && JSON.stringify(existing.request) !== JSON.stringify(request)) {
+        return { message: "This identity belongs to another send.", status: "unknown" }
+      }
+      const result =
+        existing?.result ??
+        (async (): Promise<SendReceipt> => {
+          await Promise.resolve()
+          try {
+            await options.beforePrompt?.()
+          } catch {
+            return {
+              message:
+                "The scenario rejected this send before dispatch. Your text is kept; try again.",
+              status: "not-sent",
+            }
+          }
+          const session = getSession(request.sessionId)
+          if (request.mode === "follow-up") {
+            session.followUps.push(request.content)
+            emitUsefulState(session)
+            return { status: "queued" }
+          }
+          setState(session, "working")
+          appendMessage(session, "user", request.content)
+          scheduleReply(session, request.content)
+          return { status: "accepted" }
+        })()
+      receipts.set(request.commandId, { request, result })
+      const receipt = await result
+      await options.afterSend?.()
+      return receipt
+    },
+    setEffort() {
+      return Promise.resolve()
+    },
+    setModel(request) {
+      const session = getSession(request.sessionId)
+      const model = { id: request.modelId, label: request.modelId, provider: request.provider }
+      session.summary = { ...session.summary, model }
+      emitChange(session, { session: session.summary, type: "session" })
+      emitState()
+      return Promise.resolve()
+    },
+    setRecurrentDepth() {
+      return Promise.resolve()
+    },
+    setTransport(transport) {
+      for (const session of sessions.values()) {
+        session.transport = transport
+        emitChange(session, { transport, type: "transport" })
+      }
+    },
+    subscribeSession(sessionId, listener) {
+      const session = getSession(sessionId)
+      session.listeners.add(listener)
+      return () => session.listeners.delete(listener)
+    },
+    subscribeSessionState(listener) {
+      stateListeners.add(listener)
+      return () => stateListeners.delete(listener)
+    },
+    async waitForIdle(request: SessionAction) {
+      const session = getSession(request.sessionId)
+      if (session.summary.state === "idle") {
+        return
+      }
+      const { promise, resolve } = Promise.withResolvers<null>()
+      session.idleWaiters.add(() => resolve(null))
+      await promise
+    },
   }
 }

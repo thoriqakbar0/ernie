@@ -1,11 +1,14 @@
-import { isAbsolute, join, resolve } from "node:path"
+import path from "node:path"
 import { Schema } from "effect"
 import { VERSION } from "prime-agent"
-import { managedDaemonSocketName, managedDaemonSocketPath } from "../../src/main/prime-agent/daemon-client.ts"
+import {
+  managedDaemonSocketName,
+  managedDaemonSocketPath,
+} from "../../src/main/prime-agent/daemon-client.ts"
 
-const DevRole = Schema.Literals(["all", "server", "web", "desktop"])
+const DevRoleSchema = Schema.Literals(["all", "server", "web", "desktop"])
 
-type DevRole = typeof DevRole.Type
+type DevRole = typeof DevRoleSchema.Type
 type DaemonLifecycle = "shared" | "owned" | "external"
 
 export type DevConfig = Readonly<{
@@ -24,16 +27,27 @@ export type DevConfig = Readonly<{
   electronProfileDirectory: string
 }>
 
+export const resolveDaemonSocketPath = (
+  stateRoot: string,
+  profile: string,
+  platform: NodeJS.Platform = process.platform,
+) =>
+  platform === "win32"
+    ? ["", "", ".", "pipe", `ernie-prime-agent-${profile}-v${VERSION}`].join("\\")
+    : path.join(stateRoot, managedDaemonSocketName)
+
 // @lat: [[development#Development workflow#Development profiles]]
-export function readDevConfig(
+export const readDevConfig = (
   argv: readonly string[],
   env: NodeJS.ProcessEnv,
   projectRoot: string,
-): DevConfig {
-  const role = Schema.decodeUnknownSync(DevRole)(argv[0] ?? "all")
+): DevConfig => {
+  const role = Schema.decodeUnknownSync(DevRoleSchema)(argv[0] ?? "all")
   const profile = env.ERNIE_DEV_PROFILE ?? (role === "desktop" ? "desktop" : "browser")
-  if (!/^[a-zA-Z0-9._-]+$/.test(profile)) {
-    throw new Error("ERNIE_DEV_PROFILE may contain only letters, numbers, dots, underscores, and hyphens")
+  if (!/^[a-zA-Z0-9._-]+$/u.test(profile)) {
+    throw new Error(
+      "ERNIE_DEV_PROFILE may contain only letters, numbers, dots, underscores, and hyphens",
+    )
   }
 
   const rawPort = env.ERNIE_DEV_PORT ?? "4310"
@@ -42,48 +56,40 @@ export function readDevConfig(
     throw new Error(`ERNIE_DEV_PORT must be an integer from 1 to 65535; received ${rawPort}`)
   }
 
-  const root = resolve(projectRoot)
+  const root = path.resolve(projectRoot)
   const configuredStateRoot = env.ERNIE_DEV_STATE_ROOT
-  const stateRoot = configuredStateRoot
-    ? isAbsolute(configuredStateRoot)
-      ? configuredStateRoot
-      : (() => { throw new Error("ERNIE_DEV_STATE_ROOT must be an absolute path") })()
-    : join(root, ".zenbu", "dev", profile)
+  if (configuredStateRoot && !path.isAbsolute(configuredStateRoot)) {
+    throw new Error("ERNIE_DEV_STATE_ROOT must be an absolute path")
+  }
+  const stateRoot = configuredStateRoot || path.join(root, ".zenbu", "dev", profile)
   const configuredDaemonSocket = env.ERNIE_PRIME_AGENT_SOCKET
-  if (configuredDaemonSocket && !isAbsolute(configuredDaemonSocket)) {
+  if (configuredDaemonSocket && !path.isAbsolute(configuredDaemonSocket)) {
     throw new Error("ERNIE_PRIME_AGENT_SOCKET must be an absolute path")
   }
-  const daemonLifecycle: DaemonLifecycle = configuredDaemonSocket
-    ? "external"
-    : role === "desktop"
-      ? "owned"
-      : "shared"
+  let daemonLifecycle: DaemonLifecycle = "shared"
+  if (configuredDaemonSocket) {
+    daemonLifecycle = "external"
+  } else if (role === "desktop") {
+    daemonLifecycle = "owned"
+  }
 
   return {
-    role,
-    root,
+    agentDirectory: daemonLifecycle === "owned" ? path.join(stateRoot, "prime-agent") : undefined,
+    daemonLifecycle,
+    daemonSocketPath:
+      configuredDaemonSocket ??
+      (daemonLifecycle === "shared"
+        ? managedDaemonSocketPath()
+        : resolveDaemonSocketPath(stateRoot, profile)),
+    databaseDirectory: path.join(stateRoot, "db"),
+    electronProfileDirectory: path.join(stateRoot, "electron-user-data"),
     host: "127.0.0.1",
+    ownerFile: path.join(stateRoot, "owner.json"),
     port,
     profile,
+    role,
+    root,
+    runtimeFile: path.join(stateRoot, "runtime.json"),
     stateRoot,
-    runtimeFile: join(stateRoot, "runtime.json"),
-    ownerFile: join(stateRoot, "owner.json"),
-    databaseDirectory: join(stateRoot, "db"),
-    agentDirectory: daemonLifecycle === "owned" ? join(stateRoot, "prime-agent") : undefined,
-    daemonSocketPath: configuredDaemonSocket ?? (
-      daemonLifecycle === "shared" ? managedDaemonSocketPath() : resolveDaemonSocketPath(stateRoot, profile)
-    ),
-    daemonLifecycle,
-    electronProfileDirectory: join(stateRoot, "electron-user-data"),
   }
-}
-
-export function resolveDaemonSocketPath(
-  stateRoot: string,
-  profile: string,
-  platform: NodeJS.Platform = process.platform,
-) {
-  return platform === "win32"
-    ? ["", "", ".", "pipe", `ernie-prime-agent-${profile}-v${VERSION}`].join("\\")
-    : join(stateRoot, managedDaemonSocketName)
 }

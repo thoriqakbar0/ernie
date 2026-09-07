@@ -4,24 +4,102 @@ import { AppHistoryPage } from "../renderer/components/app-history-page"
 import type { HistoryRequest } from "../packages/app-history"
 
 const items = [
-  { id: "fixture-3", title: "External changes", origin: "external" as const, changedFileCount: 2, knownWorking: false },
-  { id: "fixture-2", title: "A greener Ernie", origin: "customization" as const, changedFileCount: 3, knownWorking: true },
-  { id: "fixture-1", title: "Original app", origin: "baseline" as const, changedFileCount: 12, knownWorking: true },
-].map((item, index) => ({ ...item, tree: item.id, createdAt: new Date(Date.UTC(2026,8,7,10-index)).toISOString(), fileCount: 12, kept: false, complete: true, restorable: true, reason: null, proposedTitle: item.origin === "customization" ? item.title : null }))
+  {
+    changedFileCount: 2,
+    id: "fixture-3",
+    knownWorking: false,
+    origin: "external" as const,
+    title: "External changes",
+  },
+  {
+    changedFileCount: 3,
+    id: "fixture-2",
+    knownWorking: true,
+    origin: "customization" as const,
+    title: "A greener Ernie",
+  },
+  {
+    changedFileCount: 12,
+    id: "fixture-1",
+    knownWorking: true,
+    origin: "baseline" as const,
+    title: "Original app",
+  },
+].map((item, index) => ({
+  ...item,
+  complete: true,
+  createdAt: new Date(Date.UTC(2026, 8, 7, 10 - index)).toISOString(),
+  fileCount: 12,
+  kept: false,
+  proposedTitle: item.origin === "customization" ? item.title : null,
+  reason: null,
+  restorable: true,
+  tree: item.id,
+}))
 /** Disposable browser fixture exercises the production page without a filesystem or daemon. */
-async function client(input: HistoryRequest) {
+const client = (input: HistoryRequest) => {
   let value: unknown
   switch (input.method) {
-    case "history.status": value = { workspace: "/fixture/managed-ernie", currentCheckpointId: "fixture-3", unsavedChanges: false, lastRecoveryId: "fixture-1", captureError: null }; break
-    case "history.list": value = { items, cursor: null }; break
-    case "history.inspect": value = items.find(item => item.id === input.checkpointId); break
-    case "history.diff": value = input.path ? { path: input.path, currentTree: "fixture-3", sourceContent: true, before: {text:"accent: orange"}, current: {text:"accent: green"} } : { items: [{path:"src/renderer/theme.stylex.ts",change:"modified"}], cursor: null, total: 1 }; break
-    case "history.prepare_restore": value = {id:"fixture-proposal"}; break
-    case "history.request_restore": return {ok:false,error:{code:"approval_required",message:"Synthetic review only. This fixture cannot restore application files."}}
-    default: value = {}
+    case "history.status": {
+      value = {
+        captureError: null,
+        currentCheckpointId: "fixture-3",
+        lastRecoveryId: "fixture-1",
+        unsavedChanges: false,
+        workspace: "/fixture/managed-ernie",
+      }
+      break
+    }
+    case "history.list": {
+      value = { cursor: null, items }
+      break
+    }
+    case "history.inspect": {
+      value = items.find((item) => item.id === input.checkpointId)
+      break
+    }
+    case "history.diff": {
+      value = input.path
+        ? {
+            before: { text: "accent: orange" },
+            current: { text: "accent: green" },
+            currentTree: "fixture-3",
+            path: input.path,
+            sourceContent: true,
+          }
+        : {
+            cursor: null,
+            items: [{ change: "modified", path: "src/renderer/theme.stylex.ts" }],
+            total: 1,
+          }
+      break
+    }
+    case "history.prepare_restore": {
+      value = { id: "fixture-proposal" }
+      break
+    }
+    case "history.request_restore": {
+      return Promise.resolve({
+        error: {
+          code: "approval_required",
+          message: "Synthetic review only. This fixture cannot restore application files.",
+        },
+        ok: false,
+      })
+    }
+    default: {
+      value = {}
+    }
   }
-  return {ok:true,value}
+  return Promise.resolve({ ok: true, value })
 }
-export default function HistoryScenarios() {
-  return <><p role="note" {...stylex.props(styles.previewNotice)}>Preview only · Your app won’t change.</p><AppHistoryPage client={client} embedded/></>
-}
+const HistoryScenarios = () => (
+  <>
+    <p role="note" {...stylex.props(styles.previewNotice)}>
+      Preview only · Your app won’t change.
+    </p>
+    <AppHistoryPage client={client} embedded />
+  </>
+)
+
+export default HistoryScenarios

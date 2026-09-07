@@ -8,54 +8,54 @@ export type StyledProps<Props> = Omit<Props, "className" | "style"> & {
 /** Shared control states keep keyboard focus and validation visible. */
 export const controlStyles = stylex.create({
   control: {
-    borderStyle: "solid",
-    borderWidth: 1,
+    backgroundColor: {
+      ":disabled": {
+        "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 80%, transparent)",
+        default: "color-mix(in srgb, var(--rule) 50%, transparent)",
+      },
+      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 30%, transparent)",
+      default: "transparent",
+    },
     borderColor: {
-      default: "var(--rule)",
       ":focus-visible": "var(--focus)",
       ':is([aria-invalid="true"])': "var(--danger)",
+      default: "var(--rule)",
     },
     borderRadius: 8,
-    backgroundColor: {
-      default: "transparent",
-      "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 30%, transparent)",
-      ":disabled": {
-        default: "color-mix(in srgb, var(--rule) 50%, transparent)",
-        "@media (prefers-color-scheme: dark)": "color-mix(in srgb, var(--rule) 80%, transparent)",
-      },
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: {
+      ':is([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
+      default: "none",
     },
     color: "var(--ink)",
-    fontSize: 14,
-    outlineStyle: "none",
-    boxShadow: {
-      default: "none",
-      ':is([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
-    },
-    transition: "color 150ms, background-color 150ms, border-color 150ms, box-shadow 150ms",
-    opacity: {
-      default: 1,
-      ":disabled": 0.5,
-    },
     cursor: {
-      default: null,
       ":disabled": "not-allowed",
+      default: null,
     },
-  },
-  icon: {
-    width: 16,
-    height: 16,
-    flexShrink: 0,
-    pointerEvents: "none",
+    fontSize: 14,
+    opacity: {
+      ":disabled": 0.5,
+      default: 1,
+    },
+    outlineStyle: "none",
+    transition: "color 150ms, background-color 150ms, border-color 150ms, box-shadow 150ms",
   },
   hidden: {
-    position: "absolute",
-    width: 1,
+    borderWidth: 0,
+    clipPath: "inset(50%)",
     height: 1,
-    padding: 0,
     margin: -1,
     overflow: "hidden",
-    clipPath: "inset(50%)",
+    padding: 0,
+    position: "absolute",
     whiteSpace: "nowrap",
-    borderWidth: 0,
+    width: 1,
+  },
+  icon: {
+    flexShrink: 0,
+    height: 16,
+    pointerEvents: "none",
+    width: 16,
   },
 })

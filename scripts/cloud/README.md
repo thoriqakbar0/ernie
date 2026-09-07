@@ -22,9 +22,9 @@ Keep the development server running. Create a scenario using Playwright's page A
 
 ```js
 export default async function ({ page, step, url }) {
-  await step('Open Ernie', async () => {
-    await page.goto(url);
-  });
+  await step("Open Ernie", async () => {
+    await page.goto(url)
+  })
   // Inspect the current UI, then use its observed controls in further steps.
 }
 ```

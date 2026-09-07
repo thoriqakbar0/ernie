@@ -2,6 +2,7 @@
 lat:
   require-code-mention: true
 ---
+
 # Behavior specifications
 
 These specifications protect the product and runtime rules most likely to break across process boundaries.

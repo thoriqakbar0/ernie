@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Advice
+
 Source: https://zenbulabs.mintlify.app/core/advice
-
-
 
 Advice lets a plugin wrap or replace a function or React component owned by another plugin, without modifying the original source. This API is inspired by Emacs, where [`defadvice`](https://www.gnu.org/software/emacs/manual/html_node/elisp/Advising-Functions.html) is used to modify existing functions without editing their source.
 
@@ -51,10 +50,7 @@ Around-advice receives the next function in the chain (which is the original tar
 ```tsx src/content/wrap-counter.tsx theme={null}
 import type { ComponentType } from "react"
 
-export function WrapCounter<P>(
-  Original: ComponentType<P>,
-  props: P,
-) {
+export function WrapCounter<P>(Original: ComponentType<P>, props: P) {
   return (
     <div className="bordered">
       <Original {...props} />
@@ -66,10 +62,7 @@ export function WrapCounter<P>(
 For a plain function `save({ path }: { path: string })`, around-advice would be:
 
 ```typescript theme={null}
-export function aroundSave(
-  next: (args: { path: string }) => void,
-  args: { path: string },
-) {
+export function aroundSave(next: (args: { path: string }) => void, args: { path: string }) {
   console.log("before", args.path)
   const result = next(args)
   console.log("after", args.path)
@@ -93,8 +86,8 @@ export function WrapCounter() {
 
 `before` and `after` advice wrap a function without taking over the call.
 
-* `before` runs first with the original args (`...originalArgs`); its return value is ignored.
-* `after` runs last with the result followed by the original args (`result, ...originalArgs`). If it returns a value other than `undefined`, that value overrides the result.
+- `before` runs first with the original args (`...originalArgs`); its return value is ignored.
+- `after` runs last with the result followed by the original args (`result, ...originalArgs`). If it returns a value other than `undefined`, that value overrides the result.
 
 ```typescript theme={null}
 // before: runs first, then the original

@@ -2,8 +2,10 @@ import type { ChildProcess } from "node:child_process"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { createServer } from "node:net"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
+import path from "node:path"
+import { once } from "node:events"
+import { setTimeout as delay } from "node:timers/promises"
+import { promisify } from "node:util"
 import { tmpdir } from "node:os"
 
 import { resolveDaemonSocketPath } from "../scripts/dev/config.ts"
@@ -15,17 +17,17 @@ type DevtoolsTarget = Readonly<{
   url: string
 }>
 
-const cypressDirectory = dirname(fileURLToPath(import.meta.url))
-const projectDirectory = dirname(cypressDirectory)
+const cypressDirectory = import.meta.dirname
+const projectDirectory = path.dirname(cypressDirectory)
 const require = createRequire(import.meta.url)
 const electronModule: unknown = require("electron")
 if (typeof electronModule !== "string") {
-  throw new Error("Electron did not resolve to an executable path")
+  throw new TypeError("Electron did not resolve to an executable path")
 }
 
 const electronExecutable = electronModule
 const ownedChildren = new Set<ChildProcess>()
-const temporaryRoot = await mkdtemp(join(tmpdir(), "ernie-cypress-"))
+const temporaryRoot = await mkdtemp(path.join(tmpdir(), "ernie-cypress-"))
 const daemonSocketPath = resolveDaemonSocketPath(temporaryRoot, `cypress-${process.pid}`)
 let cleanupPromise: Promise<void> | undefined
 
@@ -38,10 +40,133 @@ const cleanup = () => {
   return cleanupPromise
 }
 
-const handleSignal = (signal: NodeJS.Signals) => {
-  void cleanup().finally(() => {
+const handleSignal = async (signal: NodeJS.Signals) => {
+  try {
+    await cleanup()
+  } finally {
     process.exit(signal === "SIGINT" ? 130 : 143)
+  }
+}
+
+const startOwned = (
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+  stdio: "inherit" | "pipe" = "inherit",
+) => {
+  const child = startOwnedProcess(command, args, cwd, env, stdio)
+  ownedChildren.add(child)
+  child.once("exit", () => ownedChildren.delete(child))
+  return child
+}
+
+const redactRuntimeToken = (value: string) =>
+  value.replaceAll(/wsToken=[^&\s]+/gu, "wsToken=[redacted]")
+
+const forwardRedactedOutput = (child: ChildProcess) => {
+  const { stdout } = child
+  const { stderr } = child
+  if (!stdout || !stderr) {
+    throw new Error("Electron E2E output was not captured")
+  }
+  stdout
+    .setEncoding("utf-8")
+    .on("data", (chunk: string) => process.stdout.write(redactRuntimeToken(chunk)))
+  stderr
+    .setEncoding("utf-8")
+    .on("data", (chunk: string) => process.stderr.write(redactRuntimeToken(chunk)))
+}
+
+const runChecked = async (
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+) => {
+  const child = startOwned(command, args, cwd, env)
+  const [code, signal] = await waitForProcessExit(child)
+  if (code !== 0) {
+    throw new Error(`${command} exited with ${code ?? signal ?? "an unknown status"}`)
+  }
+}
+
+const reservePort = async () => {
+  const server = createServer()
+  server.unref()
+  server.listen(0, "127.0.0.1")
+  await once(server, "listening")
+  const address = server.address()
+  if (typeof address === "string" || address === null) {
+    server.close()
+    throw new Error("Could not reserve an Electron debugging port")
+  }
+  await promisify(server.close.bind(server))()
+  return address.port
+}
+
+const parseTargets = (input: unknown): readonly DevtoolsTarget[] => {
+  if (!Array.isArray(input)) {
+    return []
+  }
+  return input.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return []
+    }
+    if (!("type" in item) || !("url" in item)) {
+      return []
+    }
+    return typeof item.type === "string" && typeof item.url === "string"
+      ? [{ type: item.type, url: item.url }]
+      : []
   })
+}
+
+const isMainRenderer = (target: DevtoolsTarget) => {
+  if (target.type !== "page" || !target.url.startsWith("http")) {
+    return false
+  }
+  const url = new URL(target.url)
+  const viewType = url.searchParams.get("type")
+  return (
+    url.searchParams.has("wsPort") &&
+    url.searchParams.has("wsToken") &&
+    (viewType === null || viewType === "entrypoint")
+  )
+}
+
+const waitForRendererUrl = async (port: number, electron: ChildProcess) => {
+  const endpoint = `http://127.0.0.1:${port}/json/list`
+  const deadline = Date.now() + 45_000
+  let lastFailure = "the renderer was not ready"
+
+  const poll = async (): Promise<string> => {
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for the Zenbu renderer: ${lastFailure}`)
+    }
+    if (electron.exitCode !== null) {
+      throw new Error(`Electron exited before its renderer was ready (${electron.exitCode})`)
+    }
+
+    try {
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(1000) })
+      if (response.ok) {
+        const target = parseTargets(await response.json()).find(isMainRenderer)
+        if (target) {
+          return target.url
+        }
+      } else {
+        lastFailure = `DevTools returned HTTP ${response.status}`
+      }
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : "DevTools request failed"
+    }
+
+    await delay(250)
+    return poll()
+  }
+
+  return await poll()
 }
 
 process.once("SIGINT", handleSignal)
@@ -51,9 +176,9 @@ try {
   await runChecked("nub", ["run", "link"], projectDirectory)
 
   const debuggingPort = await reservePort()
-  const databaseDirectory = join(temporaryRoot, "zenbu-db")
-  const agentDirectory = join(temporaryRoot, "agents")
-  const electronProfile = join(temporaryRoot, "electron-profile")
+  const databaseDirectory = path.join(temporaryRoot, "zenbu-db")
+  const agentDirectory = path.join(temporaryRoot, "agents")
+  const electronProfile = path.join(temporaryRoot, "electron-profile")
   await Promise.all([
     mkdir(databaseDirectory, { recursive: true }),
     mkdir(agentDirectory, { recursive: true }),
@@ -86,7 +211,7 @@ try {
   )
   forwardRedactedOutput(electron)
   const rendererUrl = await waitForRendererUrl(debuggingPort, electron)
-  const cypressExecutable = join(cypressDirectory, "node_modules", ".bin", "cypress")
+  const cypressExecutable = path.join(cypressDirectory, "node_modules", ".bin", "cypress")
   const cypressArguments = process.argv.includes("--open")
     ? ["open", "--e2e", "--browser", "electron"]
     : ["run", "--e2e", "--browser", "electron"]
@@ -101,112 +226,4 @@ try {
   process.removeListener("SIGINT", handleSignal)
   process.removeListener("SIGTERM", handleSignal)
   await cleanup()
-}
-
-function startOwned(
-  command: string,
-  args: readonly string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv = process.env,
-  stdio: "inherit" | "pipe" = "inherit",
-) {
-  const child = startOwnedProcess(command, args, cwd, env, stdio)
-  ownedChildren.add(child)
-  child.once("exit", () => ownedChildren.delete(child))
-  return child
-}
-
-function forwardRedactedOutput(child: ChildProcess) {
-  const stdout = child.stdout
-  const stderr = child.stderr
-  if (!stdout || !stderr) throw new Error("Electron E2E output was not captured")
-  stdout.setEncoding("utf8").on("data", (chunk: string) => process.stdout.write(redactRuntimeToken(chunk)))
-  stderr.setEncoding("utf8").on("data", (chunk: string) => process.stderr.write(redactRuntimeToken(chunk)))
-}
-
-function redactRuntimeToken(value: string) {
-  return value.replace(/wsToken=[^&\s]+/g, "wsToken=[redacted]")
-}
-
-async function runChecked(
-  command: string,
-  args: readonly string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv = process.env,
-) {
-  const child = startOwned(command, args, cwd, env)
-  const [code, signal] = await waitForProcessExit(child)
-  if (code !== 0) {
-    throw new Error(`${command} exited with ${code ?? signal ?? "an unknown status"}`)
-  }
-}
-
-async function reservePort() {
-  const server = createServer()
-  server.unref()
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject)
-    server.listen(0, "127.0.0.1", resolve)
-  })
-  const address = server.address()
-  if (typeof address === "string" || address === null) {
-    server.close()
-    throw new Error("Could not reserve an Electron debugging port")
-  }
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => error ? reject(error) : resolve())
-  })
-  return address.port
-}
-
-async function waitForRendererUrl(port: number, electron: ChildProcess) {
-  const endpoint = `http://127.0.0.1:${port}/json/list`
-  const deadline = Date.now() + 45_000
-  let lastFailure = "the renderer was not ready"
-
-  while (Date.now() < deadline) {
-    if (electron.exitCode !== null) {
-      throw new Error(`Electron exited before its renderer was ready (${electron.exitCode})`)
-    }
-
-    try {
-      const response = await fetch(endpoint, { signal: AbortSignal.timeout(1_000) })
-      if (response.ok) {
-        const target = parseTargets(await response.json()).find(isMainRenderer)
-        if (target) return target.url
-      } else {
-        lastFailure = `DevTools returned HTTP ${response.status}`
-      }
-    } catch (error) {
-      lastFailure = error instanceof Error ? error.message : "DevTools request failed"
-    }
-
-    await delay(250)
-  }
-
-  throw new Error(`Timed out waiting for the Zenbu renderer: ${lastFailure}`)
-}
-
-function parseTargets(input: unknown): readonly DevtoolsTarget[] {
-  if (!Array.isArray(input)) return []
-  return input.flatMap((item) => {
-    if (!item || typeof item !== "object") return []
-    if (!("type" in item) || !("url" in item)) return []
-    return typeof item.type === "string" && typeof item.url === "string"
-      ? [{ type: item.type, url: item.url }]
-      : []
-  })
-}
-
-function isMainRenderer(target: DevtoolsTarget) {
-  if (target.type !== "page" || !target.url.startsWith("http")) return false
-  const url = new URL(target.url)
-  const viewType = url.searchParams.get("type")
-  return url.searchParams.has("wsPort") &&
-    url.searchParams.has("wsToken") &&
-    (viewType === null || viewType === "entrypoint")
-}
-
-function delay(milliseconds: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 }

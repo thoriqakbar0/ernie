@@ -1,6 +1,6 @@
 ---
-title: 'Assignment search has no empty-result recovery'
-severity: 'minor'
+title: "Assignment search has no empty-result recovery"
+severity: "minor"
 ---
 
 ## Expected Behavior

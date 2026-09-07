@@ -74,7 +74,6 @@ requestWorker(command: DaemonWorkerCommandBody, timeoutMs?: number): Promise<Dae
 close(): void;
 ```
 
-
 ## AgentConnection
 
 Source: `node_modules/prime-agent/dist/modes/agent-connection/types.d.ts`.

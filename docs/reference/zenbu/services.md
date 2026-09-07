@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Services
+
 Source: https://zenbulabs.mintlify.app/core/services
-
-
 
 A service is a class that extends `Service.create()` from `@zenbujs/core/runtime`. It runs in the main process.
 

@@ -1,25 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreDependencies": [
-    "electron-builder"
-  ],
-  "ignoreBinaries": [
-    "debtmap",
-    "ffmpeg",
-    "ffprobe"
-  ],
+  "ignoreDependencies": ["electron-builder"],
+  "ignoreBinaries": ["debtmap", "ffmpeg", "ffprobe"],
   "workspaces": {
     "scripts/cloud": {
-      "entry": [
-        "*.mjs"
-      ],
-      "project": [
-        "*.mjs"
-      ],
-      "ignoreDependencies": [
-        "frog",
-        "lat.md"
-      ]
+      "entry": ["*.mjs"],
+      "project": ["*.mjs"],
+      "ignoreDependencies": ["frog", "lat.md"]
     },
     ".": {
       "entry": [
@@ -35,22 +22,11 @@
         "scripts/*.{ts,mjs}",
         "src/integration/*.integration.test.ts"
       ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "scripts/**/*.{ts,mjs}",
-        "*.{ts,mjs}"
-      ]
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,mjs}", "*.{ts,mjs}"]
     },
     "cypress": {
-      "entry": [
-        "run.ts",
-        "cypress.config.ts",
-        "support/e2e.ts",
-        "e2e/*.cy.ts"
-      ],
-      "project": [
-        "**/*.ts"
-      ],
+      "entry": ["run.ts", "cypress.config.ts", "support/e2e.ts", "e2e/*.cy.ts"],
+      "project": ["**/*.ts"],
       "cypress": false
     }
   }

@@ -8,9 +8,7 @@
       "paths": "src/packages/{packageName}",
       "must": {
         "haveType": "directory",
-        "haveFiles": [
-          "index.ts"
-        ]
+        "haveFiles": ["index.ts"]
       }
     },
     {
@@ -18,9 +16,7 @@
       "description": "Renderer component modules export a function named after the file.",
       "paths": "src/renderer/components/{componentName}.tsx",
       "must": {
-        "exportFunctions": [
-          "${componentName.toPascalCase()}"
-        ]
+        "exportFunctions": ["${componentName.toPascalCase()}"]
       }
     },
     {
@@ -34,9 +30,7 @@
         "src/renderer/components/titlebar.tsx"
       ],
       "must": {
-        "declareTypes": [
-          "${componentName.toPascalCase()}Props"
-        ]
+        "declareTypes": ["${componentName.toPascalCase()}Props"]
       }
     }
   ]

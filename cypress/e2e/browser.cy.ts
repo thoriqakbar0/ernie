@@ -1,17 +1,20 @@
 // @lat: [[tests#Behavior specifications#Development boundary#Browser recovery]]
 describe("Ernie browser development", () => {
+  beforeEach(() => {
+    cy.env(["browserUrl"], { log: false }).as("browserEnvironment")
+  })
+
   after(() => {
     cy.task("writeBrowserHmrRevision", "initial", { log: false })
   })
 
   // Updated by Cypress Author on 2026-09-05: protect visible styling during the StyleX migration.
-  it("loads styled controls and preserves runtime recovery and renderer HMR", () => {
-    cy.env(["browserUrl"], { log: false }).then(({ browserUrl }) => {
-      if (typeof browserUrl !== "string" || browserUrl.length === 0) {
-        throw new Error("The browser test launcher did not provide a URL")
-      }
-      cy.visit(browserUrl, { log: false })
-    })
+  it("loads styled controls and preserves runtime recovery and renderer HMR", function browserRecovery() {
+    const { browserUrl } = this.browserEnvironment
+    if (typeof browserUrl !== "string" || browserUrl.length === 0) {
+      throw new Error("The browser test launcher did not provide a URL")
+    }
+    cy.visit(browserUrl, { log: false })
 
     cy.get("body").should("have.css", "font-family").and("include", "Geist")
     cy.get("html").should("have.css", "line-height", "24px")
@@ -31,18 +34,18 @@ describe("Ernie browser development", () => {
 
     for (const width of [600, 320]) {
       cy.viewport(width, 800)
-      cy.document().then((document) => {
+      cy.document().should((document) => {
         expect(document.documentElement.scrollWidth).to.be.at.most(
           document.documentElement.clientWidth,
         )
       })
     }
 
-    cy.viewport(1_100, 750)
+    cy.viewport(1100, 750)
     cy.get("#chat-message").should("be.enabled")
     cy.task("stopExternalPrimeAgentDaemon", null, { log: false })
     cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
-    cy.wait(1_250, { log: false })
+    cy.wait(1250, { log: false })
     cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
     cy.task("startExternalPrimeAgentDaemon", null, { log: false })
     cy.contains("Couldn’t reconnect to Prime Agent.").should("not.exist")

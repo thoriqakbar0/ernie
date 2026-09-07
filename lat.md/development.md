@@ -42,7 +42,9 @@ Use `nub run test:integration:browser` for browser proof. Reserve `nub run test:
 
 ## Validation
 
-`nub run check` links Zenbu types, typechecks, checks package boundaries, validates lat.md, and builds source.
+`nub run check` links Zenbu types, typechecks, runs Ultracite and custom guards, validates lat.md, runs integration checks, and builds source.
+
+Ultracite's core and React presets, plus React Doctor, use Oxlint and Oxfmt. The [lint workflow](../docs/workflow.md#lint-and-format-changes) owns commands, formatting conventions, and compatibility exceptions. Zenbu, StyleX, outline, and package-boundary checks retain their existing owners.
 
 Run `nub run test:integration` for daemon boundaries. Run `konsistent validate` when checking structural conventions.
 

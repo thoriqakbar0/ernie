@@ -429,6 +429,7 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async getAttachment(sessionId: string) {
+    this.requireActiveRuntime()
     const pending = this.attachmentPromises.get(sessionId)
     if (pending) return pending
     const existing = this.attachments.get(sessionId)
@@ -441,10 +442,15 @@ export class PrimeAgentService extends Service.create({
         if (this.attachments.get(sessionId) === existing) this.attachments.delete(sessionId)
       }
       const client = await this.getClient()
+      this.requireActiveRuntime()
       // Recovery can install the attachment while client acquisition is pending.
       const recovered = this.attachments.get(sessionId)
       if (recovered?.connection) return recovered
       const attachment = await this.createAttachment(client, sessionId, existing?.snapshot, this.summaries.get(sessionId))
+      if (this.disposed) {
+        await this.releaseAttachment(attachment)
+        this.requireActiveRuntime()
+      }
       this.installAttachment(attachment)
       return attachment
     })
@@ -521,6 +527,7 @@ export class PrimeAgentService extends Service.create({
     try {
       await connection.attach()
       const initialSnapshot = await connection.getInitialSnapshot()
+      this.requireActiveRuntime()
       const nativeState = readRecord(readRecord(initialSnapshot, "connection snapshot").state, "connection state")
       const snapshot = projectPrimeSessionSnapshot(
         enrichPrimeSessionSnapshot({
@@ -925,7 +932,9 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async getClient() {
+    this.requireActiveRuntime()
     if (this.recoveryPromise) await this.recoveryPromise
+    this.requireActiveRuntime()
     if (this.client?.isConnected) return this.client
     if (this.connecting) return this.connecting
 
@@ -965,9 +974,11 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async openClient() {
+    this.requireActiveRuntime()
     try {
       return await connectPrimeDaemon(this.endpoint.socketPath, this.endpoint.ownership)
     } catch (cause) {
+      this.requireActiveRuntime()
       if (cause instanceof IncompatiblePrimeDaemonError) throw cause
       if (this.endpoint.ownership === "external") {
         throw new Error("The configured Prime Agent socket is unavailable", { cause })
@@ -976,6 +987,7 @@ export class PrimeAgentService extends Service.create({
       const deadline = Date.now() + 10_000
       let lastError: unknown
       while (Date.now() < deadline) {
+        this.requireActiveRuntime()
         try {
           return await connectPrimeDaemon(this.endpoint.socketPath, this.endpoint.ownership)
         } catch (error) {
@@ -994,11 +1006,21 @@ export class PrimeAgentService extends Service.create({
     const recovery = this.recoveryPromise
     this.recoveryRetry.clear()
     const attachments = [...this.attachments.values()]
+    const pendingAttachments = [...this.attachmentPromises.values()]
+    const connecting = this.connecting
     this.attachments.clear()
-    this.attachmentPromises.clear()
+    // Reject in-flight native requests before joining their cleanup. Socket closure
+    // releases native attachments without terminating the externally owned daemon.
+    this.detachClient()
     await Promise.allSettled(attachments.map((attachment) => this.releaseAttachment(attachment)))
+    await Promise.allSettled(pendingAttachments)
+    await connecting?.catch(() => undefined)
     await recovery?.catch(() => undefined)
     this.detachClient()
+  }
+
+  private requireActiveRuntime() {
+    if (this.disposed) throw new Error("Prime Agent service is shutting down")
   }
 }
 

@@ -40,6 +40,12 @@ Failed external reconnects keep the last snapshot and pause commands. Ernie retr
 
 The external daemon and socket survive cleanup, as required by [[tests#Behavior specifications#Daemon boundary#External daemon ownership]].
 
+## Service shutdown
+
+Shutdown rejects new attachment acquisition, closes the shared transport, and joins pending attachment and recovery work before cleanup completes.
+
+[[src/main/prime-agent/service.ts#PrimeAgentService]] releases acquisitions that finish during disposal. Closing the client rejects pending native requests without issuing daemon shutdown. [[tests#Behavior specifications#Daemon boundary#Service disposal]] verifies this boundary.
+
 ## Daemon integration reference
 
 The [daemon docs](../docs/prime-agent/README.md) separate Ernie ownership from upstream capability, including version evidence and recovery limits.

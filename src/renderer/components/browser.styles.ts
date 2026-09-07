@@ -65,7 +65,13 @@ export const styles = stylex.create({
     outlineStyle: "none",
     padding: "4px 8px",
   },
-  conversation: { display: "grid", minHeight: 0, minWidth: 0, overflow: "hidden" },
+  conversation: {
+    display: "grid",
+    gridTemplateRows: "minmax(0, 1fr) auto",
+    minHeight: 0,
+    minWidth: 0,
+    overflow: "hidden",
+  },
   empty: {
     alignItems: "center",
     display: "flex",

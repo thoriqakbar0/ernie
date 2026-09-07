@@ -240,7 +240,11 @@ const HistoryStatusMessage = ({ status }: { status: typeof HistoryStatus.Type })
   <p {...stylex.props(styles.historyStatus)}>
     <output>
       {status.captureError?.message ??
-        (status.unsavedChanges ? "Changes since last checkpoint" : "No unsaved changes.")}
+        (status.unsavedChanges === null
+          ? "Unsaved changes could not be checked."
+          : status.unsavedChanges
+            ? "Changes since last checkpoint"
+            : "No unsaved changes.")}
     </output>
   </p>
 )
@@ -395,7 +399,21 @@ export const AppHistoryPage = ({
             <h1 {...stylex.props(styles.title)}>App history</h1>
           </header>
         )}
-        {errorMessage ? <p role="alert">{errorMessage}</p> : null}
+        {errorMessage ? (
+          <div>
+            <p role="alert">{errorMessage}</p>
+            {!status ? (
+              <button
+                type="button"
+                disabled={busy}
+                {...stylex.props(styles.button)}
+                onClick={() => act(refresh, "Refreshing…")}
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {notice ? (
           <p>
             <output>{notice}</output>

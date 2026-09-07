@@ -24,6 +24,8 @@ Settings uses Base UI tabs for Appearance and App history, with URL-controlled s
 
 [[src/renderer/app-navigation.tsx#AppNavigationProvider]] owns page navigation. [[src/renderer/components/app-history-page.tsx#AppHistoryPage]] reads controller facts, displays checkpoint differences. Independent host recovery retains restore approval.
 
+Normal development settings use the same history service and show its unsupported or unavailable response, with a retry action. Synthetic checkpoints require an explicit development `scenario=history` URL. Empty history and unknown unsaved-change status remain explicit.
+
 ## Agent access
 
 The local authenticated socket, CLI, and stdio MCP share checkpoint identities and errors. Editing clients register an interval before changing the managed application.

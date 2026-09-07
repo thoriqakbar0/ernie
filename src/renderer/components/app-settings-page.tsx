@@ -12,9 +12,10 @@ import { AppCustomizationEntry } from "./app-customization-entry"
 import { AppearanceSettings } from "./appearance-settings"
 import { styles } from "./app-settings.styles"
 
-const HistoryPreview = import.meta.env.DEV
-  ? lazy(() => import("../../dev-only/history-scenarios"))
-  : undefined
+const HistoryPreview =
+  import.meta.env.DEV && new URLSearchParams(window.location.search).get("scenario") === "history"
+    ? lazy(() => import("../../dev-only/history-scenarios"))
+    : undefined
 type Availability = "checking" | "ready" | "desktop" | "unavailable"
 /** Application settings expose appearance preferences and application history. */
 export const AppSettingsPage = () => {
@@ -56,17 +57,11 @@ export const AppSettingsPage = () => {
     }
   }, [rpc])
   let historyContent = <AppHistoryPage embedded />
-  if (availability === "desktop" && HistoryPreview) {
+  if (HistoryPreview) {
     historyContent = (
       <Suspense fallback={<p>Loading example history…</p>}>
         <HistoryPreview />
       </Suspense>
-    )
-  } else if (availability === "checking") {
-    historyContent = (
-      <p>
-        <output>Checking app history…</output>
-      </p>
     )
   }
   return (

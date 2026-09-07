@@ -7,6 +7,14 @@ import type { UiAnnotation, UiSelection } from "./ui-annotation-editor"
 import { UiAnnotationReview } from "./ui-annotation-review"
 import { styles } from "./ui-annotations.styles"
 
+const isAnnotationShortcut = (event: KeyboardEvent) =>
+  (event.metaKey || event.ctrlKey) &&
+  event.shiftKey &&
+  !event.altKey &&
+  event.key.toLowerCase() === "a" &&
+  !event.repeat &&
+  !event.isComposing
+
 /** One lazy, local-only element selector survives workspace navigation. */
 export const GlobalUiAnnotator = () => {
   const api = useRef<ReactGrabAPI | null>(null)
@@ -112,13 +120,7 @@ export const GlobalUiAnnotator = () => {
     [capture, prepare],
   )
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (
-      (event.metaKey || event.ctrlKey) &&
-      event.shiftKey &&
-      event.key.toLowerCase() === "a" &&
-      !event.repeat &&
-      !event.isComposing
-    ) {
+    if (isAnnotationShortcut(event)) {
       event.preventDefault()
       if (selection || review) {
         return
@@ -131,6 +133,16 @@ export const GlobalUiAnnotator = () => {
           ? focused
           : undefined,
       )
+    }
+    if (event.key === "Escape" && selection) {
+      setSelection(undefined)
+      restoreFocus.current?.focus()
+      return
+    }
+    if (event.key === "Escape" && review) {
+      setReview(false)
+      toggle.current?.focus()
+      return
     }
     if (event.key === "Escape" && api.current?.isActive()) {
       api.current.deactivate()
@@ -150,16 +162,19 @@ export const GlobalUiAnnotator = () => {
     }
   }, [])
   return (
-    <>
-      <div
-        data-ui-annotator
-        data-react-grab-ignore-events
-        {...stylex.props(styles.toolbar, (Boolean(selection) || review) && styles.hidden)}
-      >
+    <aside
+      aria-label="UI annotation"
+      data-ui-annotator
+      data-react-grab-ignore-events
+      {...stylex.props(styles.rail)}
+    >
+      <div {...stylex.props(styles.toolbar)}>
         <button
           ref={toggle}
+          disabled={Boolean(selection)}
           type="button"
           aria-pressed={active}
+          title="App UI only · local notes until reload · ⌘⇧A"
           aria-keyshortcuts="Meta+Shift+A Control+Shift+A"
           {...stylex.props(styles.button)}
           onClick={() => {
@@ -176,10 +191,11 @@ export const GlobalUiAnnotator = () => {
         {notes.length ? (
           <button
             type="button"
+            aria-expanded={review}
             {...stylex.props(styles.button)}
             onClick={() => {
               api.current?.deactivate()
-              setReview(true)
+              setReview((previous) => !previous)
             }}
           >
             UI notes · {notes.length}
@@ -207,10 +223,9 @@ export const GlobalUiAnnotator = () => {
       {review ? (
         <UiAnnotationReview
           notes={notes}
-          onClose={() => setReview(false)}
           onRemove={(id) => setNotes((previous) => previous.filter((note) => note.id !== id))}
         />
       ) : null}
-    </>
+    </aside>
   )
 }

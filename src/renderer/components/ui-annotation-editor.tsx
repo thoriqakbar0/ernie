@@ -1,7 +1,6 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./ui-annotations.styles"
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog"
 
 export type UiAnnotation = Readonly<{
   id: string
@@ -12,7 +11,7 @@ export type UiAnnotation = Readonly<{
 }>
 export type UiSelection = Omit<UiAnnotation, "id" | "comment">
 
-/** A selected app element becomes a local note only after explicit confirmation. */
+/** Edits a local note inline while its source UI remains available. */
 export const UiAnnotationEditor = ({
   selection,
   onSave,
@@ -25,54 +24,49 @@ export const UiAnnotationEditor = ({
   finalFocus: () => HTMLElement | null
 }) => {
   const [comment, setComment] = useState("")
+  const focused = useRef(false)
+  const close = () => {
+    onClose()
+    finalFocus()?.focus()
+  }
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose()
+    <form
+      aria-label={`Note on ${selection.element}`}
+      {...stylex.props(styles.editor)}
+
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (comment.trim()) {
+          onSave(comment.trim())
+          finalFocus()?.focus()
         }
       }}
     >
-      <DialogContent
-        data-ui-annotator
-        data-react-grab-ignore-events
-        xstyle={styles.dialog}
-        finalFocus={finalFocus}
-      >
-        <DialogTitle>Annotate UI</DialogTitle>
-        <DialogDescription>{selection.element}</DialogDescription>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (comment.trim()) {
-              onSave(comment.trim())
+      <label {...stylex.props(styles.label)}>
+        {selection.element}
+        <textarea
+          ref={(element) => {
+            if (element && !focused.current) {
+              focused.current = true
+              element.focus()
             }
           }}
-        >
-          <label {...stylex.props(styles.label)}>
-            Note
-            <textarea
-              autoFocus
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              required
-              {...stylex.props(styles.field)}
-            />
-          </label>
-          <p {...stylex.props(styles.hint)}>
-            Saved locally for review. Nothing is sent to an Agent.
-          </p>
-          <div {...stylex.props(styles.actions)}>
-            <button type="button" {...stylex.props(styles.button)} onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" {...stylex.props(styles.button)}>
-              Add note
-            </button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          aria-label={`Note on ${selection.element}`}
+          placeholder="Add a note…"
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          required
+          {...stylex.props(styles.field)}
+        />
+      </label>
+      <div {...stylex.props(styles.actions)}>
+        <button type="button" {...stylex.props(styles.button)} onClick={close}>
+          Cancel
+        </button>
+        <button type="submit" {...stylex.props(styles.button)}>
+          Add note
+        </button>
+      </div>
+    </form>
   )
 }

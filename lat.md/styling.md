@@ -38,9 +38,11 @@ Full integration tests, desktop smoke checks, builds, and Electron restarts requ
 
 ## Saved appearance
 
-Settings uses dropdowns for ten palettes, defaulting to Black & white and System, Light, and Dark modes. Preferences persist locally and apply before React mounts. Unavailable storage falls back to System on restart.
+Settings uses dropdowns for eleven palettes, defaulting to Black & white and System, Light, and Dark modes. Preferences persist locally and apply before React mounts. Unavailable storage falls back to System on restart.
 
 [[src/renderer/appearance.ts#saveAppearance]] applies the document color scheme and reports storage failure. Shared tokens reach portals and native controls. Explicit CSS branch variables avoid color-function lowering differences between the StyleX and document stylesheets. The separate native splash retains system appearance.
+
+Prime Intellect adapts the charcoal, cool white, and green palette of [its official site](https://www.primeintellect.ai/). It supports every appearance mode without changing the saved selection. Semantic status colors remain shared.
 
 ## Animated tabs
 

@@ -37,6 +37,7 @@ export const saveAppearance = (mode: AppearanceMode): "saved" | "unavailable" =>
 const Palette = Schema.Literals([
   "mono",
   "ernie",
+  "prime-intellect",
   "sage",
   "ocean",
   "rose",
@@ -52,6 +53,7 @@ const parsePalette = Schema.decodeUnknownOption(Palette)
 export const palettes = [
   { label: "Black & white", value: "mono" },
   { label: "Ernie", value: "ernie" },
+  { label: "Prime Intellect", value: "prime-intellect" },
   { label: "Sage", value: "sage" },
   { label: "Ocean", value: "ocean" },
   { label: "Rose", value: "rose" },
@@ -123,6 +125,24 @@ const paletteTokens = {
     "--surface": "light-dark(#fafdff, #1a2531)",
     "--surface-muted": "light-dark(#e7eef7, #253447)",
     "--surface-strong": "light-dark(#d6e2f0, #34485f)",
+  },
+  // Adapted from primeintellect.ai: charcoal, cool white, and #85ED75 green.
+  "prime-intellect": {
+    "--accent": "light-dark(#85ed75, #85ed75)",
+    "--accent-hover": "light-dark(#72d963, #9af28c)",
+    "--canvas": "light-dark(#f5f7f8, #0f0f0f)",
+    "--faint": "light-dark(#555d59, #a5aea8)",
+    "--focus": "light-dark(#286c28, #85ed75)",
+    "--focus-soft": "light-dark(#e5f3e2, #20321f)",
+    "--ink": "light-dark(#1c211e, #f5f7f8)",
+    "--ink-strong": "light-dark(#0f0f0f, #ffffff)",
+    "--muted": "light-dark(#47514a, #bdc5bf)",
+    "--on-accent": "#0f0f0f",
+    "--rule": "light-dark(#cdd3ce, #343b35)",
+    "--rule-strong": "light-dark(#78817a, #778179)",
+    "--surface": "light-dark(#ffffff, #1c1c1c)",
+    "--surface-muted": "light-dark(#edf1ed, #232823)",
+    "--surface-strong": "light-dark(#dfe6df, #303830)",
   },
   rose: {
     "--accent": "light-dark(#f1a7bb, #f1a7bb)",

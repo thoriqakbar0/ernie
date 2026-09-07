@@ -4,7 +4,7 @@ import type { PrimeDaemonConnection } from "../packages/prime-agent"
 export const describePrimeDaemonConnection = (state: PrimeDaemonConnection["state"]) => {
   switch (state.status) {
     case "connected": {
-      return { busy: false, label: "Connected", message: `Daemon ${state.version}` }
+      return { busy: false, label: "Connected to Prime Agent", message: `Daemon ${state.version}` }
     }
     case "connecting": {
       return {

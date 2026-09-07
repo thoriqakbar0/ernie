@@ -48,6 +48,12 @@ Failed reconnects preserve snapshots and pause commands. Recovery stops after th
 
 The external daemon and socket survive cleanup, as required by [[tests#Behavior specifications#Daemon boundary#External daemon ownership]].
 
+## Connection footer
+
+[[src/renderer/components/runtime-status.tsx#RuntimeStatus]] shows connection status and the Ernie version. A native Connection details disclosure separates the live Prime Agent version from the installed client version.
+
+Disconnected states retain visible diagnostics and the existing retry action. Connected status reads “Connected to Prime Agent” without repeating version metadata in the main line.
+
 ## Service shutdown
 
 Shutdown rejects new attachment acquisition, closes the shared transport, and joins pending attachment and recovery work before cleanup completes.

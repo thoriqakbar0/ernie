@@ -28,6 +28,7 @@ const styles = stylex.create({
     padding: "6px 12px",
   },
   ready: { color: theme["--success"] },
+  summary: { cursor: "pointer" },
 })
 
 /** Shows authoritative external connection health separately from package metadata. */
@@ -42,19 +43,30 @@ export const RuntimeStatus = () => {
   return (
     <footer {...stylex.props(styles.footer)}>
       <output>
-        Prime Agent ·{" "}
         <span {...stylex.props(connected && styles.ready)}>{description?.label ?? status}</span>
         {connection?.state.status === "connecting" ? ` (${connection.state.attempt}/3)` : null}
-        {connection?.state.status === "connected" ? ` · daemon ${connection.state.version}` : null}
       </output>
       {connection && !connected ? (
         <button type="button" disabled={busy} {...stylex.props(styles.button)} onClick={connect}>
           Retry connection
         </button>
       ) : null}
-      <span title="Installed client package versions">
-        client {primePackage.version} · Ernie {erniePackage.version}
-      </span>
+      <span>Ernie {erniePackage.version}</span>
+      <details>
+        <summary {...stylex.props(styles.summary)}>Connection details</summary>
+        <dl>
+          {connection?.state.status === "connected" ? (
+            <div>
+              <dt>Prime Agent version</dt>
+              <dd>{connection.state.version}</dd>
+            </div>
+          ) : null}
+          <div>
+            <dt>Client version</dt>
+            <dd>{primePackage.version}</dd>
+          </div>
+        </dl>
+      </details>
       {connection && !connected ? (
         <div {...stylex.props(styles.details)}>
           <div>{connection.socketPath}</div>

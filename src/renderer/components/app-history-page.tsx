@@ -329,10 +329,9 @@ export const AppHistoryPage = ({
   const source = sourceResult?.text
   const sourcePage = sourceResult?.next
   const [historyError, setHistoryError] = useState<Error>()
-  const errorMessage =
+  const unsupportedWorkspace =
     historyError instanceof HistoryRequestError && historyError.code === "unsupported_workspace"
-      ? undefined
-      : historyError?.message
+  const errorMessage = unsupportedWorkspace ? undefined : historyError?.message
   const [notice, setNotice] = useState<string>()
   const [pending, setPending] = useState<string | null>(null)
   const busy = pending !== null
@@ -453,7 +452,7 @@ export const AppHistoryPage = ({
         )}
         <HistoryFeedback
           message={errorMessage}
-          notice={notice}
+          notice={unsupportedWorkspace ? "No app history to show." : notice}
           pending={pending}
           retry={status ? undefined : () => act(refresh, "Refreshing…")}
         />

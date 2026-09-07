@@ -3,5 +3,16 @@ import { theme } from "../theme.stylex"
 
 /** Compact update status stays outside the transcript and composer. */
 export const styles = stylex.create({
-  notice: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "6px 12px", fontSize: "12px", color: theme["--ink"], backgroundColor: theme["--surface-muted"], flexShrink: "0" },
+  notice: {
+    alignItems: "center",
+    backgroundColor: theme["--surface-muted"],
+    color: theme["--ink"],
+    display: "flex",
+    flexShrink: "0",
+    flexWrap: "wrap",
+    fontSize: "12px",
+    gap: "8px",
+    justifyContent: "space-between",
+    padding: "6px 12px",
+  },
 })

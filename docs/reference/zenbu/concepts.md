@@ -1,14 +1,13 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Concepts
+
 Source: https://zenbulabs.mintlify.app/concepts
-
-
 
 Zenbu.js apps are Electron apps. The two processes you work with most are:
 
-* **Main process** - a Node.js process that has access to the file system and operating system.
-* **Renderer process** - a Chromium browser window that runs your React UI.
+- **Main process** - a Node.js process that has access to the file system and operating system.
+- **Renderer process** - a Chromium browser window that runs your React UI.
 
 The two processes communicate through Zenbu's RPC and event system instead of raw [Electron IPC](https://www.electronjs.org/docs/latest/tutorial/ipc).
 
@@ -16,9 +15,9 @@ The two processes communicate through Zenbu's RPC and event system instead of ra
 
 | Runtime  | Status |
 | -------- | ------ |
-| Electron | ✅      |
-| Tauri    | ⏳      |
-| Web      | ⏳      |
+| Electron | ✅     |
+| Tauri    | ⏳     |
+| Web      | ⏳     |
 
 ## Plugins
 

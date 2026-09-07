@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises"
-import { join } from "node:path"
+import path from "node:path"
 import { Effect, Schema } from "effect"
 import { HistoryController } from "../host/history/controller"
 import { sourceManifest } from "../host/history/source-store"
@@ -11,19 +11,27 @@ import { admitHistoryTurn } from "../main/prime-agent/history-admission"
 // Exercise admission through the real authenticated controller, using only disposable app source.
 test("admission rejects the original app root after activation and accepts the current generation", async () => {
   const root = await mkdtemp("/tmp/ernie-admit-")
-  const source = join(root, "source")
-  const home = join(root, "history")
+  const source = path.join(root, "source")
+  const home = path.join(root, "history")
   const keys = ["ERNIE_HISTORY_HOME", "ERNIE_MANAGED_SOURCE", "ERNIE_INITIAL_SOURCE"] as const
-  const previous = keys.map(key => [key, process.env[key]] as const)
+  const previous = keys.map((key) => [key, process.env[key]] as const)
   let closeServer: (() => Promise<void>) | undefined
   let controller: HistoryController | undefined
   try {
-    await mkdir(join(source, "src"), { recursive: true })
-    for (const file of sourceManifest.required) await writeFile(join(source, file), "{}")
-    await writeFile(join(source, "src", "app.ts"), "original")
-    controller = await HistoryController.open({ home, initialSource: source, managed: true, recoveryAvailable: true,
-      hostVersion: "test", dataGeneration: 1,
-      activation: { install: async () => {}, open: async () => {}, requestApproval: () => {} } })
+    await mkdir(path.join(source, "src"), { recursive: true })
+    await Promise.all(
+      sourceManifest.required.map((file) => writeFile(path.join(source, file), "{}")),
+    )
+    await writeFile(path.join(source, "src", "app.ts"), "original")
+    controller = await HistoryController.open({
+      activation: { install: async () => {}, open: async () => {}, requestApproval: () => {} },
+      dataGeneration: 1,
+      home,
+      hostVersion: "test",
+      initialSource: source,
+      managed: true,
+      recoveryAvailable: true,
+    })
     closeServer = await serveHistory(controller, home)
     process.env.ERNIE_HISTORY_HOME = home
     process.env.ERNIE_MANAGED_SOURCE = source
@@ -32,23 +40,47 @@ test("admission rejects the original app root after activation and accepts the c
     assert.ok(admitted)
     await admitted.finish()
     const status = Schema.decodeUnknownSync(Schema.Struct({ currentCheckpointId: Schema.String }))(
-      await Effect.runPromise(controller.request({ method: "history.status" })))
+      await Effect.runPromise(controller.request({ method: "history.status" })),
+    )
     const proposal = Schema.decodeUnknownSync(Schema.Struct({ id: Schema.String }))(
-      await Effect.runPromise(controller.request({ method: "history.prepare_restore", checkpointId: status.currentCheckpointId, requestId: "restore" })))
+      await Effect.runPromise(
+        controller.request({
+          checkpointId: status.currentCheckpointId,
+          method: "history.prepare_restore",
+          requestId: "restore",
+        }),
+      ),
+    )
     await controller.approve(proposal.id)
-    await assert.rejects(admitHistoryTurn(source, "stale-turn"), /inactive app generation/)
-    const afterRejection = Schema.decodeUnknownSync(Schema.Struct({ operations: Schema.Array(Schema.Unknown) }))(
-      await Effect.runPromise(controller.request({ method: "history.status" })))
+    await assert.rejects(admitHistoryTurn(source, "stale-turn"), /inactive app generation/u)
+    const afterRejection = Schema.decodeUnknownSync(
+      Schema.Struct({ operations: Schema.Array(Schema.Unknown) }),
+    )(await Effect.runPromise(controller.request({ method: "history.status" })))
     assert.equal(afterRejection.operations.length, 0)
     process.env.ERNIE_MANAGED_SOURCE = controller.activeGeneration
     const current = await admitHistoryTurn(controller.activeGeneration, "current-turn")
     assert.ok(current)
     await current.finish()
-    assert.equal(await admitHistoryTurn(join(root, "unrelated-project"), "unprotected-turn"), undefined)
+    assert.equal(
+      await admitHistoryTurn(path.join(root, "unrelated-project"), "unprotected-turn"),
+      undefined,
+    )
   } finally {
-    for (const [key, value] of previous) { if (value === undefined) delete process.env[key]; else process.env[key] = value }
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        if (key === "ERNIE_HISTORY_HOME") {
+          delete process.env.ERNIE_HISTORY_HOME
+        } else if (key === "ERNIE_MANAGED_SOURCE") {
+          delete process.env.ERNIE_MANAGED_SOURCE
+        } else {
+          delete process.env.ERNIE_INITIAL_SOURCE
+        }
+      } else {
+        process.env[key] = value
+      }
+    }
     controller?.stopWatching()
     await closeServer?.()
-    await rm(root, { recursive: true, force: true })
+    await rm(root, { force: true, recursive: true })
   }
 })

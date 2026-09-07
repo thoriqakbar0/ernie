@@ -8,36 +8,39 @@ export type PrimeAgentCommandAvailability<Connection> =
 
 class PrimeAgentTransportUnavailableError extends Error {
   readonly _tag = "PrimeAgentTransportUnavailableError"
+  readonly sessionId: string
+  readonly status: "failed" | "reconnecting"
 
-  constructor(
-    readonly sessionId: string,
-    readonly status: "failed" | "reconnecting",
-  ) {
+  constructor(sessionId: string, status: "failed" | "reconnecting") {
     super(`Prime Agent session ${sessionId} is ${status}`)
+    this.sessionId = sessionId
+    this.status = status
     this.name = "PrimeAgentTransportUnavailableError"
   }
 }
 
-export function checkPrimeAgentCommandAvailability<Connection>(input: Readonly<{
-  sessionId: string
-  recoveryActive: boolean
-  transportStatus: TransportStatus
-  connection: Connection | undefined
-}>): PrimeAgentCommandAvailability<Connection> {
+export const checkPrimeAgentCommandAvailability = <Connection>(
+  input: Readonly<{
+    sessionId: string
+    recoveryActive: boolean
+    transportStatus: TransportStatus
+    connection: Connection | undefined
+  }>,
+): PrimeAgentCommandAvailability<Connection> => {
   if (input.recoveryActive) {
     return {
-      ok: false,
       error: new PrimeAgentTransportUnavailableError(input.sessionId, "reconnecting"),
+      ok: false,
     }
   }
   if (input.transportStatus !== "connected" || !input.connection) {
     return {
-      ok: false,
       error: new PrimeAgentTransportUnavailableError(
         input.sessionId,
         input.transportStatus === "reconnecting" ? "reconnecting" : "failed",
       ),
+      ok: false,
     }
   }
-  return { ok: true, connection: input.connection }
+  return { connection: input.connection, ok: true }
 }

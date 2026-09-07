@@ -1,22 +1,26 @@
 import { Service } from "@zenbujs/core/runtime"
 import { HttpService, WindowService } from "@zenbujs/core/services"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
-import { publishRuntimeDescriptor, readRendererMode, registerDesktopSmokeConnectionProbe } from "../dev-runtime.ts"
+import {
+  publishRuntimeDescriptor,
+  readRendererMode,
+  registerDesktopSmokeConnectionProbe,
+} from "../dev-runtime.ts"
 
 export class InitService extends Service.create({
-  key: "init",
   deps: {
     http: HttpService,
     window: WindowService,
   },
+  key: "init",
 }) {
   async evaluate() {
     this.setup("sidebar-view", () =>
       this.inject({
-        name: SIDEBAR_VIEW_TYPE,
-        modulePath: "./src/renderer/components/sidebar.tsx",
         exportName: "Sidebar",
         meta: { kind: "sidebar", label: "Sidebar" },
+        modulePath: "./src/renderer/components/sidebar.tsx",
+        name: SIDEBAR_VIEW_TYPE,
       }),
     )
 

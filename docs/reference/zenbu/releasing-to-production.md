@@ -1,14 +1,13 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Releasing to Production
+
 Source: https://zenbulabs.mintlify.app/guides/production
-
-
 
 A Zenbu.js app ships in two pieces:
 
-* **The Electron app.** A small `.app` that contains a launcher and a bundled package manager. This is what the user installs.
-* **A git repository (the mirror).** A separate git repository that mirrors your development repo. It contains only the files needed to run the app. On first launch the Electron app clones the mirror, and on subsequent launches it pulls the latest version.
+- **The Electron app.** A small `.app` that contains a launcher and a bundled package manager. This is what the user installs.
+- **A git repository (the mirror).** A separate git repository that mirrors your development repo. It contains only the files needed to run the app. On first launch the Electron app clones the mirror, and on subsequent launches it pulls the latest version.
 
 Because the source lives in a separate repository, you can push updates without rebuilding or re-distributing the Electron app. Auto-updates can be implemented through git pulls, so shipping a new version is as fast as pushing a commit.
 
@@ -17,11 +16,7 @@ Because the source lives in a separate repository, you can push updates without 
 The build is configured inside `zenbu.config.ts` using `defineBuildConfig`:
 
 ```typescript zenbu.config.ts theme={null}
-import {
-  defineConfig,
-  definePlugin,
-  defineBuildConfig,
-} from "@zenbujs/core/config";
+import { defineConfig, definePlugin, defineBuildConfig } from "@zenbujs/core/config"
 
 export default defineConfig({
   // ...
@@ -40,7 +35,7 @@ export default defineConfig({
       branch: "main",
     },
   }),
-});
+})
 ```
 
 ### include and ignore
@@ -52,20 +47,20 @@ export default defineConfig({
 Build plugins let you transform files during staging or emit new files. Each plugin receives every file and can modify its contents, drop it entirely, or leave it unchanged.
 
 ```typescript theme={null}
-import { defineBuildConfig } from "@zenbujs/core/config";
-import type { BuildPlugin } from "@zenbujs/core/config";
+import { defineBuildConfig } from "@zenbujs/core/config"
+import type { BuildPlugin } from "@zenbujs/core/config"
 
 const injectLicense: BuildPlugin = {
   name: "inject-license",
   done(ctx) {
-    ctx.emit("LICENSE", "MIT License\n...");
+    ctx.emit("LICENSE", "MIT License\n...")
   },
-};
+}
 
 export default defineBuildConfig({
   // ...
   plugins: [injectLicense],
-});
+})
 ```
 
 A build plugin can define a `transform(path, contents)` function that runs on each file. Returning a string replaces the file's contents, returning `null` drops the file, and returning nothing leaves it as-is. The `done` function runs after all files are processed and can emit additional files with `ctx.emit()`.
@@ -111,7 +106,7 @@ The Electron app bundles a package manager that runs `install` on first launch a
 defineBuildConfig({
   // ...
   packageManager: { type: "bun", version: "1.3.12" },
-});
+})
 ```
 
 Supported options are `pnpm`, `npm`, `yarn`, and `bun`. The specified version is downloaded and cached during `zen build:electron`, then packaged into the `.app` bundle so the user's machine doesn't need a package manager installed.
@@ -160,15 +155,14 @@ src/renderer/
     <div class="progress"><div class="bar" id="bar"></div></div>
     <script>
       window.zenbuInstall.on("step", ({ label }) => {
-        document.getElementById("step").textContent = label;
-      });
+        document.getElementById("step").textContent = label
+      })
       window.zenbuInstall.on("progress", ({ ratio }) => {
-        if (ratio != null)
-          document.getElementById("bar").style.width = `${ratio * 100}%`;
-      });
+        if (ratio != null) document.getElementById("bar").style.width = `${ratio * 100}%`
+      })
       window.zenbuInstall.on("error", ({ message }) => {
-        document.getElementById("step").textContent = message;
-      });
+        document.getElementById("step").textContent = message
+      })
     </script>
   </body>
 </html>

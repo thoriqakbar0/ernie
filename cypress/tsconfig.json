@@ -4,10 +4,5 @@
     "noEmit": true,
     "types": ["cypress", "node"]
   },
-  "include": [
-    "./cypress.config.ts",
-    "./e2e/**/*.ts",
-    "./run.ts",
-    "./support/**/*.ts"
-  ]
+  "include": ["./cypress.config.ts", "./e2e/**/*.ts", "./run.ts", "./support/**/*.ts"]
 }

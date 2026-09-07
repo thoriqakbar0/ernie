@@ -31,13 +31,19 @@
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src/packages",
     "lat:check": "nub dlx lat.md@0.12.2 check",
-    "check": "zen link && tsc --noEmit && nub run lint:outline && nub run lint:stylex && nub run lint:boundaries && nub run lat:check && nub run test:integration && nub run test:integration:browser && zen build:source",
+    "check": "zen link && tsc --noEmit && nub run lint:check && nub run lint:outline && nub run lint:stylex && nub run lint:boundaries && nub run lat:check && nub run test:integration && nub run test:integration:browser && zen build:source",
     "konsistent": "konsistent",
     "lint:unused": "knip",
     "build:history": "nub --node scripts/build-history-desktop.mjs",
     "release:check": "nub --node scripts/release.ts check",
     "release:build": "nub --node scripts/release.ts build",
-    "test:integration:updates": "nub --test src/integration/updates.integration.test.ts src/integration/update-topology.integration.test.ts"
+    "test:integration:updates": "nub --test src/integration/updates.integration.test.ts src/integration/update-topology.integration.test.ts",
+    "lint": "oxlint",
+    "lint:check": "ultracite check",
+    "lint:fix": "ultracite fix",
+    "lint:doctor": "ultracite doctor",
+    "format:check": "oxfmt --check",
+    "format": "oxfmt --write"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -73,8 +79,12 @@
     "husky": "^9.1.7",
     "knip": "6.34.0",
     "konsistent": "^1.0.0-beta.4",
+    "oxfmt": "0.66.0",
+    "oxlint": "1.81.0",
+    "oxlint-plugin-react-doctor": "0.9.13",
     "react-grab": "^0.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "ultracite": "7.11.0"
   },
   "repository": {
     "type": "git",

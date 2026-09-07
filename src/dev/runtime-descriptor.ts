@@ -1,13 +1,15 @@
 import { Schema } from "effect"
 
-export const RuntimeDescriptor = Schema.Struct({
-  version: Schema.Literal(1),
-  generation: Schema.NonEmptyString,
-  ownerPid: Schema.Number,
-  origin: Schema.NonEmptyString,
+const RuntimeDescriptorSchema = Schema.Struct({
   authToken: Schema.NonEmptyString,
+  generation: Schema.NonEmptyString,
+  origin: Schema.NonEmptyString,
+  ownerPid: Schema.Number,
+  version: Schema.Literal(1),
 })
 
-export type RuntimeDescriptor = typeof RuntimeDescriptor.Type
+export { RuntimeDescriptorSchema as RuntimeDescriptor }
 
-export const parseRuntimeDescriptor = Schema.decodeUnknownSync(RuntimeDescriptor)
+export type RuntimeDescriptor = typeof RuntimeDescriptorSchema.Type
+
+export const parseRuntimeDescriptor = Schema.decodeUnknownSync(RuntimeDescriptorSchema)

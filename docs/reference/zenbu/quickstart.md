@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Quickstart
+
 Source: https://zenbulabs.mintlify.app/quickstart
-
-
 
 <Steps>
   <Step title="Scaffold the project">
@@ -34,6 +33,7 @@ Source: https://zenbulabs.mintlify.app/quickstart
     </Tabs>
 
     This creates a new directory with everything you need to get started.
+
   </Step>
 
   <Step title="Install dependencies">
@@ -62,6 +62,7 @@ Source: https://zenbulabs.mintlify.app/quickstart
         ```
       </Tab>
     </Tabs>
+
   </Step>
 
   <Step title="Start the app">
@@ -92,6 +93,7 @@ Source: https://zenbulabs.mintlify.app/quickstart
     </Tabs>
 
     Your app will open in a new window, and any changes you make will hot-reload.
+
   </Step>
 </Steps>
 

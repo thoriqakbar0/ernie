@@ -1,55 +1,75 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { chromium } from 'playwright';
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
+import { chromium } from "playwright"
 
 // Run one explicit interaction scenario against an already-running development server.
-const scenarioPath = process.argv[2];
-if (!scenarioPath) throw new Error('Usage: ernie-record scenario.mjs [output-parent]');
-const scenario = await import(pathToFileURL(resolve(scenarioPath)).href);
-if (typeof scenario.default !== 'function') throw new Error('Scenario must export a default async function');
-const parent = resolve(process.argv[3] ?? 'artifacts/interactions');
-await mkdir(parent, { recursive: true });
-const output = await mkdtemp(join(parent, 'recording-'));
-const viewport = { width: 1440, height: 900 };
-const browser = await chromium.launch({ chromiumSandbox: true });
-let context;
-let failed = false;
+const [scenarioPath] = process.argv.slice(2)
+if (!scenarioPath) {
+  throw new Error("Usage: ernie-record scenario.mjs [output-parent]")
+}
+const scenario = await import(pathToFileURL(path.resolve(scenarioPath)).href)
+if (typeof scenario.default !== "function") {
+  throw new TypeError("Scenario must export a default async function")
+}
+const parent = path.resolve(process.argv[3] ?? "artifacts/interactions")
+await mkdir(parent, { recursive: true })
+const output = await mkdtemp(path.join(parent, "recording-"))
+const viewport = { height: 900, width: 1440 }
+const browser = await chromium.launch({ chromiumSandbox: true })
+let context
+let failed = false
 try {
-  context = await browser.newContext({ viewport, recordVideo: { dir: output, size: viewport } });
-  await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-  const page = await context.newPage();
-  page.setDefaultTimeout(15000);
-  const steps = [];
-  const start = performance.now();
+  context = await browser.newContext({ recordVideo: { dir: output, size: viewport }, viewport })
+  await context.tracing.start({ screenshots: true, snapshots: true, sources: true })
+  const page = await context.newPage()
+  page.setDefaultTimeout(15_000)
+  const steps = []
+  const start = performance.now()
   const step = async (label, action) => {
-    const index = steps.length + 1;
-    const record = { index, label, startMs: performance.now() - start, status: 'running' };
-    steps.push(record);
-    await context.tracing.group(label);
+    const index = steps.length + 1
+    const record = { index, label, startMs: performance.now() - start, status: "running" }
+    steps.push(record)
+    await context.tracing.group(label)
     try {
-      await action();
-      record.status = 'completed';
+      await action()
+      record.status = "completed"
     } catch (error) {
-      record.status = 'failed';
-      throw error;
+      record.status = "failed"
+      throw error
     } finally {
-      record.endMs = performance.now() - start;
-      await page.screenshot({ path: join(output, `step-${String(index).padStart(3, '0')}.png`) });
-      await context.tracing.groupEnd();
+      record.endMs = performance.now() - start
+      await page.screenshot({
+        path: path.join(output, `step-${String(index).padStart(3, "0")}.png`),
+      })
+      await context.tracing.groupEnd()
     }
-  };
+  }
   try {
-    await scenario.default({ page, context, step, url: process.env.ERNIE_RECORD_URL ?? 'http://127.0.0.1:4310/?browser=1' });
+    await scenario.default({
+      context,
+      page,
+      step,
+      url: process.env.ERNIE_RECORD_URL ?? "http://127.0.0.1:4310/?browser=1",
+    })
   } catch (error) {
-    failed = true;
-    console.error(error);
+    failed = true
+    console.error(error)
   } finally {
-    await writeFile(join(output, 'steps.json'), JSON.stringify({ viewport, failed, steps }, null, 2));
-    await context.tracing.stop({ path: join(output, 'trace.zip') });
+    await writeFile(
+      path.join(output, "steps.json"),
+      JSON.stringify({ failed, steps, viewport }, null, 2),
+    )
+    await context.tracing.stop({ path: path.join(output, "trace.zip") })
   }
 } finally {
-  try { await context?.close(); } finally { await browser.close(); }
-  console.log(`Recording: ${output}`);
+  try {
+    await context?.close()
+  } finally {
+    await browser.close()
+  }
+  console.log(`Recording: ${output}`)
 }
-if (failed) process.exitCode = 1;
+if (failed) {
+  process.exitCode = 1
+}

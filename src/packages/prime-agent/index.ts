@@ -1,5 +1,6 @@
-export { SendRequest, SendReceipt } from "./send"
 import type { SendRequest, SendReceipt } from "./send"
+
+export { SendRequest, SendReceipt } from "./send"
 
 /** One session listed by Prime Agent. */
 export type PrimeSessionSummary = Readonly<{
@@ -32,7 +33,14 @@ export type PrimeSessionState = Readonly<{
 }>
 
 /** One model Prime Agent exposes to an attached session. */
-export type PrimeModel = Readonly<{ id: string; provider: string; label: string; cost?: { input: number; output: number }; updatedAt?: string; available?: boolean }>
+export type PrimeModel = Readonly<{
+  id: string
+  provider: string
+  label: string
+  cost?: { input: number; output: number }
+  updatedAt?: string
+  available?: boolean
+}>
 
 export type PrimeEffort = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
 
@@ -53,7 +61,7 @@ export type PrimeSessionMessage = Readonly<{
 }>
 
 /** One JSON-safe structured Prime Agent transcript message. */
-export type PrimeStructuredMessage = Readonly<{ [key: string]: PrimeJsonValue }>
+export type PrimeStructuredMessage = Readonly<Record<string, PrimeJsonValue>>
 
 /** One queued or active action owned by the Prime Agent session. */
 export type PrimeSessionActions = Readonly<{
@@ -247,45 +255,44 @@ export type SessionAction = Readonly<{
 /** The Prime Agent operations required by Ernie's first chat flow. */
 export interface PrimeAgentClient {
   /** Identifies the current main-process receipt owner before dispatch. */
-  getSendEpoch(): Promise<string>
+  getSendEpoch: () => Promise<string>
 
   /** Dispatches once per identity, or retrieves its existing receipt. */
-  sendMessage(request: SendRequest): Promise<SendReceipt>
+  sendMessage: (request: SendRequest) => Promise<SendReceipt>
 
   /** Inspects delivery and closes a missing identity against late dispatch. */
-  checkSend(request: SendRequest): Promise<SendReceipt>
+  checkSend: (request: SendRequest) => Promise<SendReceipt>
 
   /** Reads the newest authoritative session state. */
-  getSessionState(): Promise<PrimeSessionState>
+  getSessionState: () => Promise<PrimeSessionState>
 
   /** Observes newer authoritative session-state revisions. */
-  subscribeSessionState(listener: (state: PrimeSessionState) => void): () => void
+  subscribeSessionState: (listener: (state: PrimeSessionState) => void) => () => void
 
   /** Selects the session displayed by Ernie, or clears selection. */
-  selectSession(request: Readonly<{ sessionId?: string }>): Promise<void>
+  selectSession: (request: Readonly<{ sessionId?: string }>) => Promise<void>
 
   /** Creates a new session without attaching a renderer to it. */
-  createSession(request: CreateSessionRequest): Promise<PrimeSessionSummary>
+  createSession: (request: CreateSessionRequest) => Promise<PrimeSessionSummary>
 
   /** Attaches Ernie and returns the authoritative session snapshot. */
-  attachSession(request: AttachSessionRequest): Promise<PrimeSessionSnapshotEnvelope>
+  attachSession: (request: AttachSessionRequest) => Promise<PrimeSessionSnapshotEnvelope>
 
   /** Subscribes to ordered changes after attachment. */
-  subscribeSession(sessionId: string, listener: PrimeSessionEventListener): () => void
+  subscribeSession: (sessionId: string, listener: PrimeSessionEventListener) => () => void
 
   /** Requests cancellation of active work in one session. */
-  abort(request: SessionAction): Promise<void>
+  abort: (request: SessionAction) => Promise<void>
 
   /** Resolves when one session has no active work left. */
-  waitForIdle(request: SessionAction): Promise<void>
-
+  waitForIdle: (request: SessionAction) => Promise<void>
 }
 
 /** Optional model-control capability used by Ernie's full workspace shell. */
 export interface PrimeAgentModelClient extends PrimeAgentClient {
-  getModels(request: { sessionId?: string; all?: boolean }): Promise<readonly PrimeModel[]>
-  setModel(request: SessionAction & { provider: string; modelId: string }): Promise<void>
-  getRecurrentDepth(request: SessionAction): Promise<number>
-  setEffort(request: SessionAction & { effort: PrimeEffort }): Promise<void>
-  setRecurrentDepth(request: SessionAction & { recurrentDepth: number }): Promise<void>
+  getModels: (request: { sessionId?: string; all?: boolean }) => Promise<readonly PrimeModel[]>
+  setModel: (request: SessionAction & { provider: string; modelId: string }) => Promise<void>
+  getRecurrentDepth: (request: SessionAction) => Promise<number>
+  setEffort: (request: SessionAction & { effort: PrimeEffort }) => Promise<void>
+  setRecurrentDepth: (request: SessionAction & { recurrentDepth: number }) => Promise<void>
 }

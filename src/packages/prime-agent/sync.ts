@@ -11,9 +11,9 @@ import type {
 
 const strictParseOptions = { onExcessProperty: "error" } as const
 const finiteNumberSchema = Schema.Number.check(
-  Schema.makeFilter((value) => Number.isFinite(value)
-    ? undefined
-    : "JSON numbers must be finite"),
+  Schema.makeFilter((value) =>
+    Number.isFinite(value) ? undefined : "JSON numbers must be finite",
+  ),
 )
 
 const jsonValueSchema: Schema.Codec<PrimeJsonValue> = Schema.Union([
@@ -30,8 +30,8 @@ const jsonValueSchema: Schema.Codec<PrimeJsonValue> = Schema.Union([
 
 const modelSchema = Schema.Struct({
   id: Schema.NonEmptyString,
-  provider: Schema.NonEmptyString,
   label: Schema.NonEmptyString,
+  provider: Schema.NonEmptyString,
 })
 
 const structuredMessageSchema = Schema.Record(Schema.String, jsonValueSchema)
@@ -42,95 +42,78 @@ const cursorSchema = Schema.Struct({
 })
 
 const sessionActionsSchema = Schema.Struct({
+  active: Schema.optionalKey(
+    Schema.Struct({
+      kind: Schema.Literals(["session_command", "turn"]),
+      label: Schema.optionalKey(Schema.NonEmptyString),
+      phase: Schema.Literals(["committing", "preparing", "running"]),
+    }),
+  ),
+  followUps: Schema.Array(Schema.String),
   queuedCount: Schema.Natural,
   steering: Schema.Array(Schema.String),
-  followUps: Schema.Array(Schema.String),
-  active: Schema.optionalKey(Schema.Struct({
-    kind: Schema.Literals(["session_command", "turn"]),
-    phase: Schema.Literals(["committing", "preparing", "running"]),
-    label: Schema.optionalKey(Schema.NonEmptyString),
-  })),
 })
 
 const rlmChildSchema = Schema.Struct({
-  id: Schema.NonEmptyString,
-  parentId: Schema.optionalKey(Schema.NonEmptyString),
   activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
-  sessionName: Schema.optionalKey(Schema.NonEmptyString),
-  model: Schema.optionalKey(Schema.NonEmptyString),
-  label: Schema.NonEmptyString,
-  status: Schema.Literals(["cancelled", "done", "error", "queued", "running"]),
-  durationMs: Schema.optionalKey(Schema.Natural),
+  activity: Schema.optionalKey(
+    Schema.Struct({
+      kind: Schema.Literals(["executing", "waiting", "writing"]),
+      toolName: Schema.optionalKey(Schema.NonEmptyString),
+    }),
+  ),
   answerPreview: Schema.optionalKey(Schema.String),
-  repliedSinceTask: Schema.optionalKey(Schema.Boolean),
-  toolUseCount: Schema.optionalKey(Schema.Natural),
-  tokenCount: Schema.optionalKey(Schema.Natural),
-  recap: Schema.optionalKey(Schema.String),
-  sessionDir: Schema.NonEmptyString,
-  activity: Schema.optionalKey(Schema.Struct({
-    kind: Schema.Literals(["executing", "waiting", "writing"]),
-    toolName: Schema.optionalKey(Schema.NonEmptyString),
-  })),
+  durationMs: Schema.optionalKey(Schema.Natural),
   error: Schema.optionalKey(Schema.String),
+  id: Schema.NonEmptyString,
+  label: Schema.NonEmptyString,
+  model: Schema.optionalKey(Schema.NonEmptyString),
+  parentId: Schema.optionalKey(Schema.NonEmptyString),
+  recap: Schema.optionalKey(Schema.String),
+  repliedSinceTask: Schema.optionalKey(Schema.Boolean),
+  sessionDir: Schema.NonEmptyString,
+  sessionName: Schema.optionalKey(Schema.NonEmptyString),
+  status: Schema.Literals(["cancelled", "done", "error", "queued", "running"]),
+  tokenCount: Schema.optionalKey(Schema.Natural),
+  toolUseCount: Schema.optionalKey(Schema.Natural),
 })
 
 const usefulStateSchema = Schema.Struct({
   activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
-  sessionId: Schema.NonEmptyString,
-  cwd: Schema.NonEmptyString,
-  sessionName: Schema.optionalKey(Schema.NonEmptyString),
-  sessionFile: Schema.optionalKey(Schema.NonEmptyString),
-  sessionDir: Schema.optionalKey(Schema.NonEmptyString),
-  leafId: Schema.NullOr(Schema.NonEmptyString),
-  model: Schema.optionalKey(modelSchema),
-  thinkingLevel: Schema.NonEmptyString,
-  serviceTier: Schema.NonEmptyString,
-  availableThinkingLevels: Schema.Array(Schema.NonEmptyString),
-  isStreaming: Schema.Boolean,
-  isCompacting: Schema.Boolean,
-  isBashRunning: Schema.Boolean,
-  retryAttempt: Schema.Natural,
-  steeringMode: Schema.Literals(["all", "one-at-a-time"]),
-  followUpMode: Schema.Literals(["all", "one-at-a-time"]),
+  activeToolNames: Schema.Array(Schema.NonEmptyString),
   autoCompactionEnabled: Schema.Boolean,
-  messageCount: Schema.Natural,
-  sessionActions: sessionActionsSchema,
+  availableThinkingLevels: Schema.Array(Schema.NonEmptyString),
   compactionCount: Schema.Natural,
+  contextUsage: jsonValueSchema,
+  cwd: Schema.NonEmptyString,
+  followUpMode: Schema.Literals(["all", "one-at-a-time"]),
   goal: jsonValueSchema,
   heartbeat: Schema.optionalKey(Schema.NullOr(jsonValueSchema)),
-  scopedModels: Schema.Array(Schema.Struct({
-    model: modelSchema,
-    thinkingLevel: Schema.optionalKey(Schema.NonEmptyString),
-  })),
-  activeToolNames: Schema.Array(Schema.NonEmptyString),
-  contextUsage: jsonValueSchema,
+  isBashRunning: Schema.Boolean,
+  isCompacting: Schema.Boolean,
+  isStreaming: Schema.Boolean,
+  leafId: Schema.NullOr(Schema.NonEmptyString),
+  messageCount: Schema.Natural,
+  model: Schema.optionalKey(modelSchema),
   recap: Schema.optionalKey(Schema.String),
+  retryAttempt: Schema.Natural,
+  scopedModels: Schema.Array(
+    Schema.Struct({
+      model: modelSchema,
+      thinkingLevel: Schema.optionalKey(Schema.NonEmptyString),
+    }),
+  ),
+  serviceTier: Schema.NonEmptyString,
+  sessionActions: sessionActionsSchema,
+  sessionDir: Schema.optionalKey(Schema.NonEmptyString),
+  sessionFile: Schema.optionalKey(Schema.NonEmptyString),
+  sessionId: Schema.NonEmptyString,
+  sessionName: Schema.optionalKey(Schema.NonEmptyString),
+  steeringMode: Schema.Literals(["all", "one-at-a-time"]),
+  thinkingLevel: Schema.NonEmptyString,
 })
 
 const usefulContextSchema = Schema.Struct({
-  state: usefulStateSchema,
-  structuredMessages: Schema.Array(structuredMessageSchema),
-  streamingMessage: Schema.optionalKey(structuredMessageSchema),
-  sessionContext: Schema.optionalKey(Schema.Struct({
-    messages: Schema.Array(structuredMessageSchema),
-    thinkingLevel: Schema.NonEmptyString,
-    serviceTier: Schema.NonEmptyString,
-    model: Schema.NullOr(Schema.Struct({
-      provider: Schema.NonEmptyString,
-      modelId: Schema.NonEmptyString,
-    })),
-  })),
-  sessionTree: Schema.optionalKey(Schema.Struct({
-    tree: jsonValueSchema,
-    leafId: Schema.NullOr(Schema.NonEmptyString),
-  })),
-  parent: Schema.optionalKey(Schema.Struct({
-    activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
-    sessionId: Schema.optionalKey(Schema.NonEmptyString),
-    nodeId: Schema.optionalKey(Schema.NonEmptyString),
-    childId: Schema.optionalKey(Schema.NonEmptyString),
-  })),
-  childrenAvailable: Schema.optionalKey(Schema.Boolean),
   children: Schema.Array(rlmChildSchema).check(
     Schema.makeFilter((children) => {
       const ids = new Set<string>()
@@ -145,29 +128,62 @@ const usefulContextSchema = Schema.Struct({
       return issues
     }),
   ),
-  lastEventSequence: Schema.optionalKey(Schema.Natural),
+  childrenAvailable: Schema.optionalKey(Schema.Boolean),
   lastEventCursor: Schema.optionalKey(cursorSchema),
-  replay: Schema.optionalKey(Schema.Struct({
-    status: Schema.Literals(["complete", "partial", "unavailable"]),
-    fromSequence: Schema.optionalKey(Schema.Natural),
-    toSequence: Schema.Natural,
-    fromCursor: Schema.optionalKey(cursorSchema),
-    toCursor: Schema.optionalKey(cursorSchema),
-    reason: Schema.optionalKey(Schema.String),
-  })),
+  lastEventSequence: Schema.optionalKey(Schema.Natural),
+  parent: Schema.optionalKey(
+    Schema.Struct({
+      activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
+      childId: Schema.optionalKey(Schema.NonEmptyString),
+      nodeId: Schema.optionalKey(Schema.NonEmptyString),
+      sessionId: Schema.optionalKey(Schema.NonEmptyString),
+    }),
+  ),
+  replay: Schema.optionalKey(
+    Schema.Struct({
+      fromCursor: Schema.optionalKey(cursorSchema),
+      fromSequence: Schema.optionalKey(Schema.Natural),
+      reason: Schema.optionalKey(Schema.String),
+      status: Schema.Literals(["complete", "partial", "unavailable"]),
+      toCursor: Schema.optionalKey(cursorSchema),
+      toSequence: Schema.Natural,
+    }),
+  ),
+  sessionContext: Schema.optionalKey(
+    Schema.Struct({
+      messages: Schema.Array(structuredMessageSchema),
+      model: Schema.NullOr(
+        Schema.Struct({
+          modelId: Schema.NonEmptyString,
+          provider: Schema.NonEmptyString,
+        }),
+      ),
+      serviceTier: Schema.NonEmptyString,
+      thinkingLevel: Schema.NonEmptyString,
+    }),
+  ),
+  sessionTree: Schema.optionalKey(
+    Schema.Struct({
+      leafId: Schema.NullOr(Schema.NonEmptyString),
+      tree: jsonValueSchema,
+    }),
+  ),
+  state: usefulStateSchema,
+  streamingMessage: Schema.optionalKey(structuredMessageSchema),
+  structuredMessages: Schema.Array(structuredMessageSchema),
 })
 
 const sessionSummarySchema = Schema.Struct({
-  activitySummary: Schema.optionalKey(Schema.String),
   activityAt: Schema.optionalKey(Schema.String),
-  workerFailed: Schema.optionalKey(Schema.Boolean),
-  rlmDepth: Schema.optionalKey(Schema.Natural),
-  id: Schema.NonEmptyString,
+  activitySummary: Schema.optionalKey(Schema.String),
   cwd: Schema.NonEmptyString,
-  name: Schema.optionalKey(Schema.NonEmptyString),
+  id: Schema.NonEmptyString,
   lifecycle: Schema.Literals(["archived", "draft", "live"]),
-  state: Schema.Literals(["idle", "working", "recovering"]),
   model: Schema.optionalKey(modelSchema),
+  name: Schema.optionalKey(Schema.NonEmptyString),
+  rlmDepth: Schema.optionalKey(Schema.Natural),
+  state: Schema.Literals(["idle", "working", "recovering"]),
+  workerFailed: Schema.optionalKey(Schema.Boolean),
 })
 
 const sessionStateSchema = Schema.Struct({
@@ -183,14 +199,13 @@ const sessionStateSchema = Schema.Struct({
     if (state.selectedSessionId && !ids.has(state.selectedSessionId)) {
       return { issue: "selected session must exist in session state", path: ["selectedSessionId"] }
     }
-    return undefined
   }),
 )
 
 const sessionMessageSchema = Schema.Struct({
+  content: Schema.String,
   id: Schema.NonEmptyString,
   role: Schema.Literals(["assistant", "system", "user"]),
-  content: Schema.String,
 })
 
 const sessionMessagesSchema = Schema.Array(sessionMessageSchema).check(
@@ -211,132 +226,143 @@ const sessionMessagesSchema = Schema.Array(sessionMessageSchema).check(
   }),
 )
 
-const transportSchema = Schema.Union(
-  [
-    Schema.Struct({ status: Schema.Literal("connected") }),
-    Schema.Struct({
-      status: Schema.Literal("reconnecting"),
-      error: Schema.optionalKey(Schema.NonEmptyString),
-    }),
-    Schema.Struct({
-      status: Schema.Literal("failed"),
-      error: Schema.NonEmptyString,
-    }),
-  ],
-)
+const transportSchema = Schema.Union([
+  Schema.Struct({ status: Schema.Literal("connected") }),
+  Schema.Struct({
+    error: Schema.optionalKey(Schema.NonEmptyString),
+    status: Schema.Literal("reconnecting"),
+  }),
+  Schema.Struct({
+    error: Schema.NonEmptyString,
+    status: Schema.Literal("failed"),
+  }),
+])
 
 const sessionSnapshotSchema = Schema.Struct({
-  session: sessionSummarySchema,
   messages: sessionMessagesSchema,
-  useful: usefulContextSchema,
+  session: sessionSummarySchema,
   transport: transportSchema,
+  useful: usefulContextSchema,
 })
 
-const sessionChangeSchema = Schema.Union(
-  [
-    Schema.Struct({ type: Schema.Literal("session"), session: sessionSummarySchema }),
-    Schema.Struct({ type: Schema.Literal("message"), message: sessionMessageSchema }),
-    Schema.Struct({ type: Schema.Literal("messages"), messages: sessionMessagesSchema }),
-    Schema.Struct({
-      type: Schema.Literal("structured"),
-      structuredMessages: Schema.Array(structuredMessageSchema),
-      streamingMessage: Schema.optionalKey(structuredMessageSchema),
-    }),
-    Schema.Struct({ type: Schema.Literal("usefulState"), state: usefulStateSchema }),
-    Schema.Struct({
-      type: Schema.Literal("sessionContext"),
-      sessionContext: Schema.optionalKey(Schema.Struct({
+const sessionChangeSchema = Schema.Union([
+  Schema.Struct({ session: sessionSummarySchema, type: Schema.Literal("session") }),
+  Schema.Struct({ message: sessionMessageSchema, type: Schema.Literal("message") }),
+  Schema.Struct({ messages: sessionMessagesSchema, type: Schema.Literal("messages") }),
+  Schema.Struct({
+    streamingMessage: Schema.optionalKey(structuredMessageSchema),
+    structuredMessages: Schema.Array(structuredMessageSchema),
+    type: Schema.Literal("structured"),
+  }),
+  Schema.Struct({ state: usefulStateSchema, type: Schema.Literal("usefulState") }),
+  Schema.Struct({
+    sessionContext: Schema.optionalKey(
+      Schema.Struct({
         messages: Schema.Array(structuredMessageSchema),
-        thinkingLevel: Schema.NonEmptyString,
+        model: Schema.NullOr(
+          Schema.Struct({
+            modelId: Schema.NonEmptyString,
+            provider: Schema.NonEmptyString,
+          }),
+        ),
         serviceTier: Schema.NonEmptyString,
-        model: Schema.NullOr(Schema.Struct({
-          provider: Schema.NonEmptyString,
-          modelId: Schema.NonEmptyString,
-        })),
-      })),
-    }),
-    Schema.Struct({
-      type: Schema.Literal("family"),
-      parent: Schema.optionalKey(Schema.Struct({
+        thinkingLevel: Schema.NonEmptyString,
+      }),
+    ),
+    type: Schema.Literal("sessionContext"),
+  }),
+  Schema.Struct({
+    children: Schema.Array(rlmChildSchema),
+    childrenAvailable: Schema.optionalKey(Schema.Boolean),
+    parent: Schema.optionalKey(
+      Schema.Struct({
         activeSessionId: Schema.optionalKey(Schema.NonEmptyString),
-        sessionId: Schema.optionalKey(Schema.NonEmptyString),
-        nodeId: Schema.optionalKey(Schema.NonEmptyString),
         childId: Schema.optionalKey(Schema.NonEmptyString),
-      })),
-      sessionTree: Schema.optionalKey(Schema.Struct({
-        tree: jsonValueSchema,
+        nodeId: Schema.optionalKey(Schema.NonEmptyString),
+        sessionId: Schema.optionalKey(Schema.NonEmptyString),
+      }),
+    ),
+    sessionTree: Schema.optionalKey(
+      Schema.Struct({
         leafId: Schema.NullOr(Schema.NonEmptyString),
-      })),
-      childrenAvailable: Schema.optionalKey(Schema.Boolean),
-      children: Schema.Array(rlmChildSchema),
-    }),
-    Schema.Struct({
-      type: Schema.Literal("eventPosition"),
-      lastEventSequence: Schema.optionalKey(Schema.Natural),
-      lastEventCursor: Schema.optionalKey(cursorSchema),
-      replay: Schema.optionalKey(Schema.Struct({
-        status: Schema.Literals(["complete", "partial", "unavailable"]),
-        fromSequence: Schema.optionalKey(Schema.Natural),
-        toSequence: Schema.Natural,
+        tree: jsonValueSchema,
+      }),
+    ),
+    type: Schema.Literal("family"),
+  }),
+  Schema.Struct({
+    lastEventCursor: Schema.optionalKey(cursorSchema),
+    lastEventSequence: Schema.optionalKey(Schema.Natural),
+    replay: Schema.optionalKey(
+      Schema.Struct({
         fromCursor: Schema.optionalKey(cursorSchema),
-        toCursor: Schema.optionalKey(cursorSchema),
+        fromSequence: Schema.optionalKey(Schema.Natural),
         reason: Schema.optionalKey(Schema.String),
-      })),
-    }),
-    Schema.Struct({ type: Schema.Literal("transport"), transport: transportSchema }),
-  ],
-)
+        status: Schema.Literals(["complete", "partial", "unavailable"]),
+        toCursor: Schema.optionalKey(cursorSchema),
+        toSequence: Schema.Natural,
+      }),
+    ),
+    type: Schema.Literal("eventPosition"),
+  }),
+  Schema.Struct({ transport: transportSchema, type: Schema.Literal("transport") }),
+])
 
 const envelopeFields = {
-  sessionId: Schema.NonEmptyString,
   generation: Schema.NonEmptyString,
   revision: Schema.Natural,
+  sessionId: Schema.NonEmptyString,
 }
 
 const snapshotEnvelopeSchema = Schema.Struct({
   ...envelopeFields,
   snapshot: sessionSnapshotSchema,
 }).check(
-  Schema.makeFilter((envelope) => envelope.sessionId === envelope.snapshot.session.id
-    ? undefined
-    : {
-        issue: "snapshot session id must match its envelope",
-        path: ["snapshot", "session", "id"],
-      }),
+  Schema.makeFilter((envelope) =>
+    envelope.sessionId === envelope.snapshot.session.id
+      ? undefined
+      : {
+          issue: "snapshot session id must match its envelope",
+          path: ["snapshot", "session", "id"],
+        },
+  ),
 )
 
 const changeEnvelopeSchema = Schema.Struct({
   ...envelopeFields,
   change: sessionChangeSchema,
 }).check(
-  Schema.makeFilter((envelope) => envelope.change.type !== "session" ||
-      envelope.sessionId === envelope.change.session.id
-    ? undefined
-    : {
-        issue: "changed session id must match its envelope",
-        path: ["change", "session", "id"],
-      }),
+  Schema.makeFilter((envelope) =>
+    envelope.change.type !== "session" || envelope.sessionId === envelope.change.session.id
+      ? undefined
+      : {
+          issue: "changed session id must match its envelope",
+          path: ["change", "session", "id"],
+        },
+  ),
 )
 
 /** Safe failure returned when a cross-process session payload is invalid. */
 class PrimeSessionProtocolError extends Error {
   readonly _tag = "PrimeSessionProtocolError"
+  readonly envelope: "change" | "snapshot" | "state"
 
   /** Creates a safe error without retaining the rejected payload. */
-  constructor(readonly envelope: "change" | "snapshot" | "state") {
+  constructor(envelope: "change" | "snapshot" | "state") {
     super(`Prime Agent returned an invalid session ${envelope} envelope`)
+    this.envelope = envelope
     this.name = "PrimeSessionProtocolError"
   }
 }
 
 /** Parses an unknown authoritative session state. */
-export function parsePrimeSessionState(
+export const parsePrimeSessionState = (
   input: unknown,
-): PrimeSessionParseResult<PrimeSessionState> {
+): PrimeSessionParseResult<PrimeSessionState> => {
   const parsed = Schema.decodeUnknownOption(sessionStateSchema, strictParseOptions)(input)
   return Option.isSome(parsed)
     ? { ok: true, value: parsed.value }
-    : { ok: false, error: new PrimeSessionProtocolError("state") }
+    : { error: new PrimeSessionProtocolError("state"), ok: false }
 }
 
 /** Result of parsing one unknown cross-process payload. */
@@ -345,33 +371,30 @@ export type PrimeSessionParseResult<Value> =
   | Readonly<{ ok: false; error: PrimeSessionProtocolError }>
 
 /** Parses an unknown authoritative session snapshot envelope. */
-export function parsePrimeSessionSnapshotEnvelope(
+export const parsePrimeSessionSnapshotEnvelope = (
   input: unknown,
-): PrimeSessionParseResult<PrimeSessionSnapshotEnvelope> {
+): PrimeSessionParseResult<PrimeSessionSnapshotEnvelope> => {
   const parsed = Schema.decodeUnknownOption(snapshotEnvelopeSchema, strictParseOptions)(input)
   return Option.isSome(parsed)
     ? { ok: true, value: parsed.value }
-    : { ok: false, error: new PrimeSessionProtocolError("snapshot") }
+    : { error: new PrimeSessionProtocolError("snapshot"), ok: false }
 }
 
 /** Parses an unknown ordered session change envelope. */
-export function parsePrimeSessionChangeEnvelope(
+export const parsePrimeSessionChangeEnvelope = (
   input: unknown,
-): PrimeSessionParseResult<PrimeSessionChangeEnvelope> {
+): PrimeSessionParseResult<PrimeSessionChangeEnvelope> => {
   const parsed = Schema.decodeUnknownOption(changeEnvelopeSchema, strictParseOptions)(input)
   return Option.isSome(parsed)
     ? { ok: true, value: parsed.value }
-    : { ok: false, error: new PrimeSessionProtocolError("change") }
+    : { error: new PrimeSessionProtocolError("change"), ok: false }
 }
 
 /** Maximum live changes retained while an authoritative snapshot is pending. */
 const PRIME_SESSION_CHANGE_BUFFER_LIMIT = 256
 
 /** Reason the renderer must request another authoritative session snapshot. */
-type PrimeSessionRecoveryReason =
-  | "buffer-overflow"
-  | "generation-changed"
-  | "revision-gap"
+type PrimeSessionRecoveryReason = "buffer-overflow" | "generation-changed" | "revision-gap"
 
 type ObservedRevision = Readonly<{
   generation: string
@@ -398,169 +421,22 @@ export type PrimeSessionSyncState =
       latestObserved?: ObservedRevision
     }>
 
-// @lat: [[runtime#Prime Agent runtime#Ordered synchronization]]
-/** Starts synchronization before the renderer requests its first snapshot. */
-export function createPrimeSessionSyncState(sessionId: string): PrimeSessionSyncState {
-  return { status: "attaching", sessionId, bufferedChanges: [] }
-}
-
-/** Applies an ordered change or enters recovery when ordering cannot be proven. */
-export function reducePrimeSessionChange(
-  state: PrimeSessionSyncState,
-  envelope: PrimeSessionChangeEnvelope,
-): PrimeSessionSyncState {
-  if (sessionIdOf(state) !== envelope.sessionId) return state
-  if (state.status === "ready") return reduceReadyChange(state.envelope, envelope)
-  if (state.status === "recovering" && state.reason === "buffer-overflow") {
-    return {
-      ...state,
-      latestObserved: newestObserved(state.latestObserved, envelope),
-    }
-  }
-  if (state.bufferedChanges.length >= PRIME_SESSION_CHANGE_BUFFER_LIMIT) {
-    return {
-      status: "recovering",
-      sessionId: state.sessionId,
-      reason: "buffer-overflow",
-      lastSnapshot: state.status === "recovering" ? state.lastSnapshot : undefined,
-      bufferedChanges: [],
-      latestObserved: newestObserved(undefined, envelope),
-    }
-  }
-  return { ...state, bufferedChanges: [...state.bufferedChanges, envelope] }
-}
-
-/** Applies an authoritative snapshot and any changes buffered after subscription. */
-export function reducePrimeSessionSnapshot(
-  state: PrimeSessionSyncState,
-  envelope: PrimeSessionSnapshotEnvelope,
-): PrimeSessionSyncState {
-  if (sessionIdOf(state) !== envelope.sessionId) return state
-  if (state.status === "ready") {
-    if (
-      state.envelope.generation === envelope.generation &&
-      envelope.revision < state.envelope.revision
-    ) {
-      return state
-    }
-    return { status: "ready", envelope }
-  }
-  if (
-    state.status === "recovering" &&
-    state.reason === "buffer-overflow" &&
-    state.latestObserved &&
-    !coversObserved(envelope, state.latestObserved)
-  ) {
-    return { ...state, lastSnapshot: envelope }
-  }
-
-  let next: PrimeSessionSyncState = { status: "ready", envelope }
-  for (const change of state.bufferedChanges) {
-    if (change.generation !== envelope.generation) continue
-    next = reducePrimeSessionChange(next, change)
-    if (next.status !== "ready") return next
-  }
-  return next
-}
-
-/** Returns the last safe snapshot while attachment or recovery continues. */
-export function getPrimeSessionSnapshotEnvelope(
-  state: PrimeSessionSyncState,
-): PrimeSessionSnapshotEnvelope | undefined {
-  if (state.status === "ready") return state.envelope
-  return state.status === "recovering" ? state.lastSnapshot : undefined
-}
-
-function reduceReadyChange(
-  current: PrimeSessionSnapshotEnvelope,
-  envelope: PrimeSessionChangeEnvelope,
-): PrimeSessionSyncState {
-  if (current.generation !== envelope.generation) {
-    return recovering(current, envelope, "generation-changed")
-  }
-  if (envelope.revision <= current.revision) {
-    return { status: "ready", envelope: current }
-  }
-  if (envelope.revision !== current.revision + 1) {
-    return recovering(current, envelope, "revision-gap")
-  }
-  return {
-    status: "ready",
-    envelope: {
-      sessionId: current.sessionId,
-      generation: current.generation,
-      revision: envelope.revision,
-      snapshot: applyChange(current.snapshot, envelope.change),
-    },
-  }
-}
-
-function recovering(
+const recovering = (
   current: PrimeSessionSnapshotEnvelope,
   envelope: PrimeSessionChangeEnvelope,
   reason: PrimeSessionRecoveryReason,
-): PrimeSessionSyncState {
-  return {
-    status: "recovering",
-    sessionId: current.sessionId,
-    reason,
-    lastSnapshot: current,
-    bufferedChanges: [envelope],
-  }
-}
+): PrimeSessionSyncState => ({
+  bufferedChanges: [envelope],
+  lastSnapshot: current,
+  reason,
+  sessionId: current.sessionId,
+  status: "recovering",
+})
 
-function applyChange(
-  snapshot: PrimeSessionSnapshot,
-  change: PrimeSessionChange,
-): PrimeSessionSnapshot {
-  switch (change.type) {
-    case "session":
-      return { ...snapshot, session: change.session }
-    case "message": {
-      const index = snapshot.messages.findIndex(({ id }) => id === change.message.id)
-      if (index === -1) {
-        return { ...snapshot, messages: [...snapshot.messages, change.message] }
-      }
-      return {
-        ...snapshot,
-        messages: snapshot.messages.map((message, messageIndex) =>
-          messageIndex === index ? change.message : message
-        ),
-      }
-    }
-    case "messages":
-      return { ...snapshot, messages: change.messages }
-    case "structured":
-      return {
-        ...snapshot,
-        useful: replaceStructuredMessages(snapshot.useful, change),
-      }
-    case "usefulState":
-      return { ...snapshot, useful: { ...snapshot.useful, state: change.state } }
-    case "sessionContext":
-      return {
-        ...snapshot,
-        useful: replaceSessionContext(snapshot.useful, change.sessionContext),
-      }
-    case "family":
-      return {
-        ...snapshot,
-        useful: replaceFamily(snapshot.useful, change),
-      }
-    case "eventPosition":
-      return {
-        ...snapshot,
-        useful: replaceEventPosition(snapshot.useful, change),
-      }
-    case "transport":
-      return { ...snapshot, transport: change.transport }
-  }
-}
-
-function replaceStructuredMessages(
+const replaceStructuredMessages = (
   useful: PrimeSessionSnapshot["useful"],
   change: Extract<PrimeSessionChange, { type: "structured" }>,
-): PrimeSessionSnapshot["useful"] {
+): PrimeSessionSnapshot["useful"] => {
   const { streamingMessage: _streamingMessage, ...rest } = useful
   return {
     ...rest,
@@ -569,32 +445,32 @@ function replaceStructuredMessages(
   }
 }
 
-function replaceSessionContext(
+const replaceSessionContext = (
   useful: PrimeSessionSnapshot["useful"],
   sessionContext: PrimeSessionSnapshot["useful"]["sessionContext"],
-): PrimeSessionSnapshot["useful"] {
+): PrimeSessionSnapshot["useful"] => {
   const { sessionContext: _sessionContext, ...rest } = useful
   return { ...rest, ...(sessionContext ? { sessionContext } : {}) }
 }
 
-function replaceFamily(
+const replaceFamily = (
   useful: PrimeSessionSnapshot["useful"],
   change: Extract<PrimeSessionChange, { type: "family" }>,
-): PrimeSessionSnapshot["useful"] {
+): PrimeSessionSnapshot["useful"] => {
   const { parent: _parent, sessionTree: _sessionTree, ...rest } = useful
   return {
     ...rest,
     ...(change.parent ? { parent: change.parent } : {}),
     ...(change.sessionTree ? { sessionTree: change.sessionTree } : {}),
-    childrenAvailable: change.childrenAvailable,
     children: change.children,
+    childrenAvailable: change.childrenAvailable,
   }
 }
 
-function replaceEventPosition(
+const replaceEventPosition = (
   useful: PrimeSessionSnapshot["useful"],
   change: Extract<PrimeSessionChange, { type: "eventPosition" }>,
-): PrimeSessionSnapshot["useful"] {
+): PrimeSessionSnapshot["useful"] => {
   const {
     lastEventSequence: _lastEventSequence,
     lastEventCursor: _lastEventCursor,
@@ -611,14 +487,96 @@ function replaceEventPosition(
   }
 }
 
-function sessionIdOf(state: PrimeSessionSyncState) {
-  return state.status === "ready" ? state.envelope.sessionId : state.sessionId
+const applyChange = (
+  snapshot: PrimeSessionSnapshot,
+  change: PrimeSessionChange,
+): PrimeSessionSnapshot => {
+  switch (change.type) {
+    case "session": {
+      return { ...snapshot, session: change.session }
+    }
+    case "message": {
+      const index = snapshot.messages.findIndex(({ id }) => id === change.message.id)
+      if (index === -1) {
+        return { ...snapshot, messages: [...snapshot.messages, change.message] }
+      }
+      return {
+        ...snapshot,
+        messages: snapshot.messages.map((message, messageIndex) =>
+          messageIndex === index ? change.message : message,
+        ),
+      }
+    }
+    case "messages": {
+      return { ...snapshot, messages: change.messages }
+    }
+    case "structured": {
+      return {
+        ...snapshot,
+        useful: replaceStructuredMessages(snapshot.useful, change),
+      }
+    }
+    case "usefulState": {
+      return { ...snapshot, useful: { ...snapshot.useful, state: change.state } }
+    }
+    case "sessionContext": {
+      return {
+        ...snapshot,
+        useful: replaceSessionContext(snapshot.useful, change.sessionContext),
+      }
+    }
+    case "family": {
+      return {
+        ...snapshot,
+        useful: replaceFamily(snapshot.useful, change),
+      }
+    }
+    case "eventPosition": {
+      return {
+        ...snapshot,
+        useful: replaceEventPosition(snapshot.useful, change),
+      }
+    }
+    case "transport": {
+      return { ...snapshot, transport: change.transport }
+    }
+    default: {
+      throw new Error(`Unexpected session change: ${change satisfies never}`)
+    }
+  }
 }
 
-function newestObserved(
+const reduceReadyChange = (
+  current: PrimeSessionSnapshotEnvelope,
+  envelope: PrimeSessionChangeEnvelope,
+): PrimeSessionSyncState => {
+  if (current.generation !== envelope.generation) {
+    return recovering(current, envelope, "generation-changed")
+  }
+  if (envelope.revision <= current.revision) {
+    return { envelope: current, status: "ready" }
+  }
+  if (envelope.revision !== current.revision + 1) {
+    return recovering(current, envelope, "revision-gap")
+  }
+  return {
+    envelope: {
+      generation: current.generation,
+      revision: envelope.revision,
+      sessionId: current.sessionId,
+      snapshot: applyChange(current.snapshot, envelope.change),
+    },
+    status: "ready",
+  }
+}
+
+const sessionIdOf = (state: PrimeSessionSyncState) =>
+  state.status === "ready" ? state.envelope.sessionId : state.sessionId
+
+const newestObserved = (
   current: ObservedRevision | undefined,
   envelope: PrimeSessionChangeEnvelope,
-): ObservedRevision {
+): ObservedRevision => {
   if (!current || current.generation !== envelope.generation) {
     return { generation: envelope.generation, revision: envelope.revision }
   }
@@ -628,9 +586,92 @@ function newestObserved(
   }
 }
 
-function coversObserved(
+const coversObserved = (envelope: PrimeSessionSnapshotEnvelope, observed: ObservedRevision) =>
+  envelope.generation === observed.generation && envelope.revision >= observed.revision
+
+// @lat: [[runtime#Prime Agent runtime#Ordered synchronization]]
+/** Starts synchronization before the renderer requests its first snapshot. */
+export const createPrimeSessionSyncState = (sessionId: string): PrimeSessionSyncState => ({
+  bufferedChanges: [],
+  sessionId,
+  status: "attaching",
+})
+
+/** Applies an ordered change or enters recovery when ordering cannot be proven. */
+export const reducePrimeSessionChange = (
+  state: PrimeSessionSyncState,
+  envelope: PrimeSessionChangeEnvelope,
+): PrimeSessionSyncState => {
+  if (sessionIdOf(state) !== envelope.sessionId) {
+    return state
+  }
+  if (state.status === "ready") {
+    return reduceReadyChange(state.envelope, envelope)
+  }
+  if (state.status === "recovering" && state.reason === "buffer-overflow") {
+    return {
+      ...state,
+      latestObserved: newestObserved(state.latestObserved, envelope),
+    }
+  }
+  if (state.bufferedChanges.length >= PRIME_SESSION_CHANGE_BUFFER_LIMIT) {
+    return {
+      bufferedChanges: [],
+      lastSnapshot: state.status === "recovering" ? state.lastSnapshot : undefined,
+      latestObserved: newestObserved(undefined, envelope),
+      reason: "buffer-overflow",
+      sessionId: state.sessionId,
+      status: "recovering",
+    }
+  }
+  return { ...state, bufferedChanges: [...state.bufferedChanges, envelope] }
+}
+
+/** Applies an authoritative snapshot and any changes buffered after subscription. */
+export const reducePrimeSessionSnapshot = (
+  state: PrimeSessionSyncState,
   envelope: PrimeSessionSnapshotEnvelope,
-  observed: ObservedRevision,
-) {
-  return envelope.generation === observed.generation && envelope.revision >= observed.revision
+): PrimeSessionSyncState => {
+  if (sessionIdOf(state) !== envelope.sessionId) {
+    return state
+  }
+  if (state.status === "ready") {
+    if (
+      state.envelope.generation === envelope.generation &&
+      envelope.revision < state.envelope.revision
+    ) {
+      return state
+    }
+    return { envelope, status: "ready" }
+  }
+  if (
+    state.status === "recovering" &&
+    state.reason === "buffer-overflow" &&
+    state.latestObserved &&
+    !coversObserved(envelope, state.latestObserved)
+  ) {
+    return { ...state, lastSnapshot: envelope }
+  }
+
+  let next: PrimeSessionSyncState = { envelope, status: "ready" }
+  for (const change of state.bufferedChanges) {
+    if (change.generation !== envelope.generation) {
+      continue
+    }
+    next = reducePrimeSessionChange(next, change)
+    if (next.status !== "ready") {
+      return next
+    }
+  }
+  return next
+}
+
+/** Returns the last safe snapshot while attachment or recovery continues. */
+export const getPrimeSessionSnapshotEnvelope = (
+  state: PrimeSessionSyncState,
+): PrimeSessionSnapshotEnvelope | undefined => {
+  if (state.status === "ready") {
+    return state.envelope
+  }
+  return state.status === "recovering" ? state.lastSnapshot : undefined
 }

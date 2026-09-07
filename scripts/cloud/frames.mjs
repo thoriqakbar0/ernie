@@ -1,22 +1,62 @@
-import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { execFileSync } from "node:child_process"
+import { mkdir, writeFile } from "node:fs/promises"
+import path from "node:path"
 
-const [input, directory] = process.argv.slice(2);
-if (!input || !directory) throw new Error('Usage: ernie-frames video.webm new-output-directory');
-const output = resolve(directory);
+const [input, directory] = process.argv.slice(2)
+if (!input || !directory) {
+  throw new Error("Usage: ernie-frames video.webm new-output-directory")
+}
+const output = path.resolve(directory)
 // Require a new directory so frame extraction cannot overwrite earlier evidence.
-await mkdir(output);
-const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_frames', '-show_entries', 'frame=best_effort_timestamp_time', '-of', 'json', resolve(input)], { maxBuffer: 32 * 1024 * 1024 }));
-if (!Array.isArray(probe.frames) || probe.frames.length === 0) throw new Error('No video frames found');
+await mkdir(output)
+const probe = JSON.parse(
+  execFileSync(
+    "ffprobe",
+    [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_frames",
+      "-show_entries",
+      "frame=best_effort_timestamp_time",
+      "-of",
+      "json",
+      path.resolve(input),
+    ],
+    { maxBuffer: 32 * 1024 * 1024 },
+  ),
+)
+if (!Array.isArray(probe.frames) || probe.frames.length === 0) {
+  throw new Error("No video frames found")
+}
 const timestamps = probe.frames.map((frame) => {
-  const seconds = Number(frame.best_effort_timestamp_time);
-  if (!Number.isFinite(seconds)) throw new Error('Invalid frame timestamp');
-  return seconds;
-});
-execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', resolve(input), '-map', '0:v:0', '-fps_mode', 'passthrough', join(output, 'frame-%06d.png')], { stdio: 'inherit' });
-await writeFile(join(output, 'timestamps.json'), JSON.stringify(timestamps));
-await writeFile(join(output, 'index.html'), `<!doctype html>
+  const seconds = Number(frame.best_effort_timestamp_time)
+  if (!Number.isFinite(seconds)) {
+    throw new TypeError("Invalid frame timestamp")
+  }
+  return seconds
+})
+execFileSync(
+  "ffmpeg",
+  [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    path.resolve(input),
+    "-map",
+    "0:v:0",
+    "-fps_mode",
+    "passthrough",
+    path.join(output, "frame-%06d.png"),
+  ],
+  { stdio: "inherit" },
+)
+await writeFile(path.join(output, "timestamps.json"), JSON.stringify(timestamps))
+await writeFile(
+  path.join(output, "index.html"),
+  `<!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Interaction frames</title>
 <style>body{font:16px system-ui;margin:24px;background:#f5f5f5;color:#171717}nav{display:flex;gap:12px;align-items:center;margin:16px 0}input{flex:1}img{max-width:100%;height:auto;border:1px solid #bbb}button{font:inherit;padding:8px}output{min-width:200px}</style>
@@ -33,5 +73,6 @@ document.getElementById('previous').onclick=()=>move(-1);
 document.getElementById('next').onclick=()=>move(1);
 document.addEventListener('keydown',event=>{if(event.target===slider)return;if(event.key==='ArrowLeft'){event.preventDefault();move(-1)}if(event.key==='ArrowRight'){event.preventDefault();move(1)}});
 show();
-</script>`);
-console.log(`Frames: ${timestamps.length}\nViewer: ${join(output, 'index.html')}`);
+</script>`,
+)
+console.log(`Frames: ${timestamps.length}\nViewer: ${path.join(output, "index.html")}`)

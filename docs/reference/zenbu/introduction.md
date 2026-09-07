@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Introduction
+
 Source: https://zenbulabs.mintlify.app/introduction
-
-
 
 Zenbu.js is the framework for building extensible applications that powers [Zenbu](https://zenbu.dev).
 
@@ -13,9 +12,9 @@ The SDK also handles the hard parts of application development, like syncing sta
 
 ### Why build with Zenbu.js
 
-* Coding agents can generate and customize software on demand for a specific use case. An app built on Zenbu.js gives them full access to do that.
-* Letting people modify your app means more directions get explored than you could reach on your own.
-* Extensible code tends to be more maintainable, because it's already written to be changed.
+- Coding agents can generate and customize software on demand for a specific use case. An app built on Zenbu.js gives them full access to do that.
+- Letting people modify your app means more directions get explored than you could reach on your own.
+- Extensible code tends to be more maintainable, because it's already written to be changed.
 
 ## Quick links
 

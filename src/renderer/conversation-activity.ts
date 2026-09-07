@@ -2,29 +2,84 @@ import { Option, Schema } from "effect"
 import type { PrimeSessionSnapshot } from "../packages/prime-agent"
 
 const ToolResult = Schema.Struct({
+  content: Schema.Array(Schema.Unknown),
+  isError: Schema.Boolean,
   role: Schema.Literal("toolResult"),
   toolCallId: Schema.String,
   toolName: Schema.String,
-  isError: Schema.Boolean,
-  content: Schema.Array(Schema.Unknown),
 })
-const AssistantMessage = Schema.Struct({ role: Schema.Literal("assistant"), content: Schema.Array(Schema.Unknown) })
+const AssistantMessage = Schema.Struct({
+  content: Schema.Array(Schema.Unknown),
+  role: Schema.Literal("assistant"),
+})
 const ResponseEnd = Schema.Struct({ role: Schema.Literal("assistant"), stopReason: Schema.String })
 const decodeResponseEnd = Schema.decodeUnknownOption(ResponseEnd)
-const PythonCall = Schema.Struct({ type: Schema.Literal("toolCall"), id: Schema.String, name: Schema.Literals(["ipython", "python"]), arguments: Schema.Struct({ code: Schema.String }) })
+const PythonCall = Schema.Struct({
+  arguments: Schema.Struct({ code: Schema.String }),
+  id: Schema.String,
+  name: Schema.Literals(["ipython", "python"]),
+  type: Schema.Literal("toolCall"),
+})
 const decodeAssistant = Schema.decodeUnknownOption(AssistantMessage)
 const decodePython = Schema.decodeUnknownOption(PythonCall)
-const TextPart = Schema.Struct({ type: Schema.Literal("text"), text: Schema.String })
+const TextPart = Schema.Struct({ text: Schema.String, type: Schema.Literal("text") })
 const decodeResult = Schema.decodeUnknownOption(ToolResult)
 const decodeText = Schema.decodeUnknownOption(TextPart)
 
 /** Safe presentation of an authoritative tool result; excludes reasoning and exposes only validated Python source. */
-type ConversationToolResult = Readonly<{ id: string; name: string; failed: boolean; pending: boolean; text: string; code?: string }>
+type ConversationToolResult = Readonly<{
+  id: string
+  name: string
+  failed: boolean
+  pending: boolean
+  text: string
+  code?: string
+}>
+
+const describeResponseStatus = (settled: boolean, ending: string | undefined) => {
+  if (!settled) {
+    return
+  }
+  if (ending === "stop") {
+    return "Response complete"
+  }
+  if (ending === "aborted") {
+    return "Stopped"
+  }
+  if (ending === "error") {
+    return "Response failed"
+  }
+  if (ending === "length") {
+    return "Response limit reached"
+  }
+}
+
+const describeActivitySummary = (snapshot: PrimeSessionSnapshot, resultCount: number) => {
+  const { session, useful, transport } = snapshot
+  const { state } = useful
+  if (transport.status !== "connected") {
+    return "Activity unavailable while disconnected"
+  }
+  if (session.state === "recovering") {
+    return "Restoring this conversation…"
+  }
+  if (session.workerFailed) {
+    return "A worker reported a failure"
+  }
+  if (session.state === "working") {
+    return (
+      session.activitySummary ||
+      state.sessionActions.active?.label ||
+      (state.activeToolNames.length ? `Using ${state.activeToolNames.join(", ")}` : "Working…")
+    )
+  }
+  return resultCount ? "Execution details" : undefined
+}
 
 /** Projects supported runtime details without making task-level success or ownership claims. */
-export function describeConversationActivity(snapshot: PrimeSessionSnapshot) {
+export const describeConversationActivity = (snapshot: PrimeSessionSnapshot) => {
   const { session, useful, transport } = snapshot
-  const state = useful.state
+  const { state } = useful
   const action = state.sessionActions.active
   const results: ConversationToolResult[] = []
   const runs = new Map<string, ConversationToolResult>()
@@ -32,38 +87,58 @@ export function describeConversationActivity(snapshot: PrimeSessionSnapshot) {
     const assistant = Option.getOrUndefined(decodeAssistant(message))
     for (const part of assistant?.content ?? []) {
       const call = Option.getOrUndefined(decodePython(part))
-      if (call && !runs.has(call.id)) runs.set(call.id, { id: call.id, name: call.name, code: call.arguments.code, text: "", failed: false, pending: true })
+      if (call && !runs.has(call.id)) {
+        runs.set(call.id, {
+          code: call.arguments.code,
+          failed: false,
+          id: call.id,
+          name: call.name,
+          pending: true,
+          text: "",
+        })
+      }
     }
     const parsed = Option.getOrUndefined(decodeResult(message))
-    if (!parsed) continue
-    const text = parsed.content.flatMap((part) => {
-      const decoded = Option.getOrUndefined(decodeText(part))
-      return decoded ? [decoded.text] : []
-    }).join("\n")
-    runs.set(parsed.toolCallId, { id: parsed.toolCallId, name: parsed.toolName, failed: parsed.isError, pending: false, text, code: runs.get(parsed.toolCallId)?.code })
+    if (!parsed) {
+      continue
+    }
+    const text = parsed.content
+      .flatMap((part) => {
+        const decoded = Option.getOrUndefined(decodeText(part))
+        return decoded ? [decoded.text] : []
+      })
+      .join("\n")
+    runs.set(parsed.toolCallId, {
+      code: runs.get(parsed.toolCallId)?.code,
+      failed: parsed.isError,
+      id: parsed.toolCallId,
+      name: parsed.toolName,
+      pending: false,
+      text,
+    })
   }
   results.push(...runs.values())
   // Only the last finalized message can establish completion; a newer user/tool
   // message invalidates an older response's stop reason.
   const lastMessage = useful.structuredMessages.at(-1)
   const ending = Option.getOrUndefined(decodeResponseEnd(lastMessage))?.stopReason
-  const settled = !useful.streamingMessage && !state.isStreaming && !state.sessionActions.active && state.sessionActions.queuedCount === 0
-  const responseStatus = !settled ? undefined : ending === "stop" ? "Response complete" : ending === "aborted" ? "Stopped" : ending === "error" ? "Response failed" : ending === "length" ? "Response limit reached" : undefined
+  const settled =
+    !useful.streamingMessage &&
+    !state.isStreaming &&
+    !state.sessionActions.active &&
+    state.sessionActions.queuedCount === 0
+  const responseStatus = describeResponseStatus(settled, ending)
   const active = session.state === "working"
-  const summary = transport.status !== "connected" ? "Activity unavailable while disconnected"
-    : session.state === "recovering" ? "Restoring this conversation…"
-    : session.workerFailed ? "A worker reported a failure"
-    : active ? session.activitySummary || action?.label || (state.activeToolNames.length ? `Using ${state.activeToolNames.join(", ")}` : "Working…")
-    : results.length ? "Execution details" : undefined
+  const summary = describeActivitySummary(snapshot, results.length)
   return {
-    summary,
-    responseStatus,
     active: active && transport.status === "connected",
-    phase: active ? action?.phase : undefined,
-    tools: active ? state.activeToolNames : [],
-    queued: state.sessionActions.queuedCount,
-    followUps: state.sessionActions.followUps,
-    results,
     children: useful.children,
+    followUps: state.sessionActions.followUps,
+    phase: active ? action?.phase : undefined,
+    queued: state.sessionActions.queuedCount,
+    responseStatus,
+    results,
+    summary,
+    tools: active ? state.activeToolNames : [],
   }
 }

@@ -10,6 +10,39 @@ Use browser HMR for UI iteration and keep the current service host alive. [AGENT
 
 Keep UI decisions in [ui.md](ui.md), ownership in [architecture.md](architecture.md), and protocol invariants in [data-structures.md](data-structures.md). Put transient screenshots, timings, and session identifiers in the task handoff.
 
+## Lint and format changes
+
+Ultracite uses Oxlint's core and React presets, plus `oxlint-plugin-react-doctor`, with Oxfmt for formatting. Install the pinned tools with `nub install`.
+
+| Command                            | Scope                                                 |
+| ---------------------------------- | ----------------------------------------------------- |
+| `nub run lint:doctor`              | Validate the Ultracite installation and configuration |
+| `nub run lint:check`               | Check lint and formatting without changing files      |
+| `nub run lint`                     | Run Oxlint alone; accepts paths and `--format json`   |
+| `nub run format:check`             | Check formatting alone                                |
+| `nub run lint:fix path/to/file.ts` | Apply lint fixes and formatting to selected files     |
+| `nub run format path/to/file.ts`   | Format selected files                                 |
+
+Pass explicit paths when fixing files, then review the diff. Without paths, fix commands process the repository. Avoid a repository-wide rewrite during feature work.
+
+Oxfmt preserves semicolon-free source, double quotes, two-space indentation, a 100-column target, and trailing commas. Import sorting stays disabled to preserve side-effect ordering. Package key sorting and Tailwind formatting are disabled. Both tools exclude Zenbu output, build output, dependencies, and vendored repositories.
+
+The presets do not replace Zenbu linking, TypeScript, or Ernie's outline, StyleX, and package-boundary guards. Run `nub run link` before `nub run typecheck` in a fresh checkout. Type-aware Oxlint rules are not enabled. StyleX's `stylex.props` spreads remain supported by the React preset; custom styling checks still enforce Ernie's rules.
+
+`nub run check` includes `lint:check` alongside the existing checks, integrations, and build. The existing pre-commit hook remains unchanged. Follow the repository's opt-in rules before running the full check.
+
+### Compatibility with Ernie
+
+Review fixes against behavior, especially StyleX property ordering, asynchronous loops, callbacks, and hook dependencies. The configuration keeps these exceptions:
+
+- React Compiler lowering diagnostics (`react/todo`) and removal of manual memoization are disabled because this Vite app does not use React Compiler. Memoization still controls reference stability and rendering work.
+- The two domain modules using Effect's curried `Schema.TaggedError` factory exclude `unicorn/throw-new-error`; its autofix inserts an invalid constructor call.
+- File-mode masks and deterministic avatar hashes retain bitwise operations. Sidebar hashing retains its original UTF-16 code-unit API.
+- The session-state provider uses lazy state to retain runtime clients without replacement setters; it excludes the setter-pair naming rule.
+- Named Zenbu RPC and lifecycle entry points may omit `this`; they remain instance methods.
+
+Ultracite's doctor validates the tooling setup. Lint, formatting, TypeScript, and Ernie's custom guards each need their own successful check.
+
 ## Browser scenarios
 
 Use the existing development server with `?browser=1&scenario=agents` or `?browser=1&scenario=workspaces`. These routes reuse production components with isolated clients. Changing presets resets fixture state; no live commands should be sent.

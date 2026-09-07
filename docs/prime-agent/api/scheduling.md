@@ -6,60 +6,60 @@ Every command has the literal `type` shown in its heading and an optional wire `
 
 ## cron_list
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | no | `string` |
-| `includeInactive` | no | `boolean` |
+| Field             | Required | Type      |
+| ----------------- | -------- | --------- |
+| `activeSessionId` | no       | `string`  |
+| `includeInactive` | no       | `boolean` |
 
 ## heartbeats_list
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | no | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | no       | `string` |
 
 ## heartbeat_manage
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `jobId` | yes | `string` |
-| `action` | yes | `AgentHeartbeatManagementAction` |
+| Field             | Required | Type                             |
+| ----------------- | -------- | -------------------------------- |
+| `activeSessionId` | yes      | `string`                         |
+| `jobId`           | yes      | `string`                         |
+| `action`          | yes      | `AgentHeartbeatManagementAction` |
 
 ## cron_add
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `schedule` | yes | `string` |
-| `prompt` | yes | `string` |
-| `promoteOwnedSession` | no | `boolean` |
+| Field                 | Required | Type      |
+| --------------------- | -------- | --------- |
+| `activeSessionId`     | yes      | `string`  |
+| `schedule`            | yes      | `string`  |
+| `prompt`              | yes      | `string`  |
+| `promoteOwnedSession` | no       | `boolean` |
 
 ## cron_cancel
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | no | `string` |
-| `jobId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | no       | `string` |
+| `jobId`           | yes      | `string` |
 
 ## heartbeat_get
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## heartbeat_set
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `schedule` | yes | `string` |
-| `prompt` | yes | `string` |
-| `deliveryMode` | no | `AgentHeartbeatDeliveryMode` |
-| `promoteOwnedSession` | no | `boolean` |
+| Field                 | Required | Type                         |
+| --------------------- | -------- | ---------------------------- |
+| `activeSessionId`     | yes      | `string`                     |
+| `schedule`            | yes      | `string`                     |
+| `prompt`              | yes      | `string`                     |
+| `deliveryMode`        | no       | `AgentHeartbeatDeliveryMode` |
+| `promoteOwnedSession` | no       | `boolean`                    |
 
 ## heartbeat_update
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `action` | yes | `AgentHeartbeatUpdateAction` |
+| Field             | Required | Type                         |
+| ----------------- | -------- | ---------------------------- |
+| `activeSessionId` | yes      | `string`                     |
+| `action`          | yes      | `AgentHeartbeatUpdateAction` |

@@ -7,12 +7,13 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentProps,
-  type ReactNode,
 } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
-import { controlStyles, type StyledProps } from "./styles"
+import { controlStyles } from "./styles"
+import type { StyledProps } from "./styles"
 import { Button } from "@/components/ui/button"
+
 type ScrollBehavior = "auto" | "smooth"
 type MessageScrollerContextValue = Readonly<{
   atEnd: boolean
@@ -21,25 +22,28 @@ type MessageScrollerContextValue = Readonly<{
   viewportRef: React.RefObject<HTMLDivElement | null>
 }>
 const MessageScrollerContext = createContext<MessageScrollerContextValue | null>(null)
-function useMessageScroller() {
+const useMessageScroller = () => {
   const context = useContext(MessageScrollerContext)
-  if (!context) throw new Error("MessageScroller components require MessageScrollerProvider")
+  if (!context) {
+    throw new Error("MessageScroller components require MessageScrollerProvider")
+  }
   return context
 }
 type ReadingPosition = Readonly<{ top: number; atEnd: boolean }>
 const ReadingPositions = createContext<Map<string, ReadingPosition> | undefined>(undefined)
 /** Keeps reading position for the application lifetime, independently of transcript remounts. */
-export function MessageReadingProvider({ children }: { children: ReactNode }) {
-  const [positions] = useState(() => new Map<string, ReadingPosition>())
+export const MessageReadingProvider = ({ children }: { children: ReactNode }) => {
+  const [positions, setPositions] = useState(() => new Map<string, ReadingPosition>())
+  void setPositions
   return <ReadingPositions.Provider value={positions}>{children}</ReadingPositions.Provider>
 }
-function MessageScrollerProvider({
+const MessageScrollerProvider = ({
   children,
   restorationKey,
 }: Readonly<{
   children: ReactNode
   restorationKey?: string
-}>) {
+}>) => {
   const positions = useContext(ReadingPositions)
   const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -47,7 +51,9 @@ function MessageScrollerProvider({
   const [atEnd, setAtEnd] = useState(true)
   const scrollToEnd = useCallback((behavior: ScrollBehavior = "smooth") => {
     const viewport = viewportRef.current
-    if (!viewport) return
+    if (!viewport) {
+      return
+    }
     viewport.scrollTo({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : behavior,
       top: viewport.scrollHeight,
@@ -56,18 +62,28 @@ function MessageScrollerProvider({
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const content = contentRef.current
-    if (!viewport || !content) return
+    if (!viewport || !content) {
+      return
+    }
     const updatePosition = () => {
-      if (viewport.clientHeight === 0) return
+      if (viewport.clientHeight === 0) {
+        return
+      }
       const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
       const nextAtEnd = remaining <= 2
       pinnedToEndRef.current = nextAtEnd
       setAtEnd(nextAtEnd)
-      if (restorationKey) positions?.set(restorationKey, { top: viewport.scrollTop, atEnd: nextAtEnd })
+      if (restorationKey) {
+        positions?.set(restorationKey, { atEnd: nextAtEnd, top: viewport.scrollTop })
+      }
     }
     const resizeObserver = new ResizeObserver(() => {
-      if (viewport.clientHeight === 0) return
-      if (pinnedToEndRef.current) scrollToEnd("auto")
+      if (viewport.clientHeight === 0) {
+        return
+      }
+      if (pinnedToEndRef.current) {
+        scrollToEnd("auto")
+      }
       updatePosition()
     })
     resizeObserver.observe(viewport)
@@ -76,8 +92,11 @@ function MessageScrollerProvider({
       passive: true,
     })
     const saved = restorationKey ? positions?.get(restorationKey) : undefined
-    if (saved && !saved.atEnd) viewport.scrollTop = saved.top
-    else scrollToEnd("auto")
+    if (saved && !saved.atEnd) {
+      viewport.scrollTop = saved.top
+    } else {
+      scrollToEnd("auto")
+    }
     updatePosition()
     return () => {
       resizeObserver.disconnect()
@@ -95,27 +114,56 @@ function MessageScrollerProvider({
   )
   return <MessageScrollerContext value={value}>{children}</MessageScrollerContext>
 }
-function MessageScroller({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) {
-  return <div {...stylex.props(styles.MessageScroller, xstyle)} {...props} />
-}
-function MessageScrollerViewport({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) {
+const styles = stylex.create({
+  MessageScroller: {
+    display: "flex",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+    position: "relative",
+    width: "100%",
+  },
+  MessageScrollerButton: {
+    borderRadius: 9999,
+    bottom: 16,
+    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+    left: "50%",
+    position: "absolute",
+    transform: "translateX(-50%)",
+    zIndex: 10,
+  },
+  MessageScrollerContent: {
+    display: "flex",
+    flexDirection: "column",
+  },
+  MessageScrollerViewport: {
+    height: "100%",
+    overflowY: "auto",
+    overscrollBehavior: "contain",
+    width: "100%",
+  },
+})
+const MessageScroller = ({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) => (
+  <div {...stylex.props(styles.MessageScroller, xstyle)} {...props} />
+)
+const MessageScrollerViewport = ({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) => {
   const { viewportRef } = useMessageScroller()
   return (
     <div {...stylex.props(styles.MessageScrollerViewport, xstyle)} ref={viewportRef} {...props} />
   )
 }
-function MessageScrollerContent({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) {
+const MessageScrollerContent = ({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) => {
   const { contentRef } = useMessageScroller()
   return (
     <div {...stylex.props(styles.MessageScrollerContent, xstyle)} ref={contentRef} {...props} />
   )
 }
-function MessageScrollerItem(props: StyledProps<ComponentProps<"div">>) {
-  return <div {...props} />
-}
-function MessageScrollerButton({ xstyle, ...props }: ComponentProps<typeof Button>) {
+const MessageScrollerItem = (props: StyledProps<ComponentProps<"div">>) => <div {...props} />
+const MessageScrollerButton = ({ xstyle, ...props }: ComponentProps<typeof Button>) => {
   const { atEnd, scrollToEnd } = useMessageScroller()
-  if (atEnd) return null
+  if (atEnd) {
+    return null
+  }
   return (
     <Button
       aria-label="Scroll to latest message"
@@ -139,32 +187,3 @@ export {
   MessageScrollerViewport,
   useMessageScroller,
 }
-const styles = stylex.create({
-  MessageScroller: {
-    position: "relative",
-    display: "flex",
-    width: "100%",
-    height: "100%",
-    minHeight: 0,
-    overflow: "hidden",
-  },
-  MessageScrollerViewport: {
-    width: "100%",
-    height: "100%",
-    overflowY: "auto",
-    overscrollBehavior: "contain",
-  },
-  MessageScrollerContent: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  MessageScrollerButton: {
-    position: "absolute",
-    bottom: 16,
-    left: "50%",
-    zIndex: 10,
-    transform: "translateX(-50%)",
-    borderRadius: 9999,
-    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-  },
-})

@@ -79,6 +79,7 @@ All settings tab lists use the shared AnimatedTabs selection pill, including app
 The welcome composer exposes draft model settings beside the Agent chip. It uses the selected session catalog when available and allows explicit provider/model IDs when no catalog exists. Both fields are required together; clearing both uses the runtime default. These values are saved only on first send. The folder panel stacks its label, full path, and change action.
 
 A compact workspace footer shows the installed Prime Agent package version, session catalog readiness, and Ernie package version. It does not claim the version of an external daemon.
+
 ### Theme preference
 
 Settings offers ten palettes, defaulting to Black & white, with System, Light, and Dark modes in the Appearance tab. Changes apply immediately and persist in local browser or app storage. Failed saves keep the current appearance and offer retry by selecting a mode. The native splash continues to follow system appearance.

@@ -6,107 +6,107 @@ Every command has the literal `type` shown in its heading and an optional wire `
 
 ## list
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `all` | no | `boolean` |
-| `cwd` | no | `string` |
-| `sessionDir` | no | `string` |
-| `includeClientOwned` | no | `boolean` |
+| Field                | Required | Type      |
+| -------------------- | -------- | --------- |
+| `all`                | no       | `boolean` |
+| `cwd`                | no       | `string`  |
+| `sessionDir`         | no       | `string`  |
+| `includeClientOwned` | no       | `boolean` |
 
 ## list_saved_sessions
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `scope` | yes | `AgentConnectionSavedSessionScope` |
+| Field             | Required | Type                               |
+| ----------------- | -------- | ---------------------------------- |
+| `activeSessionId` | yes      | `string`                           |
+| `scope`           | yes      | `AgentConnectionSavedSessionScope` |
 
 ## list_saved_sessions
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `cwd` | yes | `string` |
-| `sessionDir` | no | `string` |
-| `scope` | yes | `AgentConnectionSavedSessionScope` |
+| Field        | Required | Type                               |
+| ------------ | -------- | ---------------------------------- |
+| `cwd`        | yes      | `string`                           |
+| `sessionDir` | no       | `string`                           |
+| `scope`      | yes      | `AgentConnectionSavedSessionScope` |
 
 ## roster_subscribe
 
 | Field | Required | Type |
-| --- | --- | --- |
+| ----- | -------- | ---- |
 
 ## roster_unsubscribe
 
 | Field | Required | Type |
-| --- | --- | --- |
+| ----- | -------- | ---- |
 
 ## get_session_header
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_state
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_connection_state
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_messages
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_session_stats
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_context_tree
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_commands
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_resource_snapshot
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_session_context
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_session_tree
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_last_assistant_text
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
 
 ## get_tool_definition
 
-| Field | Required | Type |
-| --- | --- | --- |
-| `activeSessionId` | yes | `string` |
-| `name` | yes | `string` |
+| Field             | Required | Type     |
+| ----------------- | -------- | -------- |
+| `activeSessionId` | yes      | `string` |
+| `name`            | yes      | `string` |

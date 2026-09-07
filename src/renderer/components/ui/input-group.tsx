@@ -4,169 +4,180 @@ import { Button } from "./button"
 import { Input } from "./input"
 import { Textarea } from "./textarea"
 import type { StyledProps } from "./styles"
+
 const styles = stylex.create({
-  group: {
-    position: "relative",
-    display: "flex",
-    width: "100%",
-    minWidth: 0,
-    alignItems: "center",
-    height: {
-      default: 32,
-      ':has(> [data-align="block-end"], > [data-align="block-start"], > textarea)': "auto",
-    },
-    flexDirection: {
-      default: "row",
-      ':has(> [data-align="block-end"], > [data-align="block-start"])': "column",
-    },
-    borderRadius: 8,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: {
-      default: "var(--rule)",
-      ':has([data-slot="input-group-control"]:focus-visible)': "var(--focus)",
-      ':has([aria-invalid="true"])': "var(--danger)",
-    },
-    boxShadow: {
-      default: "none",
-      ':has([data-slot="input-group-control"]:focus-visible)':
-        "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
-      ':has([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
-    },
-    backgroundColor: "var(--ernie-light, transparent) var(--ernie-dark, color-mix(in srgb, var(--rule) 30%, transparent))",
-    opacity: {
-      default: 1,
-      ":has(:disabled)": 0.5,
-    },
-    outlineStyle: "none",
-    transition: "border-color 150ms, box-shadow 150ms",
-  },
   addon: {
-    display: "flex",
-    height: "auto",
-    cursor: "text",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingBlock: 6,
+    color: "var(--muted)",
+    cursor: "text",
+    display: "flex",
     fontSize: 14,
     fontWeight: 500,
-    color: "var(--muted)",
+    gap: 8,
+    height: "auto",
+    justifyContent: "center",
+    paddingBlock: 6,
     userSelect: "none",
   },
+  button: {
+    alignItems: "center",
+    boxShadow: {
+      ":focus-visible": "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
+      default: "none",
+    },
+    display: "flex",
+    fontSize: 14,
+    gap: 8,
+  },
   control: {
-    flex: 1,
+    backgroundColor: "transparent",
     borderRadius: 0,
     borderWidth: 0,
-    backgroundColor: "transparent",
     boxShadow: {
-      default: "none",
       ":focus": "none",
       ":focus-visible": "none",
       ':is([aria-invalid="true"])': "none",
+      default: "none",
     },
+    flex: 1,
     outlineStyle: "none",
   },
-  textarea: {
-    resize: "none",
-    paddingBlock: 8,
-  },
-  button: {
-    display: "flex",
+  group: {
     alignItems: "center",
-    gap: 8,
-    fontSize: 14,
-    boxShadow: {
-      default: "none",
-      ":focus-visible": "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
+    backgroundColor:
+      "var(--ernie-light, transparent) var(--ernie-dark, color-mix(in srgb, var(--rule) 30%, transparent))",
+    borderColor: {
+      ':has([aria-invalid="true"])': "var(--danger)",
+      ':has([data-slot="input-group-control"]:focus-visible)': "var(--focus)",
+      default: "var(--rule)",
     },
+    borderRadius: 8,
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: {
+      ':has([aria-invalid="true"])': "0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent)",
+      ':has([data-slot="input-group-control"]:focus-visible)':
+        "0 0 0 3px color-mix(in srgb, var(--focus) 50%, transparent)",
+      default: "none",
+    },
+    display: "flex",
+    flexDirection: {
+      ':has(> [data-align="block-end"], > [data-align="block-start"])': "column",
+      default: "row",
+    },
+    height: {
+      ':has(> [data-align="block-end"], > [data-align="block-start"], > textarea)': "auto",
+      default: 32,
+    },
+    margin: 0,
+    minWidth: 0,
+    opacity: {
+      ":has(:disabled)": 0.5,
+      default: 1,
+    },
+    outlineStyle: "none",
+    padding: 0,
+    position: "relative",
+    transition: "border-color 150ms, box-shadow 150ms",
+    width: "100%",
+  },
+  textarea: {
+    paddingBlock: 8,
+    resize: "none",
   },
 })
 const alignments = stylex.create({
-  "inline-start": {
-    order: -1,
-    paddingInlineStart: 8,
-    marginInlineStart: {
-      default: 0,
-      ":has(> button)": "-0.3rem",
-      ":has(> kbd)": "-0.15rem",
-    },
-  },
-  "inline-end": {
+  "block-end": {
+    justifyContent: "flex-start",
     order: 1,
-    paddingInlineEnd: 8,
-    marginInlineEnd: {
-      default: 0,
-      ":has(> button)": "-0.3rem",
-      ":has(> kbd)": "-0.15rem",
-    },
+    paddingBottom: 8,
+    paddingInline: 10,
+    width: "100%",
   },
   "block-start": {
-    order: -1,
-    width: "100%",
     justifyContent: "flex-start",
+    order: -1,
     paddingInline: 10,
     paddingTop: 8,
-  },
-  "block-end": {
-    order: 1,
     width: "100%",
-    justifyContent: "flex-start",
-    paddingInline: 10,
-    paddingBottom: 8,
+  },
+  "inline-end": {
+    marginInlineEnd: {
+      ":has(> button)": "-0.3rem",
+      ":has(> kbd)": "-0.15rem",
+      default: 0,
+    },
+    order: 1,
+    paddingInlineEnd: 8,
+  },
+  "inline-start": {
+    marginInlineStart: {
+      ":has(> button)": "-0.3rem",
+      ":has(> kbd)": "-0.15rem",
+      default: 0,
+    },
+    order: -1,
+    paddingInlineStart: 8,
   },
 })
 const sizes = stylex.create({
-  xs: {
-    height: 24,
-    gap: 4,
-    borderRadius: "calc(var(--radius) - 3px)",
-    paddingInline: 6,
-  },
-  sm: {},
-  "icon-xs": {
-    width: 24,
-    height: 24,
-    borderRadius: "calc(var(--radius) - 3px)",
-    padding: 0,
-  },
   "icon-sm": {
-    width: 32,
     height: 32,
     padding: 0,
+    width: 32,
+  },
+  "icon-xs": {
+    borderRadius: "calc(var(--radius) - 3px)",
+    height: 24,
+    padding: 0,
+    width: 24,
+  },
+  sm: {},
+  xs: {
+    borderRadius: "calc(var(--radius) - 3px)",
+    gap: 4,
+    height: 24,
+    paddingInline: 6,
   },
 })
 
 /** Groups controls and addons while reflecting descendant validation and focus. */
-export function InputGroup({ xstyle, ...props }: StyledProps<ComponentProps<"div">>) {
-  return (
-    <div data-slot="input-group" role="group" {...props} {...stylex.props(styles.group, xstyle)} />
-  )
-}
+export const InputGroup = ({ xstyle, ...props }: StyledProps<ComponentProps<"fieldset">>) => (
+  <fieldset data-slot="input-group" {...props} {...stylex.props(styles.group, xstyle)} />
+)
+
 /** Places an addon and focuses its associated control on non-button clicks. */
-export function InputGroupAddon({
+export const InputGroupAddon = ({
   xstyle,
   align = "inline-start",
   ...props
 }: StyledProps<ComponentProps<"div">> & {
   align?: keyof typeof alignments
-}) {
-  return (
-    <div
-      role="group"
-      data-slot="input-group-addon"
-      data-align={align}
-      onClick={(event) => {
-        if (event.target instanceof Element && event.target.closest("button")) return
+}) => (
+  <div
+    role="toolbar"
+    tabIndex={0}
+    onKeyDown={(event) => {
+      if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault()
         event.currentTarget.parentElement?.querySelector<HTMLElement>("input, textarea")?.focus()
-      }}
-      {...props}
-      {...stylex.props(styles.addon, alignments[align], xstyle)}
-    />
-  )
-}
+      }
+    }}
+    data-slot="input-group-addon"
+    data-align={align}
+    onClick={(event) => {
+      if (event.target instanceof Element && event.target.closest("button")) {
+        return
+      }
+      event.currentTarget.parentElement?.querySelector<HTMLElement>("input, textarea")?.focus()
+    }}
+    {...props}
+    {...stylex.props(styles.addon, alignments[align], xstyle)}
+  />
+)
+
 /** Button sized for a control group; keeps the Base UI interaction contract. */
-export function InputGroupButton({
+export const InputGroupButton = ({
   xstyle,
   type = "button",
   variant = "ghost",
@@ -175,28 +186,29 @@ export function InputGroupButton({
 }: Omit<ComponentProps<typeof Button>, "size" | "type"> & {
   size?: keyof typeof sizes
   type?: "button" | "submit" | "reset"
-}) {
-  return (
-    <Button
-      type={type}
-      data-size={size}
-      variant={variant}
-      {...props}
-      xstyle={[styles.button, sizes[size], xstyle]}
-    />
-  )
-}
+}) => (
+  <Button
+    type={type}
+    data-size={size}
+    variant={variant}
+    {...props}
+    xstyle={[styles.button, sizes[size], xstyle]}
+  />
+)
+
 /** Removes the inner input border; the group owns the focus indicator. */
-export function InputGroupInput({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) {
-  return <Input data-slot="input-group-control" {...props} xstyle={[styles.control, xstyle]} />
-}
+export const InputGroupInput = ({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) => (
+  <Input data-slot="input-group-control" {...props} xstyle={[styles.control, xstyle]} />
+)
+
 /** Resizable-by-content group textarea; the group owns the focus indicator. */
-export function InputGroupTextarea({ xstyle, ...props }: StyledProps<ComponentProps<"textarea">>) {
-  return (
-    <Textarea
-      data-slot="input-group-control"
-      {...props}
-      xstyle={[styles.control, styles.textarea, xstyle]}
-    />
-  )
-}
+export const InputGroupTextarea = ({
+  xstyle,
+  ...props
+}: StyledProps<ComponentProps<"textarea">>) => (
+  <Textarea
+    data-slot="input-group-control"
+    {...props}
+    xstyle={[styles.control, styles.textarea, xstyle]}
+  />
+)

@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Database
+
 Source: https://zenbulabs.mintlify.app/core/state
-
-
 
 Zenbu.js includes a JSON database that syncs across every process. Every process (main and renderer) holds an in-memory copy (also known as a replica) of the database. Reads are always local and synchronous. When a write happens in any process, it syncs to all other replicas automatically.
 
@@ -23,7 +22,7 @@ export default createSchema({
         id: z.string(),
         title: z.string(),
         done: z.boolean(),
-      })
+      }),
     )
     .default([]),
   settings: z
@@ -71,7 +70,7 @@ const todos = root.app.todos
 `readRoot()` returns a synchronous snapshot since the entire root is held in memory. You can also subscribe to a specific field to react when it changes:
 
 ```typescript theme={null}
-const unsubscribe = this.ctx.db.client.app.todos.subscribe(todos => {
+const unsubscribe = this.ctx.db.client.app.todos.subscribe((todos) => {
   console.log("todos changed", todos)
 })
 ```
@@ -105,7 +104,7 @@ function AddTodo() {
 In a service, write through `DbService.client`:
 
 ```typescript theme={null}
-await this.ctx.db.client.update(root => {
+await this.ctx.db.client.update((root) => {
   root.app.todos.push({
     id: crypto.randomUUID(),
     title: "New todo",
@@ -131,7 +130,7 @@ export default createSchema({
       text: z.string(),
       author: z.string(),
     }),
-    { debugName: "messages" }
+    { debugName: "messages" },
   ),
 })
 ```
@@ -139,9 +138,7 @@ export default createSchema({
 Collections are append-only. In a service, use `concat` to add items:
 
 ```typescript theme={null}
-await this.ctx.db.client.app.messages.concat([
-  { text: "Hello", author: "alice" },
-])
+await this.ctx.db.client.app.messages.concat([{ text: "Hello", author: "alice" }])
 ```
 
 In the renderer, use `useCollection` to subscribe to a collection's data:
@@ -224,9 +221,9 @@ export const migration: KyjuMigration = {
 
 Three operation types cover most schema changes:
 
-* **add**: introduces a new key, optionally with a default value.
-* **remove**: drops an existing key.
-* **alter**: updates the metadata of an existing key, like changing its default.
+- **add**: introduces a new key, optionally with a default value.
+- **remove**: drops an existing key.
+- **alter**: updates the metadata of an existing key, like changing its default.
 
 For more complex changes, add a `migrate` function to transform the data with custom logic. Use `ctx.apply` to run the declared operations first, then modify the result:
 
@@ -235,9 +232,7 @@ import type { KyjuMigration } from "@zenbu/kyju"
 
 export const migration: KyjuMigration = {
   version: 4,
-  operations: [
-    { op: "add", key: "fullName", kind: "data", hasDefault: true, default: "" },
-  ],
+  operations: [{ op: "add", key: "fullName", kind: "data", hasDefault: true, default: "" }],
   migrate: (prev, { apply }) => {
     // Runs the auto-generated operations above
     const result = apply(prev)

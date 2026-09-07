@@ -176,7 +176,10 @@ textarea {
   outline: none;
 }
 
-h1, h2, h3, p {
+h1,
+h2,
+h3,
+p {
   margin: 0;
 }
 
@@ -189,12 +192,16 @@ button {
   color: inherit;
 }
 
-a {
+a,
+summary,
+[tabindex] {
   outline: none;
 }
 
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
   box-shadow: 0 0 0 2px var(--focus);
 }
 
@@ -229,14 +236,25 @@ input:disabled {
   button:focus-visible,
   input:focus-visible,
   textarea:focus-visible,
-  a:focus-visible {
+  a:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible {
     border: 2px dashed Highlight !important;
   }
 }
 
 /* Token branch selection is explicit so the CSS transformer and inline palettes agree. */
-:root { --ernie-light: initial; --ernie-dark: ; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-appearance="light"]) { --ernie-light: ; --ernie-dark: initial; }
+:root {
+  --ernie-light: initial;
+  --ernie-dark: ;
 }
-:root[data-appearance="dark"] { --ernie-light: ; --ernie-dark: initial; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance="light"]) {
+    --ernie-light: ;
+    --ernie-dark: initial;
+  }
+}
+:root[data-appearance="dark"] {
+  --ernie-light: ;
+  --ernie-dark: initial;
+}

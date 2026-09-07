@@ -1,9 +1,8 @@
 <!-- Cached upstream reference; verify against installed APIs. -->
 
 # Overview
+
 Source: https://zenbulabs.mintlify.app/api-reference/overview
-
-
 
 ## Packages
 
@@ -26,11 +25,7 @@ import { Service } from "@zenbujs/core/runtime"
 ## Config
 
 ```typescript theme={null}
-import {
-  defineConfig,
-  definePlugin,
-  defineBuildConfig,
-} from "@zenbujs/core/config"
+import { defineConfig, definePlugin, defineBuildConfig } from "@zenbujs/core/config"
 ```
 
 ## Database

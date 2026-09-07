@@ -1,47 +1,43 @@
-import type {
-  PrimeSessionMessage,
-  PrimeSessionSummary,
-  PrimeUsefulSessionContext,
-} from "./index"
+import type { PrimeSessionMessage, PrimeSessionSummary, PrimeUsefulSessionContext } from "./index"
 
-export function createPrimeUsefulSessionFixture(
+export const createPrimeUsefulSessionFixture = (
   session: Pick<PrimeSessionSummary, "cwd" | "id" | "model" | "name" | "state">,
   messages: readonly PrimeSessionMessage[] = [],
-): PrimeUsefulSessionContext {
+): PrimeUsefulSessionContext => {
   const working = session.state === "working"
   return {
+    children: [],
     state: {
       activeSessionId: session.id,
-      sessionId: session.id,
       cwd: session.cwd,
+      sessionId: session.id,
       ...(session.name ? { sessionName: session.name } : {}),
       leafId: null,
       ...(session.model ? { model: session.model } : {}),
-      thinkingLevel: "off",
-      serviceTier: "auto",
-      availableThinkingLevels: ["off"],
-      isStreaming: working,
-      isCompacting: false,
-      isBashRunning: false,
-      retryAttempt: 0,
-      steeringMode: "all",
-      followUpMode: "all",
+      activeToolNames: [],
       autoCompactionEnabled: true,
-      messageCount: messages.length,
-      sessionActions: { queuedCount: 0, steering: [], followUps: [] },
+      availableThinkingLevels: ["off"],
       compactionCount: 0,
+      contextUsage: { contextWindow: 0, percent: 0, tokens: 0 },
+      followUpMode: "all",
       goal: {
         active: false,
-        status: "idle",
-        tokensUsed: 0,
-        timeUsedSeconds: 0,
         continuationsUsed: 0,
+        status: "idle",
+        timeUsedSeconds: 0,
+        tokensUsed: 0,
       },
+      isBashRunning: false,
+      isCompacting: false,
+      isStreaming: working,
+      messageCount: messages.length,
+      retryAttempt: 0,
       scopedModels: [],
-      activeToolNames: [],
-      contextUsage: { tokens: 0, contextWindow: 0, percent: 0 },
+      serviceTier: "auto",
+      sessionActions: { followUps: [], queuedCount: 0, steering: [] },
+      steeringMode: "all",
+      thinkingLevel: "off",
     },
     structuredMessages: messages.map((message) => ({ ...message })),
-    children: [],
   }
 }

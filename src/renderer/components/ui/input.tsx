@@ -1,39 +1,39 @@
 import type { ComponentProps } from "react"
 import { Input as InputPrimitive } from "@base-ui/react/input"
 import * as stylex from "@stylexjs/stylex"
-import { controlStyles, type StyledProps } from "./styles"
+import { controlStyles } from "./styles"
+import type { StyledProps } from "./styles"
+
 const styles = stylex.create({
   input: {
-    height: 32,
-    width: "100%",
-    minWidth: 0,
-    paddingInline: 10,
-    paddingBlock: 4,
-    fontSize: {
-      default: 16,
-      "@media (min-width: 768px)": 14,
+    "::file-selector-button": {
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      color: "var(--ink)",
+      display: "inline-flex",
+      fontSize: 14,
+      fontWeight: 500,
+      height: 24,
     },
     "::placeholder": {
       color: "var(--muted)",
     },
-    "::file-selector-button": {
-      display: "inline-flex",
-      height: 24,
-      borderWidth: 0,
-      backgroundColor: "transparent",
-      color: "var(--ink)",
-      fontSize: 14,
-      fontWeight: 500,
+    fontSize: {
+      "@media (min-width: 768px)": 14,
+      default: 16,
     },
+    height: 32,
+    minWidth: 0,
+    paddingBlock: 4,
+    paddingInline: 10,
+    width: "100%",
   },
 })
 /** Base UI input with the shared focus and validation states. */
-export function Input({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) {
-  return (
-    <InputPrimitive
-      data-slot="input"
-      {...props}
-      {...stylex.props(controlStyles.control, styles.input, xstyle)}
-    />
-  )
-}
+export const Input = ({ xstyle, ...props }: StyledProps<ComponentProps<"input">>) => (
+  <InputPrimitive
+    data-slot="input"
+    {...props}
+    {...stylex.props(controlStyles.control, styles.input, xstyle)}
+  />
+)

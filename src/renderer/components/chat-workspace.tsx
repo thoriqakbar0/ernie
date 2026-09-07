@@ -25,6 +25,7 @@ import {
   usePrimeSessionSnapshot,
   usePrimeSessionState,
 } from "../prime-agent-state"
+
 type ModelSelection = Readonly<{
   modelId: string
   provider: string
@@ -45,31 +46,10 @@ const idleModelChange: ModelChangeState = {
   status: "idle",
 }
 const emptyModels: readonly PrimeModel[] = []
-export function ChatWorkspace() {
-  const { adding } = useAgentCreation()
-  const { selectedSessionId: sessionId } = usePrimeSessionSelection()
-  const { roster, error } = useAgents()
-  const activeAgentId = sessionId ? roster.agents.find((item) => item.root?.sessionId === sessionId)?.id : roster.selectedAgentId
-  const activeAgent = roster.agents.find((agent) => agent.id === activeAgentId)
-  const firstSend = useConversationFlow(`agent:${activeAgentId ?? ""}`)
-  const creating = firstSend.submission.status === "creating"
-  return (
-    <section
-      aria-label="Chat workspace"
-      id="ernie-workspace"
-      tabIndex={-1}
-      {...stylex.props(styles.chatWorkspace)}
-    >
-      {!adding ? <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId}/> : null}
-      {error ? <p role="alert" {...stylex.props(rosterStyles.feedback)}>{error}</p> : null}
-      {adding || (!sessionId && !activeAgent) ? <AgentWelcome/> : !sessionId || creating ? (
-        activeAgent ? <EmptyAgentWorkspace key={activeAgent.id} agent={activeAgent}/> : <AgentWelcome/>
-      ) : <PrimeSessionWorkspace agent={activeAgent} key={sessionId} sessionId={sessionId}/>}
-      <RuntimeStatus/>
-    </section>
-  )
-}
-function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; sessionId: string }>) {
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Prime Agent could not start a conversation"
+
+const useSessionWorkspace = (sessionId: string) => {
   const snapshotQuery = usePrimeSessionSnapshot(sessionId)
   const catalog = usePrimeSessionState()
   const actions = usePrimeSessionActions(sessionId)
@@ -90,62 +70,207 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
   )
   const submitAction = () => flow.send({ sessionId })
   const stopAction = () => flow.stopAction(sessionId)
-  const openingError = snapshotQuery.isError ? (
-      <div role="alert" {...stylex.props(styles.openError)}>
-        <h2>Unable to open this conversation</h2>
-        <p {...stylex.props(styles.errorDescription)}>{getErrorMessage(snapshotQuery.error)}.</p>
-        <button
-          onClick={() => void snapshotQuery.refetch()}
-          type="button"
-          {...stylex.props(styles.secondaryButton)}
-        >
-          Try again
-        </button>
-      </div>
-    ) : undefined
   const snapshot = snapshotQuery.data
   const session = snapshot?.session ?? catalog.data.find((item) => item.id === sessionId)
   const connected = !snapshotQuery.isError && snapshot?.transport.status === "connected"
   const working = snapshot?.session.state === "working"
   const recovering = snapshot?.session.state === "recovering"
   const draftHero =
-    !openingError && session?.lifecycle === "draft" && !snapshot?.messages.length && !working
+    !snapshotQuery.isError &&
+    session?.lifecycle === "draft" &&
+    !snapshot?.messages.length &&
+    !working
   const actionError =
-    (modelChange.status === "error" ? modelChange.message : undefined) ?? (flow.stop.status === "error" ? flow.stop.message : undefined) ?? commandError
+    (modelChange.status === "error" ? modelChange.message : undefined) ??
+    (flow.stop.status === "error" ? flow.stop.message : undefined) ??
+    commandError
+  const updateModel = async (provider: string, modelId: string) => {
+    if (modelChange.status === "pending") {
+      return
+    }
+    const revision = modelSelectionRevision.current + 1
+    modelSelectionRevision.current = revision
+    setModelChange({
+      selection: {
+        modelId,
+        provider,
+      },
+      status: "pending",
+    })
+    try {
+      await actions.setModel(provider, modelId)
+      if (modelSelectionRevision.current === revision) {
+        setModelChange(idleModelChange)
+      }
+    } catch (error: unknown) {
+      if (modelSelectionRevision.current !== revision) {
+        return
+      }
+      setModelChange({
+        message: error instanceof Error ? error.message : "Prime Agent command failed",
+        status: "error",
+      })
+    }
+  }
+  return {
+    actionError,
+    actions,
+    connected,
+    draft,
+    draftHero,
+    feedbackDraft,
+    flow,
+    modelChange,
+    models,
+    recovering,
+    session,
+    setCommandError,
+    setDraft,
+    snapshot,
+    snapshotQuery,
+    stopAction,
+    stopping,
+    submitAction,
+    submitting,
+    updateModel,
+    working,
+  }
+}
+
+const WorkspaceNotices = ({
+  snapshot,
+  connected,
+  recovering,
+  actionError,
+}: Pick<
+  ReturnType<typeof useSessionWorkspace>,
+  "snapshot" | "connected" | "recovering" | "actionError"
+>) => (
+  <>
+    {snapshot?.transport.status === "reconnecting" ? (
+      <SessionNotice tone="warning">
+        <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will resume
+        after recovery.
+      </SessionNotice>
+    ) : null}
+    {snapshot?.transport.status === "failed" ? (
+      <SessionNotice tone="danger">
+        <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the connection
+        returns. <span>{snapshot.transport.error}</span>
+      </SessionNotice>
+    ) : null}
+    {connected && recovering ? (
+      <SessionNotice tone="warning">
+        <strong>Restoring this Prime Agent session.</strong> Commands will return when recovery
+        finishes.
+      </SessionNotice>
+    ) : null}
+    {actionError ? (
+      <SessionNotice tone="danger">
+        <strong>The conversation wasn’t updated.</strong> {actionError}. Try the action again.
+      </SessionNotice>
+    ) : null}
+  </>
+)
+
+const SessionAgentControls = ({
+  agent,
+  draftHero,
+  snapshot,
+}: Readonly<{ agent?: Agent }> &
+  Pick<ReturnType<typeof useSessionWorkspace>, "draftHero" | "snapshot">) =>
+  agent ? (
+    <>
+      <AgentControls agent={agent} showTabs={draftHero} />
+      {draftHero && agent.root ? <AgentNativeSessions agent={agent} snapshot={snapshot} /> : null}
+    </>
+  ) : null
+
+const PrimeSessionWorkspace = ({
+  agent,
+  sessionId,
+}: Readonly<{ agent?: Agent; sessionId: string }>) => {
+  const {
+    snapshotQuery,
+    actions,
+    models,
+    draft,
+    setDraft,
+    feedbackDraft,
+    flow,
+    submitting,
+    stopping,
+    setCommandError,
+    modelChange,
+    submitAction,
+    stopAction,
+    snapshot,
+    session,
+    connected,
+    working,
+    recovering,
+    draftHero,
+    actionError,
+    updateModel,
+  } = useSessionWorkspace(sessionId)
+  const { add: handleAnnotate, remove: handleRemoveAnnotation } = feedbackDraft
+  const { setEffort: handleEffortChange } = actions
+  const openingError = snapshotQuery.isError ? (
+    <div role="alert" {...stylex.props(styles.openError)}>
+      <h2>Unable to open this conversation</h2>
+      <p {...stylex.props(styles.errorDescription)}>{getErrorMessage(snapshotQuery.error)}.</p>
+      <button
+        onClick={async () => {
+          await snapshotQuery.refetch()
+        }}
+        type="button"
+        {...stylex.props(styles.secondaryButton)}
+      >
+        Try again
+      </button>
+    </div>
+  ) : undefined
+  let content = openingError
+  if (!content) {
+    if (draftHero && session) {
+      content = <EmptyConversation agent={agent} cwd={session.cwd} />
+    } else if (snapshot) {
+      content = (
+        <ConversationTranscript
+          key={sessionId}
+          onAnnotate={handleAnnotate}
+          sessionId={sessionId}
+          agentName={agent?.name}
+          messages={snapshot.messages}
+          snapshot={snapshot}
+        />
+      )
+    } else {
+      content = <WorkspaceLoading />
+    }
+  }
   return (
     <>
-      {snapshot?.transport.status === "reconnecting" ? (
-        <SessionNotice tone="warning">
-          <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will
-          resume after recovery.
-        </SessionNotice>
-      ) : null}
-      {snapshot?.transport.status === "failed" ? (
-        <SessionNotice tone="danger">
-          <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the
-          connection returns. <span>{snapshot.transport.error}</span>
-        </SessionNotice>
-      ) : null}
-      {connected && recovering ? (
-        <SessionNotice tone="warning">
-          <strong>Restoring this Prime Agent session.</strong> Commands will return when recovery
-          finishes.
-        </SessionNotice>
-      ) : null}
-      {actionError ? (
-        <SessionNotice tone="danger">
-          <strong>The conversation wasn’t updated.</strong> {actionError}. Try the action again.
-        </SessionNotice>
-      ) : null}
+      <WorkspaceNotices
+        snapshot={snapshot}
+        connected={connected}
+        recovering={recovering}
+        actionError={actionError}
+      />
 
       <div {...stylex.props(styles.workspaceContent)}>
         <div {...stylex.props(styles.sessionStage)}>
-          <div {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}>
-            {openingError ?? (draftHero && session ? <EmptyConversation agent={agent} cwd={session.cwd}/>
-              : snapshot ? <ConversationTranscript key={sessionId} onAnnotate={feedbackDraft.add} sessionId={sessionId} agentName={agent?.name} messages={snapshot.messages} snapshot={snapshot}/>
-              : <WorkspaceLoading/>)}
-            <div data-composer-placement={draftHero ? "hero" : "docked"} {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}>
-              {agent?.id.startsWith("ernie-customization-") ? <AppChangeProtection workspace={agent.cwd} working={Boolean(working)}/> : null}
+          <div
+            {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}
+          >
+            {content}
+            <div
+              data-composer-placement={draftHero ? "hero" : "docked"}
+              {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}
+            >
+              {agent?.id.startsWith("ernie-customization-") ? (
+                <AppChangeProtection workspace={agent.cwd} working={Boolean(working)} />
+              ) : null}
               <PrimeComposer
                 agentName={agent?.name}
                 feedback={flow.submission}
@@ -155,13 +280,13 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
                 connected={connected}
                 draft={draft}
                 annotations={feedbackDraft.annotations}
-                onRemoveAnnotation={feedbackDraft.remove}
+                onRemoveAnnotation={handleRemoveAnnotation}
                 draftHero={draftHero}
                 models={models.data ?? emptyModels}
                 modelChangePending={modelChange.status === "pending"}
                 modelsPending={models.isPending}
                 onDraftChange={setDraft}
-                onEffortChange={actions.setEffort}
+                onEffortChange={handleEffortChange}
                 onEffortError={setCommandError}
                 onModelSelect={(model) => updateModel(model.provider, model.id)}
                 recovering={recovering}
@@ -173,38 +298,52 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
                 submitting={submitting}
                 working={working}
               />
-              {agent ? <><AgentControls agent={agent} showTabs={draftHero}/>{draftHero && agent.root ? <AgentNativeSessions agent={agent} snapshot={snapshot}/> : null}</> : null}
+              <SessionAgentControls agent={agent} draftHero={draftHero} snapshot={snapshot} />
             </div>
           </div>
         </div>
       </div>
     </>
   )
-  function updateModel(provider: string, modelId: string) {
-    if (modelChange.status === "pending") return
-    const revision = modelSelectionRevision.current + 1
-    modelSelectionRevision.current = revision
-    setModelChange({
-      status: "pending",
-      selection: {
-        provider,
-        modelId,
-      },
-    })
-    void actions
-      .setModel(provider, modelId)
-      .then(() => {
-        if (modelSelectionRevision.current === revision) setModelChange(idleModelChange)
-      })
-      .catch((cause: unknown) => {
-        if (modelSelectionRevision.current !== revision) return
-        setModelChange({
-          status: "error",
-          message: cause instanceof Error ? cause.message : "Prime Agent command failed",
-        })
-      })
-  }
 }
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Prime Agent could not start a conversation"
+
+export const ChatWorkspace = () => {
+  const { adding } = useAgentCreation()
+  const { selectedSessionId: sessionId } = usePrimeSessionSelection()
+  const { roster, error } = useAgents()
+  const activeAgentId = sessionId
+    ? roster.agents.find((item) => item.root?.sessionId === sessionId)?.id
+    : roster.selectedAgentId
+  const activeAgent = roster.agents.find((agent) => agent.id === activeAgentId)
+  const firstSend = useConversationFlow(`agent:${activeAgentId ?? ""}`)
+  const creating = firstSend.submission.status === "creating"
+  let content
+  if (adding || (!sessionId && !activeAgent)) {
+    content = <AgentWelcome />
+  } else if (!sessionId || creating) {
+    content = activeAgent ? (
+      <EmptyAgentWorkspace key={activeAgent.id} agent={activeAgent} />
+    ) : (
+      <AgentWelcome />
+    )
+  } else {
+    content = <PrimeSessionWorkspace agent={activeAgent} key={sessionId} sessionId={sessionId} />
+  }
+  return (
+    <section
+      aria-label="Chat workspace"
+      id="ernie-workspace"
+      tabIndex={-1}
+      {...stylex.props(styles.chatWorkspace)}
+    >
+      {adding ? null : <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId} />}
+      {error ? (
+        <p role="alert" {...stylex.props(rosterStyles.feedback)}>
+          {error}
+        </p>
+      ) : null}
+      {content}
+      <RuntimeStatus />
+    </section>
+  )
 }

@@ -3,11 +3,6 @@ import { theme } from "../theme.stylex"
 /** Component-owned layout, responsive variants, and interaction states. */
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
-  conversationTranscriptShell: {
-    position: "relative",
-    minHeight: "0",
-    flex: "1",
-  },
   conversationTranscript: {
     height: "100%",
     overflowY: "auto",
@@ -15,24 +10,45 @@ export const styles = stylex.create({
   },
   conversationTranscriptInner: {
     display: "flex",
-    width: "min(100%, 720px)",
-    margin: "0 auto",
     flexDirection: "column",
     gap: "20px",
+    margin: "0 auto",
     padding: "38px 28px 48px",
     paddingInline: {
-      default: null,
       "@media (max-width: 720px)": "18px",
+      default: null,
     },
+    width: "min(100%, 720px)",
+  },
+  conversationTranscriptShell: {
+    flex: "1",
+    minHeight: "0",
+    position: "relative",
+  },
+  inlineCode: {
+    backgroundColor: theme["--surface-muted"],
+    borderRadius: 4,
+    boxDecorationBreak: "clone",
+    fontFamily: "var(--font-mono, ui-monospace, monospace)",
+    fontSize: ".875em",
+    padding: "2px 4px",
   },
   messageEntry: {
-    display: "flex",
-    minWidth: "0",
-    flexDirection: "column",
     alignItems: "flex-start",
+    display: "flex",
+    flexDirection: "column",
+    minWidth: "0",
   },
-  messageEntryUser: {
-    alignItems: "flex-end",
+  messageEntryContent: {
+    color: theme["--ink-strong"],
+    display: "grid",
+    fontSize: { "@media (max-width: 720px)": "16px", default: "15px" },
+    fontWeight: 400,
+    gap: "12px",
+    lineHeight: 1.6,
+    maxWidth: "66ch",
+    overflowWrap: "anywhere",
+    whiteSpace: "pre-wrap",
   },
   messageEntryHeader: {
     marginBottom: "7px",
@@ -42,30 +58,21 @@ export const styles = stylex.create({
     fontSize: "12px",
     fontWeight: "680",
   },
-  inlineCode: { fontFamily: "var(--font-mono, ui-monospace, monospace)", fontSize: ".875em", backgroundColor: theme["--surface-muted"], borderRadius: 4, padding: "2px 4px", boxDecorationBreak: "clone" },
+  messageEntryUser: {
+    alignItems: "flex-end",
+  },
   messageParagraph: {
     margin: "0",
-  },
-  messageEntryContent: {
-    display: "grid",
-    gap: "12px",
-    maxWidth: "66ch",
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
-    color: theme["--ink-strong"],
-    fontSize: { default: "15px", "@media (max-width: 720px)": "16px" },
-    fontWeight: 400,
-    lineHeight: 1.6,
-  },
-  userMessageContent: {
-    width: "fit-content",
-    maxWidth: "min(64ch, 90%)",
-    borderRadius: "16px 16px 4px",
-    backgroundColor: theme["--surface-muted"],
-    padding: "10px 14px",
   },
   systemMessageContent: {
     color: theme["--muted"],
     fontSize: "13px",
+  },
+  userMessageContent: {
+    backgroundColor: theme["--surface-muted"],
+    borderRadius: "16px 16px 4px",
+    maxWidth: "min(64ch, 90%)",
+    padding: "10px 14px",
+    width: "fit-content",
   },
 })

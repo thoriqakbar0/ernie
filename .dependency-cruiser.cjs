@@ -9,47 +9,44 @@ const PACKAGE_INTERNALS = `^${R}/[^/]+/[^/]+/`
 module.exports = {
   forbidden: [
     {
-      name: "entrypoint-boundary-from-app",
-      comment:
-        "App code may import package entry points, but not package internals.",
-      severity: "error",
+      comment: "App code may import package entry points, but not package internals.",
       from: { pathNot: `^${R}/` },
+      name: "entrypoint-boundary-from-app",
+      severity: "error",
       to: { path: PACKAGE_INTERNALS },
     },
     {
-      name: "entrypoint-boundary-across-packages",
-      comment:
-        "Packages may reach other packages only through root entry points.",
-      severity: "error",
+      comment: "Packages may reach other packages only through root entry points.",
       from: { path: `^${R}/([^/]+)/`, pathNot: `^${R}/[^/]+/tests/` },
+      name: "entrypoint-boundary-across-packages",
+      severity: "error",
       to: {
         path: PACKAGE_INTERNALS,
         pathNot: `^${R}/$1/`,
       },
     },
     {
-      name: "tests-through-entrypoints",
-      comment:
-        "Tests exercise packages through entry points, including their own package.",
-      severity: "error",
+      comment: "Tests exercise packages through entry points, including their own package.",
       from: { path: `^${R}/([^/]+)/tests/` },
+      name: "tests-through-entrypoints",
+      severity: "error",
       to: {
         path: PACKAGE_INTERNALS,
         pathNot: `^${R}/$1/tests/`,
       },
     },
     {
-      name: "tests-folder-is-private",
       comment: "Only tests may import files from a package tests folder.",
-      severity: "error",
       from: { pathNot: `^${R}/[^/]+/tests/` },
+      name: "tests-folder-is-private",
+      severity: "error",
       to: { path: `^${R}/[^/]+/tests/` },
     },
     {
-      name: "no-circular",
       comment: "Modules may not form dependency cycles.",
-      severity: "error",
       from: {},
+      name: "no-circular",
+      severity: "error",
       to: { circular: true },
     },
 
@@ -57,9 +54,9 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: "node_modules" },
-    tsConfig: { fileName: "tsconfig.json" },
     enhancedResolveOptions: {
       extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
     },
+    tsConfig: { fileName: "tsconfig.json" },
   },
 }

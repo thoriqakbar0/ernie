@@ -1,5 +1,7 @@
-export function getWorkspaceName(cwd: string) {
-  if (/^[A-Za-z]:[\\/]?$/.test(cwd)) return cwd
-  const withoutTrailingSeparators = cwd.replace(/[\\/]+$/, "")
-  return withoutTrailingSeparators.split(/[\\/]/).at(-1) || cwd
+export const getWorkspaceName = (cwd: string) => {
+  if (/^[A-Za-z]:[\\/]?$/u.test(cwd)) {
+    return cwd
+  }
+  const withoutTrailingSeparators = cwd.replace(/[\\/]+$/u, "")
+  return withoutTrailingSeparators.split(/[\\/]/u).at(-1) || cwd
 }

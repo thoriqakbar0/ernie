@@ -5,6 +5,8 @@ import { theme } from "../theme.stylex"
 export const styles = stylex.create({
   creationTitle: { fontSize: 15, fontWeight: 500, marginBlock: 16 },
   chatWorkspace: {
+    flex: 1,
+    overflow: "hidden",
     display: "flex",
     minWidth: "0",
     minHeight: "0",

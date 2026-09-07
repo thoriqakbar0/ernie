@@ -28,3 +28,11 @@ For send recovery, enable Lose send acknowledgement, send once, disable it, then
 Context-provider edits can invalidate consumers during HMR. If a missing-provider error appears, reload that browser tab while keeping the host alive. Report this separately from uninterrupted HMR.
 
 See [verification](verification.md) for integration boundaries and known coverage gaps.
+
+## Capture and control the live UI
+
+Use Codex's @Browser with the URL printed by `nub run dev`. Reuse the same tab for inspection, actions, and screenshots so drafts, open controls, and scroll position remain live. Capture the current viewport without navigating or reloading first.
+
+Read the tab's accessibility state before clicking, filling, or sending keyboard input. Read it again after each action; element references can change. Use a search field or disclosure for a safe interaction check. Sending messages and editing Agents affect real data.
+
+Keep the tab available for the next iteration. This workflow runs through Codex's Browser tool session, not a standalone shell command. The cloud recorder remains available for separate video and trace recordings.

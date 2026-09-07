@@ -1,3 +1,6 @@
+import { MessageMarkdown } from "./message-markdown"
+import { AnnotatableResponse } from "./annotatable-response"
+import type { ResponseAnnotation } from "../response-annotation"
 import { memo } from "react"
 import { styles } from "./conversation-transcript.styles"
 import * as stylex from "@stylexjs/stylex"
@@ -10,12 +13,12 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
-  useMessageScroller,
 } from "./ui/message-scroller"
 type ConversationTranscriptProps = Readonly<{
   sessionId?: string
   agentName?: string
   snapshot?: PrimeSessionSnapshot
+  onAnnotate?: (annotation: ResponseAnnotation) => void
   messages: readonly PrimeSessionMessage[]
 }>
 export function ConversationTranscript(props: ConversationTranscriptProps) {
@@ -25,7 +28,7 @@ export function ConversationTranscript(props: ConversationTranscriptProps) {
     </MessageScrollerProvider>
   )
 }
-function Transcript({ messages, snapshot, agentName }: ConversationTranscriptProps) {
+function Transcript({ messages, snapshot, agentName, onAnnotate }: ConversationTranscriptProps) {
   return (
     <MessageScroller xstyle={[styles.conversationTranscriptShell]}>
       <MessageScrollerViewport
@@ -36,50 +39,36 @@ function Transcript({ messages, snapshot, agentName }: ConversationTranscriptPro
       >
         <MessageScrollerContent xstyle={[styles.conversationTranscriptInner]}>
           {messages.map((message) => (
-            <MessageRow key={message.id} message={message} agentName={agentName} />
+            <MessageRow key={message.id} message={message} agentName={agentName} onAnnotate={onAnnotate} />
           ))}
           {snapshot ? <ConversationActivity snapshot={snapshot}/> : null}
         </MessageScrollerContent>
       </MessageScrollerViewport>
-      <ScrollShimmer />
       <MessageScrollerButton />
     </MessageScroller>
   )
 }
 
 // Accepted snapshots retain unchanged message identities through the query cache.
-const MessageRow = memo(function MessageRow({ message, agentName }: Readonly<{
+const MessageRow = memo(function MessageRow({ message, agentName, onAnnotate }: Readonly<{
   message: PrimeSessionMessage
+  onAnnotate?: (annotation: ResponseAnnotation) => void
   agentName?: string
 }>) {
-  return (
-    <MessageScrollerItem>
-      <article
-        aria-label={message.role === "assistant" ? `${agentName ?? "Prime Agent"} message` : message.role === "user" ? "Your message" : "System message"}
-        {...stylex.props(
-          styles.messageEntry,
-          message.role === "user" && styles.messageEntryUser,
-        )}
-      >
-        {message.role === "system" ? <header {...stylex.props(styles.messageEntryHeader)}>
-          <span {...stylex.props(styles.messageEntryRole)}>System</span>
-        </header> : null}
-        <div
-          {...stylex.props(
-            styles.messageParagraph,
-            styles.messageEntryContent,
-            message.role === "user" && styles.userMessageContent,
-            message.role === "system" && styles.systemMessageContent,
-          )}
-        >
-          {message.content.split(/\n{2,}/).map((paragraph, paragraphIndex) => <p key={paragraphIndex} {...stylex.props(styles.messageParagraph)}>{message.role === "assistant" ? paragraph.split(/(`[^`\n]+`)/g).map((part, index) => part.startsWith("`") && part.endsWith("`") ? <code key={index} {...stylex.props(styles.inlineCode)}>{part.slice(1, -1)}</code> : part) : paragraph}</p>)}
-        </div>
-      </article>
-    </MessageScrollerItem>
-  )
+  const content = <div {...stylex.props(styles.messageParagraph, styles.messageEntryContent,
+    message.role === "user" && styles.userMessageContent,
+    message.role === "system" && styles.systemMessageContent)}>
+    {message.role === "assistant" ? <MessageMarkdown content={message.content}/> : message.content.split(/\n{2,}/).map((paragraph, index) => <p key={index} {...stylex.props(styles.messageParagraph)}>{paragraph}</p>)}
+  </div>
+  return <MessageScrollerItem>
+    <article aria-label={message.role === "assistant" ? `${agentName ?? "Prime Agent"} message` : message.role === "user" ? "Your message" : "System message"}
+      {...stylex.props(styles.messageEntry, message.role === "user" && styles.messageEntryUser)}>
+      {message.role === "system" ? <header {...stylex.props(styles.messageEntryHeader)}>
+        <span {...stylex.props(styles.messageEntryRole)}>System</span>
+      </header> : null}
+      {message.role === "assistant" && onAnnotate
+        ? <AnnotatableResponse messageId={message.id} agentName={agentName ?? "Prime Agent"} onAdd={onAnnotate}>{content}</AnnotatableResponse>
+        : content}
+    </article>
+  </MessageScrollerItem>
 })
-
-function ScrollShimmer() {
-  const { atEnd } = useMessageScroller()
-  return atEnd ? null : <div aria-hidden="true" {...stylex.props(styles.conversationScrollShimmer)} />
-}

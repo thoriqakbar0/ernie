@@ -45,3 +45,9 @@ Use `nub run test:integration:browser` for browser proof. Reserve `nub run test:
 `nub run check` links Zenbu types, typechecks, checks package boundaries, validates lat.md, and builds source.
 
 Run `nub run test:integration` for daemon boundaries. Run `konsistent validate` when checking structural conventions.
+
+## Live browser control
+
+Use Codex's @Browser against the existing development gateway. Reuse its live tab, inspect accessibility state before actions, and capture the viewport without navigation or reload.
+
+See docs/workflow.md for the workflow; no additional browser CLI is required.

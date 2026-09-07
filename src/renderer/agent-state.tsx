@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, useRef, useState, type PropsWithChildren } from "react"
+import { annotatedMessage, type ResponseAnnotation } from "./response-annotation"
+import { useCallback, createContext, useContext, useMemo, useRef, useState, type PropsWithChildren } from "react"
 import { useDb, useRpc } from "@zenbujs/core/react"
 import { Effect, Option, Schema } from "effect"
 import { AgentFailure, Roster, emptyRoster, type AgentResult } from "../packages/agents"
@@ -12,6 +13,7 @@ type AgentContext = Readonly<{
   client: AgentClient
   error: string | undefined
   pending: number
+  reconnect: (agentId: string, retry?: boolean) => Promise<AgentResult<unknown>>
   execute: <A>(operation: () => Promise<AgentResult<A>>) => Promise<AgentResult<A>>
 }>
 const context = createContext<AgentContext | undefined>(undefined)
@@ -44,6 +46,7 @@ function LiveAgentState({ children }: PropsWithChildren) {
   return <AgentState roster={presented} client={client} readError={raw !== undefined && !roster ? "The saved Agent roster could not be read." : undefined}>{children}</AgentState>
 }
 function AgentState({ children, roster, client, readError }: PropsWithChildren<{ roster: Roster; client: AgentClient; readError?: string }>) {
+  const reconnects = useRef(new Map<string, Promise<AgentResult<unknown>>>())
   const [error, setError] = useState<string>()
   const [pending, setPending] = useState(0)
   const execute = async <A,>(operation: () => Promise<AgentResult<A>>): Promise<AgentResult<A>> => {
@@ -57,7 +60,14 @@ function AgentState({ children, roster, client, readError }: PropsWithChildren<{
     if (!result.ok) setError(result.error)
     return result
   }
-  return <context.Provider value={{ roster, client, execute, error: readError ?? error, pending }}>{children}</context.Provider>
+  const reconnect = (agentId: string, retry = false) => {
+    const previous = reconnects.current.get(agentId)
+    if (previous && !retry) return previous
+    const attempt = execute(() => client.select({ agentId }))
+    reconnects.current.set(agentId, attempt)
+    return attempt
+  }
+  return <context.Provider value={{ roster, client, execute, reconnect, error: readError ?? error, pending }}>{children}</context.Provider>
 }
 /** Reads the roster and its owned command boundary. */
 export function useAgents() {
@@ -66,10 +76,11 @@ export function useAgents() {
   return state
 }
 
-type DraftEntry = Readonly<{ content: string }>
+type DraftEntry = Readonly<{ content: string; annotations: readonly ResponseAnnotation[] }>
 const draftsContext = createContext<{
   drafts: ReadonlyMap<string, DraftEntry>
   setDraft: (key: string, value: string) => void
+  updateAnnotations: (key: string, update: (previous: readonly ResponseAnnotation[]) => readonly ResponseAnnotation[]) => void
   clearDraft: (key: string, expected: DraftEntry | undefined) => void
   capture: (key: string) => { content: string; clear: () => void; transfer: (sessionId: string) => () => void }
 } | undefined>(undefined)
@@ -84,14 +95,23 @@ export function ConversationDraftProvider({ children }: PropsWithChildren) {
     next.delete(key)
     return next
   })
-  return <draftsContext.Provider value={{ drafts, setDraft: (key, value) => setDrafts((previous) => {
+  const updateAnnotations = useCallback((key: string, update: (previous: readonly ResponseAnnotation[]) => readonly ResponseAnnotation[]) => setDrafts(previous => {
     const next = new Map(previous)
-    if (value) next.set(key, { content: value })
+    const content = previous.get(key)?.content ?? ""
+    const annotations = update(previous.get(key)?.annotations ?? [])
+    if (content || annotations.length) next.set(key, { content, annotations })
     else next.delete(key)
     return next
-  }), clearDraft: clear, capture: (key) => {
+  }), [])
+  return <draftsContext.Provider value={{ drafts, setDraft: (key, value) => setDrafts((previous) => {
+    const next = new Map(previous)
+    const annotations = previous.get(key)?.annotations ?? []
+    if (value || annotations.length) next.set(key, { content: value, annotations })
+    else next.delete(key)
+    return next
+  }), updateAnnotations, clearDraft: clear, capture: (key) => {
     const entry = current.current.get(key)
-    return { content: entry?.content ?? "", clear: () => clear(key, entry), transfer: (sessionId) => {
+    return { content: annotatedMessage(entry?.content ?? "", entry?.annotations ?? []), clear: () => clear(key, entry), transfer: (sessionId) => {
       // Keep later edits at either destination while the captured message is sent.
       setDrafts((previous) => {
         const next = new Map(previous)
@@ -121,4 +141,24 @@ export function useConversationDraft(key: string) {
   if (!state) throw new Error("ConversationDraftProvider is missing")
   const entry = state.drafts.get(key)
   return [entry?.content ?? "", (value: string) => state.setDraft(key, value), () => state.clearDraft(key, entry)] as const
+}
+
+/** Keeps response feedback in the same versioned draft as the message text. */
+export function useResponseAnnotations(key: string) {
+  const state = useContext(draftsContext)
+  if (!state) throw new Error("ConversationDraftProvider is missing")
+  const update = state.updateAnnotations
+  const add = useCallback((annotation: ResponseAnnotation) => update(key, previous => [...previous, annotation]), [key, update])
+  return {
+    annotations: state.drafts.get(key)?.annotations ?? [],
+    add,
+    remove: (id: string) => state.updateAnnotations(key, previous => previous.filter(item => item.id !== id)),
+  }
+}
+
+/** Seeds an editable conversation draft without dispatching a message. */
+export function useSetConversationDraft() {
+  const state = useContext(draftsContext)
+  if (!state) throw new Error("ConversationDraftProvider is missing")
+  return state.setDraft
 }

@@ -8,3 +8,6 @@ const agentFirstNames = [
 
 /** Chooses a name when executed, using Effect's active Random service. */
 export const randomAgentFirstName = Random.choice(agentFirstNames)
+
+/** Suggest a different name without an unbounded retry loop. */
+export const randomAgentNameExcept = (current: string) => Random.choice(agentFirstNames.filter((name) => name !== current))

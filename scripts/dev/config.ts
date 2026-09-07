@@ -1,7 +1,7 @@
 import { isAbsolute, join, resolve } from "node:path"
 import { Schema } from "effect"
 import { VERSION } from "prime-agent"
-import { managedDaemonSocketName, managedDaemonSocketPath } from "../../src/main/prime-agent/daemon-client"
+import { managedDaemonSocketName, managedDaemonSocketPath } from "../../src/main/prime-agent/daemon-client.ts"
 
 const DevRole = Schema.Literals(["all", "server", "web", "desktop"])
 

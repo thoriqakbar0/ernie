@@ -53,3 +53,11 @@ Shutdown rejects new attachment acquisition, closes the shared transport, and jo
 The [daemon docs](../docs/prime-agent/README.md) separate Ernie ownership from upstream capability, including version evidence and recovery limits.
 
 The [API reference](../docs/prime-agent/api/README.md) inventories installed command fields and client methods, with Ernie service signatures and example ownership patterns.
+
+## Saved Agent selection
+
+Selecting a saved Agent keeps the active native session until root activation selects the replacement.
+
+Automatic renderer reconnect attempts belong to the roster provider, so workspace remounts reuse the same attempt; failed attempts require explicit retry.
+
+See `src/main/services/agents.ts`, `src/renderer/agent-state.tsx`, and `src/renderer/components/reconnect-agent.tsx`.

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
+import { HistoryFailure } from "../../packages/app-history"
 import type { SendRequest, SendReceipt } from "../../packages/prime-agent"
 
 /** Owns bounded receipts. Entries never expire into an unsafe fresh dispatch. */
@@ -31,7 +32,7 @@ export class SendReceipts {
       if (!prepare) return { status: "not-sent", message: "Ernie did not receive this send. Your message was not sent; try again." }
       let dispatch: () => Promise<SendReceipt>
       try { dispatch = await prepare() }
-      catch { return { status: "not-sent", message: "The connection was not ready. Your message was not sent; try again." } }
+      catch (error) { if (error instanceof HistoryFailure) return { status: "not-sent", message: `${error.message} ${error.nextAction}` }; return { status: "not-sent", message: "The connection was not ready. Your message was not sent; try again." } }
       try {
         return await dispatch()
       } catch {

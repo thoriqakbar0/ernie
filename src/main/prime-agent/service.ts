@@ -39,6 +39,7 @@ import {
   projectPrimeSessionSnapshot,
 } from "./projection"
 import { SendRequest, type SendReceipt } from "../../packages/prime-agent"
+import { admitHistoryTurn } from "./history-admission"
 import { SendReceipts } from "./send-receipts"
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
 import { projectCurrentPrimeSessionRefresh } from "./refresh"
@@ -314,19 +315,26 @@ export class PrimeAgentService extends Service.create({
     const request = Schema.decodeUnknownSync(SendRequest)(input)
     return this.sendReceipts.send(request, async () => {
       const { attachment, connection } = await this.getReadyAttachment(request.sessionId)
+      const history = await admitHistoryTurn(attachment.snapshot.session.cwd, `${request.epoch}:${request.commandId}`)
+      const content = request.content + (history?.context ?? "")
+      const finishHistory = () => {
+        if (history) void connection.waitForIdle().then(() => history.finish()).catch(() => { console.warn("Ernie customization capture remains incomplete; inspect App history.") })
+      }
       if (request.mode === "prompt") {
         await this.nameDraftSessionFromPrompt(attachment, connection, request.content)
       }
       if (request.mode === "prompt") return async () => {
-        await connection.prompt(request.content, { source: "interactive" })
+        await connection.prompt(content, { source: "interactive" })
+        finishHistory()
         return { status: "accepted" }
       }
       const { activeSessionId } = Schema.decodeUnknownSync(Schema.Struct({ activeSessionId: Schema.NonEmptyString }))(await connection.getState())
       const client = await this.getClient()
       return async () => {
         // The native convenience wrapper discards queued:false for a coalesced follow-up.
-        const response = requireSuccess(await client.request({ type: "follow_up", activeSessionId, message: request.content }))
+        const response = requireSuccess(await client.request({ type: "follow_up", activeSessionId, message: content }))
         const { queued } = Schema.decodeUnknownSync(Schema.Struct({ queued: Schema.Boolean }))(response)
+        finishHistory()
         return queued ? { status: "queued" } : { status: "not-sent", message: "Prime Agent already has an equivalent follow-up pending. This message was not added again." }
       }
     })
@@ -358,6 +366,8 @@ export class PrimeAgentService extends Service.create({
   async setModel(input: { sessionId: string; provider: string; modelId: string }) {
     const connection = await this.getReadyConnection(input.sessionId)
     await connection.setModel(input.provider, input.modelId)
+    const attachment = this.attachments.get(input.sessionId)
+    if (attachment) this.scheduleRefresh(attachment, true)
   }
 
   async getRecurrentDepth(input: { sessionId: string }) {
@@ -371,6 +381,8 @@ export class PrimeAgentService extends Service.create({
   }) {
     const connection = await this.getReadyConnection(input.sessionId)
     await connection.setThinkingLevel(input.effort)
+    const attachment = this.attachments.get(input.sessionId)
+    if (attachment) this.scheduleRefresh(attachment, true)
   }
 
   async setRecurrentDepth(input: { sessionId: string; recurrentDepth: number }) {

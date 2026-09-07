@@ -42,8 +42,38 @@ Application-owned feedback and reading positions survive workspace remounts. Str
 
 [[src/renderer/conversation-flow.tsx#ConversationFlowProvider]] coordinates first-message creation and admission. [[src/renderer/conversation-activity.ts#describeConversationActivity]] projects supported tool results. [[src/renderer/components/ui/message-scroller.tsx#MessageReadingProvider]] owns transient reading positions.
 
+Response annotations share the versioned conversation draft. [[src/renderer/response-annotation.ts#annotatedMessage]] serializes attributed excerpts and comments through the existing send flow. Admission clears only the captured draft; failures retain it.
+
+[[src/renderer/components/reconnect-agent.tsx#ReconnectAgent]] restores a selected saved root when no session is attached. It waits for pending roster operations and attempts once per workspace mount, retaining explicit retry after failure.
+
 ### Transcript render ownership
 
 The transcript mounts every readable message. Memoized rows reuse unchanged message identities; scroll-end controls subscribe separately. Reading positions remain owned by the scroller provider.
 
 [[src/renderer/components/conversation-transcript.tsx#ConversationTranscript]] owns the transcript tree. Message parsing belongs to memoized rows, so accepted updates only reparse changed rows. [[src/renderer/components/ui/message-scroller.tsx#MessageScrollerProvider]] publishes at-end changes to context consumers.
+
+## Conversation page bounds and markdown
+
+The conversation page constrains its flex layout to the workspace grid. The transcript scrolls inside that space while the header and composer remain visible.
+
+Scrolling away from the end shows the jump-to-latest control without an animated loading line. Conversations with messages hide composer settings shortcuts; header settings still opens the inline controls.
+
+Assistant replies use `src/renderer/components/message-markdown.tsx` with React Markdown and GFM. Raw HTML is skipped; links use the renderer default URL filtering. User messages remain plain text.
+
+## Tool run inspection
+
+The run inspector opens during active work and follows new tool calls, then retains its selection when work settles. Python calls appear before their results arrive.
+
+Code and output wrap without individual scroll areas. The fixed-height inspector body owns scrolling; mouse run markers use a compact seven-pixel pitch, with larger touch targets. The marker rail centers when it fits and scrolls when it overflows. Hover and keyboard focus magnify three neighboring markers using transform-only transitions; reduced motion removes the transition.
+
+## Stable run content
+
+The run panel retains its DOM identity while selection changes code and output. Scritto animates the run index and execution count in place, honoring reduced motion.
+
+The implementation lives in `src/renderer/components/run-inspector.tsx`; panel entrance animations are intentionally absent.
+
+## Python source highlighting
+
+Tool source uses lazy Shiki Python highlighting with a shared JavaScript regex engine and a bounded token cache. Source remains readable if highlighting cannot load or exceeds 40,000 characters.
+
+`src/renderer/components/python-source.tsx` renders tokens as text spans. The run heading shows status only for tool errors.

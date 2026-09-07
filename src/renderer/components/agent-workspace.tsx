@@ -1,3 +1,4 @@
+import { ReconnectAgent } from "./reconnect-agent"
 import * as stylex from "@stylexjs/stylex"
 import { useAgentCreation } from "../agent-creation"
 import { styles as rosterStyles } from "./agent-roster.styles"
@@ -33,7 +34,7 @@ export function EmptyAgentWorkspace({ agent }: { agent: Agent }) {
     <h2>Choose this Agent’s root</h2><p>These are separate saved sessions. Choose the one to continue; the others stay in Saved sessions.</p>
     {legacy.map(({ sessionId }) => <button type="button" key={sessionId} disabled={pending > 0} {...stylex.props(rosterStyles.menuButton)} onClick={() => { void execute(() => client.bindRoot({ agentId: agent.id, sessionId })) }}>{catalog.data.find((item) => item.id === sessionId)?.name ?? sessionId}</button>)}
   </div>
-  if (agent.root) return <div {...stylex.props(rosterStyles.empty)}><h2>Reconnect {agent.name}</h2><p>The saved root is kept. Reconnect to continue its context.</p><button type="button" disabled={pending > 0} {...stylex.props(rosterStyles.menuButton)} onClick={() => { void execute(() => client.select({ agentId: agent.id })) }}>Reconnect Agent</button><AgentControls agent={agent}/></div>
+  if (agent.root) return <ReconnectAgent key={agent.id} agent={agent}/>
   return <div {...stylex.props(chatStyles.workspaceContent)}><div {...stylex.props(chatStyles.conversationPane, chatStyles.draftConversationPane)}>
     <EmptyConversation agent={agent} cwd={agent.cwd}/>
     <div data-composer-placement="hero" {...stylex.props(chatStyles.composerDock, chatStyles.composerPlacementHero)}>

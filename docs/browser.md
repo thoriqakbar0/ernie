@@ -8,7 +8,9 @@ Browser development shows a desktop-only explanation. It does not substitute an 
 
 ## Ownership
 
-`BrowserWorkspace` owns tab selection and panel visibility. `BrowserTab` owns one Electron guest and its navigation events. `BrowserService` enforces guest preferences before attachment. Shared address validation permits HTTP and HTTPS without embedded credentials.
+`BrowserWorkspace` owns tab selection and panel visibility. `BrowserTab` owns one Electron guest and its navigation events. `BrowserService` enforces guest preferences before attachment. Shared address validation permits HTTP and HTTPS without embedded credentials. Address edits survive loading events until submitted. Guest attachment enables Stop and Go before document completion.
+
+The main-window activation path preserves browser preferences when reopening from the macOS Dock. Service reloads remove old navigation listeners and apply current policy to surviving guests.
 
 Guest pages have no Ernie preload, Node integration, nested webviews, or application RPC bridge. Context isolation, Chromium sandboxing, and web security remain enabled. Permissions and popup windows are denied in this first version. Some authentication flows therefore need a later permission and popup design.
 

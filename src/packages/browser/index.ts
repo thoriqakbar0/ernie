@@ -13,7 +13,17 @@ export const parseBrowserAddress = (input: string, inferScheme = true): BrowserA
           if (!text) {
             throw new Error("Enter a website address.")
           }
-          const url = new URL(inferScheme && !text.includes("://") ? `https://${text}` : text)
+          const infer = inferScheme && !text.includes("://")
+          const url = new URL(infer ? `https://${text}` : text)
+          if (
+            infer &&
+            (url.hostname === "localhost" ||
+              url.hostname.endsWith(".localhost") ||
+              url.hostname === "127.0.0.1" ||
+              url.hostname === "[::1]")
+          ) {
+            url.protocol = "http:"
+          }
           if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
             throw new Error("Use an HTTP or HTTPS address without credentials.")
           }

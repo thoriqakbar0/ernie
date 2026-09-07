@@ -1,14 +1,16 @@
-import { parseBrowserAddress } from "../../packages/browser"
+import { Tooltip } from "@base-ui/react/tooltip"
+import { Globe2Icon, PanelLeftCloseIcon, PlusIcon, XIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
+import { BrowserButton } from "./browser-button"
 import { BrowserTab } from "./browser-tab"
 import { styles } from "./browser.styles"
 
 interface Tab {
   id: string
-  url: string
   location: string
+  title: string
 }
 
 /** Keeps browser tabs alive beside the workspace until explicitly closed. */
@@ -16,147 +18,187 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
   const [open, setOpen] = useState(false)
   const [tabs, setTabs] = useState<Tab[]>([])
   const [selected, setSelected] = useState<string>()
-  const [address, setAddress] = useState("")
-  const [error, setError] = useState<string>()
   const opener = useRef<HTMLButtonElement>(null)
-  const input = useRef<HTMLInputElement>(null)
-  const desktop = navigator.userAgent.includes("Electron/")
+  const tabStrip = useRef<HTMLDivElement>(null)
+  const restoreOpener = useRef(false)
   useEffect(() => {
-    if (open) {
-      input.current?.focus()
+    if (!open && restoreOpener.current) {
+      opener.current?.focus()
+      restoreOpener.current = false
     }
   }, [open])
-  const updateLocation = useCallback((id: string, location: string) => {
+  useEffect(() => {
+    const strip = tabStrip.current
+    if (!strip) {
+      return
+    }
+    const revealSelectedTab = () =>
+      strip
+        .querySelector(`#browser-tab-${selected}`)
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" })
+    const observer = new ResizeObserver(() => revealSelectedTab())
+    observer.observe(strip)
+    revealSelectedTab()
+    return () => observer.disconnect()
+  }, [selected])
+  const updatePage = useCallback((id: string, location: string, title: string) => {
     setTabs((current) =>
       current.map((tab) =>
-        tab.id === id && tab.location !== location ? { ...tab, location } : tab,
+        tab.id === id && (tab.location !== location || tab.title !== title)
+          ? { ...tab, location, title }
+          : tab,
       ),
     )
   }, [])
-  const closePanel = () => {
-    setOpen(false)
-    opener.current?.focus()
-  }
   const addTab = () => {
-    const result = parseBrowserAddress(address)
-    if (!result.ok) {
-      setError(result.error)
+    const id = crypto.randomUUID()
+    setTabs((current) => [...current, { id, location: "", title: "New tab" }])
+    setSelected(id)
+  }
+  const closePanel = () => {
+    restoreOpener.current = true
+    setOpen(false)
+  }
+  const closeTab = (id: string) => {
+    const index = tabs.findIndex((tab) => tab.id === id)
+    const remaining = tabs.filter((tab) => tab.id !== id)
+    setTabs(remaining)
+    if (remaining.length === 0) {
+      setSelected(undefined)
+      closePanel()
       return
     }
-    const id = crypto.randomUUID()
-    setTabs((current) => [...current, { id, location: result.url, url: result.url }])
-    setSelected(id)
-    setAddress("")
-    setError(undefined)
+    const next = selected === id ? (remaining[index] ?? remaining.at(-1))?.id : selected
+    setSelected(next)
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLButtonElement>(`#browser-tab-${next}`)?.focus(),
+    )
   }
 
   return (
-    <div {...stylex.props(styles.workspace)}>
-      <div {...stylex.props(styles.launcher)}>
-        <button
-          ref={opener}
-          type="button"
-          aria-expanded={open}
-          aria-controls="ernie-browser"
-          {...stylex.props(styles.button)}
-          onClick={() => {
-            setOpen((value) => !value)
-          }}
-        >
-          Browser
-        </button>
-      </div>
-      <div {...stylex.props(styles.split, open && styles.splitOpen)}>
-        <aside
-          id="ernie-browser"
-          aria-label="Browser"
-          hidden={!open}
-          {...stylex.props(styles.panel, !open && styles.hidden)}
-        >
-          <div {...stylex.props(styles.toolbar, styles.panelHeader)}>
-            <h2 {...stylex.props(styles.title)}>Browser</h2>
-            <button type="button" {...stylex.props(styles.button)} onClick={closePanel}>
-              Close panel
-            </button>
-          </div>
-          {desktop ? (
-            <>
-              <form
-                {...stylex.props(styles.toolbar)}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  addTab()
-                }}
+    <Tooltip.Provider>
+      <div {...stylex.props(styles.workspace)}>
+        <div hidden={open} {...stylex.props(styles.launcher, open && styles.hidden)}>
+          <button
+            ref={opener}
+            type="button"
+            aria-expanded={open}
+            aria-controls="ernie-browser"
+            {...stylex.props(styles.button, styles.launchButton)}
+            onClick={() => {
+              if (!tabs.length) {
+                addTab()
+              }
+              setOpen(true)
+              if (selected) {
+                requestAnimationFrame(() =>
+                  document.querySelector<HTMLButtonElement>(`#browser-tab-${selected}`)?.focus(),
+                )
+              }
+            }}
+          >
+            <Globe2Icon size={15} aria-hidden="true" />
+            Open browser
+          </button>
+        </div>
+        <div {...stylex.props(styles.split, open && styles.splitOpen)}>
+          <aside
+            id="ernie-browser"
+            aria-label="Browser"
+            hidden={!open}
+            {...stylex.props(styles.panel, !open && styles.hidden)}
+          >
+            <div {...stylex.props(styles.panelHeader)}>
+              <div
+                ref={tabStrip}
+                role="tablist"
+                aria-label="Browser tabs"
+                {...stylex.props(styles.tabs)}
               >
-                <input
-                  ref={input}
-                  aria-label="Address for new tab"
-                  placeholder="https://example.com"
-                  value={address}
-                  onChange={(event) => setAddress(event.target.value)}
-                  {...stylex.props(styles.address)}
-                />
-                <button type="submit" {...stylex.props(styles.button)}>
-                  Open tab
-                </button>
-              </form>
-              {error ? (
-                <p role="alert" {...stylex.props(styles.notice)}>
-                  {error}
-                </p>
-              ) : null}
-              <div aria-label="Browser tabs" {...stylex.props(styles.tabs)}>
-                {tabs.map((tab) => (
-                  <div key={tab.id} {...stylex.props(styles.tab)}>
-                    <button
-                      type="button"
-                      aria-pressed={selected === tab.id}
-                      {...stylex.props(styles.button, selected === tab.id && styles.selected)}
-                      onClick={() => setSelected(tab.id)}
-                    >
-                      {new URL(tab.location).host}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Close ${new URL(tab.location).host}`}
-                      {...stylex.props(styles.button)}
-                      onClick={() => {
-                        const remaining = tabs.filter((item) => item.id !== tab.id)
-                        setTabs(remaining)
-                        if (selected === tab.id) {
-                          setSelected(remaining.at(-1)?.id)
-                        }
-                        input.current?.focus()
-                      }}
-                    >
-                      ×
-                    </button>
+                {tabs.map((tab, index) => (
+                  <div
+                    key={tab.id}
+                    role="presentation"
+                    {...stylex.props(styles.tab, selected === tab.id && styles.selected)}
+                  >
+                    <Tooltip.Root>
+                      <Tooltip.Trigger
+                        id={`browser-tab-${tab.id}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected === tab.id}
+                        aria-controls={`browser-page-${tab.id}`}
+                        tabIndex={selected === tab.id ? 0 : -1}
+                        {...stylex.props(styles.button, styles.tabButton)}
+                        onClick={() => setSelected(tab.id)}
+                        onKeyDown={(event) => {
+                          const last = tabs.length - 1
+                          const positions: Record<string, number> = {
+                            ArrowLeft: (index + last) % tabs.length,
+                            ArrowRight: (index + 1) % tabs.length,
+                            End: last,
+                            Home: 0,
+                          }
+                          const position = positions[event.key]
+                          if (position !== undefined) {
+                            event.preventDefault()
+                            const next = tabs[position]
+                            if (next) {
+                              setSelected(next.id)
+                              document
+                                .querySelector<HTMLButtonElement>(`#browser-tab-${next.id}`)
+                                ?.focus()
+                            }
+                          }
+                          if (event.key === "Delete") {
+                            event.preventDefault()
+                            closeTab(tab.id)
+                          }
+                        }}
+                      >
+                        <Globe2Icon
+                          size={13}
+                          aria-hidden="true"
+                          {...stylex.props(styles.tabIcon)}
+                        />
+                        <span {...stylex.props(styles.tabTitle)}>{tab.title}</span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Positioner
+                          side="bottom"
+                          sideOffset={6}
+                          {...stylex.props(styles.tooltipPositioner)}
+                        >
+                          <Tooltip.Popup {...stylex.props(styles.tooltip)}>
+                            {tab.title}
+                            {tab.location ? <div>{tab.location}</div> : null}
+                          </Tooltip.Popup>
+                        </Tooltip.Positioner>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+                    <BrowserButton
+                      label={`Close ${tab.title}`}
+                      icon={XIcon}
+                      onClick={() => closeTab(tab.id)}
+                    />
                   </div>
                 ))}
               </div>
-              {tabs.length ? null : (
-                <p {...stylex.props(styles.notice)}>
-                  Open a website or a local preview beside your conversation.
-                </p>
-              )}
-              {tabs.map((tab) => (
-                <BrowserTab
-                  key={tab.id}
-                  id={tab.id}
-                  url={tab.url}
-                  visible={selected === tab.id}
-                  onLocationChange={updateLocation}
-                />
-              ))}
-            </>
-          ) : (
-            <p {...stylex.props(styles.notice)}>
-              Embedded browsing is available in the Ernie desktop app.
-            </p>
-          )}
-        </aside>
-        <div {...stylex.props(styles.conversation)}>{children}</div>
+              <BrowserButton label="New tab" icon={PlusIcon} onClick={addTab} />
+              <BrowserButton label="Hide browser" icon={PanelLeftCloseIcon} onClick={closePanel} />
+            </div>
+            {tabs.map((tab) => (
+              <BrowserTab
+                key={tab.id}
+                id={tab.id}
+                visible={open && selected === tab.id}
+                onPageChange={updatePage}
+              />
+            ))}
+          </aside>
+          <div {...stylex.props(styles.conversation)}>{children}</div>
+        </div>
       </div>
-    </div>
+    </Tooltip.Provider>
   )
 }

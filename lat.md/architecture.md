@@ -86,6 +86,6 @@ Tool source uses lazy Shiki Python highlighting with a shared JavaScript regex e
 
 ## Embedded browser
 
-Desktop browsing uses renderer-hosted Chromium guests to the left of the conversation, with a separate browser partition. Tabs remain mounted while hidden; explicit tab closure destroys the guest.
+Desktop browsing uses renderer-hosted Chromium guests to the left of the conversation, with a separate browser partition. Tabs and address drafts remain mounted while hidden; explicit tab closure destroys the guest.
 
-[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel and tab state. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.
+[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel visibility, keyboard tab selection, and overflow reveal. The compact chrome uses one navigation bar; available workspace width controls split or stacked layout. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.

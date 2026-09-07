@@ -1,10 +1,12 @@
 # Embedded browser
 
-Open Browser above the workspace to browse to the left of your conversation in the desktop app. Enter a website or local preview address, then choose Open tab. Each tab has back, forward, reload, and address controls. Narrow windows stack the browser above the conversation.
+Choose Open browser to browse to the left of your conversation. The panel has a tab strip and one navigation bar. Enter an address and press Enter; + opens a blank tab. Bare localhost and loopback addresses use HTTP; other bare hosts use HTTPS. Narrow workspaces stack the browser above the conversation.
+
+Tabs show page titles, with full titles and addresses available on hover or keyboard focus. Arrow keys, Home, and End select tabs; Delete closes the focused tab. The selected tab stays visible when resizing. Hiding the browser keeps tabs and address drafts; closing the last tab hides the panel and restores focus to Open browser.
 
 Closing the panel hides its tabs. Closing a tab destroys that page. Tabs survive conversation and settings navigation during the application lifetime; restarting Ernie clears the tab list. Website storage uses a separate persistent Electron partition within the current Ernie profile.
 
-Browser development shows a desktop-only explanation. It does not substitute an iframe that fails on sites with embedding restrictions.
+Browser development shows the same chrome with navigation disabled and a desktop-only explanation. It does not substitute an iframe.
 
 This integration reuses `thor/browser-panel` commits `dfcab68` and `987e358`. The current shell retains its sidebar inset and conversation providers. Browser pages remain separate documents; the application annotation overlay does not inspect guest content.
 
@@ -25,6 +27,8 @@ The implementation follows T3 Code's renderer-hosted Electron webview pattern an
 - [Preview IPC](https://github.com/pingdotgg/t3code/blob/fe07ffe7c0bf1858ba4d1cd1ce0a67b10802a747/apps/desktop/src/ipc/methods/preview.ts)
 
 Ernie uses an independent implementation adapted to Zenbu. It retains context isolation because this version has no page-picker preload. It does not copy T3 Code's permission allowlist.
+
+The compact toolbar and tab treatment also reference [PreviewChromeRow](https://github.com/pingdotgg/t3code/blob/c8ec7df12415140c6413372f53e3be4fe2e959f8/apps/web/src/components/preview/PreviewChromeRow.tsx) and [RightPanelTabs](https://github.com/pingdotgg/t3code/blob/c8ec7df12415140c6413372f53e3be4fe2e959f8/apps/web/src/components/RightPanelTabs.tsx). Ernie keeps its own theme, left placement, and supported controls.
 
 ## Remaining integration
 

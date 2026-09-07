@@ -45,11 +45,19 @@ const AgentState = ({
   client,
   readError,
 }: PropsWithChildren<{ roster: Roster; client: AgentClient; readError?: string }>) => {
-  const reconnects = useRef(new Map<string, Promise<AgentResult<unknown>>>())
-  const [actionError, setActionError] = useState<string>()
+  const native = usePrimeSessionState()
+  const connection = useRef(native)
+  useLayoutEffect(() => {
+    connection.current = native
+  }, [native])
+  const reconnects = useRef(
+    new Map<string, { generation: number; result: Promise<AgentResult<unknown>> }>(),
+  )
+  const [actionError, setActionError] = useState<{ message: string; generation?: number }>()
   const [pending, setPending] = useState(0)
   const execute = useCallback(
     async <A,>(operation: () => Promise<AgentResult<A>>): Promise<AgentResult<A>> => {
+      const started = connection.current
       setPending((count) => count + 1)
       setActionError(undefined)
       const result = await Effect.runPromise(
@@ -66,7 +74,12 @@ const AgentState = ({
       )
       setPending((count) => count - 1)
       if (!result.ok) {
-        setActionError(result.error)
+        setActionError({
+          message: result.error,
+          ...("reason" in result && result.reason === "connection"
+            ? { generation: started.connectionGeneration }
+            : {}),
+        })
       }
       return result
     },
@@ -75,18 +88,24 @@ const AgentState = ({
   const reconnect = useCallback(
     (agentId: string, retry = false) => {
       const previous = reconnects.current.get(agentId)
-      if (previous && !retry) {
-        return previous
+      const generation = connection.current.connectionGeneration
+      if (previous && previous.generation === generation && !retry) {
+        return previous.result
       }
       const attempt = execute(() => client.select({ agentId }))
-      reconnects.current.set(agentId, attempt)
+      reconnects.current.set(agentId, { generation, result: attempt })
       return attempt
     },
     [client, execute],
   )
+  const recoveredError =
+    actionError?.generation !== undefined &&
+    native.connection?.state.status === "connected" &&
+    native.connectionGeneration > actionError.generation
+  const visibleError = recoveredError ? undefined : actionError?.message
   const value = useMemo(
-    () => ({ client, error: readError ?? actionError, execute, pending, reconnect, roster }),
-    [client, readError, actionError, execute, pending, reconnect, roster],
+    () => ({ client, error: readError ?? visibleError, execute, pending, reconnect, roster }),
+    [client, readError, visibleError, execute, pending, reconnect, roster],
   )
   return <context.Provider value={value}>{children}</context.Provider>
 }

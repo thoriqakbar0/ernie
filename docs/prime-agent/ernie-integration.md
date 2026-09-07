@@ -60,3 +60,11 @@ Depth accepts nonnegative safe integers, with zero disabling child delegation. N
 `inspectChild` accepts the attached root's durable session id and a child node id from its native roster. For descendants, the backend follows roster `parentId` links and resolves each ancestor's native identity before inspecting the next child. It validates every live snapshot's parent session id and child id, or each saved transcript header's parent file. The renderer does not substitute an active id for a durable id.
 
 Inspection uses temporary logical attachments or saved session files; it never resumes or sends. Missing, ambiguous, cyclic, or mismatched ancestry fails explicitly. Retirement during inspection can require refreshing the roster. Saved results contain messages without a live snapshot.
+
+## Recovery readiness and renderer queries
+
+The main service publishes `connected` only after clearing the recovery barrier and successfully restoring attachments. Explicit retry also repairs failed attachments when the socket itself remains connected.
+
+The renderer advances a connection generation only on a transition to `connected`. Once per generation, it cancels reads left over from the old transport and revalidates model/depth queries and failed snapshot queries. It preserves accepted cached settings, successful snapshots, selected session, and application-owned drafts. Session capability queries pause while the daemon is unavailable.
+
+Agent operations tag native connection failures with `reason: "connection"`. Only those stale errors are hidden after successful recovery; validation and other action errors remain. Saved-root retry attempts are scoped to the same connection generation.

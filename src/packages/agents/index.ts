@@ -72,9 +72,12 @@ export const emptyRoster: Roster = { agents: [], associations: [], selectedAgent
 export class AgentFailure extends Schema.TaggedError<AgentFailure>()("AgentFailure", {
   cause: Schema.optionalKey(Schema.Defect()),
   message: Schema.String,
+  reason: Schema.optionalKey(Schema.Literal("connection")),
 }) {}
 /** JSON-safe RPC outcome. */
-export type AgentResult<A> = { ok: true; value: A } | { ok: false; error: string }
+export type AgentResult<A> =
+  | { ok: true; value: A }
+  | { ok: false; error: string; reason?: "connection" }
 /** Executes an Effect at the Zenbu Promise boundary. */
 export const runAgentOperation = <A>(
   operation: Effect.Effect<A, AgentFailure>,
@@ -82,7 +85,11 @@ export const runAgentOperation = <A>(
   Effect.runPromise(
     operation.pipe(
       Effect.match({
-        onFailure: (error): AgentResult<A> => ({ error: error.message, ok: false }),
+        onFailure: (error): AgentResult<A> => ({
+          error: error.message,
+          ok: false,
+          ...(error.reason ? { reason: error.reason } : {}),
+        }),
         onSuccess: (value): AgentResult<A> => ({ ok: true, value }),
       }),
     ),

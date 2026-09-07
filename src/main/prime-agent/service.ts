@@ -1,3 +1,4 @@
+import { PrimeDaemonUnavailableError } from "./daemon-unavailable"
 import { inspectNativeChild } from "./child-inspection"
 import { InstalledPrimeDaemon, isPrimeDaemonAbsent } from "./installed-daemon"
 import { readModelCatalog, projectModelCatalog } from "./model-catalog"
@@ -319,7 +320,13 @@ export class PrimeAgentService extends Service.create({
   /** Explicitly connects to the configured external daemon; concurrent clicks share recovery. */
   async connectDaemon(): Promise<PrimeSessionState> {
     this.requireActiveRuntime()
-    if (!this.recoveryPromise && this.connection.state.status !== "connected") {
+    const hasFailedAttachment = [...this.attachments.values()].some(
+      (attachment) => attachment.snapshot.transport.status !== "connected",
+    )
+    if (
+      !this.recoveryPromise &&
+      (this.connection.state.status !== "connected" || hasFailedAttachment)
+    ) {
       this.beginRecovery()
     }
     await this.recoveryPromise
@@ -1287,13 +1294,19 @@ export class PrimeAgentService extends Service.create({
     this.launchAttempted = false
     const recovery = this.recoverUntilReady()
     const trackRecovery = async () => {
+      let recovered = false
       try {
-        await recovery
+        recovered = await recovery
       } finally {
         this.recoveryPromise = undefined
         this.recoveryRequested = false
       }
-      if (!this.disposed && this.connection.state.status === "connected") {
+      if (!this.disposed && recovered && this.client?.isConnected) {
+        // Publish readiness only after commands can pass the recovery barrier.
+        this.setConnection({
+          status: "connected",
+          version: this.client.hello?.appVersion ?? "unknown",
+        })
         await this.refreshConnectedCatalog()
       }
     }
@@ -1303,6 +1316,7 @@ export class PrimeAgentService extends Service.create({
 
   private async recoverUntilReady() {
     let attempt = 0
+    let ready = false
     await runPrimeAgentRecoveryLoop({
       attempt: async () => {
         attempt += 1
@@ -1315,24 +1329,16 @@ export class PrimeAgentService extends Service.create({
           this.failAllAttachments()
           recovered = false
         }
-        const ready = recovered && !this.recoveryRequested && this.client?.isConnected === true
+        ready = recovered && !this.recoveryRequested && this.client?.isConnected === true
         if (ready) {
           this.recoveryRetry.clear()
-          this.setConnection({
-            status: "connected",
-            version: this.client?.hello?.appVersion ?? "unknown",
-          })
         }
         return ready
       },
       shouldStop: () => this.disposed || (attempt > 0 && this.connectionFailedPermanently()),
       wait: () => this.recoveryRetry.wait(),
     })
-    if (
-      !this.disposed &&
-      this.connection.state.status !== "connected" &&
-      !this.connectionFailedPermanently()
-    ) {
+    if (!this.disposed && !ready && !this.connectionFailedPermanently()) {
       this.detachClient()
       this.setConnection({
         error:
@@ -1340,6 +1346,7 @@ export class PrimeAgentService extends Service.create({
         status: "unavailable",
       })
     }
+    return ready
   }
 
   private async recoverAttachments() {
@@ -1454,7 +1461,7 @@ export class PrimeAgentService extends Service.create({
     if (this.client?.isConnected) {
       return this.client
     }
-    throw new Error("Prime Agent is not connected. Use Retry connection in the connection status.")
+    throw new PrimeDaemonUnavailableError()
   }
 
   private async replaceClient() {

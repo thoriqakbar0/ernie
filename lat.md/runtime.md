@@ -44,6 +44,8 @@ Failed reconnects preserve snapshots and pause commands. Recovery stops after th
 
 [[src/main/prime-agent/recovery-retry.ts#runPrimeAgentRecoveryLoop]] bounds retries and stops during disposal. [[src/main/prime-agent/installed-daemon.ts#InstalledPrimeDaemon]] discovers installed executables and retains launched process lifetime. Startup readiness has a 30-second deadline.
 
+Readiness is published only after the command recovery barrier clears. [[src/renderer/prime-query-recovery.ts#createPrimeQueryRecovery]] revalidates capability reads and failed snapshots once per successful connection generation, retaining cached values. Typed connection failures and failed root-selection attempts expire with that generation; unrelated action errors remain visible.
+
 [[tests#Behavior specifications#Development boundary#Browser recovery]] proves session recovery.
 
 The external daemon and socket survive cleanup, as required by [[tests#Behavior specifications#Daemon boundary#External daemon ownership]].

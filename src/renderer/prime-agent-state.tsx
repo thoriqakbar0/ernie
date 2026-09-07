@@ -1,3 +1,4 @@
+import { createPrimeQueryRecovery } from "./prime-query-recovery"
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   createContext,
@@ -27,7 +28,10 @@ const sessionKeys = {
   workspacePath: ["app", "workspace-path"] as const,
 }
 
-type SessionStateView = Readonly<{ connection?: PrimeSessionState["connection"] }> &
+type SessionStateView = Readonly<{
+  connection?: PrimeSessionState["connection"]
+  connectionGeneration: number
+}> &
   (
     | Readonly<{
         data: readonly PrimeSessionSummary[]
@@ -59,6 +63,7 @@ class PrimeAgentRuntime {
   private readonly stateListeners = new Set<() => void>()
   private stateRevision = -1
   private stateView: SessionStateView = {
+    connectionGeneration: 0,
     data: [],
     isError: false,
     isPending: true,
@@ -246,12 +251,19 @@ class PrimeAgentRuntime {
   }
 
   private acceptState(state: PrimeSessionState) {
-    if (state.revision <= this.stateRevision) {
+    if (
+      state.revision < this.stateRevision ||
+      (state.revision === this.stateRevision && !this.stateView.isError)
+    ) {
       return
     }
     this.stateRevision = state.revision
+    const recovered =
+      state.connection?.state.status === "connected" &&
+      this.stateView.connection?.state.status !== "connected"
     this.stateView = {
       connection: state.connection,
+      connectionGeneration: this.stateView.connectionGeneration + (recovered ? 1 : 0),
       data: state.sessions,
       isError: false,
       isPending: false,
@@ -269,6 +281,10 @@ class PrimeAgentRuntime {
     }
     this.stateView = {
       connection: this.stateView.connection,
+      connectionGeneration: this.stateView.connectionGeneration,
+      ...(this.stateView.selectedSessionId
+        ? { selectedSessionId: this.stateView.selectedSessionId }
+        : {}),
       data: this.stateView.data,
       error,
       isError: true,
@@ -308,8 +324,16 @@ const PrimeAgentState = ({
   )
 
   useEffect(() => {
+    const refresh = createPrimeQueryRecovery(
+      queryClient,
+      runtime.getStateView().connectionGeneration,
+    )
+    const unsubscribe = runtime.subscribeState(() => {
+      void refresh(runtime.getStateView().connectionGeneration)
+    })
     runtime.start()
     return () => {
+      unsubscribe()
       void runtime.dispose()
       queryClient.clear()
     }
@@ -497,7 +521,9 @@ export const usePrimeSessionActions = (sessionId: string | undefined) => {
 /** Reads the model catalog owned by the attached Prime Agent session. */
 export const usePrimeModels = (sessionId?: string, all = false) => {
   const runtime = usePrimeAgentRuntime()
+  const { connection } = usePrimeSessionState()
   return useQuery({
+    enabled: !sessionId || !connection || connection.state.status === "connected",
     queryFn: () => runtime.getModels(sessionId, all),
     queryKey: ["prime-agent", "models", sessionId ?? "none", all],
   })
@@ -506,7 +532,9 @@ export const usePrimeModels = (sessionId?: string, all = false) => {
 /** Reads the accepted per-chat RLM recursion limit from the existing daemon capability. */
 export const usePrimeRecurrentDepth = (sessionId: string) => {
   const runtime = usePrimeAgentRuntime()
+  const { connection } = usePrimeSessionState()
   return useQuery({
+    enabled: !connection || connection.state.status === "connected",
     queryFn: () => runtime.getRecurrentDepth(sessionId),
     queryKey: sessionKeys.recurrentDepth(sessionId),
   })

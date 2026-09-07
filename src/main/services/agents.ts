@@ -1,3 +1,5 @@
+import { PrimeDaemonUnavailableError } from "../prime-agent/daemon-unavailable"
+import { PrimeAgentTransportUnavailableError } from "../prime-agent/command-availability"
 import path from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import { Service } from "@zenbujs/core/runtime"
@@ -521,6 +523,10 @@ export class AgentsService extends Service.create({
       catch: (cause) =>
         new AgentFailure({
           cause,
+          ...(cause instanceof PrimeDaemonUnavailableError ||
+          cause instanceof PrimeAgentTransportUnavailableError
+            ? { reason: "connection" as const }
+            : {}),
           message:
             cause instanceof Error
               ? cause.message

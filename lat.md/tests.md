@@ -29,7 +29,7 @@ Startup connects without session mutations. Missing installations and incompatib
 
 ### Installed daemon startup
 
-Disposable executables prove supported launch arguments, missing and incompatible installation handling, bounded retries, environment isolation, and daemon survival after client disposal.
+Disposable executables prove version output on stdout or stderr, supported launch arguments, installation failures, bounded retries, environment isolation, and daemon survival after client disposal.
 
 ### External daemon ownership
 

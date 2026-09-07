@@ -102,12 +102,13 @@ export class InstalledPrimeDaemon {
       }
     }
     try {
-      const { stdout } = await execute(executable, ["--version"], {
+      const { stdout, stderr } = await execute(executable, ["--version"], {
         env: this.environment,
         maxBuffer: 1024,
         timeout: 3000,
       })
-      const version = valid(stdout.trim())
+      // Prime Agent redirects console.log to stderr in its CLI entrypoint.
+      const version = valid(stdout.trim() || stderr.trim())
       if (!version || !gte(version, "0.9.3")) {
         return {
           error:

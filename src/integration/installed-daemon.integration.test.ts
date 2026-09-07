@@ -12,19 +12,20 @@ import { InstalledPrimeDaemon, isPrimeDaemonAbsent } from "../main/prime-agent/i
 import { connectPrimeDaemon } from "../main/prime-agent/daemon-client"
 import { runPrimeAgentRecoveryLoop } from "../main/prime-agent/recovery-retry"
 
-// @lat: [[tests#Behavior specifications#Daemon boundary#Installed daemon startup]]
-test(
-  "installed daemon startup uses a verified executable and preserves its detached lifetime",
-  { timeout: 15_000 },
-  async (t) => {
-    const directory = await mkdtemp(path.join(tmpdir(), "ernie-installed-"))
-    const executable = path.join(directory, "prime-agent")
-    const socketPath = path.join(directory, "daemon.sock")
-    const marker = path.join(directory, "launches")
-    const script = `#!${process.execPath}
+for (const outputStream of ["stdout", "stderr"] as const) {
+  // @lat: [[tests#Behavior specifications#Daemon boundary#Installed daemon startup]]
+  test(
+    `installed daemon startup accepts ${outputStream} version output and preserves its detached lifetime`,
+    { timeout: 15_000 },
+    async (t) => {
+      const directory = await mkdtemp(path.join(tmpdir(), "ernie-installed-"))
+      const executable = path.join(directory, "prime-agent")
+      const socketPath = path.join(directory, "daemon.sock")
+      const marker = path.join(directory, "launches")
+      const script = `#!${process.execPath}
 import { appendFileSync } from 'node:fs';
 import { createServer } from 'node:net';
-if (process.argv[2] === '--version') { console.log('${VERSION}'); process.exit(0); }
+if (process.argv[2] === '--version') { console.${outputStream === "stderr" ? "error" : "log"}('${VERSION}'); process.exit(0); }
 if (process.argv[2] !== '--mode' || process.argv[3] !== 'daemon' || process.argv[4] !== '--daemon-socket') process.exit(2);
 appendFileSync(${JSON.stringify(marker)}, JSON.stringify({ internal: 'PRIME_AGENT_INTERNAL_DAEMON_WORKER' in process.env, electron: 'ELECTRON_RUN_AS_NODE' in process.env }) + '\\n');
 const peers = new Set();
@@ -43,64 +44,65 @@ const server = createServer(socket => {
 server.listen(process.argv[5]);
 setTimeout(() => process.exit(3), 12000).unref();
 `
-    await writeFile(executable, script)
-    await chmod(executable, 0o700)
-    const environment = {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      ERNIE_PRIME_AGENT_EXECUTABLE: executable,
-      PRIME_AGENT_INTERNAL_DAEMON_WORKER: "1",
-    }
-    // .mjs lets the fixture run without package metadata or imports from any user project.
-    const moduleExecutable = `${executable}.mjs`
-    await writeFile(moduleExecutable, script)
-    await chmod(moduleExecutable, 0o700)
-    environment.ERNIE_PRIME_AGENT_EXECUTABLE = moduleExecutable
-    const launcher = new InstalledPrimeDaemon(environment, directory)
-    t.after(async () => {
-      try {
-        const client = await connectPrimeDaemon(socketPath, "external")
-        await client.request({ force: true, type: "shutdown" }, 1000)
-        client.close()
-        await delay(100)
-      } catch {
-        // The fixture process also owns a bounded self-exit if readiness failed.
+      await writeFile(executable, script)
+      await chmod(executable, 0o700)
+      const environment = {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        ERNIE_PRIME_AGENT_EXECUTABLE: executable,
+        PRIME_AGENT_INTERNAL_DAEMON_WORKER: "1",
       }
-      await rm(directory, { force: true, recursive: true })
-    })
-    assert.equal(await isPrimeDaemonAbsent(socketPath), true)
-    const result1 = await launcher.start(socketPath)
-    assert.equal(result1.status, "started")
-    const result2 = await launcher.start(socketPath)
-    assert.equal(result2.status, "started")
-    let connected = false
-    await runPrimeAgentRecoveryLoop({
-      attempt: async () => {
+      // .mjs lets the fixture run without package metadata or imports from any user project.
+      const moduleExecutable = `${executable}.mjs`
+      await writeFile(moduleExecutable, script)
+      await chmod(moduleExecutable, 0o700)
+      environment.ERNIE_PRIME_AGENT_EXECUTABLE = moduleExecutable
+      const launcher = new InstalledPrimeDaemon(environment, directory)
+      t.after(async () => {
         try {
           const client = await connectPrimeDaemon(socketPath, "external")
-          connected = client.isConnected
+          await client.request({ force: true, type: "shutdown" }, 1000)
           client.close()
-          return connected
+          await delay(100)
         } catch {
-          return false
+          // The fixture process also owns a bounded self-exit if readiness failed.
         }
-      },
-      remainingAttempts: 10,
-      shouldStop: () => false,
-      wait: () => delay(100),
-    })
-    assert.equal(connected, true)
-    assert.equal(await isPrimeDaemonAbsent(socketPath), false)
-    assert.equal(await readFile(marker, "utf-8"), '{"internal":false,"electron":false}\n')
-    const anotherClient = await connectPrimeDaemon(socketPath, "external")
-    assert.equal(
-      anotherClient.isConnected,
-      true,
-      "closing Ernie's client leaves the process available",
-    )
-    anotherClient.close()
-  },
-)
+        await rm(directory, { force: true, recursive: true })
+      })
+      assert.equal(await isPrimeDaemonAbsent(socketPath), true)
+      const result1 = await launcher.start(socketPath)
+      assert.equal(result1.status, "started")
+      const result2 = await launcher.start(socketPath)
+      assert.equal(result2.status, "started")
+      let connected = false
+      await runPrimeAgentRecoveryLoop({
+        attempt: async () => {
+          try {
+            const client = await connectPrimeDaemon(socketPath, "external")
+            connected = client.isConnected
+            client.close()
+            return connected
+          } catch {
+            return false
+          }
+        },
+        remainingAttempts: 10,
+        shouldStop: () => false,
+        wait: () => delay(100),
+      })
+      assert.equal(connected, true)
+      assert.equal(await isPrimeDaemonAbsent(socketPath), false)
+      assert.equal(await readFile(marker, "utf-8"), '{"internal":false,"electron":false}\n')
+      const anotherClient = await connectPrimeDaemon(socketPath, "external")
+      assert.equal(
+        anotherClient.isConnected,
+        true,
+        "closing Ernie's client leaves the process available",
+      )
+      anotherClient.close()
+    },
+  )
+}
 
 test("missing, unusable, old, and cancelled installation paths never start a daemon", async (t) => {
   const directory = await mkdtemp(path.join(tmpdir(), "ernie-install-errors-"))

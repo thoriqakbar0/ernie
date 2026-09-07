@@ -1,3 +1,5 @@
+import { UiAnnotationHost } from "./ui-annotation-host"
+import { UiAnnotationTrigger } from "./ui-annotation-trigger"
 import { lazy, Suspense } from "react"
 import { Tabs } from "@base-ui/react/tabs"
 import { ArrowLeftIcon } from "lucide-react"
@@ -26,6 +28,7 @@ export const AppSettingsPage = () => {
   return (
     <section
       data-ernie-page={page}
+      data-ui-annotation-region={`settings:${page}`}
       aria-label={page === "history" ? "App history settings" : "Appearance settings"}
       {...stylex.props(styles.page)}
     >
@@ -40,6 +43,7 @@ export const AppSettingsPage = () => {
             <ArrowLeftIcon size={18} />
           </button>
           <h1 {...stylex.props(styles.title)}>Settings</h1>
+          <UiAnnotationTrigger />
         </header>
         <AnimatedTabs
           shape="plain"
@@ -62,6 +66,7 @@ export const AppSettingsPage = () => {
             {historyContent}
           </Tabs.Panel>
         </AnimatedTabs>
+        <UiAnnotationHost id={`settings:${page}`} page={page} fallback={2} />
       </div>
     </section>
   )

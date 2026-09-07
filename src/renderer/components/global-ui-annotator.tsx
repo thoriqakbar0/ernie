@@ -1,11 +1,20 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useMemo } from "react"
 import * as stylex from "@stylexjs/stylex"
-import { MessageSquarePlusIcon, XIcon } from "lucide-react"
+import type { PropsWithChildren } from "react"
+import { createPortal } from "react-dom"
+import { useAppNavigation } from "../app-navigation"
+import { annotationContext } from "./ui-annotation-context"
+import type { AnnotationHost } from "./ui-annotation-context"
 import type { ReactGrabAPI } from "react-grab/core"
 import { UiAnnotationEditor } from "./ui-annotation-editor"
 import type { UiAnnotation, UiSelection } from "./ui-annotation-editor"
 import { UiAnnotationReview } from "./ui-annotation-review"
 import { styles } from "./ui-annotations.styles"
+
+const findTrigger = () =>
+  [...document.querySelectorAll<HTMLButtonElement>("[data-ui-annotation-trigger]")].find(
+    (element) => element.getClientRects().length > 0,
+  ) ?? null
 
 const isAnnotationShortcut = (event: KeyboardEvent) =>
   (event.metaKey || event.ctrlKey) &&
@@ -16,12 +25,26 @@ const isAnnotationShortcut = (event: KeyboardEvent) =>
   !event.isComposing
 
 /** One lazy, local-only element selector survives workspace navigation. */
-export const GlobalUiAnnotator = () => {
+export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
+  const { page } = useAppNavigation()
+  const [hosts, setHosts] = useState<ReadonlyMap<string, AnnotationHost>>(new Map())
+  const [regionId, setRegionId] = useState<string>()
+  const [comment, setComment] = useState("")
+  const register = useCallback((id: string, host: AnnotationHost | null) => {
+    setHosts((previous) => {
+      const next = new Map(previous)
+      if (host) {
+        next.set(id, host)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }, [])
   const api = useRef<ReactGrabAPI | null>(null)
   const loading = useRef<Promise<ReactGrabAPI> | null>(null)
   const alive = useRef(true)
   const restoreFocus = useRef<HTMLElement | null>(null)
-  const toggle = useRef<HTMLButtonElement | null>(null)
   const [active, setActive] = useState(false)
   const [selection, setSelection] = useState<UiSelection>()
   const [notes, setNotes] = useState<readonly UiAnnotation[]>([])
@@ -33,8 +56,12 @@ export const GlobalUiAnnotator = () => {
       return
     }
     engine.deactivate()
+    setRegionId(
+      element.closest<HTMLElement>("[data-ui-annotation-region]")?.dataset.uiAnnotationRegion ?? undefined,
+    )
+    setComment("")
     restoreFocus.current =
-      element instanceof HTMLElement && element.tabIndex >= 0 ? element : toggle.current
+      element instanceof HTMLElement && element.tabIndex >= 0 ? element : findTrigger()
     let context = "Source context unavailable."
     try {
       context = await engine.getStackContext(element)
@@ -136,17 +163,18 @@ export const GlobalUiAnnotator = () => {
     }
     if (event.key === "Escape" && selection) {
       setSelection(undefined)
-      restoreFocus.current?.focus()
+      const target = restoreFocus.current
+      ;(target?.isConnected && target.getClientRects().length > 0 ? target : findTrigger())?.focus()
       return
     }
     if (event.key === "Escape" && review) {
       setReview(false)
-      toggle.current?.focus()
+      findTrigger()?.focus()
       return
     }
     if (event.key === "Escape" && api.current?.isActive()) {
       api.current.deactivate()
-      toggle.current?.focus()
+      findTrigger()?.focus()
     }
   })
   useEffect(() => {
@@ -161,71 +189,77 @@ export const GlobalUiAnnotator = () => {
       loading.current = null
     }
   }, [])
+  const selectedHost = regionId ? hosts.get(regionId) : undefined
+  const visible = (host: AnnotationHost) =>
+    host.page === page && host.element.isConnected && !host.element.closest("[hidden]")
+  const host =
+    selectedHost && visible(selectedHost)
+      ? selectedHost
+      : [...hosts.values()]
+          .filter((candidate) => candidate.fallback > 0 && visible(candidate))
+          .toSorted((left, right) => right.fallback - left.fallback)[0]
+  const value = useMemo(
+    () => ({
+      active,
+      count: notes.length,
+      editing: Boolean(selection),
+      feedback,
+      handleActivate: () => {
+        void activate()
+      },
+      handleToggleReview: () => {
+        api.current?.deactivate()
+        setReview((previous) => !previous)
+      },
+      register,
+      review,
+    }),
+    [active, activate, feedback, notes.length, register, review, selection],
+  )
   return (
-    <aside
-      aria-label="UI annotation"
-      data-ui-annotator
-      data-react-grab-ignore-events
-      {...stylex.props(styles.rail)}
-    >
-      <div {...stylex.props(styles.toolbar)}>
-        <button
-          ref={toggle}
-          disabled={Boolean(selection)}
-          type="button"
-          aria-pressed={active}
-          title="App UI only · local notes until reload · ⌘⇧A"
-          aria-keyshortcuts="Meta+Shift+A Control+Shift+A"
-          {...stylex.props(styles.button)}
-          onClick={() => {
-            void activate()
-          }}
-        >
-          {active ? (
-            <XIcon size={14} aria-hidden="true" />
-          ) : (
-            <MessageSquarePlusIcon size={14} aria-hidden="true" />
-          )}
-          {active ? "Stop annotating" : "Annotate UI"}
-        </button>
-        {notes.length ? (
-          <button
-            type="button"
-            aria-expanded={review}
-            {...stylex.props(styles.button)}
-            onClick={() => {
-              api.current?.deactivate()
-              setReview((previous) => !previous)
-            }}
-          >
-            UI notes · {notes.length}
-          </button>
-        ) : null}
-        {active ? <p {...stylex.props(styles.hint)}>Select app UI · Esc to stop</p> : null}
-        <output {...stylex.props(styles.hint)}>{feedback}</output>
-      </div>
-      {selection ? (
-        <UiAnnotationEditor
-          selection={selection}
-          finalFocus={() =>
-            restoreFocus.current?.isConnected ? restoreFocus.current : toggle.current
-          }
-          onClose={() => setSelection(undefined)}
-          onSave={(comment) => {
-            setNotes((previous) => [
-              ...previous,
-              { ...selection, comment, id: crypto.randomUUID() },
-            ])
-            setSelection(undefined)
-          }}
-        />
-      ) : null}
-      {review ? (
-        <UiAnnotationReview
-          notes={notes}
-          onRemove={(id) => setNotes((previous) => previous.filter((note) => note.id !== id))}
-        />
-      ) : null}
-    </aside>
+    <annotationContext.Provider value={value}>
+      {children}
+      {host && (selection || review)
+        ? createPortal(
+            <aside aria-label="UI annotation" {...stylex.props(styles.contextual)}>
+              {selection ? (
+                <UiAnnotationEditor
+                  selection={selection}
+                  comment={comment}
+                  onCommentChange={setComment}
+                  fallback={Boolean(regionId && host !== selectedHost)}
+                  finalFocus={() =>
+                    restoreFocus.current?.isConnected &&
+                    restoreFocus.current.getClientRects().length > 0
+                      ? restoreFocus.current
+                      : findTrigger()
+                  }
+                  onClose={() => {
+                    setSelection(undefined)
+                    setComment("")
+                  }}
+                  onSave={(note) => {
+                    setNotes((previous) => [
+                      ...previous,
+                      { ...selection, comment: note, id: crypto.randomUUID() },
+                    ])
+                    setSelection(undefined)
+                    setComment("")
+                  }}
+                />
+              ) : null}
+              {review ? (
+                <UiAnnotationReview
+                  notes={notes}
+                  onRemove={(id) =>
+                    setNotes((previous) => previous.filter((note) => note.id !== id))
+                  }
+                />
+              ) : null}
+            </aside>,
+            host.element,
+          )
+        : null}
+    </annotationContext.Provider>
   )
 }

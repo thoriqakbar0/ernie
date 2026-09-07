@@ -1,4 +1,5 @@
-import { GlobalUiAnnotator } from "./global-ui-annotator"
+import { UiAnnotationProvider } from "./global-ui-annotator"
+import { UiAnnotationHost } from "./ui-annotation-host"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
@@ -31,6 +32,7 @@ const WorkspacePages = () => {
         <ChatWorkspace />
       </div>
       {page === "conversation" ? null : <AppSettingsPage />}
+      <UiAnnotationHost id="workspace-fallback" page={page} fallback={1} />
     </>
   )
 }
@@ -86,79 +88,80 @@ export const App = ({
   }, [sidebarOpen])
   return (
     <AppNavigationProvider>
-      <AgentStateProvider roster={roster} client={agentClient}>
-        <ConversationDraftProvider>
-          <AgentCreationProvider>
-            <ConversationFlowProvider>
-              <MessageReadingProvider>
-                <div ref={shell} {...stylex.props(styles.appShell)}>
-                  <a href="#ernie-main-content" {...stylex.props(styles.skipLink)}>
-                    Skip to workspace
-                  </a>
-                  <main
-                    {...stylex.props(
-                      styles.appMain,
-                      !sidebarOpen && styles.appMainSidebarClosed,
-                      !sidebarOpen && collapsedSidebarLayout,
-                    )}
-                  >
-                    <div
-                      aria-label="Agent navigation"
-                      inert={!sidebarOpen}
-                      aria-hidden={!sidebarOpen}
+      <UiAnnotationProvider>
+        <AgentStateProvider roster={roster} client={agentClient}>
+          <ConversationDraftProvider>
+            <AgentCreationProvider>
+              <ConversationFlowProvider>
+                <MessageReadingProvider>
+                  <div ref={shell} {...stylex.props(styles.appShell)}>
+                    <a href="#ernie-main-content" {...stylex.props(styles.skipLink)}>
+                      Skip to workspace
+                    </a>
+                    <main
                       {...stylex.props(
-                        styles.appSidebarSlot,
-                        !sidebarOpen && styles.sidebarLeaving,
+                        styles.appMain,
+                        !sidebarOpen && styles.appMainSidebarClosed,
+                        !sidebarOpen && collapsedSidebarLayout,
                       )}
                     >
-                      <View
-                        args={{
-                          onClose: closeSidebar,
-                        }}
-                        name={SIDEBAR_VIEW_TYPE}
-                        {...stylex.props(styles.viewFill)}
-                      />
-                    </div>
-                    {sidebarOpen ? null : (
-                      <button
-                        aria-controls="ernie-sidebar"
-                        aria-expanded="false"
-                        aria-label="Open sidebar"
-                        aria-keyshortcuts="Meta+B"
-                        title="Open sidebar (⌘B)"
-                        onClick={() => {
-                          restoreToggleFocus.current = true
-                          setSidebarOpen(true)
-                        }}
-                        type="button"
-                        {...stylex.props(styles.sidebarOpenButton)}
+                      <div
+                        aria-label="Agent navigation"
+                        inert={!sidebarOpen}
+                        aria-hidden={!sidebarOpen}
+                        {...stylex.props(
+                          styles.appSidebarSlot,
+                          !sidebarOpen && styles.sidebarLeaving,
+                        )}
                       >
-                        <PanelLeftOpenIcon
-                          {...stylex.props(sharedStyles.controlIcon, styles.openIcon)}
+                        <View
+                          args={{
+                            onClose: closeSidebar,
+                          }}
+                          name={SIDEBAR_VIEW_TYPE}
+                          {...stylex.props(styles.viewFill)}
                         />
-                      </button>
-                    )}
-                    <div
-                      id="ernie-main-content"
-                      tabIndex={-1}
-                      {...stylex.props(
-                        styles.workspaceSlot,
-                        sidebarOpen && styles.workspaceBehindSidebar,
+                      </div>
+                      {sidebarOpen ? null : (
+                        <button
+                          aria-controls="ernie-sidebar"
+                          aria-expanded="false"
+                          aria-label="Open sidebar"
+                          aria-keyshortcuts="Meta+B"
+                          title="Open sidebar (⌘B)"
+                          onClick={() => {
+                            restoreToggleFocus.current = true
+                            setSidebarOpen(true)
+                          }}
+                          type="button"
+                          {...stylex.props(styles.sidebarOpenButton)}
+                        >
+                          <PanelLeftOpenIcon
+                            {...stylex.props(sharedStyles.controlIcon, styles.openIcon)}
+                          />
+                        </button>
                       )}
-                    >
-                      <BrowserWorkspace>
-                        <WorkspacePages />
-                      </BrowserWorkspace>
-                    </div>
-                  </main>
-                  <GlobalUiAnnotator />
-                  {updates}
-                </div>
-              </MessageReadingProvider>
-            </ConversationFlowProvider>
-          </AgentCreationProvider>
-        </ConversationDraftProvider>
-      </AgentStateProvider>
+                      <div
+                        id="ernie-main-content"
+                        tabIndex={-1}
+                        {...stylex.props(
+                          styles.workspaceSlot,
+                          sidebarOpen && styles.workspaceBehindSidebar,
+                        )}
+                      >
+                        <BrowserWorkspace>
+                          <WorkspacePages />
+                        </BrowserWorkspace>
+                      </div>
+                    </main>
+                    {updates}
+                  </div>
+                </MessageReadingProvider>
+              </ConversationFlowProvider>
+            </AgentCreationProvider>
+          </ConversationDraftProvider>
+        </AgentStateProvider>
+      </UiAnnotationProvider>
     </AppNavigationProvider>
   )
 }

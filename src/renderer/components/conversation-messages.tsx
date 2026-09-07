@@ -1,3 +1,4 @@
+import { UiAnnotationHost } from "./ui-annotation-host"
 import { SubagentAvatar } from "./subagent-avatar"
 import { MessageMarkdown } from "./message-markdown"
 import { AnnotatableResponse } from "./annotatable-response"
@@ -26,11 +27,13 @@ export type ConversationMessagesProps = Readonly<{
 }>
 const MessageRowContent = ({
   message,
+  regionId,
   participantId,
   agentName,
   onAnnotate,
 }: Readonly<{
   message: PrimeSessionMessage
+  regionId: string
   participantId?: string
   onAnnotate?: (annotation: ResponseAnnotation) => void
   agentName?: string
@@ -73,6 +76,7 @@ const MessageRowContent = ({
     <MessageScrollerItem>
       <article
         aria-label={label}
+        data-ui-annotation-region={regionId}
         {...stylex.props(styles.messageEntry, message.role === "user" && styles.messageEntryUser)}
       >
         {participantId && message.role === "assistant" ? (
@@ -102,6 +106,7 @@ const MessageRowContent = ({
         ) : (
           content
         )}
+        <UiAnnotationHost id={regionId} page="conversation" />
       </article>
     </MessageScrollerItem>
   )
@@ -111,6 +116,7 @@ const MessageRow = memo(MessageRowContent)
 MessageRow.displayName = "MessageRow"
 
 const Transcript = ({
+  sessionId,
   messages,
   activity,
   agentName,
@@ -129,12 +135,18 @@ const Transcript = ({
           <MessageRow
             key={message.id}
             message={message}
+            regionId={`message:${sessionId ?? "root"}:${participantId ?? "parent"}:${message.id}`}
             participantId={participantId}
             agentName={agentName}
             onAnnotate={onAnnotate}
           />
         ))}
         {activity}
+        <UiAnnotationHost
+          id={`transcript:${sessionId ?? "root"}:${participantId ?? "parent"}`}
+          page="conversation"
+          fallback={2}
+        />
       </MessageScrollerContent>
     </MessageScrollerViewport>
     <MessageScrollerButton />

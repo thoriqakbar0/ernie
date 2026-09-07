@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useRef } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./ui-annotations.styles"
 
@@ -14,16 +14,21 @@ export type UiSelection = Omit<UiAnnotation, "id" | "comment">
 /** Edits a local note inline while its source UI remains available. */
 export const UiAnnotationEditor = ({
   selection,
+  comment,
+  onCommentChange,
+  fallback,
   onSave,
   onClose,
   finalFocus,
 }: {
   selection: UiSelection
+  comment: string
+  onCommentChange: (value: string) => void
+  fallback: boolean
   onSave: (comment: string) => void
   onClose: () => void
   finalFocus: () => HTMLElement | null
 }) => {
-  const [comment, setComment] = useState("")
   const focused = useRef(false)
   const close = () => {
     onClose()
@@ -44,6 +49,9 @@ export const UiAnnotationEditor = ({
     >
       <label {...stylex.props(styles.label)}>
         {selection.element}
+        {fallback ? (
+          <span {...stylex.props(styles.hint)}>Selected content is no longer visible.</span>
+        ) : null}
         <textarea
           ref={(element) => {
             if (element && !focused.current) {
@@ -54,7 +62,7 @@ export const UiAnnotationEditor = ({
           aria-label={`Note on ${selection.element}`}
           placeholder="Add a note…"
           value={comment}
-          onChange={(event) => setComment(event.target.value)}
+          onChange={(event) => onCommentChange(event.target.value)}
           required
           {...stylex.props(styles.field)}
         />

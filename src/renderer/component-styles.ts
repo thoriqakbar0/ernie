@@ -25,6 +25,8 @@ export const styles = stylex.create({
   composerActions: { display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" },
   composerDefault: { color: theme["--muted"], fontSize: 12 },
   composerFeedback: { minHeight: { default: 22, ":empty": 0 }, padding: { default: "6px 12px 0", ":empty": 0 }, color: theme["--muted"], fontSize: 12, lineHeight: 1.5 },
+  composerHint: { margin: "6px 12px 0", minHeight: 18, fontSize: 11, lineHeight: 1.5, color: theme["--muted"], visibility: "hidden" },
+  composerHintVisible: { visibility: "visible" },
   composerError: { color: theme["--danger"] },
   srOnly: {
     position: "absolute",
@@ -51,14 +53,17 @@ export const styles = stylex.create({
     },
   },
   composerField: {
-    fontSize: { default: 14, "@media (max-width: 720px)": 16 },
+    fontSize: 16,
     lineHeight: 1.5,
     minHeight: 56,
-    padding: "14px 16px",
+    padding: "16px 18px",
     maxHeight: 160,
     overflowY: "auto",
   },
   composerAction: {
     borderRadius: 999,
+    backgroundColor: { default: theme["--accent"], ":disabled": theme["--surface-strong"] },
+    color: { default: theme["--on-accent"], ":disabled": theme["--muted"] },
+    opacity: { default: 1, ":disabled": 1 },
   },
 })

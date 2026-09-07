@@ -2,7 +2,7 @@ import type { ResponseAnnotation } from "../response-annotation"
 import { ResponseFeedback } from "./response-feedback"
 import { styles as sharedStyles } from "../component-styles"
 import * as stylex from "@stylexjs/stylex"
-import { useId, type KeyboardEvent } from "react"
+import { useId, useState, type ReactNode, type KeyboardEvent } from "react"
 import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "./ui/input-group"
@@ -10,6 +10,7 @@ import { ModelPicker } from "./model-picker"
 import type { ConversationSubmission } from "../conversation-flow"
 
 type PrimeComposerProps = Readonly<{
+  footerControl?: ReactNode
   connected: boolean
   opening?: boolean
   annotations?: readonly ResponseAnnotation[]
@@ -38,12 +39,13 @@ type PrimeComposerProps = Readonly<{
 }>
 
 /** Keeps composition editable while creation, attachment, and sending settle. */
-export function PrimeComposer({ connected, acceptedEffort, draft, annotations = [], onRemoveAnnotation, draftHero, agentName = "Agent", feedback, releaseSend,
+export function PrimeComposer({ footerControl, connected, acceptedEffort, draft, annotations = [], onRemoveAnnotation, draftHero, agentName = "Agent", feedback, releaseSend,
   modelChangePending, models, modelsPending, onDraftChange, onEffortChange, onEffortError, onModelSelect,
   opening = false, recovering, selectedModel, sessionSelected, stopAction, stopping, submitAction, submitting, working,
 }: PrimeComposerProps) {
   const inputId = "chat-message"
   const feedbackId = useId()
+  const [focused, setFocused] = useState(false)
   const uncertain = feedback?.status === "unknown"
   const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
   const message = feedback?.status === "error" || uncertain ? feedback.message
@@ -64,6 +66,8 @@ export function PrimeComposer({ connected, acceptedEffort, draft, annotations = 
         id={inputId}
         name="message"
         aria-describedby={feedbackId}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onChange={(event) => onDraftChange(event.target.value)}
         onKeyDown={(event) => submitOnEnter(event, unavailable || (!uncertain && (!draft.trim() && !annotations.length)))}
         placeholder={`Message ${agentName}…`}
@@ -72,11 +76,11 @@ export function PrimeComposer({ connected, acceptedEffort, draft, annotations = 
         xstyle={[sharedStyles.composerControl, sharedStyles.composerField]}
       />
       <InputGroupAddon align="block-end">
-        {sessionSelected ? <ModelPicker acceptedEffort={acceptedEffort}
+        {footerControl ?? (sessionSelected ? <ModelPicker acceptedEffort={acceptedEffort}
           disabled={!connected || recovering || modelChangePending || modelsPending}
           models={models} onEffortChange={onEffortChange} onEffortError={onEffortError}
           onSelect={onModelSelect} selectedModel={selectedModel} side="top"/>
-          : <span {...stylex.props(sharedStyles.composerDefault)}>Agent defaults</span>}
+          : <span {...stylex.props(sharedStyles.composerDefault)}>Agent defaults</span>)}
         <div {...stylex.props(sharedStyles.composerActions)}>
           {working || stopping ? <InputGroupButton aria-label="Stop Prime Agent" title="Stop current work"
             disabled={!connected || stopping} onClick={() => { void stopAction() }} size="sm" type="button" variant="ghost">
@@ -90,6 +94,7 @@ export function PrimeComposer({ connected, acceptedEffort, draft, annotations = 
         </div>
       </InputGroupAddon>
     </InputGroup>
+    <p aria-hidden="true" {...stylex.props(sharedStyles.composerHint, focused && sharedStyles.composerHintVisible)}>Enter to send · Shift+Enter for newline</p>
     <div id={feedbackId} {...stylex.props(sharedStyles.composerFeedback)}>
       {message ? <p role={feedback?.status === "error" ? "alert" : "status"} {...stylex.props(feedback?.status === "error" && sharedStyles.composerError)}>{message}</p> : null}
       {uncertain && releaseSend ? <><p>Your next action checks the original send. Sending again may duplicate it.</p><button type="button" disabled={unavailable} onClick={() => { void releaseSend() }}>I’ve checked; allow a new send</button></> : null}

@@ -12,6 +12,8 @@ import { nativeConversationConfig } from "./agent-config"
 import { connectPrimeDaemon, IncompatiblePrimeDaemonError, managedDaemonSocketPath } from "./daemon-client"
 import { AgentStoreService } from "../services/agent-store"
 import {
+  AuthStorage,
+  ModelRegistry,
   SessionManager,
   DaemonAgentConnection,
   DaemonClient,
@@ -361,12 +363,18 @@ export class PrimeAgentService extends Service.create({
   }
 
   /** Reads models through the owning logical attachment. */
-  async getModels(input: { sessionId: string }): Promise<readonly PrimeModel[]> {
+  async getModels(input: { sessionId?: string; all?: boolean }): Promise<readonly PrimeModel[]> {
+    if (!input.sessionId) {
+      const registry = ModelRegistry.create(AuthStorage.create())
+      const available = new Set(registry.getAvailable().map((model) => `${model.provider}:${model.id}`))
+      return (input.all ? registry.getAll() : registry.getAvailable()).map((model) => ({ id: model.id, provider: model.provider, label: model.name ?? model.id, cost: { input: model.cost.input, output: model.cost.output }, available: available.has(`${model.provider}:${model.id}`) }))
+    }
     const connection = await this.getReadyConnection(input.sessionId)
     return (await connection.getAvailableModels()).map((model) => ({
       id: model.id,
       provider: model.provider,
       label: model.name ?? model.id,
+      cost: { input: model.cost.input, output: model.cost.output },
     }))
   }
 

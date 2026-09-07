@@ -1,3 +1,5 @@
+import { AnimatedTabs } from "./ui/animated-tabs"
+import { Tabs } from "@base-ui/react/tabs"
 import { useEffect, useState, lazy, Suspense } from "react"
 import { useRpc } from "@zenbujs/core/react"
 import { Schema } from "effect"
@@ -57,14 +59,8 @@ export function AppSettingsPage() {
   const enabled = availability === "ready" && !pending
   return <section aria-label="Settings" {...stylex.props(styles.page)}><div {...stylex.props(styles.content)}>
     <header {...stylex.props(styles.header)}><button type="button" aria-label="Back to conversation" onClick={() => navigate("conversation")} {...stylex.props(styles.button)}><ArrowLeftIcon size={18}/></button><h1 {...stylex.props(styles.title)}>Settings</h1></header>
-    <div role="tablist" aria-label="Settings sections" {...stylex.props(styles.tabs)}>{(["settings", "history"] as const).map((value, index) => <button key={value} id={`settings-${value}-tab`} type="button" role="tab" aria-selected={page === value} aria-controls="settings-panel" tabIndex={page === value ? 0 : -1} onClick={() => navigate(value)} onKeyDown={event => {
-      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
-      event.preventDefault()
-      const next = event.key === "Home" ? "settings" : event.key === "End" ? "history" : index === 0 ? "history" : "settings"
-      navigate(next)
-      document.getElementById(`settings-${next}-tab`)?.focus()
-    }} {...stylex.props(styles.button, page === value && styles.selectedTab)}>{value === "settings" ? "Customize" : "App history"}</button>)}</div>
-    <div role="tabpanel" id="settings-panel" aria-labelledby={`settings-${page}-tab`}>
+    <AnimatedTabs tabs={[{ label: "Customize" }, { label: "App history" }]} aria-label="Settings sections" value={page === "history" ? "App history" : "Customize"} onValueChange={(value) => navigate(value === "App history" ? "history" : "settings")}>
+    <Tabs.Panel value={page === "history" ? "App history" : "Customize"}>
     {page === "history" ? availability === "desktop" && HistoryPreview ? <Suspense fallback={<p>Loading example history…</p>}><HistoryPreview/></Suspense> : availability === "checking" ? <p role="status">Checking app history…</p> : <AppHistoryPage embedded/> : <>
     <section aria-labelledby="customize-heading" {...stylex.props(styles.customizeCard)}>
       <div aria-hidden="true" {...stylex.props(styles.art)}><AgentAvatar avatar="iris" size="large"/><PaintbrushIcon size={30} {...stylex.props(styles.brush)}/></div>
@@ -82,6 +78,6 @@ export function AppSettingsPage() {
     </section>
 
     {error ? <p role="alert" {...stylex.props(styles.description)}>{error}</p> : null}
-    </>}</div>
+    </>}</Tabs.Panel></AnimatedTabs>
   </div></section>
 }

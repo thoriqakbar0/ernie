@@ -74,4 +74,4 @@ The signature adapter is checked against the pinned Zenbu implementation. [[src/
 
 ## InterfaceKit
 
-The renderer mounts InterfaceKit beside root content in development only. It never wraps application providers or children, and the package supplies its own stylesheet.
+InterfaceKit is disabled: the renderer does not import or mount its floating editor toolbar.

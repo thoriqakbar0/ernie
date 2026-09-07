@@ -14,7 +14,7 @@ Use readable text, accessible speaker attribution, and restrained inline code tr
 
 Selecting an Agent opens its bound root. The header shows identity and settings; ordinary navigation has no New conversation or reassignment action. Legacy profiles with several sessions need an explicit root choice. Preserve their session files without restoring the removed Saved sessions footer.
 
-The sidebar currently shows live roots and drafts working on their first message. Idle live conversations remain visible. Filtering never deletes Agent records. The accessibility of excluded Agents is an [open finding](verification.md#open-interface-findings).
+The sidebar currently shows live roots and drafts working on their first message. An empty, loaded roster shows a tilted translucent procedural Agent with “a little quiet here.” and “let’s make something together.”; loading, failure, and search feedback remain explicit. Idle live conversations remain visible. Filtering never deletes Agent records. The accessibility of excluded Agents is an [open finding](verification.md#open-interface-findings).
 
 Favorites precede other Agents in stable creation order. Sidebar rows show Agent names without subagent counts. Group portraits keep children close to the parent and represent all available direct children.
 
@@ -22,9 +22,9 @@ Generated avatar seeds persist across navigation and reload. More faces retains 
 
 ## Creation and settings
 
-Add Agent and the unselected empty workspace share the welcome composer. Generated name and avatar are ready to edit; randomizing a name preserves the avatar and offers Undo. Customize and Refine reveal one section at a time. The purpose becomes native instructions.
+Add Agent and the unselected empty workspace share the centered welcome composer. The first message saves the Agent, opens its native root, and starts work. Opening the composer creates no Agent or session. The welcome page places a small row of procedural Agents between the heading and composer. Decorative characters use stable seeds and the same generator as saved Agent avatars. A name-and-avatar chip in the composer footer opens draft settings in the sidebar, temporarily replacing the roster without covering the composer. When the sidebar is hidden or the window is narrow, settings appear below the composer; Customize and Folder are tabs with one selected panel. Arrow keys move tab focus; Enter or Space selects the focused tab. Closing settings restores the roster and keeps draft settings and the message. Escape returns focus to the chip. Generated name and avatar are ready to edit; randomizing a name preserves the avatar and offers Undo. The first message remains a user message; instructions are not edited in this panel. Agent details stay fixed after the first send attempt so retries reuse the same identity and root configuration.
 
-The folder capsule shows the current directory and offers up to eight known folders plus the native chooser; cancel preserves the form. Failed creation retains input and retry identity. The creation model picker uses the selected session’s live catalog when available, otherwise shows Default model and explains that models require a conversation. Model selection edits only the new Agent draft; runtime model controls remain available in the conversation.
+The folder capsule shows the current directory and offers up to eight known folders plus the native chooser; cancel preserves the form. Failed creation retains input and retry identity. The creation model picker reads configured models from Prime Agent before a conversation exists. It offers six models directly and opens a searchable provider-tabbed catalog through Browse all models. Catalog prices show USD input/output costs per million tokens; subscription models do not imply token billing. Models without configured credentials remain visible but disabled. Update dates are unavailable in the installed catalog, so ordering falls back to numeric model version/name, with configured models first in the full catalog. Model selection edits only the new Agent draft; runtime model controls remain available in the conversation.
 
 Existing settings open below the composer. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
 
@@ -34,7 +34,7 @@ Closing restores the actual opener's focus and preserves the draft. Once prepare
 
 Keep selection, transcript, composer context, and runtime state aligned. Drafts and reading positions survive navigation for the application lifetime; browser reload clears them.
 
-Enter sends, Shift+Enter inserts a newline, and input-method composition never sends. Reject blank submissions. Keep typing available during attachment, sending, and disconnection; command availability follows authoritative state.
+Enter sends, Shift+Enter inserts a newline, and input-method composition never sends. Focused input shows a keyboard hint in reserved space. Send uses a neutral disabled surface and orange when available. Reject blank submissions. Keep typing available during attachment, sending, and disconnection; command availability follows authoritative state.
 
 Show creation, admission, queued, stopping, and error feedback beside its action. Acknowledgement confirms admission, not completion. Active-work messages become follow-ups; Stop is a separate action and settles on authoritative state. Preserve newer draft edits when delayed responses arrive.
 
@@ -71,3 +71,11 @@ Saved Agents reconnect automatically when their workspace opens without an attac
 ## Application settings and history
 
 Settings and App history are separate pages inside the application shell. Conversation state remains mounted when navigating between these pages. Checkpoint review requests approval in the independent host recovery window. See [App history](app-history.md) for the capture boundary and restoration behavior.
+
+The conversation model control shows the active provider name and model. OpenAI, Anthropic, and Google use local monochrome Remix Icon marks retrieved through better-icons (Apache-2.0); unknown providers retain their name and initials. Provider identity comes from the session model, not the welcome screen.
+
+All settings tab lists use the shared AnimatedTabs selection pill, including app customization/history and saved Agent settings. Selecting an active saved Agent tab closes its panel. Reduced motion disables the pill transition.
+
+The welcome composer exposes draft model settings beside the Agent chip. It uses the selected session catalog when available and allows explicit provider/model IDs when no catalog exists. Both fields are required together; clearing both uses the runtime default. These values are saved only on first send. The folder panel stacks its label, full path, and change action.
+
+A compact workspace footer shows the installed Prime Agent package version, session catalog readiness, and Ernie package version. It does not claim the version of an external daemon.

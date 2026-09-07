@@ -13,6 +13,7 @@ import { useAppNavigation } from "../app-navigation"
 import { AppSettings } from "./app-settings"
 import { ErnieMark } from "./ernie-mark"
 import { PlusIcon } from "./plus-icon"
+import { GeneratedCharacter } from "./generated-avatar"
 import { AgentAvatar } from "./agent-avatar"
 import { useAgentCreation } from "../agent-creation"
 
@@ -30,7 +31,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
   const { selectedSessionId } = usePrimeSessionSelection()
   const [search, setSearch] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
-  const { setAdding, setEditing } = useAgentCreation()
+  const { setAdding, setEditing, draftSettingsDocked, setDraftSettingsHost } = useAgentCreation()
   const selectedAgentId = selectedSessionId
     ? roster.associations.find((item) => item.sessionId === selectedSessionId)?.agentId
     : roster.selectedAgentId
@@ -47,8 +48,8 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
         <button aria-controls="ernie-sidebar" aria-expanded="true" aria-label="Close sidebar" {...stylex.props(styles.sidebarCloseButton)} type="button" onClick={onClose}><PanelLeftCloseIcon {...stylex.props(rosterStyles.icon)}/></button>
       </div>
     </div>
-    <div {...stylex.props(rosterStyles.search)}><input ref={searchRef} {...stylex.props(rosterStyles.searchInput)} type="search" aria-label="Search Agents" placeholder="Search Agents" value={search} onChange={(event) => setSearch(event.target.value)}/></div>
-    <nav {...stylex.props(rosterStyles.nav)} aria-label="Agents">
+    <div {...stylex.props(rosterStyles.search, draftSettingsDocked && rosterStyles.concealed)}><input ref={searchRef} {...stylex.props(rosterStyles.searchInput)} type="search" aria-label="Search Agents" placeholder="Search Agents" value={search} onChange={(event) => setSearch(event.target.value)}/></div>
+    <nav {...stylex.props(rosterStyles.nav, draftSettingsDocked && rosterStyles.concealed)} aria-label="Agents">
       {error ? <p {...stylex.props(rosterStyles.feedback)} role="alert">{error}</p> : null}
       <ul {...stylex.props(rosterStyles.list)}>
         {agents.map((agent) => {
@@ -69,7 +70,11 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
           </li>
         })}
       </ul>
-      {agents.length === 0 ? <div role={search ? "status" : undefined} {...stylex.props(rosterStyles.empty)}>
+      {agents.length === 0 && !search && !sessions.isPending && !sessions.isError ? <div {...stylex.props(rosterStyles.ghostRow)}>
+        <span {...stylex.props(rosterStyles.hidden)}>No active conversations yet.</span>
+        <div aria-hidden="true" {...stylex.props(rosterStyles.ghostAgent)}><GeneratedCharacter seed={42} animated={false}/></div>
+        <div {...stylex.props(rosterStyles.ghostCopy)}><p {...stylex.props(rosterStyles.ghostTitle)}>a little quiet here.</p><p>let’s make something together.</p></div>
+      </div> : agents.length === 0 ? <div role={search ? "status" : undefined} {...stylex.props(rosterStyles.empty)}>
         <h2 {...stylex.props(rosterStyles.emptyTitle)}>{search ? `No Agents match “${search}”` : sessions.isPending ? "Loading conversations…" : sessions.isError ? "Conversations unavailable" : "No active conversations yet"}</h2>
         {!search ? <p {...stylex.props(rosterStyles.emptyDescription)}>Send your first message to an Agent to see them here.</p> : null}
         <button type="button" {...stylex.props(rosterStyles.emptyAction)} onClick={() => {
@@ -80,6 +85,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
         }}>{search ? "Clear search" : "Add Agent"}</button>
       </div> : null}
     </nav>
+    <div ref={setDraftSettingsHost} {...stylex.props(rosterStyles.settingsHost, !draftSettingsDocked && rosterStyles.concealed)}/>
     <AppSettings/>
   </aside>
 }

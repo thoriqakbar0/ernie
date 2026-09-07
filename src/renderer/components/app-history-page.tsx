@@ -236,17 +236,54 @@ const CheckpointDetails = ({
   </section>
 )
 
-const HistoryStatusMessage = ({ status }: { status: typeof HistoryStatus.Type }) => (
-  <p {...stylex.props(styles.historyStatus)}>
-    <output>
-      {status.captureError?.message ??
-        (status.unsavedChanges === null
-          ? "Unsaved changes could not be checked."
-          : status.unsavedChanges
-            ? "Changes since last checkpoint"
-            : "No unsaved changes.")}
-    </output>
-  </p>
+const HistoryStatusMessage = ({ status }: { status: typeof HistoryStatus.Type }) => {
+  let message = "No unsaved changes."
+  if (status.unsavedChanges === null) {
+    message = "Unsaved changes could not be checked."
+  } else if (status.unsavedChanges) {
+    message = "Changes since last checkpoint"
+  }
+  return (
+    <p {...stylex.props(styles.historyStatus)}>
+      <output>{status.captureError?.message ?? message}</output>
+    </p>
+  )
+}
+
+const HistoryFeedback = ({
+  message,
+  notice,
+  pending,
+  retry,
+}: {
+  message?: string
+  notice?: string
+  pending: string | null
+  retry?: () => Promise<void>
+}) => (
+  <div>
+    {message ? <p role="alert">{message}</p> : null}
+    {message && retry ? (
+      <button
+        type="button"
+        disabled={pending !== null}
+        {...stylex.props(styles.button)}
+        onClick={retry}
+      >
+        Try again
+      </button>
+    ) : null}
+    {notice ? (
+      <p>
+        <output>{notice}</output>
+      </p>
+    ) : null}
+    {pending ? (
+      <p {...stylex.props(styles.description)}>
+        <output>{pending}</output>
+      </p>
+    ) : null}
+  </div>
 )
 
 /** Full history page uses the same controller as independent recovery and agents. */
@@ -399,31 +436,12 @@ export const AppHistoryPage = ({
             <h1 {...stylex.props(styles.title)}>App history</h1>
           </header>
         )}
-        {errorMessage ? (
-          <div>
-            <p role="alert">{errorMessage}</p>
-            {!status ? (
-              <button
-                type="button"
-                disabled={busy}
-                {...stylex.props(styles.button)}
-                onClick={() => act(refresh, "Refreshing…")}
-              >
-                Try again
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {notice ? (
-          <p>
-            <output>{notice}</output>
-          </p>
-        ) : null}
-        {pending ? (
-          <p {...stylex.props(styles.description)}>
-            <output>{pending}</output>
-          </p>
-        ) : null}
+        <HistoryFeedback
+          message={errorMessage}
+          notice={notice}
+          pending={pending}
+          retry={status ? undefined : () => act(refresh, "Refreshing…")}
+        />
         {status ? (
           <>
             <div {...stylex.props(styles.historyToolbar)}>

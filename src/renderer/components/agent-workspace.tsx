@@ -1,3 +1,4 @@
+import { AgentHeaderName } from "./agent-header-name"
 import type { ReactNode } from "react"
 import { BrowserToggle } from "./browser-toggle"
 import { ReconnectAgent } from "./reconnect-agent"
@@ -33,9 +34,7 @@ export const AgentWorkspaceHeader = ({
       <div {...stylex.props(rosterStyles.headerLeading)}>
         <div {...stylex.props(rosterStyles.identity)}>
           {agent ? <AgentAvatar avatar={agent.avatar} animated /> : null}
-          <strong {...stylex.props(rosterStyles.headerName)}>
-            {agent?.name ?? (sessionId ? "Saved session" : "")}
-          </strong>
+          <AgentHeaderName name={agent?.name ?? (sessionId ? "Saved session" : "")} />
         </div>
         {participants}
       </div>

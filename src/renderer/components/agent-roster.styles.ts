@@ -189,13 +189,6 @@ export const styles = stylex.create({
     gap: 10,
     minWidth: 0,
   },
-  headerName: {
-    fontSize: 14,
-    fontWeight: 600,
-    lineHeight: 1.35,
-    minWidth: 0,
-    overflowWrap: "anywhere",
-  },
   headerUtilities: {
     WebkitAppRegion: "no-drag",
     alignItems: "center",

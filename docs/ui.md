@@ -12,7 +12,7 @@ Use readable text, accessible speaker attribution, and restrained inline code tr
 
 ## Agent roster
 
-Selecting an Agent opens its bound root. The header shows identity and settings; ordinary navigation has no New conversation or reassignment action. Legacy profiles with several sessions need an explicit root choice. Preserve their session files without restoring the removed Saved sessions footer.
+Selecting an Agent opens its bound root. The conversation header keeps parent identity, compact participants, and utility controls together. Long names use two visible lines, with the full name available on hover or keyboard focus. Ordinary navigation has no New conversation or reassignment action. Legacy profiles with several sessions need an explicit root choice. Preserve their session files without restoring the removed Saved sessions footer.
 
 The sidebar currently shows live roots and drafts working on their first message. An empty, loaded roster shows a tilted translucent procedural Agent with “a little quiet here.” and “let’s make something together.”; loading, failure, and search feedback remain explicit. Idle live conversations remain visible. Filtering never deletes Agent records. The accessibility of excluded Agents is an [open finding](verification.md#open-interface-findings).
 

@@ -71,3 +71,7 @@ The restart helper loads its Node-only modules before replacing source. Profile 
 Unchanged releases require metadata only. A validated candidate and successful dependency preparation survive retries. Activation records the final-path Zenbu signature; renderer events replace idle status polling.
 
 The signature adapter is checked against the pinned Zenbu implementation. [[src/main/updates/preparation.ts#PreparedDependencies]] owns preparation invalidation. [[src/renderer/components/use-update-state.ts#useUpdateState]] owns subscription lifetime, initial refresh, and immediate feedback.
+
+## InterfaceKit
+
+The renderer mounts InterfaceKit beside root content in development only. It never wraps application providers or children, and the package supplies its own stylesheet.

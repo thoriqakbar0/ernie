@@ -119,8 +119,11 @@ const Transcript = ({ messages, snapshot, agentName, onAnnotate }: ConversationT
   </MessageScroller>
 )
 
-export const ConversationTranscript = (props: ConversationTranscriptProps) => (
+const ConversationTranscriptComponent = (props: ConversationTranscriptProps) => (
   <MessageScrollerProvider restorationKey={props.sessionId}>
     <Transcript {...props} />
   </MessageScrollerProvider>
 )
+
+/** Reuses the transcript while draft edits leave its snapshot and annotation callback unchanged. */
+export const ConversationTranscript = memo(ConversationTranscriptComponent)

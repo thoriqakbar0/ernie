@@ -52,6 +52,8 @@ The transcript mounts every readable message. Memoized rows reuse unchanged mess
 
 [[src/renderer/components/conversation-transcript.tsx#ConversationTranscript]] owns the transcript tree. Message parsing belongs to memoized rows, so accepted updates only reparse changed rows. [[src/renderer/components/ui/message-scroller.tsx#MessageScrollerProvider]] publishes at-end changes to context consumers.
 
+The transcript boundary also memoizes unchanged props. Draft keystrokes avoid traversing the message list, while new snapshots, session identity, Agent names, or annotation callbacks still update the transcript.
+
 ## Conversation page bounds and markdown
 
 The conversation page constrains its flex layout to the workspace grid. The transcript scrolls inside that space while the header and composer remain visible.

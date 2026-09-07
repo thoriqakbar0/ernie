@@ -26,7 +26,9 @@ Add Agent and the unselected empty workspace share the welcome composer. Generat
 
 The folder capsule shows the current directory and offers up to eight known folders plus the native chooser; cancel preserves the form. Failed creation retains input and retry identity. The creation model picker uses the selected session’s live catalog when available, otherwise shows Default model and explains that models require a conversation. Model selection edits only the new Agent draft; runtime model controls remain available in the conversation.
 
-Existing settings open below the composer. Closing restores the actual opener's focus and preserves the draft. Once prepared, root instructions and folder are read-only until a reset workflow is designed. Changing a tab must not shift the empty-state greeting or composer. Panels may animate with a reduced-motion alternative.
+Existing settings open below the composer. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
+
+Closing restores the actual opener's focus and preserves the draft. Once prepared, root instructions and folder are read-only until a reset workflow is designed. Changing a tab must not shift the empty-state greeting or composer. Panels may animate with a reduced-motion alternative.
 
 ## Message-to-work flow
 

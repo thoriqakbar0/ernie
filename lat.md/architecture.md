@@ -41,3 +41,9 @@ Zenbu 0.6 swallows flush errors. Agent writes verify a fresh token and roster on
 Application-owned feedback and reading positions survive workspace remounts. Structured runtime details are parsed into session-level presentation without adding a second transcript or execution authority.
 
 [[src/renderer/conversation-flow.tsx#ConversationFlowProvider]] coordinates first-message creation and admission. [[src/renderer/conversation-activity.ts#describeConversationActivity]] projects supported tool results. [[src/renderer/components/ui/message-scroller.tsx#MessageReadingProvider]] owns transient reading positions.
+
+### Transcript render ownership
+
+The transcript mounts every readable message. Memoized rows reuse unchanged message identities; scroll-end controls subscribe separately. Reading positions remain owned by the scroller provider.
+
+[[src/renderer/components/conversation-transcript.tsx#ConversationTranscript]] owns the transcript tree. Message parsing belongs to memoized rows, so accepted updates only reparse changed rows. [[src/renderer/components/ui/message-scroller.tsx#MessageScrollerProvider]] publishes at-end changes to context consumers.

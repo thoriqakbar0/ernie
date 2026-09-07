@@ -1,3 +1,4 @@
+import { memo } from "react"
 import { styles } from "./conversation-transcript.styles"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeSessionMessage, PrimeSessionSnapshot } from "../../packages/prime-agent"
@@ -25,7 +26,6 @@ export function ConversationTranscript(props: ConversationTranscriptProps) {
   )
 }
 function Transcript({ messages, snapshot, agentName }: ConversationTranscriptProps) {
-  const { atEnd } = useMessageScroller()
   return (
     <MessageScroller xstyle={[styles.conversationTranscriptShell]}>
       <MessageScrollerViewport
@@ -36,37 +36,50 @@ function Transcript({ messages, snapshot, agentName }: ConversationTranscriptPro
       >
         <MessageScrollerContent xstyle={[styles.conversationTranscriptInner]}>
           {messages.map((message) => (
-            <MessageScrollerItem key={message.id}>
-              <article
-                aria-label={message.role === "assistant" ? `${agentName ?? "Prime Agent"} message` : message.role === "user" ? "Your message" : "System message"}
-                {...stylex.props(
-                  styles.messageEntry,
-                  message.role === "user" && styles.messageEntryUser,
-                )}
-              >
-                {message.role === "system" ? <header {...stylex.props(styles.messageEntryHeader)}>
-                  <span {...stylex.props(styles.messageEntryRole)}>System</span>
-                </header> : null}
-                <div
-                  {...stylex.props(
-                    styles.messageParagraph,
-                    styles.messageEntryContent,
-                    message.role === "user" && styles.userMessageContent,
-                    message.role === "system" && styles.systemMessageContent,
-                  )}
-                >
-                  {message.content.split(/\n{2,}/).map((paragraph, paragraphIndex) => <p key={paragraphIndex} {...stylex.props(styles.messageParagraph)}>{message.role === "assistant" ? paragraph.split(/(`[^`\n]+`)/g).map((part, index) => part.startsWith("`") && part.endsWith("`") ? <code key={index} {...stylex.props(styles.inlineCode)}>{part.slice(1, -1)}</code> : part) : paragraph}</p>)}
-                </div>
-              </article>
-            </MessageScrollerItem>
+            <MessageRow key={message.id} message={message} agentName={agentName} />
           ))}
           {snapshot ? <ConversationActivity snapshot={snapshot}/> : null}
         </MessageScrollerContent>
       </MessageScrollerViewport>
-      {!atEnd ? (
-        <div aria-hidden="true" {...stylex.props(styles.conversationScrollShimmer)} />
-      ) : null}
+      <ScrollShimmer />
       <MessageScrollerButton />
     </MessageScroller>
   )
+}
+
+// Accepted snapshots retain unchanged message identities through the query cache.
+const MessageRow = memo(function MessageRow({ message, agentName }: Readonly<{
+  message: PrimeSessionMessage
+  agentName?: string
+}>) {
+  return (
+    <MessageScrollerItem>
+      <article
+        aria-label={message.role === "assistant" ? `${agentName ?? "Prime Agent"} message` : message.role === "user" ? "Your message" : "System message"}
+        {...stylex.props(
+          styles.messageEntry,
+          message.role === "user" && styles.messageEntryUser,
+        )}
+      >
+        {message.role === "system" ? <header {...stylex.props(styles.messageEntryHeader)}>
+          <span {...stylex.props(styles.messageEntryRole)}>System</span>
+        </header> : null}
+        <div
+          {...stylex.props(
+            styles.messageParagraph,
+            styles.messageEntryContent,
+            message.role === "user" && styles.userMessageContent,
+            message.role === "system" && styles.systemMessageContent,
+          )}
+        >
+          {message.content.split(/\n{2,}/).map((paragraph, paragraphIndex) => <p key={paragraphIndex} {...stylex.props(styles.messageParagraph)}>{message.role === "assistant" ? paragraph.split(/(`[^`\n]+`)/g).map((part, index) => part.startsWith("`") && part.endsWith("`") ? <code key={index} {...stylex.props(styles.inlineCode)}>{part.slice(1, -1)}</code> : part) : paragraph}</p>)}
+        </div>
+      </article>
+    </MessageScrollerItem>
+  )
+})
+
+function ScrollShimmer() {
+  const { atEnd } = useMessageScroller()
+  return atEnd ? null : <div aria-hidden="true" {...stylex.props(styles.conversationScrollShimmer)} />
 }

@@ -4,7 +4,7 @@ Each Agent represents one native Prime Agent root. [ADR 0002](adr/0002-native-ag
 
 ## Visual direction
 
-Use warm paper surfaces, dark ink, restrained Pandai green accents, and existing character artwork. Start directly with content; never add eyebrow labels. Keep decoration quiet in active transcripts.
+Use warm paper surfaces, dark ink, restrained orange accents, and existing character artwork. Start directly with content; never add eyebrow labels. Keep decoration quiet in active transcripts.
 
 Use [theme tokens](../src/renderer/theme.stylex.ts), colocated styles, and shared controls. Keep exact dimensions, font sizes, breakpoints, and animation timings in source, not duplicated here. [The StyleX map](../lat.md/styling.md) identifies those boundaries.
 

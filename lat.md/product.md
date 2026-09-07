@@ -65,3 +65,7 @@ The model catalog now reads only configured Prime Agent providers. A single prov
 Provider tabs in the model catalog stay on one horizontally scrollable row rather than wrapping.
 
 Custom model ID fields are removed from Agent settings. The composer dropdown selects catalog models.
+
+Failed first-message creation unlocks draft identity controls. Retries save current settings with the last acknowledged revision, preserving the Agent ID and creation request ID. Prepared roots retain immutable folder/model controls.
+
+Pre-session model catalogs load in a bounded worker thread because Prime Agent registry construction reads files synchronously. Concurrent requests share in-flight work; only validated model metadata returns to the host.

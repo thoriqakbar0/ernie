@@ -35,6 +35,7 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize", onS
   const currentWorkspace = sessions.data.find((session) => session.id === selectedSessionId)?.cwd
     ?? roster.agents.find((item) => item.id === roster.selectedAgentId)?.cwd ?? workspace.data ?? ""
   const [id] = useState(() => agent?.id ?? crypto.randomUUID())
+  const persistedRoot = agent?.root ?? roster.agents.find((item) => item.id === id)?.root
   const [draft, setDraft] = useConversationDraft(`agent:${id}`)
   const flow = useConversationFlow(`agent:${id}`)
   const { setAdding } = useAgentCreation()
@@ -92,7 +93,7 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize", onS
           {displayedPanel === "Folder" ? <div {...stylex.props(styles.fullWidth)}>
           <div {...stylex.props(styles.workspace)}>
             <FolderIcon {...stylex.props(styles.icon)}/><div {...stylex.props(styles.folder)}><span>Working folder</span><span title={folder} {...stylex.props(styles.folderName)}>{folder || "Choose a folder"}</span></div>
-            <button type="button" disabled={Boolean(agent?.root)} {...stylex.props(styles.changeFolder, styles.keyboard)} onClick={() => {
+            <button type="button" disabled={Boolean(persistedRoot)} {...stylex.props(styles.changeFolder, styles.keyboard)} onClick={() => {
               setChoosingFolder(true)
               setError(undefined)
               void execute(() => client.chooseWorkspace()).then((result) => {
@@ -102,7 +103,7 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize", onS
               })
             }}>{choosingFolder ? "Choosing…" : "Change folder"}</button>
           </div>
-          {agent?.root ? <p {...stylex.props(styles.description)}>Saved with this Agent. Its working folder is read-only after its conversation is prepared.</p> : null}
+          {persistedRoot ? <p {...stylex.props(styles.description)}>Saved with this Agent. Its working folder is read-only after its conversation is prepared.</p> : null}
           </div> : null}
   </div>
   const settingsForm = <form onSubmit={(event) => {
@@ -130,7 +131,7 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize", onS
       </form>
   return <section aria-label={agent ? `Edit ${agent.name}` : "Create Agent"} {...stylex.props(agent ? styles.inlinePanel : styles.creationComposer)}>
       {agent ? <button type="button" aria-label="Close Agent settings" disabled={saving || choosingFolder} onClick={onClose} {...stylex.props(styles.cancel, styles.keyboard)}><XIcon size={16}/></button> : null}
-      {agent ? settingsForm : <DraftAgentSettingsPanel name={settings.name} avatar={settings.avatar} open={settingsOpen} onOpenChange={setSettingsOpen} disabled={creationStarted} choosingFolder={choosingFolder} renderComposer={(control) => <PrimeComposer footerControl={<div {...stylex.props(styles.draftFooter)}>{control}<DraftModelPicker sessionId={selectedSessionId ?? undefined} provider={settings.provider} model={settings.model} disabled={creationStarted || choosingFolder} onChange={(provider, model) => setSettings((current) => ({ ...current, provider, model }))}/></div>} agentName={settings.name} connected draft={draft} draftHero feedback={flow.submission}
+      {agent ? settingsForm : <DraftAgentSettingsPanel name={settings.name} avatar={settings.avatar} open={settingsOpen} onOpenChange={setSettingsOpen} disabled={creationStarted} choosingFolder={choosingFolder} renderComposer={(control) => <PrimeComposer footerControl={<div {...stylex.props(styles.draftFooter)}>{control}<DraftModelPicker sessionId={selectedSessionId ?? undefined} provider={settings.provider} model={settings.model} disabled={creationStarted || choosingFolder || Boolean(persistedRoot)} onChange={(provider, model) => setSettings((current) => ({ ...current, provider, model }))}/></div>} agentName={settings.name} connected draft={draft} draftHero feedback={flow.submission}
         acceptedEffort={undefined} modelChangePending={false} models={[]} modelsPending={false}
         onDraftChange={setDraft} onEffortChange={async () => {}} onEffortError={() => {}} onModelSelect={() => {}}
         recovering={false} selectedModel={undefined} sessionSelected={false} stopAction={() => {}}
@@ -143,7 +144,11 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize", onS
           setError(undefined)
           setCreationStarted(true)
           setAdding(true)
-          await flow.send({ agentId: id, settings: { ...settings, provider: settings.provider.trim(), model: settings.model.trim(), cwd: folder } })
+          try {
+            await flow.send({ agentId: id, settings: { ...settings, provider: settings.provider.trim(), model: settings.model.trim(), cwd: folder } })
+          } finally {
+            setCreationStarted(false)
+          }
         }}/>}>
         {settingsForm}
       </DraftAgentSettingsPanel>}

@@ -1,3 +1,4 @@
+import { readModelCatalog } from "./model-catalog"
 import { createHash } from "node:crypto"
 import { readFile, readdir, mkdir, stat } from "node:fs/promises"
 import { spawn } from "node:child_process"
@@ -12,8 +13,6 @@ import { nativeConversationConfig } from "./agent-config"
 import { connectPrimeDaemon, IncompatiblePrimeDaemonError, managedDaemonSocketPath } from "./daemon-client"
 import { AgentStoreService } from "../services/agent-store"
 import {
-  AuthStorage,
-  ModelRegistry,
   SessionManager,
   DaemonAgentConnection,
   DaemonClient,
@@ -365,9 +364,7 @@ export class PrimeAgentService extends Service.create({
   /** Reads models through the owning logical attachment. */
   async getModels(input: { sessionId?: string; all?: boolean }): Promise<readonly PrimeModel[]> {
     if (!input.sessionId) {
-      const registry = ModelRegistry.create(AuthStorage.create())
-      const available = new Set(registry.getAvailable().map((model) => `${model.provider}:${model.id}`))
-      return (input.all ? registry.getAll() : registry.getAvailable()).map((model) => ({ id: model.id, provider: model.provider, label: model.name ?? model.id, cost: { input: model.cost.input, output: model.cost.output }, available: available.has(`${model.provider}:${model.id}`) }))
+      return readModelCatalog(input.all)
     }
     const connection = await this.getReadyConnection(input.sessionId)
     return (await connection.getAvailableModels()).map((model) => ({

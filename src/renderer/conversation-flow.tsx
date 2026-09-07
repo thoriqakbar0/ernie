@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, useState, type PropsWithChildren } from "react"
 import { Effect } from "effect"
-import { AgentFailure, type AgentSettings } from "../packages/agents"
+import { AgentFailure, type Agent, type AgentSettings } from "../packages/agents"
 import { useAgents, useDraftCapture } from "./agent-state"
 import { useAgentCreation } from "./agent-creation"
 import { useConversationCommands } from "./prime-agent-state"
@@ -25,10 +25,10 @@ const context = createContext<FlowContext | undefined>(undefined)
 
 /** Owns create-and-send, queue feedback, and stop operations across chat navigation. */
 export function ConversationFlowProvider({ children }: PropsWithChildren) {
-  const { client } = useAgents()
+  const { client, roster } = useAgents()
   const commands = useConversationCommands()
   const { setAdding } = useAgentCreation()
-  const savedAgents = useRef(new Set<string>())
+  const savedAgents = useRef(new Map<string, Agent>())
   const capture = useDraftCapture()
   const [states, setStates] = useState<ReadonlyMap<string, FlowState>>(() => new Map())
   const stateRef = useRef(states)
@@ -57,10 +57,11 @@ export function ConversationFlowProvider({ children }: PropsWithChildren) {
         if ("sessionId" in target) sessionId = target.sessionId
         else {
           update(key, { submission: { status: "creating" } })
-          if (target.settings && !savedAgents.current.has(target.agentId)) {
-            const saved = await client.save({ ...target.settings, id: target.agentId, expectedRevision: 0 })
+          if (target.settings) {
+            const previous = savedAgents.current.get(target.agentId) ?? roster.agents.find((agent) => agent.id === target.agentId)
+            const saved = await client.save({ ...target.settings, id: target.agentId, expectedRevision: previous?.revision ?? 0, expectedNativeName: previous?.name })
             if (!saved.ok) return { status: "creation-error" as const, message: saved.error }
-            savedAgents.current.add(target.agentId)
+            savedAgents.current.set(target.agentId, saved.value)
           }
           const requestId = requests.current.get(key) ?? crypto.randomUUID()
           requests.current.set(key, requestId)

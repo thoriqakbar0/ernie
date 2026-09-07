@@ -29,9 +29,9 @@ const styles = stylex.create({
   default: {
     backgroundColor: {
       default: "var(--accent)",
-      ":hover": "color-mix(in srgb, var(--accent) 80%, transparent)",
+      ":hover:not(:disabled)": "var(--accent-hover)",
     },
-    color: "var(--surface)",
+    color: "var(--on-accent)",
   },
   bordered: {
     borderColor: {

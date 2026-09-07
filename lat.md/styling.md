@@ -8,7 +8,7 @@ Each surface owns a colocated style module. Shared composer styles and theme val
 
 Components apply styles with `stylex.props`. Reusable controls accept typed `xstyle` overrides and merge them after their defaults. Styles attach directly to owned elements; they do not depend on descendant class selectors.
 
-[[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values. Stable custom property names let document defaults and portal content use the same theme. The accent ramp uses Pandai green while status colors keep their semantic roles.
+[[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the system color scheme. Stable custom property names let document defaults and portal content use the same theme. Orange accents retain dark ink on filled actions, including hover states; status colors keep their semantic roles. Faint text remains readable on the sidebar and picker surfaces.
 
 ## Dynamic state and portals
 

@@ -123,7 +123,7 @@ export const styles = stylex.create({
       default: theme["--accent"],
       ":hover:not(:disabled)": theme["--accent-hover"],
     },
-    color: "white",
+    color: theme["--on-accent"],
     cursor: "pointer",
     transitionProperty: "background-color, box-shadow, scale",
     transitionDuration: "120ms",

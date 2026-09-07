@@ -102,7 +102,7 @@ export const styles = stylex.create({
     overflowWrap: "anywhere",
     whiteSpace: "normal",
     color: theme["--muted"],
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontFamily: "var(--font-mono, ui-monospace, monospace)",
     fontSize: "12px",
     lineHeight: "1.5",
     fontWeight: "500",

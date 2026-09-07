@@ -9,6 +9,7 @@ export const styles = stylex.create({
     height: "100%",
     flexDirection: "column",
     backgroundColor: theme["--paper"],
+    overflow: "hidden",
   },
   skipLink: {
     position: "fixed",
@@ -52,8 +53,27 @@ export const styles = stylex.create({
     },
   },
   workspaceSlot: { gridTemplateRows: "minmax(0, 1fr)", overflow: "hidden", backgroundColor: theme["--surface"], display: "grid", minWidth: 0, minHeight: 0 },
-  workspaceBehindSidebar: { display: { default: "grid", "@media (max-width: 720px)": "none" } },
+  workspaceBehindSidebar: { gridColumn: { default: 2, "@media (max-width: 720px)": 1 }, display: { default: "grid", "@media (max-width: 720px)": "none" } },
+  sidebarLeaving: {
+    transform: "translateX(-100%)",
+    opacity: 0,
+    visibility: "hidden",
+    transition: "transform 240ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 0s 240ms",
+    "@media (prefers-reduced-motion: reduce)": { transform: "none", transition: "opacity 120ms ease-out, visibility 0s 120ms" },
+  },
   appSidebarSlot: {
+    position: "absolute",
+    insetBlock: 0,
+    insetInlineStart: 0,
+    width: { default: 272, "@media (max-width: 900px)": 228, "@media (max-width: 720px)": "100%" },
+    zIndex: 21,
+    backgroundColor: theme["--surface-muted"],
+    transform: "translateX(0)",
+    opacity: 1,
+    visibility: "visible",
+    transition: "transform 240ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 0s",
+    "@media (prefers-reduced-motion: reduce)": { transition: "opacity 120ms ease-out" },
+
     minHeight: "0",
     minWidth: "0",
     borderRightWidth: {

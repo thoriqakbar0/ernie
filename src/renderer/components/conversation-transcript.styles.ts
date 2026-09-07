@@ -42,7 +42,7 @@ export const styles = stylex.create({
     fontSize: "12px",
     fontWeight: "680",
   },
-  inlineCode: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: ".875em", backgroundColor: theme["--surface-muted"], borderRadius: 4, padding: "2px 4px", boxDecorationBreak: "clone" },
+  inlineCode: { fontFamily: "var(--font-mono, ui-monospace, monospace)", fontSize: ".875em", backgroundColor: theme["--surface-muted"], borderRadius: 4, padding: "2px 4px", boxDecorationBreak: "clone" },
   messageParagraph: {
     margin: "0",
   },

@@ -18,9 +18,9 @@ The bundled parent process survives editable application startup failures. It ow
 
 ## Separate application pages
 
-Settings contains Customize and App history tabs. Conversation state remains mounted while the user inspects application checkpoints.
+Settings uses Base UI tabs for Appearance and App history, with URL-controlled selection and separate accessible panels. Conversation state remains mounted while the user inspects application checkpoints.
 
-[[src/renderer/app-navigation.tsx#AppNavigationProvider]] owns page navigation. [[src/renderer/components/app-history-page.tsx#AppHistoryPage]] reads controller facts, displays checkpoint differences, and requests approval through the independent host.
+[[src/renderer/app-navigation.tsx#AppNavigationProvider]] owns page navigation. [[src/renderer/components/app-history-page.tsx#AppHistoryPage]] reads controller facts, displays checkpoint differences. Independent host recovery retains restore approval.
 
 ## Agent access
 
@@ -32,6 +32,12 @@ Admission follows fallible session preparation. Uncertain dispatch retains its e
 
 ## Customization entry
 
-Settings leads with a customization card and a compact history row. Controller availability gates customization; browser development shows labeled example history inside the App history tab.
+Settings offers appearance preferences and a separate App history tab. Browser development shows labeled example history. The customization promotion and Agent settings guidance are no longer shown.
 
-Suggested changes open an editable conversation draft without sending. The history row reports capture failures, pending source changes, or the latest checkpoint time.
+The App history page owns checkpoint browsing and recovery feedback. Removing the settings promotion does not remove the underlying customization service.
+
+## Checkpoint inspection
+
+History separates saving from recovery. A grouped checkpoint list distinguishes current and selected entries; each row expands inline to inspect metadata and source.
+
+The compact header contains Save checkpoint and an actions disclosure for refresh and previous-state inspection. Status sits below the list. Screenshot stacks show an explicit empty state because checkpoint data has no image capture. Compact metadata keeps exact timestamps and origins in details.

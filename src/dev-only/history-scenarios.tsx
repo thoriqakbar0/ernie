@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "../renderer/components/app-settings.styles"
 import { AppHistoryPage } from "../renderer/components/app-history-page"
 import type { HistoryRequest } from "../packages/app-history"
 
@@ -21,5 +23,5 @@ async function client(input: HistoryRequest) {
   return {ok:true,value}
 }
 export default function HistoryScenarios() {
-  return <><p role="note">Example history · These checkpoints are previews and cannot change your app.</p><AppHistoryPage client={client} embedded/></>
+  return <><p role="note" {...stylex.props(styles.previewNotice)}>Preview only · Your app won’t change.</p><AppHistoryPage client={client} embedded/></>
 }

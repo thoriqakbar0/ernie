@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": ["vite/client"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "paths": {
+      "@/*": ["./src/renderer/*"],
+      "#registry/*": ["./types/*"],
+      "@ernie-hmr-sentinel": ["./src/browser/hmr-sentinel.ts"]
+    },
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "scripts", "types", "./.zenbu/types/zenbu-register.ts"]
+}

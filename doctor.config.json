@@ -1,0 +1,13 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "ignore": {
+    "files": [".build/**", ".zenbu/**"]
+  },
+  "supplyChain": {
+    "enabled": false
+  },
+  "rules": {
+    "react-doctor/require-pnpm-hardening": "off"
+  },
+  "share": false
+}

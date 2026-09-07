@@ -1,0 +1,30 @@
+import type { PrimeSessionSnapshot } from "../../packages/prime-agent"
+
+type EnrichPrimeSessionSnapshotInput = Readonly<{
+  snapshot: unknown
+  previous?: PrimeSessionSnapshot
+}>
+
+const preservedField = <Name extends string>(name: Name, current: unknown, fallback: unknown) => {
+  const value = current === undefined ? fallback : current
+  return value === undefined ? {} : { [name]: value }
+}
+
+export const enrichPrimeSessionSnapshot = (input: EnrichPrimeSessionSnapshotInput): unknown => {
+  if (
+    typeof input.snapshot !== "object" ||
+    input.snapshot === null ||
+    Array.isArray(input.snapshot)
+  ) {
+    throw new Error("Prime Agent returned an invalid connection snapshot")
+  }
+
+  const snapshot = input.snapshot as Record<string, unknown>
+  return {
+    ...snapshot,
+    childrenAvailable: snapshot.children !== undefined,
+    ...preservedField("children", snapshot.children, input.previous?.useful.children),
+    ...preservedField("parent", snapshot.parent, input.previous?.useful.parent),
+    ...preservedField("replay", snapshot.replay, input.previous?.useful.replay),
+  }
+}

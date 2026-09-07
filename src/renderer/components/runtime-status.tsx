@@ -26,7 +26,7 @@ const styles = stylex.create({
     gap: "4px 10px",
     justifyContent: "flex-end",
     lineHeight: 1.5,
-    padding: "6px 12px",
+    padding: "2px 12px",
   },
 })
 
@@ -43,7 +43,7 @@ export const RuntimeStatus = () => {
     <footer {...stylex.props(styles.footer)}>
       <output>
         <RuntimeConnectionStatus
-          label={description?.label ?? status}
+          label={connected ? "Connected" : (description?.label ?? status)}
           version={connection?.state.status === "connected" ? connection.state.version : undefined}
           clientVersion={primePackage.version}
         />

@@ -1,8 +1,8 @@
 # Embedded browser
 
-Choose Open browser to browse to the left of your conversation. The panel has a tab strip and one navigation bar. Enter an address and press Enter; + opens a blank tab. Bare localhost and loopback addresses use HTTP; other bare hosts use HTTPS. Narrow workspaces stack the browser above the conversation.
+Use the globe control in the conversation header to open the browser to the left of your conversation. The panel has a tab strip and one navigation bar. Enter an address and press Enter; + opens a blank tab. Bare localhost and loopback addresses use HTTP; other bare hosts use HTTPS. Narrow workspaces give the browser a compact area above the conversation, keeping most of the height available for the transcript and composer.
 
-Tabs show page titles, with full titles and addresses available on hover or keyboard focus. Arrow keys, Home, and End select tabs; Delete closes the focused tab. The selected tab stays visible when resizing. Hiding the browser keeps tabs and address drafts; closing the last tab hides the panel and restores focus to Open browser.
+Tabs show page titles, with full titles and addresses available on hover or keyboard focus. Arrow keys, Home, and End select tabs; Delete closes the focused tab. The selected tab stays visible when resizing. Hiding the browser keeps tabs and address drafts; closing the last tab hides the panel and restores focus to the current header control, with a workspace fallback if the original control is no longer visible.
 
 Closing the panel hides its tabs. Closing a tab destroys that page. Tabs survive conversation and settings navigation during the application lifetime; restarting Ernie clears the tab list. Website storage uses a separate persistent Electron partition within the current Ernie profile.
 

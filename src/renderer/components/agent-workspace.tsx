@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+import { BrowserToggle } from "./browser-toggle"
 import { ReconnectAgent } from "./reconnect-agent"
 import * as stylex from "@stylexjs/stylex"
 import { useAgentCreation } from "../agent-creation"
@@ -17,29 +19,42 @@ import { styles as chatStyles } from "./chat-workspace.styles"
 export const AgentWorkspaceHeader = ({
   agent,
   sessionId,
+  participants,
+  utilities,
 }: {
   agent?: Agent
   sessionId?: string
+  participants?: ReactNode
+  utilities?: ReactNode
 }) => {
   const { setEditing } = useAgentCreation()
-  return agent || sessionId ? (
+  return (
     <header {...stylex.props(rosterStyles.header)}>
-      <div {...stylex.props(rosterStyles.identity)}>
-        {agent ? <AgentAvatar avatar={agent.avatar} animated /> : null}
-        <strong {...stylex.props(rosterStyles.headerName)}>{agent?.name ?? "Saved session"}</strong>
+      <div {...stylex.props(rosterStyles.headerLeading)}>
+        <div {...stylex.props(rosterStyles.identity)}>
+          {agent ? <AgentAvatar avatar={agent.avatar} animated /> : null}
+          <strong {...stylex.props(rosterStyles.headerName)}>
+            {agent?.name ?? (sessionId ? "Saved session" : "")}
+          </strong>
+        </div>
+        {participants}
       </div>
-      {agent ? (
-        <button
-          type="button"
-          aria-label="Agent settings"
-          {...stylex.props(rosterStyles.iconButton, rosterStyles.headerAction)}
-          onClick={() => setEditing({ agentId: agent.id, section: "Customize" })}
-        >
-          <SettingsIcon {...stylex.props(rosterStyles.icon)} />
-        </button>
-      ) : null}
+      <div {...stylex.props(rosterStyles.headerUtilities)}>
+        {utilities}
+        <BrowserToggle />
+        {agent ? (
+          <button
+            type="button"
+            aria-label="Agent settings"
+            {...stylex.props(rosterStyles.iconButton, rosterStyles.headerAction)}
+            onClick={() => setEditing({ agentId: agent.id, section: "Customize" })}
+          >
+            <SettingsIcon {...stylex.props(rosterStyles.icon)} />
+          </button>
+        ) : null}
+      </div>
     </header>
-  ) : null
+  )
 }
 
 /** An empty Agent sends its first message through the application-owned coordinator. */

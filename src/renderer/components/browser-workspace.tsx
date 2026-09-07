@@ -1,3 +1,4 @@
+import { BrowserControlsContext } from "../browser-controls"
 import { Tooltip } from "@base-ui/react/tooltip"
 import { Globe2Icon, PanelLeftCloseIcon, PlusIcon, XIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -5,7 +6,7 @@ import type { ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { BrowserButton } from "./browser-button"
 import { BrowserTab } from "./browser-tab"
-import { styles } from "./browser.styles"
+import { styles, browserConversationLayout } from "./browser.styles"
 
 interface Tab {
   id: string
@@ -23,7 +24,13 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
   const restoreOpener = useRef(false)
   useEffect(() => {
     if (!open && restoreOpener.current) {
-      opener.current?.focus()
+      const target =
+        opener.current?.isConnected && opener.current.getClientRects().length
+          ? opener.current
+          : [
+              ...document.querySelectorAll<HTMLButtonElement>('[aria-controls="ernie-browser"]'),
+            ].find((element) => element.getClientRects().length)
+      ;(target ?? document.querySelector<HTMLElement>("#ernie-main-content"))?.focus()
       restoreOpener.current = false
     }
   }, [open])
@@ -75,130 +82,131 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
     )
   }
 
+  const toggle = (trigger: HTMLButtonElement) => {
+    opener.current = trigger
+    if (open) {
+      closePanel()
+      return
+    }
+    if (!tabs.length) {
+      addTab()
+    }
+    setOpen(true)
+    if (selected) {
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLButtonElement>(`#browser-tab-${selected}`)?.focus(),
+      )
+    }
+  }
   return (
-    <Tooltip.Provider>
-      <div {...stylex.props(styles.workspace)}>
-        <div hidden={open} {...stylex.props(styles.launcher, open && styles.hidden)}>
-          <button
-            ref={opener}
-            type="button"
-            aria-expanded={open}
-            aria-controls="ernie-browser"
-            {...stylex.props(styles.button, styles.launchButton)}
-            onClick={() => {
-              if (!tabs.length) {
-                addTab()
-              }
-              setOpen(true)
-              if (selected) {
-                requestAnimationFrame(() =>
-                  document.querySelector<HTMLButtonElement>(`#browser-tab-${selected}`)?.focus(),
-                )
-              }
-            }}
-          >
-            <Globe2Icon size={15} aria-hidden="true" />
-            Open browser
-          </button>
-        </div>
-        <div {...stylex.props(styles.split, open && styles.splitOpen)}>
-          <aside
-            id="ernie-browser"
-            aria-label="Browser"
-            hidden={!open}
-            {...stylex.props(styles.panel, !open && styles.hidden)}
-          >
-            <div {...stylex.props(styles.panelHeader)}>
-              <div
-                ref={tabStrip}
-                role="tablist"
-                aria-label="Browser tabs"
-                {...stylex.props(styles.tabs)}
-              >
-                {tabs.map((tab, index) => (
-                  <div
-                    key={tab.id}
-                    role="presentation"
-                    {...stylex.props(styles.tab, selected === tab.id && styles.selected)}
-                  >
-                    <Tooltip.Root>
-                      <Tooltip.Trigger
-                        id={`browser-tab-${tab.id}`}
-                        type="button"
-                        role="tab"
-                        aria-selected={selected === tab.id}
-                        aria-controls={`browser-page-${tab.id}`}
-                        tabIndex={selected === tab.id ? 0 : -1}
-                        {...stylex.props(styles.button, styles.tabButton)}
-                        onClick={() => setSelected(tab.id)}
-                        onKeyDown={(event) => {
-                          const last = tabs.length - 1
-                          const positions: Record<string, number> = {
-                            ArrowLeft: (index + last) % tabs.length,
-                            ArrowRight: (index + 1) % tabs.length,
-                            End: last,
-                            Home: 0,
-                          }
-                          const position = positions[event.key]
-                          if (position !== undefined) {
-                            event.preventDefault()
-                            const next = tabs[position]
-                            if (next) {
-                              setSelected(next.id)
-                              document
-                                .querySelector<HTMLButtonElement>(`#browser-tab-${next.id}`)
-                                ?.focus()
+    <BrowserControlsContext value={{ open, toggle }}>
+      <Tooltip.Provider>
+        <div {...stylex.props(styles.workspace)}>
+          <div {...stylex.props(styles.split, open && styles.splitOpen)}>
+            <aside
+              id="ernie-browser"
+              aria-label="Browser"
+              hidden={!open}
+              {...stylex.props(styles.panel, !open && styles.hidden)}
+            >
+              <div {...stylex.props(styles.panelHeader)}>
+                <div
+                  ref={tabStrip}
+                  role="tablist"
+                  aria-label="Browser tabs"
+                  {...stylex.props(styles.tabs)}
+                >
+                  {tabs.map((tab, index) => (
+                    <div
+                      key={tab.id}
+                      role="presentation"
+                      {...stylex.props(styles.tab, selected === tab.id && styles.selected)}
+                    >
+                      <Tooltip.Root>
+                        <Tooltip.Trigger
+                          id={`browser-tab-${tab.id}`}
+                          type="button"
+                          role="tab"
+                          aria-selected={selected === tab.id}
+                          aria-controls={`browser-page-${tab.id}`}
+                          tabIndex={selected === tab.id ? 0 : -1}
+                          {...stylex.props(styles.button, styles.tabButton)}
+                          onClick={() => setSelected(tab.id)}
+                          onKeyDown={(event) => {
+                            const last = tabs.length - 1
+                            const positions: Record<string, number> = {
+                              ArrowLeft: (index + last) % tabs.length,
+                              ArrowRight: (index + 1) % tabs.length,
+                              End: last,
+                              Home: 0,
                             }
-                          }
-                          if (event.key === "Delete") {
-                            event.preventDefault()
-                            closeTab(tab.id)
-                          }
-                        }}
-                      >
-                        <Globe2Icon
-                          size={13}
-                          aria-hidden="true"
-                          {...stylex.props(styles.tabIcon)}
-                        />
-                        <span {...stylex.props(styles.tabTitle)}>{tab.title}</span>
-                      </Tooltip.Trigger>
-                      <Tooltip.Portal>
-                        <Tooltip.Positioner
-                          side="bottom"
-                          sideOffset={6}
-                          {...stylex.props(styles.tooltipPositioner)}
+                            const position = positions[event.key]
+                            if (position !== undefined) {
+                              event.preventDefault()
+                              const next = tabs[position]
+                              if (next) {
+                                setSelected(next.id)
+                                document
+                                  .querySelector<HTMLButtonElement>(`#browser-tab-${next.id}`)
+                                  ?.focus()
+                              }
+                            }
+                            if (event.key === "Delete") {
+                              event.preventDefault()
+                              closeTab(tab.id)
+                            }
+                          }}
                         >
-                          <Tooltip.Popup {...stylex.props(styles.tooltip)}>
-                            {tab.title}
-                            {tab.location ? <div>{tab.location}</div> : null}
-                          </Tooltip.Popup>
-                        </Tooltip.Positioner>
-                      </Tooltip.Portal>
-                    </Tooltip.Root>
-                    <BrowserButton
-                      label={`Close ${tab.title}`}
-                      icon={XIcon}
-                      onClick={() => closeTab(tab.id)}
-                    />
-                  </div>
-                ))}
+                          <Globe2Icon
+                            size={13}
+                            aria-hidden="true"
+                            {...stylex.props(styles.tabIcon)}
+                          />
+                          <span {...stylex.props(styles.tabTitle)}>{tab.title}</span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Positioner
+                            side="bottom"
+                            sideOffset={6}
+                            {...stylex.props(styles.tooltipPositioner)}
+                          >
+                            <Tooltip.Popup {...stylex.props(styles.tooltip)}>
+                              {tab.title}
+                              {tab.location ? <div>{tab.location}</div> : null}
+                            </Tooltip.Popup>
+                          </Tooltip.Positioner>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+                      <BrowserButton
+                        label={`Close ${tab.title}`}
+                        icon={XIcon}
+                        onClick={() => closeTab(tab.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <BrowserButton label="New tab" icon={PlusIcon} onClick={addTab} />
+                <BrowserButton
+                  label="Hide browser"
+                  icon={PanelLeftCloseIcon}
+                  onClick={closePanel}
+                />
               </div>
-              <BrowserButton label="New tab" icon={PlusIcon} onClick={addTab} />
-              <BrowserButton label="Hide browser" icon={PanelLeftCloseIcon} onClick={closePanel} />
+              {tabs.map((tab) => (
+                <BrowserTab
+                  key={tab.id}
+                  id={tab.id}
+                  visible={open && selected === tab.id}
+                  onPageChange={updatePage}
+                />
+              ))}
+            </aside>
+            <div {...stylex.props(styles.conversation, open && browserConversationLayout)}>
+              {children}
             </div>
-            {tabs.map((tab) => (
-              <BrowserTab
-                key={tab.id}
-                id={tab.id}
-                visible={open && selected === tab.id}
-                onPageChange={updatePage}
-              />
-            ))}
-          </aside>
-          <div {...stylex.props(styles.conversation)}>{children}</div>
+          </div>
         </div>
-      </div>
-    </Tooltip.Provider>
+      </Tooltip.Provider>
+    </BrowserControlsContext>
   )
 }

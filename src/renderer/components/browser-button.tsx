@@ -9,12 +9,16 @@ export const BrowserButton = ({
   label,
   icon: Icon,
   disabled = false,
+  expanded,
+  controls,
   onClick,
   type = "button",
 }: {
   label: string
   icon: LucideIcon
   disabled?: boolean
+  expanded?: boolean
+  controls?: string
   onClick?: MouseEventHandler<HTMLButtonElement>
   type?: "button" | "submit"
 }) => (
@@ -25,6 +29,8 @@ export const BrowserButton = ({
           type={type === "submit" ? "submit" : "button"}
           disabled={disabled}
           aria-label={label}
+          aria-expanded={expanded}
+          aria-controls={controls}
           onClick={onClick}
           {...stylex.props(styles.button, styles.iconButton)}
         />

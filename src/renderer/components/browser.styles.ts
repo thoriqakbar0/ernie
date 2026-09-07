@@ -2,6 +2,12 @@ import * as stylex from "@stylexjs/stylex"
 import { shellLayout } from "../shell-layout.stylex"
 import { theme } from "../theme.stylex"
 
+/** The conversation is clear of native controls when the browser occupies the leading edge. */
+export const browserConversationLayout = stylex.createTheme(shellLayout, {
+  headerInset: "20px",
+  headerTopInset: "0px",
+})
+
 /** Browser chrome uses the workspace palette and adapts to the space beside the conversation. */
 export const styles = stylex.create({
   address: {
@@ -34,6 +40,7 @@ export const styles = stylex.create({
     minWidth: 0,
   },
   button: {
+    WebkitAppRegion: "no-drag",
     alignItems: "center",
     backgroundColor: { ":hover:not(:disabled)": theme["--surface-muted"], default: "transparent" },
     borderColor: {
@@ -107,14 +114,6 @@ export const styles = stylex.create({
   guest: { display: "flex", flex: 1, minHeight: 0, width: "100%" },
   hidden: { display: "none" },
   iconButton: { padding: 0, width: 30 },
-  launchButton: { backgroundColor: theme["--surface-muted"], paddingInline: 10 },
-  launcher: {
-    alignItems: "center",
-    display: "flex",
-    justifyContent: "flex-end",
-    minHeight: 38,
-    paddingInline: 8,
-  },
   loadStatus: {
     ":empty": { display: "none" },
     color: theme["--muted"],
@@ -149,6 +148,7 @@ export const styles = stylex.create({
     minWidth: 0,
   },
   panelHeader: {
+    WebkitAppRegion: "drag",
     alignItems: "center",
     backgroundColor: theme["--surface"],
     display: "flex",
@@ -156,6 +156,7 @@ export const styles = stylex.create({
     gap: 3,
     minHeight: 40,
     paddingBlock: 4,
+    paddingBlockStart: shellLayout.headerTopInset,
     paddingInlineEnd: 6,
     paddingInlineStart: shellLayout.headerInset,
   },
@@ -174,7 +175,8 @@ export const styles = stylex.create({
       default: "minmax(320px, 0.9fr) minmax(400px, 1.1fr)",
     },
     gridTemplateRows: {
-      "@container browser-workspace (max-width: 820px)": "minmax(0, 1fr) minmax(0, 1fr)",
+      "@container browser-workspace (max-width: 820px)":
+        "minmax(100px, min(35%, 260px)) minmax(0, 1fr)",
       default: "minmax(0, 1fr)",
     },
   },
@@ -199,6 +201,7 @@ export const styles = stylex.create({
     scrollbarWidth: "thin",
   },
   toolbar: {
+    WebkitAppRegion: "no-drag",
     alignItems: "center",
     backgroundColor: theme["--surface"],
     borderBottomColor: theme["--rule"],

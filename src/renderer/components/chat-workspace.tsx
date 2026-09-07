@@ -1,4 +1,4 @@
-import { SubagentActivity } from "./subagent-activity"
+import { SessionSubagentParticipants } from "./session-subagent-participants"
 import { RuntimeStatus } from "./runtime-status"
 import { useAgentCreation } from "../agent-creation"
 import { AppChangeProtection } from "./app-change-protection"
@@ -245,7 +245,6 @@ const PrimeSessionWorkspace = ({
   }
   return (
     <>
-      {snapshot ? <SubagentActivity snapshot={snapshot} /> : null}
       <WorkspaceNotices
         snapshot={snapshot}
         connected={connected}
@@ -329,7 +328,11 @@ export const ChatWorkspace = () => {
       tabIndex={-1}
       {...stylex.props(styles.chatWorkspace)}
     >
-      {adding ? null : <AgentWorkspaceHeader agent={activeAgent} sessionId={sessionId} />}
+      <AgentWorkspaceHeader
+        agent={adding ? undefined : activeAgent}
+        sessionId={adding ? undefined : sessionId}
+        participants={adding ? null : <SessionSubagentParticipants sessionId={sessionId} />}
+      />
       {error ? (
         <p role="alert" {...stylex.props(rosterStyles.feedback)}>
           {error}

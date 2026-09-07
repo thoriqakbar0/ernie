@@ -20,6 +20,12 @@ Each attachment starts from a snapshot envelope. Ordered changes apply only to t
 
 [[src/packages/prime-agent/sync.ts#createPrimeSessionSyncState]] owns the synchronization state. Revision gaps, overflow, or generation changes require a fresh snapshot.
 
+## Renderer event routing
+
+Renderer clients inspect session identity before parsing broadcast transcripts. Only locally subscribed sessions require deep validation; accepted events still pass the complete envelope parser.
+
+[[src/packages/prime-agent/zenbu.ts#createZenbuPrimeAgentClient]] owns routing and listener cleanup. This avoids repeated transcript traversal in renderers that do not observe the session, without changing main-process broadcasts or attachment retention.
+
 ## Logical session isolation
 
 One daemon client may carry several logical attachments. Each attachment keeps its own snapshot, events, commands, and disposal lifecycle.

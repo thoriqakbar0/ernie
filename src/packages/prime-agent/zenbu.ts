@@ -6,10 +6,8 @@ import type {
   PrimeAgentModelClient,
   PrimeEffort,
   PrimeModel,
-  PrimeSessionChangeEnvelope,
   PrimeSessionEventListener,
   PrimeSessionSnapshot,
-  PrimeSessionSnapshotEnvelope,
   PrimeSessionState,
   SessionAction,
   SendRequest,
@@ -21,13 +19,14 @@ import {
 } from "./sync"
 
 type PrimeAgentRpc = Readonly<{
+  connectDaemon: () => Promise<unknown>
   getSendEpoch: () => Promise<string>
   sendMessage: (input: SendRequest) => Promise<SendReceipt>
   checkSend: (input: SendRequest) => Promise<SendReceipt>
-  getSessionState: () => Promise<PrimeSessionState>
+  getSessionState: () => Promise<unknown>
   selectSession: (input: { sessionId?: string }) => Promise<void>
   createSession: (input: CreateSessionRequest) => Promise<PrimeSessionSnapshot["session"]>
-  attachSession: (input: { sessionId: string }) => Promise<PrimeSessionSnapshotEnvelope>
+  attachSession: (input: { sessionId: string }) => Promise<unknown>
   abort: (input: SessionAction) => Promise<void>
   waitForIdle: (input: SessionAction) => Promise<void>
   getModels: (input: { sessionId?: string; all?: boolean }) => Promise<readonly PrimeModel[]>
@@ -39,17 +38,19 @@ type PrimeAgentRpc = Readonly<{
 
 type PrimeAgentEvents = Readonly<{
   primeSessionStateChanged: Readonly<{
-    subscribe: (listener: (state: PrimeSessionState) => void) => () => void
+    subscribe: (listener: (state: unknown) => void) => () => void
   }>
   primeSessionChanged: Readonly<{
-    subscribe: (listener: (event: PrimeSessionChangeEnvelope) => void) => () => void
+    subscribe: (listener: (event: unknown) => void) => () => void
   }>
   primeSessionSnapshot: Readonly<{
-    subscribe: (listener: (event: PrimeSessionSnapshotEnvelope) => void) => () => void
+    subscribe: (listener: (event: unknown) => void) => () => void
   }>
 }>
 
 export interface ZenbuPrimeAgentClient extends PrimeAgentModelClient {
+  /** Requests daemon connection and validates the returned session catalog. */
+  connectDaemon: () => Promise<PrimeSessionState>
   dispose: () => void
 }
 
@@ -60,18 +61,31 @@ export const createZenbuPrimeAgentClient = (
 ): ZenbuPrimeAgentClient => {
   const listeners = new Map<string, Set<PrimeSessionEventListener>>()
   const stateListeners = new Set<(state: PrimeSessionState) => void>()
+  // Route by identity before traversing a transcript; subscribed payloads still require full parsing.
+  const hasSessionListener = (input: unknown) =>
+    typeof input === "object" &&
+    input !== null &&
+    "sessionId" in input &&
+    typeof input.sessionId === "string" &&
+    listeners.has(input.sessionId)
   const dispatch = (event: Parameters<PrimeSessionEventListener>[0]) => {
     for (const listener of listeners.get(event.envelope.sessionId) ?? []) {
       listener(event)
     }
   }
   const unsubscribeChanges = events.primeSessionChanged.subscribe((input) => {
+    if (!hasSessionListener(input)) {
+      return
+    }
     const parsed = parsePrimeSessionChangeEnvelope(input)
     if (parsed.ok) {
       dispatch({ envelope: parsed.value, type: "change" })
     }
   })
   const unsubscribeSnapshots = events.primeSessionSnapshot.subscribe((input) => {
+    if (!hasSessionListener(input)) {
+      return
+    }
     const parsed = parsePrimeSessionSnapshotEnvelope(input)
     if (parsed.ok) {
       dispatch({ envelope: parsed.value, type: "snapshot" })
@@ -98,6 +112,13 @@ export const createZenbuPrimeAgentClient = (
     },
     checkSend: async (request) =>
       Schema.decodeUnknownSync(SendReceipt)(await rpc.checkSend(request)),
+    async connectDaemon() {
+      const parsed = parsePrimeSessionState(await rpc.connectDaemon())
+      if (!parsed.ok) {
+        throw parsed.error
+      }
+      return parsed.value
+    },
     createSession: (request: CreateSessionRequest) => rpc.createSession(request),
     dispose() {
       unsubscribeChanges()

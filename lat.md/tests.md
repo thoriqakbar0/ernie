@@ -38,3 +38,7 @@ Service shutdown joins pending native attachment cleanup, rejects later acquisit
 ### Refresh burst coalescing
 
 Bursts share queued projection work while preserving events received during a native read. A socket fixture measures full-transcript projections and verifies the final published session state.
+
+### Renderer event routing
+
+Serialized broadcasts reach only subscribed renderer attachments. Invalid observed envelopes remain rejected; listener removal and disposal stop delivery, and new subscriptions resume validated updates.

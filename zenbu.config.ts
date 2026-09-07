@@ -35,6 +35,8 @@ export default defineConfig({
     out: ".zenbu/build/source",
     include: [
       "src/**/*",
+      "build/brand/**/*",
+      "electron-builder.json",
       ".gitignore",
       ".npmrc",
       "package.json",

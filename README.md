@@ -1,5 +1,7 @@
 # Ernie
 
+<img src="src/renderer/icon.png" width="96" height="96" alt="Ernie ribbon e logo" />
+
 Ernie is a Zenbu.js application backed by the real Prime Agent daemon.
 
 ## Development context

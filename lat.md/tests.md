@@ -29,3 +29,11 @@ Stopping Ernie closes its connection but leaves an externally selected Prime Age
 ### Send receipt recovery
 
 Receipt inspection never dispatches, even when the original request arrives late. Concurrent attachments share a generation. Restart recovery resolves the native active ID before consuming snapshot events.
+
+### Service disposal
+
+Service shutdown joins pending native attachment cleanup, rejects later acquisition without opening a socket, and leaves the external endpoint available.
+
+### Refresh burst coalescing
+
+Bursts share queued projection work while preserving events received during a native read. A socket fixture measures full-transcript projections and verifies the final published session state.

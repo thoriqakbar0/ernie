@@ -1,3 +1,4 @@
+import { UiAnnotationTrigger } from "./ui-annotation-trigger"
 import { SessionSubagentParticipants } from "./session-subagent-participants"
 import { RuntimeStatus } from "./runtime-status"
 import { useAgentCreation } from "../agent-creation"
@@ -332,6 +333,7 @@ export const ChatWorkspace = () => {
         agent={adding ? undefined : activeAgent}
         sessionId={adding ? undefined : sessionId}
         participants={adding ? null : <SessionSubagentParticipants sessionId={sessionId} />}
+        utilities={<UiAnnotationTrigger />}
       />
       {error ? (
         <p role="alert" {...stylex.props(rosterStyles.feedback)}>

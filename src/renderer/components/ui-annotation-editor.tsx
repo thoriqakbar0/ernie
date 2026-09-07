@@ -19,7 +19,6 @@ export const UiAnnotationEditor = ({
   fallback,
   onSave,
   onClose,
-  finalFocus,
 }: {
   selection: UiSelection
   comment: string
@@ -27,12 +26,10 @@ export const UiAnnotationEditor = ({
   fallback: boolean
   onSave: (comment: string) => void
   onClose: () => void
-  finalFocus: () => HTMLElement | null
 }) => {
   const focused = useRef(false)
   const close = () => {
     onClose()
-    finalFocus()?.focus()
   }
   return (
     <form
@@ -43,7 +40,6 @@ export const UiAnnotationEditor = ({
         event.preventDefault()
         if (comment.trim()) {
           onSave(comment.trim())
-          finalFocus()?.focus()
         }
       }}
     >

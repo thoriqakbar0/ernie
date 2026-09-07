@@ -31,6 +31,7 @@ export const UiAnnotationTrigger = () => {
       {annotation.count > 0 ? (
         <button
           type="button"
+          disabled={annotation.editing}
           aria-expanded={annotation.review}
           {...stylex.props(styles.trigger)}
           onClick={annotation.handleToggleReview}

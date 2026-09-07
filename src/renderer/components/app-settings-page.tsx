@@ -1,3 +1,4 @@
+import { BrowserToggle } from "./browser-toggle"
 import { UiAnnotationHost } from "./ui-annotation-host"
 import { UiAnnotationTrigger } from "./ui-annotation-trigger"
 import { lazy, Suspense } from "react"
@@ -44,6 +45,7 @@ export const AppSettingsPage = () => {
           </button>
           <h1 {...stylex.props(styles.title)}>Settings</h1>
           <UiAnnotationTrigger />
+          <BrowserToggle />
         </header>
         <AnimatedTabs
           shape="plain"

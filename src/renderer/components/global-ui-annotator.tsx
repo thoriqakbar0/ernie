@@ -28,8 +28,12 @@ const isAnnotationShortcut = (event: KeyboardEvent) =>
 export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
   const { page } = useAppNavigation()
   const [hosts, setHosts] = useState<ReadonlyMap<string, AnnotationHost>>(new Map())
-  const [regionId, setRegionId] = useState<string>()
-  const [comment, setComment] = useState("")
+  const [editor, setEditor] = useState<{
+    selection?: UiSelection
+    regionId?: string
+    comment: string
+  }>({ comment: "" })
+  const { selection, regionId, comment } = editor
   const register = useCallback((id: string, host: AnnotationHost | null) => {
     setHosts((previous) => {
       const next = new Map(previous)
@@ -45,8 +49,8 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
   const loading = useRef<Promise<ReactGrabAPI> | null>(null)
   const alive = useRef(true)
   const restoreFocus = useRef<HTMLElement | null>(null)
+  const focusAfterClose = useRef(false)
   const [active, setActive] = useState(false)
-  const [selection, setSelection] = useState<UiSelection>()
   const [notes, setNotes] = useState<readonly UiAnnotation[]>([])
   const [review, setReview] = useState(false)
   const [feedback, setFeedback] = useState("")
@@ -56,10 +60,9 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
       return
     }
     engine.deactivate()
-    setRegionId(
-      element.closest<HTMLElement>("[data-ui-annotation-region]")?.dataset.uiAnnotationRegion ?? undefined,
-    )
-    setComment("")
+    const selectedRegion = element.closest<HTMLElement>("[data-ui-annotation-region]")?.dataset
+      .uiAnnotationRegion
+    setReview(false)
     restoreFocus.current =
       element instanceof HTMLElement && element.tabIndex >= 0 ? element : findTrigger()
     let context = "Source context unavailable."
@@ -71,14 +74,19 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
     if (!alive.current) {
       return
     }
-    setSelection({
-      context,
-      element:
-        element.getAttribute("aria-label") ??
-        element.querySelector("h1,h2,h3")?.textContent?.trim() ??
-        element.textContent?.trim().replaceAll(/\s+/gu, " ").slice(0, 80) ??
-        element.tagName.toLowerCase(),
-      page: window.location.pathname + window.location.search,
+    setEditor({
+      comment: "",
+      regionId: selectedRegion,
+      selection: {
+        context,
+        element:
+          element.getAttribute("aria-label") ??
+          element.closest("article[aria-label]")?.getAttribute("aria-label") ??
+          element.querySelector("h1,h2,h3")?.textContent?.trim() ??
+          element.textContent?.trim().replaceAll(/\s+/gu, " ").slice(0, 80) ??
+          element.tagName.toLowerCase(),
+        page: window.location.pathname + window.location.search,
+      },
     })
     setFeedback("")
   }, [])
@@ -162,14 +170,13 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
       )
     }
     if (event.key === "Escape" && selection) {
-      setSelection(undefined)
-      const target = restoreFocus.current
-      ;(target?.isConnected && target.getClientRects().length > 0 ? target : findTrigger())?.focus()
+      focusAfterClose.current = true
+      setEditor((previous) => ({ ...previous, comment: "", selection: undefined }))
       return
     }
     if (event.key === "Escape" && review) {
+      focusAfterClose.current = true
       setReview(false)
-      findTrigger()?.focus()
       return
     }
     if (event.key === "Escape" && api.current?.isActive()) {
@@ -189,6 +196,18 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
       loading.current = null
     }
   }, [])
+  useEffect(() => {
+    if (!focusAfterClose.current || selection || review) {
+      return
+    }
+    focusAfterClose.current = false
+    const source = restoreFocus.current
+    const target =
+      source?.isConnected && source.getClientRects().length > 0 && !source.matches(":disabled")
+        ? source
+        : (findTrigger() ?? document.querySelector<HTMLElement>("#ernie-main-content"))
+    target?.focus({ preventScroll: true })
+  }, [review, selection])
   const selectedHost = regionId ? hosts.get(regionId) : undefined
   const visible = (host: AnnotationHost) =>
     host.page === page && host.element.isConnected && !host.element.closest("[hidden]")
@@ -226,25 +245,21 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
                 <UiAnnotationEditor
                   selection={selection}
                   comment={comment}
-                  onCommentChange={setComment}
-                  fallback={Boolean(regionId && host !== selectedHost)}
-                  finalFocus={() =>
-                    restoreFocus.current?.isConnected &&
-                    restoreFocus.current.getClientRects().length > 0
-                      ? restoreFocus.current
-                      : findTrigger()
+                  onCommentChange={(nextComment) =>
+                    setEditor((previous) => ({ ...previous, comment: nextComment }))
                   }
+                  fallback={Boolean(regionId && host !== selectedHost)}
                   onClose={() => {
-                    setSelection(undefined)
-                    setComment("")
+                    focusAfterClose.current = true
+                    setEditor((previous) => ({ ...previous, comment: "", selection: undefined }))
                   }}
                   onSave={(note) => {
+                    focusAfterClose.current = true
                     setNotes((previous) => [
                       ...previous,
                       { ...selection, comment: note, id: crypto.randomUUID() },
                     ])
-                    setSelection(undefined)
-                    setComment("")
+                    setEditor((previous) => ({ ...previous, comment: "", selection: undefined }))
                   }}
                 />
               ) : null}

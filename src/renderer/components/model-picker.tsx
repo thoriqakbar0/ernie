@@ -5,22 +5,11 @@ import * as stylex from "@stylexjs/stylex"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { Dispatch, RefObject, SetStateAction } from "react"
 import { createPortal } from "react-dom"
-import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select"
+import type { PrimeModel } from "../../packages/prime-agent"
 
 type ModelPickerProps = Readonly<{
-  acceptedEffort: string | undefined
   disabled: boolean
   models: readonly PrimeModel[]
-  onEffortChange: (effort: PrimeEffort) => Promise<void>
-  onEffortError: (message: string) => void
   onSelect: (model: PrimeModel) => void
   selectedModel: PrimeModel | undefined
   side: "bottom" | "top"
@@ -59,15 +48,6 @@ const preferredPickerWidth = 280
 const searchVisibilityThreshold = 8
 const pinnedModelsStorageKey = "ernie:pinned-models:v1"
 const hiddenModelsStorageKey = "ernie:hidden-models:v1"
-const effortLevels: readonly PrimeEffort[] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]
 const modelProfiles: ReadonlyMap<string, ModelProfile> = new Map<string, ModelProfile>([
   [
     "openai-codex:gpt-5.6-sol",
@@ -118,9 +98,6 @@ export const writeStoredModelKeys = (storageKey: string, modelKeys: ReadonlySet<
   }
 }
 const getModelProfile = (model: PrimeModel) => modelProfiles.get(`${model.provider}:${model.id}`)
-
-const isPrimeEffort = (value: string | undefined): value is PrimeEffort =>
-  effortLevels.some((effort) => effort === value)
 
 const compareModelDisplayOrder = (
   left: PrimeModel,
@@ -238,59 +215,8 @@ const VisibilityIcon = ({
   </svg>
 )
 
-/** Keeps reasoning settings separate from model navigation and reports rejected changes. */
-const ModelEffortControl = ({
-  acceptedEffort,
-  disabled,
-  modelLabel,
-  onEffortChange,
-  onEffortError,
-}: Pick<ModelPickerProps, "acceptedEffort" | "disabled" | "onEffortChange" | "onEffortError"> & {
-  modelLabel: string
-}) => (
-  <div {...stylex.props(styles.modelEffortControl)}>
-    <span>Reasoning effort</span>
-    <Select
-      disabled={disabled}
-      onValueChange={async (value) => {
-        if (value === null || !isPrimeEffort(value)) {
-          return
-        }
-        try {
-          await onEffortChange(value)
-        } catch (error: unknown) {
-          onEffortError(error instanceof Error ? error.message : "Prime Agent effort change failed")
-        }
-      }}
-      value={isPrimeEffort(acceptedEffort) ? acceptedEffort : null}
-    >
-      <SelectTrigger
-        aria-label={`Effort for ${modelLabel}`}
-        size="sm"
-        xstyle={[styles.effortTrigger]}
-      >
-        <SelectValue placeholder="Default" />
-      </SelectTrigger>
-      <SelectContent align="end">
-        <SelectGroup>
-          {effortLevels.map((effort) => (
-            <SelectItem key={effort} value={effort}>
-              {effort === "medium" ? "Default (medium)" : effort}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  </div>
-)
-
 type ModelPickerPopupProps = Readonly<{
-  acceptedEffort: string | undefined
-  disabled: boolean
-  onEffortChange: ModelPickerProps["onEffortChange"]
-  onEffortError: ModelPickerProps["onEffortError"]
   onSelect: ModelPickerProps["onSelect"]
-  selected: PrimeModel | undefined
   selectedModel: PrimeModel | undefined
   position: PickerPosition
   popupRef: RefObject<HTMLDialogElement | null>
@@ -316,12 +242,7 @@ type ModelPickerPopupProps = Readonly<{
 }>
 
 const ModelPickerPopup = ({
-  acceptedEffort,
-  disabled,
-  onEffortChange,
-  onEffortError,
   onSelect,
-  selected,
   selectedModel,
   position,
   popupRef,
@@ -506,25 +427,13 @@ const ModelPickerPopup = ({
           </div>
         )}
       </fieldset>
-      {selected ? (
-        <ModelEffortControl
-          acceptedEffort={acceptedEffort}
-          disabled={disabled}
-          modelLabel={selected.label}
-          onEffortChange={onEffortChange}
-          onEffortError={onEffortError}
-        />
-      ) : null}
     </dialog>
   )
 }
 
 export const ModelPicker = ({
-  acceptedEffort,
   disabled,
   models,
-  onEffortChange,
-  onEffortError,
   onSelect,
   selectedModel,
   side,
@@ -743,12 +652,7 @@ export const ModelPicker = ({
       {open && position
         ? createPortal(
             <ModelPickerPopup
-              acceptedEffort={acceptedEffort}
-              disabled={disabled}
-              onEffortChange={onEffortChange}
-              onEffortError={onEffortError}
               onSelect={onSelect}
-              selected={selected}
               selectedModel={selectedModel}
               position={position}
               popupRef={popupRef}

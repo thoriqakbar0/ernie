@@ -59,7 +59,6 @@ const useSessionWorkspace = (sessionId: string) => {
   const flow = useConversationFlow(sessionId)
   const submitting = flow.submission.status === "creating" || flow.submission.status === "sending"
   const stopping = flow.stop.status === "stopping"
-  const [commandError, setCommandError] = useState<string>()
   const [modelChange, setModelChange] = useState<ModelChangeState>(idleModelChange)
   const modelSelectionRevision = useRef(0)
   useEffect(
@@ -82,8 +81,7 @@ const useSessionWorkspace = (sessionId: string) => {
     !working
   const actionError =
     (modelChange.status === "error" ? modelChange.message : undefined) ??
-    (flow.stop.status === "error" ? flow.stop.message : undefined) ??
-    commandError
+    (flow.stop.status === "error" ? flow.stop.message : undefined)
   const updateModel = async (provider: string, modelId: string) => {
     if (modelChange.status === "pending") {
       return
@@ -114,7 +112,6 @@ const useSessionWorkspace = (sessionId: string) => {
   }
   return {
     actionError,
-    actions,
     connected,
     draft,
     draftHero,
@@ -124,7 +121,6 @@ const useSessionWorkspace = (sessionId: string) => {
     models,
     recovering,
     session,
-    setCommandError,
     setDraft,
     snapshot,
     snapshotQuery,
@@ -192,7 +188,6 @@ const PrimeSessionWorkspace = ({
 }: Readonly<{ agent?: Agent; sessionId: string }>) => {
   const {
     snapshotQuery,
-    actions,
     models,
     draft,
     setDraft,
@@ -200,7 +195,6 @@ const PrimeSessionWorkspace = ({
     flow,
     submitting,
     stopping,
-    setCommandError,
     modelChange,
     submitAction,
     stopAction,
@@ -214,7 +208,6 @@ const PrimeSessionWorkspace = ({
     updateModel,
   } = useSessionWorkspace(sessionId)
   const { add: handleAnnotate, remove: handleRemoveAnnotation } = feedbackDraft
-  const { setEffort: handleEffortChange } = actions
   const openingError = snapshotQuery.isError ? (
     <div role="alert" {...stylex.props(styles.openError)}>
       <h2>Unable to open this conversation</h2>
@@ -272,10 +265,10 @@ const PrimeSessionWorkspace = ({
                 <AppChangeProtection workspace={agent.cwd} working={Boolean(working)} />
               ) : null}
               <PrimeComposer
+                sessionId={sessionId}
                 agentName={agent?.name}
                 feedback={flow.submission}
                 releaseSend={() => flow.release(sessionId)}
-                acceptedEffort={snapshot?.useful.state.thinkingLevel}
                 opening={!snapshot && !snapshotQuery.isError}
                 connected={connected}
                 draft={draft}
@@ -286,8 +279,6 @@ const PrimeSessionWorkspace = ({
                 modelChangePending={modelChange.status === "pending"}
                 modelsPending={models.isPending}
                 onDraftChange={setDraft}
-                onEffortChange={handleEffortChange}
-                onEffortError={setCommandError}
                 onModelSelect={(model) => updateModel(model.provider, model.id)}
                 recovering={recovering}
                 selectedModel={snapshot?.useful.state.model ?? session?.model}

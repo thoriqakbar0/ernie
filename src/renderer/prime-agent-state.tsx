@@ -503,6 +503,15 @@ export const usePrimeModels = (sessionId?: string, all = false) => {
   })
 }
 
+/** Reads the accepted per-chat RLM recursion limit from the existing daemon capability. */
+export const usePrimeRecurrentDepth = (sessionId: string) => {
+  const runtime = usePrimeAgentRuntime()
+  return useQuery({
+    queryFn: () => runtime.getRecurrentDepth(sessionId),
+    queryKey: sessionKeys.recurrentDepth(sessionId),
+  })
+}
+
 /** Read-only inspection keeps the selected root and its draft attached. */
 export const useNativeInspection = (
   parentId: string,

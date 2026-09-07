@@ -48,6 +48,8 @@ Footer diagnostic metadata uses an accessible tooltip on the connection status, 
 
 Model and effort controls show accepted values, pending changes, and rejection. Missing effort displays Default. Empty filters offer recovery and restore useful focus. Escape closes pickers and returns focus to their trigger.
 
+Effort and RLM max depth sit beside the model selector. Effort choices follow the selected model’s capabilities; changing live effort also changes Prime Agent’s default, disclosed on the control. Depth presets preserve larger accepted values and update only the current chat. New Agent drafts retain both choices until the first message creates the root.
+
 The development workspace picker opens an existing conversation; it does not change its execution directory. Show full paths, preserve search on failure, prevent overlapping selections, and close after success.
 
 At narrow widths, roster and chat occupy separate views. Selecting an Agent opens chat; Open sidebar returns to navigation. Keep primary flows usable at 320 CSS pixels and 200% zoom. Wrap long content or expose its full value accessibly when truncated.

@@ -54,6 +54,12 @@ The external daemon and socket survive cleanup, as required by [[tests#Behavior 
 
 Disconnected states retain visible diagnostics and the existing retry action. Connected status reads “Connected to Prime Agent” without repeating version metadata in the main line.
 
+## Composer inference settings
+
+[[src/renderer/components/inference-controls.tsx#InferenceControls]] groups capability-driven effort choices and RLM depth presets beside model selection. The controls retain accepted values and preserve unknown defaults.
+
+[[src/renderer/components/session-inference-controls.tsx#SessionInferenceControls]] reads live effort capabilities from the snapshot and depth from the existing per-chat RPC. Rejected changes retain prior values. [[src/renderer/components/draft-composer-controls.tsx#DraftComposerControls]] stores optional choices in Agent settings and clears unsupported effort when the selected model changes.
+
 ## Service shutdown
 
 Shutdown rejects new attachment acquisition, closes the shared transport, and joins pending attachment and recovery work before cleanup completes.

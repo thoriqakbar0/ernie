@@ -91,15 +91,10 @@ export const EmptyAgentWorkspace = ({ agent }: { agent: Agent }) => {
             draft={draft}
             draftHero
             feedback={flow.submission}
-            acceptedEffort={undefined}
             modelChangePending={false}
             models={[]}
             modelsPending={false}
             onDraftChange={setDraft}
-            onEffortChange={() => Promise.resolve()}
-            onEffortError={() => {
-              // Effort changes are unavailable before a session is selected.
-            }}
             onModelSelect={() => {
               // Model selection is handled by AgentControls before a session exists.
             }}

@@ -1,4 +1,4 @@
-import { DraftModelPicker } from "./draft-model-picker"
+import { DraftComposerControls } from "./draft-composer-controls"
 import { AnimatedTabs } from "./ui/animated-tabs"
 import * as stylex from "@stylexjs/stylex"
 import { DraftAgentSettingsPanel } from "./draft-agent-settings-panel"
@@ -40,7 +40,9 @@ const settingsChanged = (settings: AgentSettings, initial: AgentSettings): boole
   settings.cwd !== initial.cwd ||
   settings.role !== initial.role ||
   settings.provider !== initial.provider ||
-  settings.model !== initial.model
+  settings.model !== initial.model ||
+  settings.thinkingLevel !== initial.thinkingLevel ||
+  settings.rlmMaxDepth !== initial.rlmMaxDepth
 
 const saveStatus = (saving: boolean, changed: boolean): string => {
   if (saving) {
@@ -433,14 +435,11 @@ export const AgentSettingsDialog = ({
               footerControl={
                 <div {...stylex.props(styles.draftFooter)}>
                   {control}
-                  <DraftModelPicker
+                  <DraftComposerControls
                     sessionId={selectedSessionId ?? undefined}
-                    provider={settings.provider}
-                    model={settings.model}
+                    settings={settings}
                     disabled={creationStarted || choosingFolder || Boolean(persistedRoot)}
-                    onChange={(provider, model) =>
-                      setSettings((current) => ({ ...current, model, provider }))
-                    }
+                    onChange={(next) => setSettings(() => next)}
                   />
                 </div>
               }
@@ -449,13 +448,10 @@ export const AgentSettingsDialog = ({
               draft={draft}
               draftHero
               feedback={flow.submission}
-              acceptedEffort={undefined}
               modelChangePending={false}
               models={[]}
               modelsPending={false}
               onDraftChange={setDraft}
-              onEffortChange={() => Effect.runPromise(Effect.void)}
-              onEffortError={constVoid}
               onModelSelect={constVoid}
               recovering={false}
               selectedModel={undefined}

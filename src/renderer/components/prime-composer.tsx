@@ -5,12 +5,13 @@ import * as stylex from "@stylexjs/stylex"
 import { useId, useState } from "react"
 import type { ReactNode, KeyboardEvent } from "react"
 import { ArrowUpIcon, SquareIcon } from "lucide-react"
-import type { PrimeEffort, PrimeModel } from "../../packages/prime-agent"
+import type { PrimeModel } from "../../packages/prime-agent"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "./ui/input-group"
-import { ModelPicker } from "./model-picker"
+import { ComposerModelControls } from "./composer-model-controls"
 import type { ConversationSubmission } from "../conversation-flow"
 
 type PrimeComposerProps = Readonly<{
+  sessionId?: string
   footerControl?: ReactNode
   connected: boolean
   opening?: boolean
@@ -22,12 +23,9 @@ type PrimeComposerProps = Readonly<{
   feedback?: ConversationSubmission
   releaseSend?: () => Promise<void>
   modelChangePending: boolean
-  acceptedEffort: string | undefined
   models: readonly PrimeModel[]
   modelsPending: boolean
   onDraftChange: (draft: string) => void
-  onEffortChange: (effort: PrimeEffort) => Promise<void>
-  onEffortError: (message: string) => void
   onModelSelect: (model: PrimeModel) => void
   recovering: boolean
   selectedModel: PrimeModel | undefined
@@ -40,7 +38,6 @@ type PrimeComposerProps = Readonly<{
 }>
 
 const EMPTY_ANNOTATIONS: readonly ResponseAnnotation[] = []
-
 const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>, unavailable: boolean) => {
   if (
     event.key !== "Enter" ||
@@ -190,9 +187,9 @@ const ComposerFeedback = ({
 
 /** Keeps composition editable while creation, attachment, and sending settle. */
 export const PrimeComposer = ({
+  sessionId,
   footerControl,
   connected,
-  acceptedEffort,
   draft,
   annotations = EMPTY_ANNOTATIONS,
   onRemoveAnnotation,
@@ -204,8 +201,6 @@ export const PrimeComposer = ({
   models,
   modelsPending,
   onDraftChange,
-  onEffortChange,
-  onEffortError,
   onModelSelect,
   opening,
   recovering,
@@ -258,15 +253,12 @@ export const PrimeComposer = ({
         <InputGroupAddon align="block-end">
           {footerControl ??
             (sessionSelected ? (
-              <ModelPicker
-                acceptedEffort={acceptedEffort}
+              <ComposerModelControls
+                sessionId={sessionId}
                 disabled={!connected || recovering || modelChangePending || modelsPending}
                 models={models}
-                onEffortChange={onEffortChange}
-                onEffortError={onEffortError}
                 onSelect={onModelSelect}
                 selectedModel={selectedModel}
-                side="top"
               />
             ) : (
               <span {...stylex.props(sharedStyles.composerDefault)}>Agent defaults</span>

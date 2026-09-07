@@ -74,6 +74,6 @@ The signature adapter is checked against the pinned Zenbu implementation. [[src/
 
 ## Interface Kit
 
-Development renderers mount Interface Kit beside the root content for visual inspection. The overlay never wraps application providers or renders in production.
+Development renderers mount Interface Kit beside root content for visual inspection. It never wraps application providers or renders in production.
 
 `interface-kit/react` supplies its own styles. [[src/renderer/main.tsx]] owns the development-only mount.

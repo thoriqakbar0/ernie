@@ -10,6 +10,8 @@ Components apply styles with `stylex.props`. Reusable controls accept typed `xst
 
 [[src/renderer/components/sidebar.styles.ts#styles]] reserves space above the sidebar identity and actions for native macOS traffic lights, including narrow windows. The header remains draggable, and its action group remains outside the drag region.
 
+[[src/renderer/components/app.styles.ts#styles]] places the collapsed sidebar opener below the same native-window clearance. Its touch target and keyboard shortcut remain available outside draggable regions.
+
 [[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the document color scheme. Stable custom property names let document defaults and portal content use the same theme. Orange accents retain dark ink on filled actions, including hover states; status colors keep their semantic roles. Faint text remains readable on the sidebar and picker surfaces.
 
 ## Dynamic state and portals

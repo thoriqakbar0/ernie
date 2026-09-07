@@ -22,16 +22,17 @@ export function AppHistoryPage({ client, embedded = false }: { client?: Client; 
   const [items, setItems] = useState<readonly CheckpointSummary[]>([])
   const [status, setStatus] = useState<typeof HistoryStatus.Type>()
   const [cursor, setCursor] = useState<string | null>(null)
-  const [selected, setSelected] = useState<CheckpointSummary>()
+  const [selectedId, setSelectedId] = useState<string>()
+  const selected = items.find(item => item.id === selectedId)
   const [changes, setChanges] = useState<typeof FileChanges.Type>()
-  const [source, setSource] = useState<string>()
-  const [sourcePage, setSourcePage] = useState<{ path: string; offset: number; tree: string }>()
+  const [sourceResult, setSourceResult] = useState<{ text: string; next?: { path: string; offset: number; tree: string } }>()
+  const source = sourceResult?.text
+  const sourcePage = sourceResult?.next
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
   const [pending, setPending] = useState<string | null>(null)
   const busy = pending !== null
   const revision = useRef(0)
-  const detail = useRef<HTMLElement>(null)
   const refresh = useCallback(async () => {
     const [health, page] = await Promise.all([request({ method: "history.status" }), request({ method: "history.list" })])
     setStatus(Schema.decodeUnknownSync(HistoryStatus)(health))
@@ -45,16 +46,19 @@ export function AppHistoryPage({ client, embedded = false }: { client?: Client; 
   }
   async function inspect(item: CheckpointSummary) {
     const current = ++revision.current
-    setSelected(item); setChanges(undefined); setSource(undefined); setSourcePage(undefined)
+    setItems(previous => previous.some(entry => entry.id === item.id) ? previous.map(entry => entry.id === item.id ? item : entry) : [...previous, item])
+    setSelectedId(item.id); setChanges(undefined); setSourceResult(undefined)
     const diff = Schema.decodeUnknownSync(FileChanges)(await request({ method: "history.diff", checkpointId: item.id }))
     if (revision.current === current) { setChanges(diff) }
   }
   async function readSource(path: string, offset = 0, expectedTree?: string) {
     if (!selected) return
+    const currentRevision = revision.current
     const content = await request({ method: "history.diff", checkpointId: selected.id, path, offset, expectedTree })
     const paging = Schema.decodeUnknownSync(Schema.Struct({ currentTree: Schema.String, before: Schema.NullOr(Schema.Struct({ nextOffset: Schema.optional(Schema.NullOr(Schema.Number)) })), current: Schema.NullOr(Schema.Struct({ nextOffset: Schema.optional(Schema.NullOr(Schema.Number)) })) }))(content)
     const next = paging.before?.nextOffset ?? paging.current?.nextOffset
-    setSource(JSON.stringify(content, null, 2)); setSourcePage(next != null ? { path, offset: next, tree: paging.currentTree } : undefined)
+    if (currentRevision !== revision.current) return
+    setSourceResult({ text: JSON.stringify(content, null, 2), next: next != null ? { path, offset: next, tree: paging.currentTree } : undefined })
   }
   return <section aria-label="App history" {...stylex.props(!embedded && styles.page)}><div {...stylex.props(styles.content)}>
     {!embedded ? <header {...stylex.props(styles.header)}><button type="button" aria-label="Back to settings" onClick={() => navigate("settings")} {...stylex.props(styles.button)}><ArrowLeftIcon size={18}/></button><h1 {...stylex.props(styles.title)}>App history</h1></header> : null}
@@ -73,12 +77,12 @@ export function AppHistoryPage({ client, embedded = false }: { client?: Client; 
         </div>
       </div>
       {!items.length ? <p>No saved checkpoints yet.</p> : null}
-      <ol aria-label="Saved checkpoints" {...stylex.props(styles.list, styles.checkpointList)}>{items.map(item => <li key={item.id}><button disabled={busy} type="button" aria-expanded={selected?.id === item.id} aria-controls={selected?.id === item.id ? `checkpoint-panel-${item.id}` : undefined} onClick={() => { if (selected?.id === item.id) { revision.current++; setSelected(undefined) } else { void act(() => inspect(item), "Inspecting checkpoint…") } }} {...stylex.props(styles.button, styles.checkpointRow, status.currentCheckpointId === item.id && styles.currentCheckpoint, selected?.id === item.id && styles.selectedCheckpoint)}>
+      <ol aria-label="Saved checkpoints" {...stylex.props(styles.list, styles.checkpointList)}>{items.map(item => <li key={item.id}><button disabled={busy} type="button" aria-expanded={selected?.id === item.id} aria-controls={selected?.id === item.id ? `checkpoint-panel-${item.id}` : undefined} onClick={() => { if (selected?.id === item.id) { revision.current++; setSelectedId(undefined) } else { void act(() => inspect(item), "Inspecting checkpoint…") } }} {...stylex.props(styles.button, styles.checkpointRow, status.currentCheckpointId === item.id && styles.currentCheckpoint, selected?.id === item.id && styles.selectedCheckpoint)}>
         <span {...stylex.props(styles.checkpointText)}><span {...stylex.props(styles.checkpointTitle)}>{item.title}</span><span {...stylex.props(styles.checkpointMeta)}><time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString()}>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(item.createdAt))}</time> · {item.changedFileCount} {item.changedFileCount === 1 ? "file" : "files"} changed</span></span>
         <span role="img" aria-label="No screenshot captured" title="No screenshot captured" {...stylex.props(styles.screenshotStack)}><span {...stylex.props(styles.screenshotBack)}/><span {...stylex.props(styles.screenshotFront)}><ImageIcon size={14}/></span></span>
         <span {...stylex.props(styles.checkpointBadge)}>{status.currentCheckpointId === item.id ? "Current" : item.knownWorking ? "Startup checked" : item.restorable ? "Saved" : "Unavailable"}</span><span aria-hidden="true">{selected?.id === item.id ? "−" : "+"}</span>
       </button>
-    {selected?.id === item.id ? <section ref={detail} tabIndex={-1} id={`checkpoint-panel-${item.id}`} aria-label="Checkpoint details" {...stylex.props(styles.accordionDetail)}>
+    {selected?.id === item.id ? <section tabIndex={-1} id={`checkpoint-panel-${item.id}`} aria-label="Checkpoint details" {...stylex.props(styles.accordionDetail)}>
       <header {...stylex.props(styles.detailHeader)}><h2 {...stylex.props(styles.detailTitle)}>{selected.title}</h2><span {...stylex.props(styles.detailBadge, selected.complete && styles.completeBadge)}>{selected.complete ? "Complete" : "Incomplete"}</span></header>
       <div {...stylex.props(styles.detailMetric)}><strong {...stylex.props(styles.detailCount)}>{changes?.total ?? "…"}</strong><span {...stylex.props(styles.description)}>{changes?.total === 1 ? "file changed" : "files changed"}<br/>from the current app</span></div>
       <dl {...stylex.props(styles.detailFacts)}>

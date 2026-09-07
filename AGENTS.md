@@ -19,6 +19,13 @@ Repository-specific rules supplement global guidance. Explicit user requests tak
 - update database state through the replica for immediate updates; avoid an RPC round trip solely to update a replica.
 - prefer one component per file.
 
+### React with Zenbu
+
+- when writing or reviewing React components backed by Zenbu, read [Vercel composition patterns](docs/agent-guides/vercel-composition-patterns.md) and [React best practices](docs/agent-guides/react-best-practices.md).
+- keep synchronized domain data owned by Zenbu's existing replica/service boundary; local React state owns transient interaction and unsaved input. Inspect installed APIs before introducing another data cache or provider.
+- derive values from existing state when possible. Group fields that transition together when this prevents invalid combinations; do not consolidate independent state merely to reduce hook counts.
+- apply composition at actual shared boundaries. Avoid adding contexts or compound components to a single consumer without a concrete need. Apply React rules relevant to this Electron/Vite app; Next.js-specific patterns do not imply a stack migration.
+
 ## Verification
 
 - do not run, install, or require `gh signoff` in this repository.

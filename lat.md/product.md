@@ -36,6 +36,8 @@ Agents act as persistent contacts. One send creates and submits an empty Agent c
 
 The unselected workspace opens a centered first-message composer. Sending saves an Agent and starts its native conversation; opening the page creates nothing. Empty conversations retain Agent identity and editable drafts.
 
+The empty heading and character form one leading-aligned group above the working folder and 720px composer. Top spacing is bounded on tall windows; narrow panes wrap the group and controls without moving the composer to a fixed bottom position.
+
 [[src/renderer/components/agent-welcome.tsx#AgentWelcome]] pairs the heading and procedural character previews with shared chat composition. [[src/renderer/components/draft-agent-settings-panel.tsx#DraftAgentSettingsPanel]] opens from the composer footer and docks optional draft settings in the sidebar and falls back below the composer when navigation is hidden or narrow. The form keeps ownership of local settings across placement changes. Draft settings use Base UI tabs for Customize and Folder, with keyboard navigation and a moving selection pill. The loaded empty sidebar shows a translucent procedural Agent. Decorative seeds remain stable across renders. [[src/renderer/components/empty-conversation.tsx#EmptyConversation]] introduces new work. [[src/renderer/components/chat-workspace.tsx#ChatWorkspace]] keeps creation feedback visible until session draft ownership transfers.
 
 [[src/renderer/components/provider-brand.tsx#ProviderBrand]] owns local company marks and provider display names for the conversation model picker. Attribution follows the selected session model; an unresolved provider does not imply OpenAI.

@@ -68,7 +68,7 @@ export const styles = stylex.create({
     width: "min(100%, 720px)",
   },
   primeComposerHero: {
-    width: "min(100%, 719px)",
+    width: "min(100%, 720px)",
   },
   srOnly: {
     borderStyle: "solid",

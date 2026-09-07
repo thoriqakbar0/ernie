@@ -10,22 +10,29 @@ export async function exists(path) {
 }
 
 async function ensureDirectory(path) {
-  if (!await exists(path)) { await mkdir(path); return }
+  if (!await exists(path)) { await mkdir(path); return true }
   const stat = await lstat(path)
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Update conflicts with local data")
 }
 
 /** Moves one source entry, rejecting symlinked destination parents so profile data cannot be overwritten. */
 export async function moveEntry(from, to, path) {
-  let sourceParent = from, parent = to
-  for (const part of path.split("/").slice(0, -1)) {
-    sourceParent = join(sourceParent, part)
-    const stat = await lstat(sourceParent)
-    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Update conflicts with local data")
-    parent = join(parent, part)
-    await ensureDirectory(parent)
+  const created = []
+  try {
+    let sourceParent = from, parent = to
+    for (const part of path.split("/").slice(0, -1)) {
+      sourceParent = join(sourceParent, part)
+      const stat = await lstat(sourceParent)
+      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Update conflicts with local data")
+      parent = join(parent, part)
+      if (await ensureDirectory(parent)) created.push(parent)
+    }
+    await rename(join(from, path), join(to, path))
+  } catch (error) {
+    // A failed move is not journaled, so undo its directory creation here.
+    for (const parent of created.reverse()) await rmdir(parent)
+    throw error
   }
-  await rename(join(from, path), join(to, path))
   // Only emptied ancestors of the moved source entry are ours to prune. This
   // also reverses directory creation during rollback without touching data.
   for (let parent = dirname(join(from, path)); parent !== from; parent = dirname(parent)) {

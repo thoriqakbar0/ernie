@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, mkdir, writeFile, readFile, rm, access, symlink } from "node:fs/promises"
+import { mkdtemp, mkdir, writeFile, readFile, rm, access, symlink, chmod } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, dirname } from "node:path"
 import test, { type TestContext } from "node:test"
@@ -57,4 +57,19 @@ test("activation rejects symlinked destination parents without touching their ta
   await assert.rejects(activate(paths), /conflicts with local data/)
   assert.equal(await readFile(join(paths.live, "old.js"), "utf8"), "old")
   await assert.rejects(access(join(local, "new.js")))
+})
+
+
+test("failed incoming move removes empty parents before restoring the old file", async (t) => {
+  if (process.getuid?.() === 0) { t.skip("Root bypasses directory write permissions"); return }
+  const paths = await fixture(t, "module", "module/nested/index.js")
+  const protectedDirectory = join(paths.staged, "module/nested")
+  await chmod(protectedDirectory, 0o555)
+  try {
+    await assert.rejects(activate(paths), /EACCES|EPERM/)
+    assert.equal(await readFile(join(paths.live, "module"), "utf8"), "old")
+    assert.equal(await readFile(join(paths.staged, "module/nested/index.js"), "utf8"), "new")
+  } finally {
+    await chmod(protectedDirectory, 0o755)
+  }
 })

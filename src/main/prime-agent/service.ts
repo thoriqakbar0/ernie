@@ -81,6 +81,7 @@ type SessionAttachment = {
   unsubscribe: () => void
   refreshTimer: ReturnType<typeof setTimeout> | undefined
   refreshTail: Promise<void>
+  refreshQueued: boolean
   refreshFailureCount: number
   needsRefresh: boolean
   disposed: boolean
@@ -553,6 +554,7 @@ export class PrimeAgentService extends Service.create({
         unsubscribe,
         refreshTimer: undefined,
         refreshTail: Promise.resolve(),
+        refreshQueued: false,
         refreshFailureCount: 0,
         needsRefresh: eventBeforeReady,
         disposed: false,
@@ -638,7 +640,14 @@ export class PrimeAgentService extends Service.create({
 
     const refresh = () => {
       attachment.refreshTimer = undefined
-      const run = attachment.refreshTail.then(() => this.refreshAttachment(attachment))
+      // One queued read observes the newest native state for the entire burst.
+      // Clear on entry so events during that read can request one follow-up.
+      if (attachment.refreshQueued) return
+      attachment.refreshQueued = true
+      const run = attachment.refreshTail.then(() => {
+        attachment.refreshQueued = false
+        return this.refreshAttachment(attachment)
+      })
       attachment.refreshTail = run.then(
         () => {
           attachment.refreshFailureCount = 0
@@ -1059,6 +1068,7 @@ function failedAttachment(previous: SessionAttachment): SessionAttachment {
     unsubscribe: () => {},
     refreshTimer: undefined,
     refreshTail: Promise.resolve(),
+    refreshQueued: false,
     refreshFailureCount: 0,
     needsRefresh: false,
     disposed: false,

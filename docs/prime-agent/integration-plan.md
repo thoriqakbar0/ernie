@@ -39,6 +39,14 @@ Limits: this does not make arbitrary RPC commands cancellable or guarantee immed
 
 Rollback: revert the shutdown guards and cleanup ordering in `service.ts` together with the disposal integration fixture and its behavior specification. Receipt identities, persisted data, and protocol versions do not change.
 
+## Measured refresh performance
+
+The performance pass bounds each attachment to one active refresh and one queued refresh. Previously, every immediate event added another serialized refresh, repeatedly projecting and comparing the same transcript after native state caught up.
+
+The socket integration fixture sends two bursts of 100 events over a 1,000-message transcript. It holds the first native state response while the second burst arrives. V8 precise coverage counts full snapshot projections without replacing production methods. The lifecycle commit `9059c66` performs 200 projections; the bounded queue performs 2. The fixture also checks that the latest session name reaches Ernie’s published state.
+
+This is 99% less projection work in the controlled burst case, not an overall latency or CPU percentage. Continuous streaming still uses the existing 50 ms timer. Native reads, generation checks, failure retries, catalog polling, and receipt behavior retain their existing owners. Revert the `refreshQueued` field and scheduling guard to roll back this optimization.
+
 ## Catalog subscription decision
 
 Retain the one-second catalog poll until native roster coverage matches Ernie’s active and saved-session catalog.

@@ -33,3 +33,7 @@ Receipt inspection never dispatches, even when the original request arrives late
 ### Service disposal
 
 Service shutdown joins pending native attachment cleanup, rejects later acquisition without opening a socket, and leaves the external endpoint available.
+
+### Refresh burst coalescing
+
+Bursts share queued projection work while preserving events received during a native read. A socket fixture measures full-transcript projections and verifies the final published session state.

@@ -9,7 +9,12 @@ import test from "node:test"
 const execute = promisify(execFile)
 
 // @lat: [[tests#Behavior specifications#Daemon boundary#Service disposal]]
-test("service shutdown joins a pending native attachment and rejects later acquisition", { timeout: 20_000 }, async () => {
+test("service shutdown joins a pending native attachment and rejects later acquisition", { timeout: 20_000 }, () => runFixture(false))
+
+// @lat: [[tests#Behavior specifications#Daemon boundary#Refresh burst coalescing]]
+test("event bursts bound projection work and preserve updates during a native read", { timeout: 20_000 }, () => runFixture(true))
+
+async function runFixture(refreshBurst: boolean) {
   const require = createRequire(import.meta.url)
   const electron: unknown = require("electron")
   assert.equal(typeof electron, "string")
@@ -24,11 +29,12 @@ test("service shutdown joins a pending native attachment and rejects later acqui
     const environment = { ...process.env }
     delete environment.ELECTRON_RUN_AS_NODE
     delete environment.NODE_OPTIONS
-    const result = await execute(electron, [entry, `--user-data-dir=${join(directory, "profile")}`], {
+    const result = await execute(electron, [entry, ...(refreshBurst ? ["--refresh-burst"] : []), `--user-data-dir=${join(directory, "profile")}`], {
       env: environment, timeout: 15_000, killSignal: "SIGKILL",
     })
     assert.match(result.stdout, /service disposal verified/, result.stderr)
+    if (refreshBurst) console.log(result.stdout.trim())
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
-})
+}

@@ -12,6 +12,8 @@ Ernie projects Prime Agent daemon state into one typed session model shared by i
 
 [[src/renderer/prime-agent-state.tsx#PrimeAgentStateProvider]] exposes that state to the renderer without creating a second session model.
 
+Event bursts share one queued snapshot refresh per attachment. Events during an active read retain one follow-up, so newer native state is still projected without accumulating duplicate transcript work.
+
 ## Ordered synchronization
 
 Each attachment starts from a snapshot envelope. Ordered changes apply only to the same session and generation at the expected revision.

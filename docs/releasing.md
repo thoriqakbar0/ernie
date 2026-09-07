@@ -27,13 +27,15 @@ Local development uses Nub. Installed apps retain Zenbu’s embedded pnpm 10.33.
 
 ## Apply an update
 
-Packaged Ernie checks ten seconds after startup and every six hours. Development profiles do not check. The update footer also supports manual checks and retry after failure.
+Packaged Ernie checks ten seconds after startup and every six hours. Development profiles do not check. The update footer also supports manual checks and retry after failure. State changes arrive through events; reconnect, focus, and online transitions refresh the snapshot without an idle polling timer.
 
-Checks clone the release tip into a sibling staging directory. They require an Ernie manifest and compatible host range. They leave running source unchanged. A changed Git revision is available even when its package version is unchanged.
+Checks read the advertised release revision first. An unchanged revision needs one metadata request and no source clone. Changed releases clone into a sibling staging directory. Checks reuse that directory while the advertised revision, installed revision, and staged source remain valid. They require an Ernie manifest and compatible host range. They leave running source unchanged. A changed Git revision is available even when its package version is unchanged.
 
-The Update action installs staged dependencies, rechecks both source trees, and opens native confirmation. Confirmation explains that restart clears unsent drafts and reading positions. Cancelling retains the staged candidate; no restart occurs.
+Controls show checking or preparation immediately, even while RPC is pending. Older status responses cannot overwrite newer action feedback.
 
-The helper signals readiness before Ernie quits, waits for process exit, and replaces tracked source, Git metadata, and dependencies. Profile directories stay in place, including saved Agents and native session files. The packaged app permits one instance. A failed activation restores moved files and reopens Ernie with an error notice.
+The Update action installs staged dependencies, rechecks both source trees, and opens native confirmation. Confirmation explains that restart clears unsent drafts and reading positions. Cancelling retains the staged candidate and successful dependency preparation; retry skips installation while its signature and dependency directory remain valid. Failed installation is never cached.
+
+The helper signals readiness before Ernie quits, waits for process exit, and replaces tracked source, Git metadata, and dependencies. Profile directories stay in place, including saved Agents and native session files. After moving dependencies, activation atomically records Zenbu’s dependency signature for the final install path, preventing the launcher from repeating the staged installation. The packaged app permits one instance. A failed activation restores moved files and reopens Ernie with an error notice.
 
 ## Recover and verify distribution
 

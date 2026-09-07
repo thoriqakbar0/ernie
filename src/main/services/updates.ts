@@ -1,18 +1,24 @@
 import { Service } from "@zenbujs/core/runtime"
-import { UpdaterService } from "@zenbujs/core/services"
+import { UpdaterService, RpcService } from "@zenbujs/core/services"
 import { app, dialog } from "electron"
 import { spawn } from "node:child_process"
-import { rm, writeFile, readFile } from "node:fs/promises"
+import { rm, writeFile, readFile, access } from "node:fs/promises"
 import fs from "node:fs"
 import { join } from "node:path"
 import git from "isomorphic-git"
 import { Effect, Schema } from "effect"
+import { PreparedDependencies } from "../updates/preparation"
+// @ts-expect-error The Node-only helper also runs outside the TypeScript service runtime.
+import { installedSignature } from "../updates/dependency-signature.mjs"
 import type { UpdateState } from "../../packages/updates"
 import { inspectRelease, assertInstallationUnchanged, UpdateFailure, type Candidate } from "../updates/source"
 
 /** Owns update checks and staging; only an explicit native confirmation can restart Ernie. */
-export class UpdatesService extends Service.create({ key: "updates", deps: { updater: UpdaterService } }) {
-  private state: UpdateState = { phase: "disabled" }
+export class UpdatesService extends Service.create({ key: "updates", deps: { updater: UpdaterService, rpc: RpcService } }) {
+  private currentState: UpdateState = { phase: "disabled" }
+  private preparation = new PreparedDependencies()
+  private get state(): UpdateState { return this.currentState }
+  private set state(value: UpdateState) { this.currentState = value; this.ctx.rpc.emit.app.updateStateChanged(value) }
   private candidate: Candidate | null = null
   private operation: Promise<UpdateState> | null = null
   private disposed = false
@@ -58,8 +64,12 @@ export class UpdatesService extends Service.create({ key: "updates", deps: { upd
       const context = await this.ctx.updater.getAppContext()
       if (!context || this.disposed) return
       this.state = { phase: "checking" }
-      if (this.candidate) { await rm(this.candidate.directory, { recursive: true, force: true }); this.candidate = null }
-      const candidate = await inspectRelease(context, this.cancellation.signal)
+      const previous = this.candidate
+      const candidate = await inspectRelease(context, this.cancellation.signal, previous)
+      if (candidate !== previous) {
+        this.preparation = new PreparedDependencies()
+        if (previous) await rm(previous.directory, { recursive: true, force: true })
+      }
       if (this.disposed) { if (candidate) await rm(candidate.directory, { recursive: true, force: true }); return }
       this.candidate = candidate
       this.state = candidate ? { phase: "available", version: candidate.version, revision: candidate.revision } : { phase: "idle" }
@@ -74,14 +84,18 @@ export class UpdatesService extends Service.create({ key: "updates", deps: { upd
       if (!context || !candidate || this.disposed) return
       this.state = { phase: "preparing" }
       await assertInstallationUnchanged(context, candidate)
-      await this.ctx.updater.install({ dir: candidate.directory, resourcesPath: context.resourcesPath, pm: context.packageManager })
+      await this.preparation.ensure({
+        signature: () => this.ctx.updater.getDepsSignature({ dir: candidate.directory, pm: context.packageManager }),
+        installed: () => access(join(candidate.directory, "node_modules")).then(() => true, () => false),
+        install: () => this.ctx.updater.install({ dir: candidate.directory, resourcesPath: context.resourcesPath, pm: context.packageManager }),
+      })
       await assertInstallationUnchanged(context, candidate)
       await assertInstallationUnchanged({ ...context, appsDir: candidate.directory }, { ...candidate, currentRevision: candidate.revision })
       if (this.disposed) return
       const answer = await dialog.showMessageBox({ type: "question", buttons: ["Cancel", "Update and restart"], defaultId: 0, cancelId: 0,
         title: "Update Ernie", message: `Install Ernie ${candidate.version}?`, detail: "Ernie will restart. Unsent drafts and reading positions will be cleared. Saved Agents and session files will be retained." })
       if (answer.response !== 1) { this.state = { phase: "available", version: candidate.version, revision: candidate.revision }; return }
-      await writeFile(join(candidate.directory, ".ernie-update-tracked.json"), JSON.stringify({ old: await git.listFiles({ fs, dir: context.appsDir }), next: await git.listFiles({ fs, dir: candidate.directory }) }))
+      await writeFile(join(candidate.directory, ".ernie-update-tracked.json"), JSON.stringify({ dependencySignature: await installedSignature(candidate.directory, context.appsDir, context.packageManager, process.versions.electron ?? "no-electron"), old: await git.listFiles({ fs, dir: context.appsDir }), next: await git.listFiles({ fs, dir: candidate.directory }) }))
       const worker = spawn(process.execPath, [join(context.appsDir, "src/main/updates/apply.mjs"), context.appsDir, candidate.directory,
         `${context.appsDir}.rollback-${Date.now()}`, process.execPath, String(process.pid)], { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"], env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } })
       await new Promise<void>((resolve, reject) => {

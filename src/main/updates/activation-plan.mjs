@@ -30,5 +30,5 @@ export async function readActivationPlan({ live, staged, backup }) {
   const next = parsePaths(raw?.next)
   await assertNoLocalConflicts(live, old, next)
   // Git metadata and dependencies follow source; profile directories never move.
-  return { old: [...old, ".git", "node_modules"], next: [...next, ".git", "node_modules"] }
+  return { old: [...old, ".git", "node_modules"], next: [...next, ".git", "node_modules"], dependencySignature: raw.dependencySignature }
 }

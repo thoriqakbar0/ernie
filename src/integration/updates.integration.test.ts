@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test, { type TestContext } from "node:test"
 import { createUpdateMirror } from "./fixtures/update-mirror"
+import { zenbuSignature } from "./fixtures/zenbu-signature"
 import { startUpdateWorker, waitForRelaunch } from "./fixtures/update-process"
 // The activation worker is a standalone JavaScript entrypoint executed by bundled Electron's Node mode.
 // @ts-expect-error JavaScript worker intentionally has no TypeScript runtime dependency.
@@ -60,12 +61,16 @@ test("source checks use a local Git HTTP server and reject incompatible or dirty
   const { inspectRelease, assertInstallationUnchanged } = await import("../main/updates/source")
   const root = await mkdtemp(join(tmpdir(), "ernie-mirror-integration-"))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const { context, commit, head } = await createUpdateMirror(t, root)
+  const { context, commit, head, requests } = await createUpdateMirror(t, root)
   assert.equal(await inspectRelease(context), null)
+  assert.deepEqual(requests, ["GET"], "unchanged checks must not download a Git pack")
   await commit("0.1.1", ">=0.1.0 <0.2.0")
   const candidate = await inspectRelease(context)
   assert.ok(candidate)
   assert.equal(candidate.version, "0.1.1")
+  requests.length = 0
+  assert.equal(await inspectRelease(context, undefined, candidate), candidate)
+  assert.deepEqual(requests, ["GET"], "an available revision reuses its existing staging directory")
   assert.equal(head(), candidate.currentRevision)
   await assertInstallationUnchanged(context, candidate)
   await writeFile(join(context.appsDir, "package.json"), "local edit")
@@ -107,4 +112,46 @@ test("restart helper waits for the parent to exit before activating and relaunch
   assert.equal(await readFile(join(live, "app.txt"), "utf8"), "new")
   assert.deepEqual(JSON.parse(await readFile(`${live}.update-result.json`, "utf8")), { outcome: "applied" })
   await waitForRelaunch(root)
+})
+
+test("prepared dependencies survive retry, but changed or removed installs invalidate the cache", async (t) => {
+  const { PreparedDependencies } = await import("../main/updates/preparation")
+  const root = await mkdtemp(join(tmpdir(), "ernie-prepared-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  let signature = "first", installs = 0, fail = false
+  const cache = new PreparedDependencies()
+  const port = {
+    signature: async () => signature,
+    installed: () => access(join(root, "node_modules")).then(() => true, () => false),
+    install: async () => { installs++; if (fail) throw new Error("install failed"); await mkdir(join(root, "node_modules"), { recursive: true }) },
+  }
+  await cache.ensure(port); await cache.ensure(port)
+  assert.equal(installs, 1, "cancel and retry do not reinstall prepared dependencies")
+  signature = "changed"
+  await cache.ensure(port)
+  assert.equal(installs, 2)
+  await rm(join(root, "node_modules"), { recursive: true })
+  await cache.ensure(port)
+  assert.equal(installs, 3)
+  signature = "retry"; fail = true
+  await assert.rejects(cache.ensure(port), /install failed/)
+  fail = false
+  await cache.ensure(port)
+  assert.equal(installs, 5, "failed preparation must run again")
+})
+
+test("activation writes the final-path signature expected by the installed Zenbu launcher", async (t) => {
+  // @ts-expect-error Node-only signature adapter is shared with the standalone restart helper.
+  const { installedSignature } = await import("../main/updates/dependency-signature.mjs")
+  const root = await mkdtemp(join(tmpdir(), "ernie-signature-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const live = join(root, "live"), staged = join(root, "staged"), backup = join(root, "backup")
+  await mkdir(live); await mkdir(staged)
+  const files = ["package.json", "pnpm-lock.yaml"]
+  for (const file of files) { await writeFile(join(live, file), "previous"); await writeFile(join(staged, file), "next") }
+  const pm = { type: "pnpm", version: "10.33.0" }
+  const dependencySignature = await installedSignature(staged, live, pm, process.versions.electron ?? "no-electron")
+  await writeFile(join(staged, ".ernie-update-tracked.json"), JSON.stringify({ old: files, next: files, dependencySignature }))
+  await activate({ live, staged, backup })
+  assert.equal(await readFile(join(live, ".zenbu/deps-sig"), "utf8"), await zenbuSignature(live, pm))
 })

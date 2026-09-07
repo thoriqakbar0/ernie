@@ -155,12 +155,12 @@ if (cli !== -1) {
   const cfg=readAppConfig();
   if (cfg.packageManager.type !== 'pnpm') throw new Error('Ernie app history requires the bundled pnpm installer with frozen lockfiles.');
   const { homedir } = await import('node:os'); const { join } = await import('node:path');
-  const source=join(homedir(),'.zenbu','apps','ernie'); const {version}=readHostVersion(app.getAppPath());
+  const source=join(homedir(),'.zenbu','apps','ernie-preview'); const {version}=readHostVersion(app.getAppPath());
   const { existsSync } = await import('node:fs');
   const officialSource=join(app.getAppPath(),'official-source');
   const prepareSource=async()=>{ if (!existsSync(source)) { const {cp,rename,mkdir}=await import('node:fs/promises'); const pending=source+'.install-'+process.pid; await mkdir(join(source,'..'),{recursive:true}); await cp(officialSource,pending,{recursive:true}); await rename(pending,source); } };
   const { startHistoryDesktop }=await import('./history-host.mjs');
-  await startHistoryDesktop({source,version,officialSource,prepareSource,install:directory=>ensureDepsInstalled(directory,cfg.packageManager)});
+  await startHistoryDesktop({source,version,home:join(homedir(),'.ernie-preview','app-history'),officialSource,prepareSource,install:directory=>ensureDepsInstalled(directory,cfg.packageManager)});
 }
 }
 void launchHistory().catch(error=>{console.error('[history] startup failed:',error instanceof Error?error.message:'Unknown failure');app.exit(1);});

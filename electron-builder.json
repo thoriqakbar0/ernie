@@ -1,6 +1,6 @@
 {
-  "appId": "dev.zenbu.ernie",
-  "productName": "Ernie",
+  "appId": "dev.zenbu.ernie.preview",
+  "productName": "Ernie Preview",
   "asar": false,
   "directories": {
     "output": "dist"

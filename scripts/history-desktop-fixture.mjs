@@ -17,6 +17,7 @@ await Promise.all(
     "package.json",
     "pnpm-lock.yaml",
     "zenbu.config.ts",
+    "release.json",
     "zenbu.plugin.ts",
     "zenbu.plugins.jsonc",
     "tsconfig.json",

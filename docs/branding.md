@@ -24,3 +24,7 @@ The generator in `scripts/brand.mjs` owns these copies and container sizes. Edit
 `electron-builder.json` selects packaging assets. Zenbu's source include list preserves packaging resources and renderer images; it excludes the development browser directory. The development launcher sets `ERNIE_DEV_GENERATION`, which enables the Dock override on unpackaged macOS runs.
 
 The current repository has no website, web manifest, or custom installation/update HTML. Its previous logo was the inline `ErnieMark` SVG. The README is the public repository surface. Future website consumers should reuse the production source through this generator. Character avatars and generic control icons are separate artwork.
+
+## Preview identity
+
+The 0.2.0 preview branch uses the existing amber developer artwork as its canonical packaging source, paired with the Ernie Preview app name. The generated concept in plans/assets is not shipped. Stable artwork on main stays unchanged.

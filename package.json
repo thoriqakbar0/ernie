@@ -1,6 +1,6 @@
 {
-  "name": "ernie",
-  "version": "0.2.0-rc",
+  "name": "ernie-preview",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "node_modules/@zenbujs/core/dist/setup-gate.mjs",
@@ -43,7 +43,9 @@
     "lint:fix": "ultracite fix",
     "lint:doctor": "ultracite doctor",
     "format:check": "oxfmt --check",
-    "format": "oxfmt --write"
+    "format": "oxfmt --write",
+    "release:build:unsigned": "nub --node scripts/release.ts build-unsigned",
+    "release:preview": "bash scripts/release-preview.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -91,7 +93,7 @@
     "url": "https://github.com/thoriqakbar0/ernie.git"
   },
   "zenbu": {
-    "host": ">=0.1.0 <0.2.0"
+    "host": ">=0.2.0 <0.3.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

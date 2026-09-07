@@ -54,3 +54,17 @@ Before distribution, verify a signed and notarized archive, clean first installa
 Run `nub run test:integration:updates` for the filesystem, Git HTTP, publisher, and helper-process tests. Every fixture uses temporary directories and a local server.
 
 For the isolated browser controls, start `nub exec vite --host 127.0.0.1 --port 4391 --strictPort`. In the `cypress` directory, run `nub exec cypress run --config-file updates.config.ts --browser chrome`. The fixture at `/?browser=1&scenario=updates` uses a synthetic transport and cannot call the updater service.
+
+## Unsigned 0.2.0 preview
+
+This preview uses Ernie Preview, dev.zenbu.ernie.preview, and the release-preview mirror. Its source lives under ~/.zenbu/apps/ernie-preview and history under ~/.ernie-preview/app-history. The shared Prime Agent daemon remains shared.
+
+Run `nub run release:build:unsigned` from a clean committed preview checkout. This explicit macOS-only command disables notarization and certificate discovery and requests ad-hoc signing for Apple Silicon execution. It has no Developer ID signature and no Apple notarization. The standard signed build command is unchanged.
+
+After verification, publish tag v0.2.0 as a GitHub prerelease with --latest=false, attach the macOS archive and SHA256SUMS, and describe the unsigned status. macOS may block first launch; users must explicitly approve this trusted download in System Settings > Privacy & Security. Do not disable Gatekeeper globally.
+
+### Repeat the unsigned preview flow
+
+Commit a versioned candidate and its docs/releases/<version>.md notes, then run `nub run release:preview` on an Apple Silicon Mac. The script validates the candidate, builds locally without Developer ID or notarization, verifies the ad-hoc signature, writes SHA256SUMS, publishes the dedicated source mirror, pushes the candidate branch and version tag, and creates a GitHub prerelease. Existing remote tags stop the flow before building; inspect partial publication before retrying.
+
+Run integration checks before committing. The script intentionally leaves the stable source channel unchanged. It requires Nub, ImageMagick 7, GitHub CLI authentication, and network access. Signing credentials are unnecessary.

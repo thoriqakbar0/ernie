@@ -45,3 +45,7 @@ Settings distinguishes local appearance preferences from managed-source customiz
 History separates saving from recovery. A grouped checkpoint list distinguishes current and selected entries; each row expands inline to inspect metadata and source.
 
 The compact header contains Save checkpoint and an actions disclosure for refresh and previous-state inspection. Status sits below the list. Screenshot stacks show an explicit empty state because checkpoint data has no image capture. Compact metadata keeps exact timestamps and origins in details.
+
+## Preview source completeness
+
+The capture manifest includes release.json because packaged source configuration reads it at startup. Preview packaging supplies distinct source and history roots while retaining the shared Prime Agent daemon.

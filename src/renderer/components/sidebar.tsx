@@ -9,6 +9,8 @@ import type { Agent } from "../../packages/agents"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
 import { useAgents } from "../agent-state"
 import { usePrimeSessionSelection, usePrimeSessionState, usePrimeSessionSnapshot } from "../prime-agent-state"
+import { useAppNavigation } from "../app-navigation"
+import { AppSettings } from "./app-settings"
 import { ErnieMark } from "./ernie-mark"
 import { PlusIcon } from "./plus-icon"
 import { AgentAvatar } from "./agent-avatar"
@@ -22,6 +24,7 @@ export function Sidebar() {
 
 /** Production roster, also rendered by isolated development scenarios. */
 export function AgentRoster({ onClose }: { onClose: () => void }) {
+  const { navigate } = useAppNavigation()
   const { roster, client, execute, error, pending } = useAgents()
   const sessions = usePrimeSessionState()
   const { selectedSessionId } = usePrimeSessionSelection()
@@ -31,7 +34,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
   const selectedAgentId = selectedSessionId
     ? roster.associations.find((item) => item.sessionId === selectedSessionId)?.agentId
     : roster.selectedAgentId
-  const openOnMobile = () => { if (window.matchMedia("(max-width: 720px)").matches) onClose() }
+  const openOnMobile = () => { navigate("conversation"); if (window.matchMedia("(max-width: 720px)").matches) onClose() }
   // Native lifecycle distinguishes a started conversation from a prepared empty root.
   const activeRootIds = new Set(sessions.data.filter((session) => session.lifecycle === "live" || (session.lifecycle === "draft" && session.state === "working")).map((session) => session.id))
   const agents = roster.agents.filter((agent) => agent.root && activeRootIds.has(agent.root.sessionId)).filter((agent) => `${agent.name} ${agent.role}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
@@ -77,6 +80,7 @@ export function AgentRoster({ onClose }: { onClose: () => void }) {
         }}>{search ? "Clear search" : "Add Agent"}</button>
       </div> : null}
     </nav>
+    <AppSettings/>
   </aside>
 }
 
@@ -92,6 +96,7 @@ function AgentSubagentCount({ agent, root, catalogPending, catalogError }: { age
   if (!snapshot.data) return <>Loading subagents…</>
   if (snapshot.data.useful.childrenAvailable === false) return <>Subagents unavailable</>
   const count = snapshot.data.useful.children.length
+  if (count === 0) return null
   const stale = snapshot.data.transport.status !== "connected"
   return <>{count} {count === 1 ? "subagent" : "subagents"}{stale ? " · last known" : ""}</>
 }

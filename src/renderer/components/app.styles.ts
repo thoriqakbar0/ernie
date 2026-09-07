@@ -51,7 +51,7 @@ export const styles = stylex.create({
       "@media (max-width: 720px)": "minmax(0, 1fr)",
     },
   },
-  workspaceSlot: { backgroundColor: theme["--surface"], display: "grid", minWidth: 0, minHeight: 0 },
+  workspaceSlot: { gridTemplateRows: "minmax(0, 1fr)", overflow: "hidden", backgroundColor: theme["--surface"], display: "grid", minWidth: 0, minHeight: 0 },
   workspaceBehindSidebar: { display: { default: "grid", "@media (max-width: 720px)": "none" } },
   appSidebarSlot: {
     minHeight: "0",
@@ -78,6 +78,8 @@ export const styles = stylex.create({
       "@media (max-width: 720px)": theme["--rule"],
     },
   },
+  conversationPage: { display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" },
+  pageHidden: { display: "none" },
   viewFill: {
     height: "100%",
     width: "100%",

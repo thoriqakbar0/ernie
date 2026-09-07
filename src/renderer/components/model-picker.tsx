@@ -43,7 +43,7 @@ type ModelProfile = Readonly<{
 }>
 const pickerGap = 8
 const viewportInset = 12
-const preferredPickerWidth = 320
+const preferredPickerWidth = 280
 const searchVisibilityThreshold = 8
 const pinnedModelsStorageKey = "ernie:pinned-models:v1"
 const hiddenModelsStorageKey = "ernie:hidden-models:v1"
@@ -468,7 +468,7 @@ function ModelEffortControl({
         </SelectTrigger>
         <SelectContent align="end">
           <SelectGroup>
-            {effortLevels.map((effort) => <SelectItem key={effort} value={effort}>{effort === "medium" ? "medium · built-in default" : effort}</SelectItem>)}
+            {effortLevels.map((effort) => <SelectItem key={effort} value={effort}>{effort === "medium" ? "Default (medium)" : effort}</SelectItem>)}
           </SelectGroup>
         </SelectContent>
       </Select>

@@ -122,7 +122,7 @@ export class AgentsService extends Service.create({
         yield* this.native(() => this.ctx.prime.selectSession({}))
         return
       }
-      yield* this.native(() => this.ctx.prime.selectSession({}))
+      // Keep the current conversation mounted until root activation selects its replacement.
       yield* this.ensureRoot(agentId)
 
     })))

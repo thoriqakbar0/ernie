@@ -2,6 +2,7 @@
 
 Ernie is a local desktop workspace for reading and directing Prime Agent sessions.
 
+- [[app-history]] records application checkpoints, independent recovery, and agent access.
 - [[architecture]] records runtime composition and code ownership.
 - [[domain]] records session admission, synchronization, and renderer projection.
 - [[development]] records Nub roles, isolated profiles, and validation.

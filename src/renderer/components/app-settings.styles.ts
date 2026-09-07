@@ -1,0 +1,31 @@
+import * as stylex from "@stylexjs/stylex"
+import { theme } from "../theme.stylex"
+
+export const styles = stylex.create({
+  page: { height: "100%", minHeight: 0, overflowY: "auto", padding: "24px clamp(18px, 4vw, 48px)", color: theme["--ink"] },
+  content: { maxWidth: 760, marginInline: "auto" },
+  header: { display: "flex", alignItems: "center", gap: 12, marginBottom: 24 },
+  title: { fontSize: 24, fontWeight: 600, margin: 0 },
+  trigger: { minHeight: 44, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: theme["--muted"] },
+  button: { minHeight: 44, cursor: "pointer", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, textAlign: "left", backgroundColor: { default: "transparent", ":hover": theme["--surface-muted"] }, color: theme["--ink"] },
+  row: { width: "100%", justifyContent: "space-between", padding: "18px 12px", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: theme["--rule"] },
+  description: { fontSize: 13, lineHeight: 1.5, color: theme["--muted"], marginBlock: 12 },
+  actions: { display: "flex", gap: 8, flexWrap: "wrap", marginBlock: 16 },
+  list: { padding: 0, listStyle: "none", margin: 0 },
+  detail: { marginBlock: 20, padding: 20, borderRadius: 14, backgroundColor: theme["--surface-muted"] },
+  pre: { whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 320, overflow: "auto", fontSize: 12, padding: 12, backgroundColor: theme["--surface"] },
+  customizeCard: { padding: "clamp(20px, 4vw, 36px)", borderRadius: 24, backgroundColor: theme["--surface-muted"], border: "1px solid", borderColor: theme["--rule"] },
+  art: { display: "flex", alignItems: "end", width: 112, marginBottom: 22 },
+  brush: { transform: "rotate(18deg)", marginLeft: -12, color: theme["--ink"] },
+  heroTitle: { fontFamily: "Georgia, serif", fontSize: "clamp(28px, 4vw, 40px)", fontWeight: 400, letterSpacing: "-0.03em", margin: 0 },
+  heroDescription: { fontSize: 16, lineHeight: 1.6, maxWidth: 390, marginBlock: "12px 24px", color: theme["--muted"] },
+  primary: { backgroundColor: { default: theme["--ink"], ":hover": theme["--muted"] }, color: theme["--surface"], paddingInline: 18, opacity: { default: 1, ":disabled": 0.5 }, cursor: { default: "pointer", ":disabled": "not-allowed" } },
+  suggestions: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 24 },
+  suggestion: { fontSize: 13, border: "1px solid", borderColor: theme["--rule"], backgroundColor: theme["--surface"] },
+  historyRow: { width: "100%", gap: 16, marginTop: 24, padding: "18px 12px" },
+  historyText: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 },
+  historyDescription: { fontSize: 13, lineHeight: 1.5, color: theme["--muted"] },
+  tabs: { display: "flex", gap: 8, marginBottom: 24, borderBottom: "1px solid", borderColor: theme["--rule"], paddingBottom: 8 },
+  selectedTab: { backgroundColor: theme["--surface-muted"], fontWeight: 600 },
+  hidden: { display: "none" },
+})

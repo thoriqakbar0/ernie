@@ -1,12 +1,13 @@
 import { useAgentCreation } from "../agent-creation"
-import { styles as settingsStyles } from "./agent-settings.styles"
+import { AppChangeProtection } from "./app-change-protection"
 import { AgentNativeSessions } from "./agent-native-sessions"
-import { AgentSettingsDialog, AgentControls } from "./agent-settings"
+import { styles as settingsStyles } from "./agent-settings.styles"
+import { AgentControls, AgentSettingsDialog } from "./agent-settings"
 import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useRef, useState } from "react"
 import type { PrimeModel } from "../../packages/prime-agent"
-import { useAgents, useConversationDraft } from "../agent-state"
+import { useAgents, useConversationDraft, useResponseAnnotations } from "../agent-state"
 import type { Agent } from "../../packages/agents"
 import { AgentWorkspaceHeader, EmptyAgentWorkspace } from "./agent-workspace"
 import { styles as rosterStyles } from "./agent-roster.styles"
@@ -73,6 +74,7 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
   const actions = usePrimeSessionActions(sessionId)
   const models = usePrimeModels(sessionId)
   const [draft, setDraft] = useConversationDraft(sessionId)
+  const feedbackDraft = useResponseAnnotations(sessionId)
   const flow = useConversationFlow(sessionId)
   const submitting = flow.submission.status === "creating" || flow.submission.status === "sending"
   const stopping = flow.stop.status === "stopping"
@@ -139,17 +141,20 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
         <div {...stylex.props(styles.sessionStage)}>
           <div {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}>
             {openingError ?? (draftHero && session ? <EmptyConversation agent={agent} cwd={session.cwd}/>
-              : snapshot ? <ConversationTranscript sessionId={sessionId} agentName={agent?.name} messages={snapshot.messages} snapshot={snapshot}/>
+              : snapshot ? <ConversationTranscript key={sessionId} onAnnotate={feedbackDraft.add} sessionId={sessionId} agentName={agent?.name} messages={snapshot.messages} snapshot={snapshot}/>
               : <WorkspaceLoading/>)}
             <div data-composer-placement={draftHero ? "hero" : "docked"} {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}>
+              {agent?.id.startsWith("ernie-customization-") ? <AppChangeProtection workspace={agent.cwd} working={Boolean(working)}/> : null}
               <PrimeComposer
                 agentName={agent?.name}
                 feedback={flow.submission}
                 releaseSend={() => flow.release(sessionId)}
-                acceptedEffort={snapshot?.useful.sessionContext?.thinkingLevel}
+                acceptedEffort={snapshot?.useful.state.thinkingLevel}
                 opening={!snapshot && !snapshotQuery.isError}
                 connected={connected}
                 draft={draft}
+                annotations={feedbackDraft.annotations}
+                onRemoveAnnotation={feedbackDraft.remove}
                 draftHero={draftHero}
                 models={models.data ?? emptyModels}
                 modelChangePending={modelChange.status === "pending"}
@@ -159,7 +164,7 @@ function PrimeSessionWorkspace({ agent, sessionId }: Readonly<{ agent?: Agent; s
                 onEffortError={setCommandError}
                 onModelSelect={(model) => updateModel(model.provider, model.id)}
                 recovering={recovering}
-                selectedModel={session?.model}
+                selectedModel={snapshot?.useful.state.model ?? session?.model}
                 sessionSelected
                 stopAction={stopAction}
                 stopping={stopping}

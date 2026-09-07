@@ -46,6 +46,12 @@ Use `nub run test:integration:browser` for browser proof. Reserve `nub run test:
 
 Run `nub run test:integration` for daemon boundaries. Run `konsistent validate` when checking structural conventions.
 
+## Live browser control
+
+Use Codex's @Browser against the existing development gateway. Reuse its live tab, inspect accessibility state before actions, and capture the viewport without navigation or reload.
+
+See docs/workflow.md for the workflow; no additional browser CLI is required.
+
 ## Release boundary
 
 Zenbu installs compatible source from a dedicated release branch. Packaged Ernie checks for updates, stages dependencies, and requires confirmation before restarting with new source.

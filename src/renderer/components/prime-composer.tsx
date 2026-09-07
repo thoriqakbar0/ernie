@@ -1,3 +1,5 @@
+import type { ResponseAnnotation } from "../response-annotation"
+import { ResponseFeedback } from "./response-feedback"
 import { styles as sharedStyles } from "../component-styles"
 import * as stylex from "@stylexjs/stylex"
 import { useId, type KeyboardEvent } from "react"
@@ -10,6 +12,8 @@ import type { ConversationSubmission } from "../conversation-flow"
 type PrimeComposerProps = Readonly<{
   connected: boolean
   opening?: boolean
+  annotations?: readonly ResponseAnnotation[]
+  onRemoveAnnotation?: (id: string) => void
   draft: string
   draftHero: boolean
   agentName?: string
@@ -34,7 +38,7 @@ type PrimeComposerProps = Readonly<{
 }>
 
 /** Keeps composition editable while creation, attachment, and sending settle. */
-export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, agentName = "Agent", feedback, releaseSend,
+export function PrimeComposer({ connected, acceptedEffort, draft, annotations = [], onRemoveAnnotation, draftHero, agentName = "Agent", feedback, releaseSend,
   modelChangePending, models, modelsPending, onDraftChange, onEffortChange, onEffortError, onModelSelect,
   opening = false, recovering, selectedModel, sessionSelected, stopAction, stopping, submitAction, submitting, working,
 }: PrimeComposerProps) {
@@ -46,13 +50,13 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
     : feedback?.status === "creating" ? "Starting conversation…"
     : feedback?.status === "sending" ? "Sending message…"
     : feedback?.status === "queued" && working ? "Queued after the current work."
-    : feedback?.status === "accepted" && working ? "Sent."
     : undefined
   // Keep pending feedback urgent while external session selection changes during creation.
   return <form onSubmit={(event) => {
     event.preventDefault()
     void submitAction(new FormData(event.currentTarget))
   }} data-chat-composer {...stylex.props(sharedStyles.primeComposer, draftHero && sharedStyles.primeComposerHero)}>
+    {onRemoveAnnotation && annotations.length ? <ResponseFeedback annotations={annotations} onRemove={onRemoveAnnotation}/> : null}
     <InputGroup xstyle={[sharedStyles.composerGroup]}>
       <label htmlFor={inputId} {...stylex.props(sharedStyles.srOnly)}>Message {agentName}</label>
       <InputGroupTextarea
@@ -61,7 +65,7 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
         name="message"
         aria-describedby={feedbackId}
         onChange={(event) => onDraftChange(event.target.value)}
-        onKeyDown={(event) => submitOnEnter(event, unavailable || (!uncertain && !draft.trim()))}
+        onKeyDown={(event) => submitOnEnter(event, unavailable || (!uncertain && (!draft.trim() && !annotations.length)))}
         placeholder={`Message ${agentName}…`}
         rows={1}
         value={draft}
@@ -79,7 +83,7 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
             <SquareIcon {...stylex.props(sharedStyles.controlIcon)}/><span>{stopping ? "Stopping…" : "Stop"}</span>
           </InputGroupButton> : null}
           <InputGroupButton aria-label={uncertain ? "Check send" : working ? "Queue follow-up" : "Send message"}
-            title={uncertain ? "Check send" : working ? "Queue follow-up" : "Send message"} disabled={(!uncertain && !draft.trim()) || unavailable}
+            title={uncertain ? "Check send" : working ? "Queue follow-up" : "Send message"} disabled={(!uncertain && (!draft.trim() && !annotations.length)) || unavailable}
             size={uncertain ? "sm" : "icon-sm"} type="submit" variant="default" xstyle={[sharedStyles.composerAction]}>
             {uncertain ? <span>Check send</span> : <ArrowUpIcon {...stylex.props(sharedStyles.controlIcon)}/>}
           </InputGroupButton>
@@ -90,7 +94,6 @@ export function PrimeComposer({ connected, acceptedEffort, draft, draftHero, age
       {message ? <p role={feedback?.status === "error" ? "alert" : "status"} {...stylex.props(feedback?.status === "error" && sharedStyles.composerError)}>{message}</p> : null}
       {uncertain && releaseSend ? <><p>Your next action checks the original send. Sending again may duplicate it.</p><button type="button" disabled={unavailable} onClick={() => { void releaseSend() }}>I’ve checked; allow a new send</button></> : null}
       {opening ? <p role="status">Opening conversation… You can keep writing.</p>
-        : working && connected && !recovering && !uncertain ? <p>Sent messages are queued after the current work.</p>
         : !connected || recovering ? <p>You can keep writing. New messages need a connection.</p> : null}
     </div>
   </form>

@@ -1,11 +1,5 @@
 import * as stylex from "@stylexjs/stylex"
 import { theme } from "../theme.stylex"
-const transcriptScrollShimmer = stylex.keyframes({
-  to: {
-    transform: "translateX(100%)",
-  },
-})
-
 /** Component-owned layout, responsive variants, and interaction states. */
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
@@ -73,28 +67,5 @@ export const styles = stylex.create({
   systemMessageContent: {
     color: theme["--muted"],
     fontSize: "13px",
-  },
-  conversationScrollShimmer: {
-    position: "absolute",
-    bottom: "0",
-    insetInline: "0",
-    height: "28px",
-    overflow: "hidden",
-    backgroundImage: "linear-gradient(to bottom, transparent, var(--surface))",
-    pointerEvents: "none",
-    "::after": {
-      position: "absolute",
-      bottom: "0",
-      insetInline: "0",
-      height: "2px",
-      backgroundImage: "linear-gradient(90deg, transparent, var(--accent), transparent)",
-      content: '""',
-      opacity: "0.55",
-      transform: "translateX(-100%)",
-      animationName: transcriptScrollShimmer,
-      animationDuration: "1.8s",
-      animationTimingFunction: "linear",
-      animationIterationCount: "infinite",
-    },
   },
 })

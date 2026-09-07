@@ -1,3 +1,4 @@
+import { GlobalUiAnnotator } from "./global-ui-annotator"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
@@ -150,6 +151,7 @@ export const App = ({
                       </BrowserWorkspace>
                     </div>
                   </main>
+                  <GlobalUiAnnotator />
                   {updates}
                 </div>
               </MessageReadingProvider>

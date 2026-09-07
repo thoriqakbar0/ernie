@@ -73,3 +73,5 @@ Failed first-message creation unlocks draft identity controls. Retries save curr
 Pre-session model catalogs load in a bounded worker thread because Prime Agent registry construction reads files synchronously. Concurrent requests share in-flight work; only validated model metadata returns to the host.
 
 Composer controls distinguish Reasoning from the configured RLM depth limit with visible labels, separate icons, title-case values, and hover/focus help. The live reasoning description retains the Prime Agent default side effect. Populated conversations reserve eight pixels plus the safe-area minimum below the composer hint.
+
+GlobalUiAnnotator lazily initializes the installed React Grab core on first use. One app-shell owner keeps contextual UI notes across page navigation until reload. Selection stops before editing; notes are reviewed and copied explicitly, with no Agent send, endpoint, or telemetry. Meta/Ctrl+Shift+A annotates the focused app element, and Escape exits selection. Embedded website content is outside this renderer-only boundary.

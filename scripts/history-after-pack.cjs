@@ -6,6 +6,11 @@ const { pathToFileURL } = require("node:url")
 
 module.exports = async function afterPack(context) {
   const project = process.env.ERNIE_HISTORY_BUILD_ROOT || path.resolve(__dirname, "..")
+  const manifest = JSON.parse(await fs.readFile(path.join(project, "package.json"), "utf-8"))
+  if (manifest.name !== "ernie") {
+    throw new Error("Unsupported packaged identity")
+  }
+  const identity = manifest.name
   const resources =
     context.electronPlatformName === "darwin"
       ? path.join(
@@ -31,7 +36,7 @@ module.exports = async function afterPack(context) {
     pnpmInstall,
     pnpmInstall.replace(
       '"--reporter=append-only"',
-      '"--frozen-lockfile",\n\t\t\t\t\t"--reporter=append-only"',
+      '"--frozen-lockfile",\n\t\t\t\t\t"--config.strict-store-pkg-content-check=false",\n\t\t\t\t\t"--reporter=append-only"',
     ),
   )
   await fs.writeFile(
@@ -122,7 +127,7 @@ module.exports = async function afterPack(context) {
   }
   await fs.writeFile(
     launcher,
-    `import { app, Menu, MenuItem } from 'electron';
+    `import { app, BrowserWindow, Menu, MenuItem } from 'electron';
 import { readAppConfig, appsDirFor, resolveMirror, readHostVersion, ensureAppsDir, ensureDepsInstalled, handoff } from './zenbu-bootstrap.mjs';
 async function launchHistory() {
 const childArg = process.argv.find(value => value.startsWith('--ernie-history-child='));
@@ -132,6 +137,12 @@ if (cli !== -1) {
   try { await agentMain(process.argv.slice(cli + 1)); app.exit(0); } catch { process.stderr.write('Ernie history unavailable. Open Ernie and retry.\\n'); app.exit(1); }
 } else if (childArg) {
   const directory = childArg.slice('--ernie-history-child='.length);
+  process.on('message', message => {
+    if (message?.type === 'ernie-activate') {
+      const window = BrowserWindow.getAllWindows().find(window => !window.isDestroyed());
+      if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); app.focus({steal:true}); }
+    }
+  });
   app.on('before-quit',()=>process.send?.({type:'ernie-quit'}));
   app.on('web-contents-created', (_event, contents) => {
     const ready = setInterval(() => {
@@ -151,16 +162,19 @@ if (cli !== -1) {
   });
   try { await handoff(directory); } catch { process.send?.({type:'ernie-failed'}); app.exit(1); }
 } else {
+  // The parent and editable app need separate Chromium profiles. Otherwise
+  // the child can replace the parent's singleton socket during startup.
+  app.setPath('userData', app.getPath('userData') + '-recovery');
   await app.whenReady();
   const cfg=readAppConfig();
   if (cfg.packageManager.type !== 'pnpm') throw new Error('Ernie app history requires the bundled pnpm installer with frozen lockfiles.');
   const { homedir } = await import('node:os'); const { join } = await import('node:path');
-  const source=join(homedir(),'.zenbu','apps','ernie-preview'); const {version}=readHostVersion(app.getAppPath());
+  const source=join(homedir(),'.zenbu','apps',${JSON.stringify(identity)}); const {version}=readHostVersion(app.getAppPath());
   const { existsSync } = await import('node:fs');
   const officialSource=join(app.getAppPath(),'official-source');
   const prepareSource=async()=>{ if (!existsSync(source)) { const {cp,rename,mkdir}=await import('node:fs/promises'); const pending=source+'.install-'+process.pid; await mkdir(join(source,'..'),{recursive:true}); await cp(officialSource,pending,{recursive:true}); await rename(pending,source); } };
   const { startHistoryDesktop }=await import('./history-host.mjs');
-  await startHistoryDesktop({source,version,home:join(homedir(),'.ernie-preview','app-history'),officialSource,prepareSource,install:directory=>ensureDepsInstalled(directory,cfg.packageManager)});
+  await startHistoryDesktop({source,version,home:join(homedir(),${JSON.stringify(`.${identity}`)},'app-history'),officialSource,prepareSource,install:directory=>ensureDepsInstalled(directory,cfg.packageManager)});
 }
 }
 void launchHistory().catch(error=>{console.error('[history] startup failed:',error instanceof Error?error.message:'Unknown failure');app.exit(1);});

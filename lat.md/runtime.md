@@ -28,7 +28,7 @@ One daemon client may carry several logical attachments. Each attachment keeps i
 
 ## Daemon ownership
 
-Ernie manages the daemon it starts for an isolated profile. When `ERNIE_PRIME_AGENT_SOCKET` selects an external daemon, Ernie closes only its client.
+Ernie connects to an existing user daemon and closes only its client. `ERNIE_PRIME_AGENT_SOCKET` overrides the upstream default socket.
 
 [[src/main/prime-agent/service.ts#PrimeAgentService]] owns the main-process connection. [[development#Development workflow#Development profiles]] defines endpoint selection.
 

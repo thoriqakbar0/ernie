@@ -1,4 +1,4 @@
-import { homedir } from "node:os"
+import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { DAEMON_PROTOCOL_NAME, DAEMON_PROTOCOL_VERSION, DaemonClient, VERSION } from "prime-agent"
 
@@ -39,3 +39,13 @@ export const connectPrimeDaemon = async (socketPath: string, ownership: "managed
     throw error
   }
 }
+
+/** Locate the existing user daemon using Prime Agent's default socket convention. */
+export const existingDaemonSocketPath = () =>
+  process.platform === "win32"
+    ? "\\\\.\\pipe\\prime-agent-daemon"
+    : path.join(
+        tmpdir(),
+        `prime-agent-${typeof process.getuid === "function" ? process.getuid() : "user"}`,
+        "daemon.sock",
+      )

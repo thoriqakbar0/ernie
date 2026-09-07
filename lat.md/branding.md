@@ -10,8 +10,8 @@ Two canonical PNGs in `assets/brand/` own Ernie's identity. The production mark 
 
 The renderer uses the checked-in orange palette and Ernie sidebar identity from `a0a2201`. Settings history and reconnect behavior remain available.
 
-## Preview distribution
+## Distribution
 
-The preview branch uses amber artwork and the Ernie Preview product name. Its source mirror, installation directory, and app-history directory are separate from stable Ernie. Prime Agent remains shared.
+All distributions use the normal Ernie artwork. GitHub prerelease status does not create another app identity.
 
 See [release instructions](../docs/releasing.md) for explicit unsigned packaging and macOS installation limits.

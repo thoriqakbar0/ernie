@@ -1,6 +1,6 @@
 {
-  "appId": "dev.zenbu.ernie.preview",
-  "productName": "Ernie Preview",
+  "appId": "dev.zenbu.ernie",
+  "productName": "Ernie",
   "asar": false,
   "directories": {
     "output": "dist"
@@ -8,7 +8,9 @@
   "mac": {
     "icon": "build/brand/icon.icns",
     "category": "public.app-category.developer-tools",
-    "target": ["zip"]
+    "target": [
+      "zip"
+    ]
   },
   "win": {
     "icon": "build/brand/icon.ico"

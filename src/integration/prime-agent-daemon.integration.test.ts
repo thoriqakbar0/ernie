@@ -1,6 +1,6 @@
 import { createServer } from "node:net"
 import { readDevConfig } from "../../scripts/dev/config"
-import { managedDaemonSocketPath, connectPrimeDaemon } from "../main/prime-agent/daemon-client"
+import { existingDaemonSocketPath, connectPrimeDaemon } from "../main/prime-agent/daemon-client"
 import { connectRpc } from "@zenbujs/core/rpc"
 import { RuntimeDescriptor } from "../dev/runtime-descriptor"
 import type { PrimeAgentService } from "../main/prime-agent/service"
@@ -252,8 +252,7 @@ test(
   { timeout: 30_000 },
   async (t) => {
     const root = await mkdtemp(path.join(tmpdir(), "ernie-prime-agent-"))
-    const config = readDevConfig(["desktop"], { ERNIE_DEV_STATE_ROOT: root }, root)
-    const socketPath = config.daemonSocketPath
+    const socketPath = path.join(root, "daemon.sock")
     const agentDir = path.join(root, "agent")
     let legacyConnections = 0
     const legacySocket = path.join(root, "prime-agent.sock")
@@ -267,7 +266,7 @@ test(
     t.after(() => promisify(legacy.close.bind(legacy))())
     assert.notEqual(socketPath, legacySocket)
     for (const role of ["all", "server", "web"]) {
-      assert.equal(readDevConfig([role], {}, root).daemonSocketPath, managedDaemonSocketPath())
+      assert.equal(readDevConfig([role], {}, root).daemonSocketPath, existingDaemonSocketPath())
     }
     const external = readDevConfig(["server"], { ERNIE_PRIME_AGENT_SOCKET: legacySocket }, root)
     assert.equal(external.daemonSocketPath, legacySocket)
@@ -368,7 +367,7 @@ test(
     const daemon = startDaemon(socketPath, agentDir)
     const daemonClient = await connectDaemon(socketPath)
     const projectRoot = path.resolve(import.meta.dirname, "../..")
-    const development = spawn("nub", ["--node", "scripts/dev.ts", "server"], {
+    const development = spawn(process.execPath, ["scripts/dev.ts", "server"], {
       cwd: projectRoot,
       env: {
         ...process.env,

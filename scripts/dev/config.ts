@@ -3,13 +3,13 @@ import { Schema } from "effect"
 import { VERSION } from "prime-agent"
 import {
   managedDaemonSocketName,
-  managedDaemonSocketPath,
+  existingDaemonSocketPath,
 } from "../../src/main/prime-agent/daemon-client.ts"
 
 const DevRoleSchema = Schema.Literals(["all", "server", "web", "desktop"])
 
 type DevRole = typeof DevRoleSchema.Type
-type DaemonLifecycle = "shared" | "owned" | "external"
+type DaemonLifecycle = "external"
 
 export type DevConfig = Readonly<{
   role: DevRole
@@ -66,21 +66,12 @@ export const readDevConfig = (
   if (configuredDaemonSocket && !path.isAbsolute(configuredDaemonSocket)) {
     throw new Error("ERNIE_PRIME_AGENT_SOCKET must be an absolute path")
   }
-  let daemonLifecycle: DaemonLifecycle = "shared"
-  if (configuredDaemonSocket) {
-    daemonLifecycle = "external"
-  } else if (role === "desktop") {
-    daemonLifecycle = "owned"
-  }
+  const daemonLifecycle: DaemonLifecycle = "external"
 
   return {
-    agentDirectory: daemonLifecycle === "owned" ? path.join(stateRoot, "prime-agent") : undefined,
+    agentDirectory: undefined,
     daemonLifecycle,
-    daemonSocketPath:
-      configuredDaemonSocket ??
-      (daemonLifecycle === "shared"
-        ? managedDaemonSocketPath()
-        : resolveDaemonSocketPath(stateRoot, profile)),
+    daemonSocketPath: configuredDaemonSocket ?? existingDaemonSocketPath(),
     databaseDirectory: path.join(stateRoot, "db"),
     electronProfileDirectory: path.join(stateRoot, "electron-user-data"),
     host: "127.0.0.1",

@@ -7,7 +7,11 @@ const destination = Schema.decodeUnknownSync(
   Schema.Struct({ branch: Schema.String, target: Schema.String }),
 )(JSON.parse(readFileSync("release.json", "utf-8")))
 const manifest = Schema.decodeUnknownSync(
-  Schema.Struct({ version: Schema.String, zenbu: Schema.Struct({ host: Schema.String }) }),
+  Schema.Struct({
+    name: Schema.String,
+    version: Schema.String,
+    zenbu: Schema.Struct({ host: Schema.String }),
+  }),
 )(JSON.parse(readFileSync("package.json", "utf-8")))
 const [command = "check", ...extra] = process.argv.slice(2)
 if (extra.length || !["check", "init", "push", "build", "build-unsigned"].includes(command)) {
@@ -23,6 +27,18 @@ if (
 if (!semver.valid(manifest.version) || !semver.satisfies(manifest.version, manifest.zenbu.host)) {
   throw new Error("The source compatibility range must include this host version")
 }
+const builder = Schema.decodeUnknownSync(
+  Schema.Struct({ appId: Schema.String, productName: Schema.String }),
+)(JSON.parse(readFileSync("electron-builder.json", "utf-8")))
+if (
+  destination.branch !== "release" ||
+  manifest.name !== "ernie" ||
+  builder.appId !== "dev.zenbu.ernie" ||
+  builder.productName !== "Ernie"
+) {
+  throw new Error("Release configuration must use the regular Ernie identity")
+}
+
 console.log(
   `Release destination: ${destination.target}#${destination.branch}; host ${manifest.version}`,
 )
@@ -50,11 +66,8 @@ if (command !== "check") {
       throw new Error("release:build requires macOS and configured Apple notarization credentials")
     }
   }
-  if (
-    command === "build-unsigned" &&
-    (process.platform !== "darwin" || destination.branch !== "release-preview")
-  ) {
-    throw new Error("Unsigned packaging requires macOS and the release-preview channel")
+  if (command === "build-unsigned" && process.platform !== "darwin") {
+    throw new Error("Unsigned packaging requires macOS")
   }
   run(["run", "build:source"])
   if (command === "build" || command === "build-unsigned") {

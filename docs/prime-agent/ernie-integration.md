@@ -23,11 +23,9 @@ Each logical attachment owns its connection, subscription, snapshot, and cleanup
 
 ## Endpoint lifecycle
 
-[Development config](../../scripts/dev/config.ts) selects shared managed endpoints for browser roles, a profile-owned endpoint for desktop, or an external socket when configured explicitly. Managed endpoint names include the installed Prime Agent version.
+[Development config](../../scripts/dev/config.ts) and packaged Ernie connect to the existing upstream user socket. Set `ERNIE_PRIME_AGENT_SOCKET` to select another socket. Ernie does not launch, install, or terminate a daemon. The Prime Agent client SDK remains a dependency.
 
-[Handshake validation](../../src/main/prime-agent/daemon-client.ts) checks protocol name/version and schema revision. Managed connections also require the installed app version; external connections require protocol/schema compatibility without exact app-version equality. An incompatible daemon is left running.
-
-The service starts a missing managed daemon and waits for readiness. An unavailable external endpoint fails without starting a replacement. Service disposal releases attachments and the client. The [development launcher](../../scripts/dev.ts) separately shuts down a profile-owned daemon; closing an external attachment must not terminate the external daemon.
+[Handshake validation](../../src/main/prime-agent/daemon-client.ts) requires protocol and schema compatibility. External package versions can differ. Missing or incompatible endpoints report a connection failure and leave existing daemons untouched. Service disposal releases only Ernie's attachments and client.
 
 ## Identity and synchronization
 

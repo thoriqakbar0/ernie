@@ -45,7 +45,7 @@ Development state is isolated under `.zenbu/dev/browser/`:
 └── runtime.json
 ```
 
-Browser development shares a managed daemon endpoint for the installed Prime Agent version. Ernie starts it when unavailable and leaves it running on exit. See [daemon ownership](docs/architecture.md#prime-agent-version-boundary).
+Ernie connects to your existing Prime Agent daemon. It does not start or stop the daemon. See [daemon ownership](docs/architecture.md#prime-agent-version-boundary).
 
 Use a separate profile and port for concurrent worktrees or agents:
 
@@ -145,13 +145,16 @@ nub run repos:sync
 
 The committed lock never contains machine-specific paths, so another machine can reproduce the snapshots from their pinned remotes.
 
-## Production
+## Preview and production
+
+Prepare an explicit candidate, review and commit it, then build or publish through the [release workflow](docs/releasing.md):
 
 ```sh
-nub run build:source
-nub run build:electron
+nub run release:prepare 0.2.1
+nub run release:check
+# After review, verification, release notes, and commit:
+nub run release:build
+nub run release:preview
 ```
 
-Electron builds use `thoriqakbar0/ernie` on `main` as the installed source mirror. Initialize or publish that mirror only during an explicitly authorized release.
-
-Development builds load React Grab for source-aware UI selection. React Doctor scans the renderer through `nub run doctor`.
+Use `release:prod` for a production release. Both publication commands use ad-hoc signing without Developer ID or notarization. `release:build:signed` is available separately when official Apple credentials are configured. Both release types use the dedicated `release` source branch.

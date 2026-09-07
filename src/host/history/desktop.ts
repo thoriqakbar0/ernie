@@ -305,8 +305,21 @@ export const startHistoryDesktop = async (bootstrap: Bootstrap) => {
   app.on("window-all-closed", () => {
     // Keep the recovery host running when all windows close.
   })
-  app.on("second-instance", openWindow)
-  app.on("activate", openWindow)
+  const activateApp = () => {
+    if (child?.connected) {
+      // Node IPC reports asynchronous send failures through its callback.
+      // oxlint-disable-next-line promise/prefer-await-to-callbacks
+      child.send({ type: "ernie-activate" }, (error) => {
+        if (error) {
+          openWindow()
+        }
+      })
+    } else {
+      openWindow()
+    }
+  }
+  app.on("second-instance", activateApp)
+  app.on("activate", activateApp)
   app.on("before-quit", async () => {
     closing = true
     controller?.stopWatching()

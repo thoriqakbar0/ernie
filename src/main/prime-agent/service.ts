@@ -1,11 +1,8 @@
 import { readModelCatalog } from "./model-catalog"
 import { createHash } from "node:crypto"
 import { readFile, readdir, mkdir, stat } from "node:fs/promises"
-import { spawn } from "node:child_process"
-import { mkdirSync } from "node:fs"
 import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { fileURLToPath } from "node:url"
 import { Service } from "@zenbujs/core/runtime"
 import { RpcService } from "@zenbujs/core/services"
 import { Effect, Option, Schema } from "effect"
@@ -14,7 +11,7 @@ import { nativeConversationConfig } from "./agent-config"
 import {
   connectPrimeDaemon,
   IncompatiblePrimeDaemonError,
-  managedDaemonSocketPath,
+  existingDaemonSocketPath,
 } from "./daemon-client"
 import { AgentStoreService } from "../services/agent-store"
 import { SessionManager, DaemonAgentConnection } from "prime-agent"
@@ -59,17 +56,10 @@ type CommandBody = DaemonCommand extends infer Command
     : never
   : never
 
-type PrimeAgentEndpoint =
-  | Readonly<{
-      ownership: "external"
-      socketPath: string
-    }>
-  | Readonly<{
-      ownership: "managed"
-      socketPath: string
-      agentDir?: string
-      executablePath: string
-    }>
+type PrimeAgentEndpoint = Readonly<{
+  ownership: "external"
+  socketPath: string
+}>
 
 interface SessionAttachment {
   readonly sessionId: string
@@ -104,17 +94,6 @@ const CREATE_SESSION_NAME_RETRIES = 3
 const ATTACHMENT_STARTUP_TIMEOUT_MS = 10_000
 const ATTACHMENT_STARTUP_RETRY_MS = 100
 const SESSION_CATALOG_REFRESH_MS = 1000
-const PRIME_AGENT_DAEMON_WORKER_ENV = [
-  "PRIME_AGENT_INTERNAL_DAEMON_WORKER",
-  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN",
-  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_ACTIVE_SESSION_ID",
-  "PRIME_AGENT_INTERNAL_DAEMON_SUPERVISOR_SOCKET",
-  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_RECOVERY_JOURNAL",
-  "PRIME_AGENT_INTERNAL_DAEMON_WORKER_STARTUP_GATE_FD",
-  "PRIME_AGENT_INTERNAL_ORPHAN_PROCESS_JOURNAL",
-  "PRIME_AGENT_INTERNAL_SESSION_LEASES",
-  "PRIME_AGENT_INTERNAL_SESSION_LEASE_OWNER_ID",
-] as const
 const recordSchema = Schema.Record(Schema.String, Schema.Unknown)
 
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
@@ -272,50 +251,12 @@ const isFailedSessionWorkerError = (error: unknown) =>
 const isUnknownActiveSessionError = (error: unknown) =>
   error instanceof Error && error.message.startsWith("Unknown active session:")
 
-const startDaemon = (config: Extract<PrimeAgentEndpoint, { ownership: "managed" }>) => {
-  mkdirSync(path.dirname(config.socketPath), { recursive: true })
-  const packageEntry = import.meta.resolve("prime-agent")
-  const cliPath = fileURLToPath(new URL("bundle/cli.js", packageEntry))
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ELECTRON_RUN_AS_NODE: "1",
-    ...(config.agentDir ? { PRIME_AGENT_CODING_AGENT_DIR: config.agentDir } : {}),
-  }
-  const workerEnvironment = new Set<string>(PRIME_AGENT_DAEMON_WORKER_ENV)
-  const daemonEnv = Object.fromEntries(
-    Object.entries(env).filter(([name]) => !workerEnvironment.has(name)),
-  )
-  const child = spawn(
-    config.executablePath,
-    [cliPath, "--mode", "daemon", "--daemon-socket", config.socketPath],
-    { detached: true, env: daemonEnv, stdio: "ignore" },
-  )
-  child.unref()
-}
-
-const readPrimeAgentEndpoint = (): PrimeAgentEndpoint => {
-  const socketOverride = readAbsolutePath(
-    process.env.ERNIE_PRIME_AGENT_SOCKET,
-    "ERNIE_PRIME_AGENT_SOCKET",
-  )
-  if (socketOverride && process.env.ERNIE_PRIME_AGENT_START_DAEMON !== "1") {
-    return { ownership: "external", socketPath: socketOverride }
-  }
-
-  const agentDir = readAbsolutePath(
-    process.env.ERNIE_PRIME_AGENT_AGENT_DIR,
-    "ERNIE_PRIME_AGENT_AGENT_DIR",
-  )
-  const executablePath =
-    readAbsolutePath(process.env.ERNIE_PRIME_AGENT_EXECUTABLE, "ERNIE_PRIME_AGENT_EXECUTABLE") ??
-    process.execPath
-  return {
-    agentDir,
-    executablePath,
-    ownership: "managed",
-    socketPath: socketOverride ?? managedDaemonSocketPath(),
-  }
-}
+const readPrimeAgentEndpoint = (): PrimeAgentEndpoint => ({
+  ownership: "external",
+  socketPath:
+    readAbsolutePath(process.env.ERNIE_PRIME_AGENT_SOCKET, "ERNIE_PRIME_AGENT_SOCKET") ??
+    existingDaemonSocketPath(),
+})
 
 // @lat: [[architecture#Prime Agent boundary]]
 /** Owns Ernie's shared Prime Agent daemon client and logical session attachments. */
@@ -1520,27 +1461,10 @@ export class PrimeAgentService extends Service.create({
       if (error instanceof IncompatiblePrimeDaemonError) {
         throw error
       }
-      if (this.endpoint.ownership === "external") {
-        throw new Error("The configured Prime Agent socket is unavailable", { cause: error })
-      }
-      startDaemon(this.endpoint)
-      return this.retryDaemonConnection(error, Date.now() + 10_000)
-    }
-  }
-
-  private async retryDaemonConnection(lastError: unknown, deadline: number): Promise<DaemonClient> {
-    if (Date.now() >= deadline) {
-      throw new Error("Prime Agent daemon did not become ready", { cause: lastError })
-    }
-    this.requireActiveRuntime()
-    try {
-      return await connectPrimeDaemon(this.endpoint.socketPath, this.endpoint.ownership)
-    } catch (connectionError) {
-      if (connectionError instanceof IncompatiblePrimeDaemonError) {
-        throw connectionError
-      }
-      await delay(150)
-      return this.retryDaemonConnection(connectionError, deadline)
+      throw new Error(
+        "Prime Agent is not connected. Start your existing Prime Agent daemon and reconnect.",
+        { cause: error },
+      )
     }
   }
 

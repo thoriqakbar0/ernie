@@ -25,6 +25,6 @@ The generator in `scripts/brand.mjs` owns these copies and container sizes. Edit
 
 The current repository has no website, web manifest, or custom installation/update HTML. Its previous logo was the inline `ErnieMark` SVG. The README is the public repository surface. Future website consumers should reuse the production source through this generator. Character avatars and generic control icons are separate artwork.
 
-## Preview identity
+## Channel selection
 
-The 0.2.0 preview branch uses the existing amber developer artwork as its canonical packaging source, paired with the Ernie Preview app name. The generated concept in plans/assets is not shipped. Stable artwork on main stays unchanged.
+All release channels use production.png and the Ernie identity. Development uses development.png. GitHub prerelease metadata does not change the installed app name or artwork.

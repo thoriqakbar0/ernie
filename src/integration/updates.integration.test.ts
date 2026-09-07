@@ -55,7 +55,11 @@ test("publisher rejects unsafe destinations and overrides before spawning a publ
   t.after(() => rm(root, { force: true, recursive: true }))
   await writeFile(
     path.join(root, "package.json"),
-    JSON.stringify({ version: "0.1.0", zenbu: { host: ">=0.1.0 <0.2.0" } }),
+    JSON.stringify({ name: "ernie", version: "0.1.0", zenbu: { host: ">=0.1.0 <0.2.0" } }),
+  )
+  await writeFile(
+    path.join(root, "electron-builder.json"),
+    JSON.stringify({ appId: "dev.zenbu.ernie", productName: "Ernie" }),
   )
   const script = path.join(process.cwd(), "scripts/release.ts")
   const assertUnsafeBranch = async (branch: string) => {

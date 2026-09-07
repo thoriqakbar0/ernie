@@ -12,7 +12,7 @@ The development gateway prints its runtime and browser addresses. Browser integr
 
 Each profile owns a state root, database, runtime descriptor, process owner, and Electron user data.
 
-Browser roles share the versioned managed daemon endpoint; desktop profiles own an agent directory and versioned socket within their state root. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
+All development roles connect to an externally owned Prime Agent socket. Ernie never starts or stops that daemon. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
 
 [[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects an external daemon and disables daemon ownership.
 
@@ -77,3 +77,13 @@ The signature adapter is checked against the pinned Zenbu implementation. [[src/
 ## InterfaceKit
 
 InterfaceKit is disabled: the renderer does not import or mount its floating editor toolbar.
+
+## Release channel commands
+
+Development keeps local profiles. Releases use the Ernie identity and ad-hoc signing. Prerelease status changes GitHub metadata only. Official signing remains optional.
+
+See [release commands](../docs/releasing.md). Packaged source and app-history paths derive from the validated package identity. Preparation changes local files; publication requires a clean committed checkout.
+
+## Packaged startup ownership
+
+The recovery parent owns the application lock and uses a separate Chromium profile. Its editable child reuses that ownership and reports renderer readiness over IPC. Reopening the app focuses the child.

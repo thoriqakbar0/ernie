@@ -12,7 +12,6 @@ import { useAgentCreation, type AgentSection } from "../agent-creation"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Textarea } from "./ui/textarea"
-import { getWorkspaceName } from "./workspace-name"
 import { styles } from "./agent-settings.styles"
 import { styles as rosterStyles } from "./agent-roster.styles"
 
@@ -31,7 +30,7 @@ const introductions = [
 ]
 
 /** Creation and refinement share one inline form. */
-export function AgentSettingsDialog({ agent, onClose, section = "Customize" }: { agent?: Agent; onClose: () => void; section?: AgentSection }) {
+export function AgentSettingsDialog({ agent, onClose, section = "Customize", onSaved }: { agent?: Agent; onClose: () => void; section?: AgentSection; onSaved?: (name: string) => void }) {
   const { roster, client, execute } = useAgents()
   const workspace = useWorkspacePath()
   const sessions = usePrimeSessionState()
@@ -43,6 +42,14 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize" }: {
   const [expectedRevision] = useState(() => agent?.revision ?? 0)
   const [characters, setCharacters] = useState(() => agent ? [agent.avatar, ...createCharacters().slice(1)] : createCharacters())
   const [settings, setSettings] = useState<AgentSettings>(() => agent ?? { name: Effect.runSync(randomAgentFirstName), avatar: characters[0] ?? "fern", role: "", instructions: "", cwd: currentWorkspace, provider: "", model: "" })
+  const [initialSettings] = useState(settings)
+  const changed = settings.name.trim() !== initialSettings.name.trim()
+    || avatarKey(settings.avatar) !== avatarKey(initialSettings.avatar)
+    || settings.instructions !== initialSettings.instructions
+    || settings.cwd !== initialSettings.cwd
+    || settings.role !== initialSettings.role
+    || settings.provider !== initialSettings.provider
+    || settings.model !== initialSettings.model
   const [creationPanel, setPanel] = useState<AgentSection | null>(null)
   const panel = agent ? section : creationPanel
   const lastPanel = useRef<AgentSection>("Customize")
@@ -61,7 +68,7 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize" }: {
       <button type="button" aria-label="Close Agent settings" disabled={saving || choosingFolder} onClick={onClose} {...stylex.props(styles.cancel, styles.keyboard)}><XIcon size={16}/></button>
       <form onSubmit={(event) => {
         event.preventDefault()
-        if (saving || choosingFolder) return
+        if (saving || choosingFolder || (agent && !changed)) return
         if (!folder) { setError("Choose a folder for your Agent first."); return }
         setSaving(true)
         setError(undefined)
@@ -71,7 +78,7 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize" }: {
             if (!selection.ok) { setSaving(false); setError("Your Agent is saved. Try again to open their conversation."); return }
           }
           setSaving(false)
-          if (result.ok) onClose()
+          if (result.ok) { onSaved?.(result.value.name); onClose() }
           else setError(result.error)
         })
       }}>
@@ -100,11 +107,11 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize" }: {
             <label {...stylex.props(styles.label)}>How should your Agent work?
               <Textarea aria-label="How your Agent should work" readOnly={Boolean(agent?.root)} xstyle={styles.notes} rows={3} placeholder="How you like to work, what matters to you, things to keep in mind…" value={settings.instructions} onChange={(event) => update("instructions", event.target.value)}/>
             </label>
-            {agent?.root ? <p {...stylex.props(styles.description)}>These instructions belong to the saved root. Changing them during a session is not supported yet.</p> : null}
+            {agent?.root ? <p {...stylex.props(styles.description)}>Saved with this Agent. These instructions are read-only after its conversation is prepared.</p> : null}
           </div> : null}
           {displayedPanel === "Folder" ? <div {...stylex.props(styles.fullWidth)}>
           <div {...stylex.props(styles.workspace)}>
-            <FolderIcon {...stylex.props(styles.icon)}/><div {...stylex.props(styles.folder)}><span>Folder your Agent works in</span><span title={folder} {...stylex.props(styles.folderName)}>{folder ? getWorkspaceName(folder) : "Choose a folder"}</span></div>
+            <FolderIcon {...stylex.props(styles.icon)}/><div {...stylex.props(styles.folder)}><span>Folder your Agent works in</span><span title={folder} {...stylex.props(styles.folderName)}>{folder || "Choose a folder"}</span></div>
             <button type="button" disabled={Boolean(agent?.root)} {...stylex.props(styles.changeFolder)} onClick={() => {
               setChoosingFolder(true)
               setError(undefined)
@@ -115,11 +122,11 @@ export function AgentSettingsDialog({ agent, onClose, section = "Customize" }: {
               })
             }}>{choosingFolder ? "Choosing…" : "Change folder"}</button>
           </div>
-          {agent?.root ? <p {...stylex.props(styles.description)}>This is the native root’s working folder. Live folder changes are not supported yet.</p> : null}
+          {agent?.root ? <p {...stylex.props(styles.description)}>Saved with this Agent. Its working folder is read-only after its conversation is prepared.</p> : null}
           </div> : null}
           </div></Collapsible.Panel></Collapsible.Root>
           {error ? <p role="alert" {...stylex.props(styles.error)}>{error}</p> : null}
-          <div {...stylex.props(styles.actions)}><Button variant={agent ? "secondary" : "default"} xstyle={agent ? styles.save : styles.submit} type="submit">{saving ? "Saving…" : agent ? "Save changes" : settings.name.trim() ? `Bring ${settings.name.trim()} to life` : "Create Agent"}</Button></div>
+          <div {...stylex.props(styles.actions)}>{agent ? <p role="status" {...stylex.props(styles.saveStatus)}>{saving ? "Saving changes…" : changed ? "Unsaved changes" : "No unsaved changes"}</p> : null}<Button disabled={Boolean(agent) && !changed} variant={agent ? "secondary" : "default"} xstyle={agent ? styles.save : styles.submit} type="submit">{saving ? "Saving…" : agent ? "Save changes" : settings.name.trim() ? `Bring ${settings.name.trim()} to life` : "Create Agent"}</Button></div>
         </fieldset>
       </form>
   </section>
@@ -132,9 +139,12 @@ export function AgentControls({ agent, showTabs = true }: { agent: Agent; showTa
   const open = editing?.agentId === agent.id
   const lastSection = useRef<AgentSection>("Customize")
   useEffect(() => { if (open) lastSection.current = editing.section }, [open, editing])
+  const [saved, setSaved] = useState<{ agentId: string; name: string }>()
+  useEffect(() => { if (open) setSaved(undefined) }, [open])
   const trigger = useRef<HTMLButtonElement | null>(null)
   return <div {...stylex.props(styles.controls)}>
     {showTabs || open ? <div {...stylex.props(styles.panelTabs)}>{(["Customize", "Refine", "Folder"] as const).map((section) => <button key={section} type="button" aria-controls={open ? panelId : undefined} aria-expanded={open && editing.section === section} {...stylex.props(styles.sectionButton, styles.keyboard, open && editing.section === section && styles.sectionActive)} onClick={(event) => { trigger.current = event.currentTarget; setEditing(open && editing.section === section ? null : { agentId: agent.id, section }) }}>{section}</button>)}</div> : null}
-    <Collapsible.Root open={open}><Collapsible.Panel id={panelId} {...stylex.props(styles.settingsReveal)}><AgentSettingsDialog key={agent.id} agent={agent} section={open ? editing.section : lastSection.current} onClose={() => { setEditing(null); trigger.current?.focus() }}/></Collapsible.Panel></Collapsible.Root>
+    <Collapsible.Root open={open}><Collapsible.Panel id={panelId} {...stylex.props(styles.settingsReveal)}><AgentSettingsDialog key={agent.id} agent={agent} onSaved={(name) => setSaved({ agentId: agent.id, name })} section={open ? editing.section : lastSection.current} onClose={() => { setEditing(null); trigger.current?.focus() }}/></Collapsible.Panel></Collapsible.Root>
+    {!open && saved?.agentId === agent.id ? <p role="status" {...stylex.props(styles.saveStatus)}>Changes saved for {saved.name}.</p> : null}
   </div>
 }

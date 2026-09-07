@@ -39,3 +39,9 @@ Generated characters persist a seed, so navigation and reload preserve identity.
 Each Agent binds one durable Prime Agent root. Preparation writes the native file before activation; retries resolve the same identity. Legacy profiles with several sessions require a root choice and retain all earlier associations.
 
 [[src/main/services/agents.ts#AgentsService]] owns serialized binding and presentation updates. [[src/main/prime-agent/service.ts#PrimeAgentService]] owns native activation, rename, and validated child inspection. [ADR 0002](../docs/adr/0002-native-agent-roots.md) records the ownership decision.
+
+## Agent settings feedback
+
+Agent edits remain local to the form until accepted by the save command. Unchanged forms cannot submit; rejected saves retain edits, and accepted saves announce success after closing.
+
+[[src/renderer/components/agent-settings.tsx#AgentSettingsDialog]] compares edits with the opened values without changing optimistic revision checks. [[src/renderer/components/agent-settings.tsx#AgentControls]] owns the success announcement. Prepared roots keep instructions and working folders read-only; the folder remains visible in full.

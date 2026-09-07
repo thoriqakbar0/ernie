@@ -63,7 +63,11 @@ async function cloneRelease(context: SourceContext, currentRevision: string, sig
 export async function assertInstallationUnchanged(context: SourceContext, candidate: Candidate) {
   const revision = await git.resolveRef({ fs, dir: context.appsDir, ref: "HEAD" })
   const rows = await git.statusMatrix({ fs, dir: context.appsDir })
-  if (revision !== candidate.currentRevision || rows.some(([, head, worktree, stage]) => head !== worktree || head !== stage)) {
+  if (revision !== candidate.currentRevision || rows.some(([path, head, worktree, stage]) => {
+    // Our restart manifest survives a cancelled quit; it is not release source.
+    if (context.appsDir === candidate.directory && path === ".ernie-update-tracked.json" && head === 0 && stage === 0) return false
+    return head !== worktree || head !== stage
+  })) {
     throw new UpdateFailure("The installation has local changes. Restore them before updating.")
   }
 }

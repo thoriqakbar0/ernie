@@ -73,6 +73,9 @@ test("source checks use a local Git HTTP server and reject incompatible or dirty
   assert.deepEqual(requests, ["GET"], "an available revision reuses its existing staging directory")
   assert.equal(head(), candidate.currentRevision)
   await assertInstallationUnchanged(context, candidate)
+  await writeFile(join(candidate.directory, ".ernie-update-tracked.json"), "previous restart plan")
+  assert.equal(await inspectRelease(context, undefined, candidate), candidate, "cancelled shutdown retains prepared source")
+  await assertInstallationUnchanged({ ...context, appsDir: candidate.directory }, { ...candidate, currentRevision: candidate.revision })
   await writeFile(join(context.appsDir, "package.json"), "local edit")
   await assert.rejects(assertInstallationUnchanged(context, candidate), /local changes/)
   await commit("0.2.0", ">=0.2.0")
@@ -112,6 +115,30 @@ test("restart helper waits for the parent to exit before activating and relaunch
   assert.equal(await readFile(join(live, "app.txt"), "utf8"), "new")
   assert.deepEqual(JSON.parse(await readFile(`${live}.update-result.json`, "utf8")), { outcome: "applied" })
   await waitForRelaunch(root)
+})
+
+test("restart helper relaunches even when its result marker cannot be written", async (t) => {
+  const paths = await activationFixture(t)
+  const root = join(paths.live, "..")
+  await mkdir(`${paths.live}.update-result.json`)
+  await writeFile(join(paths.staged, ".ernie-update-tracked.json"), JSON.stringify({ old: ["old.ts"], next: ["new.ts"] }))
+  const { parent, done } = await startUpdateWorker(t, root, paths)
+  parent.kill()
+  assert.equal(await done, 1, "reporting failure remains observable")
+  await waitForRelaunch(root)
+  assert.equal(await readFile(join(paths.live, "new.ts"), "utf8"), "new source")
+  assert.equal(await readFile(join(paths.live, ".zenbu/db/root.json"), "utf8"), "saved Agent")
+})
+
+test("cancelled shutdown times out without activating or relaunching", { timeout: 40_000 }, async (t) => {
+  const paths = await activationFixture(t)
+  const root = join(paths.live, "..")
+  await writeFile(join(paths.staged, ".ernie-update-tracked.json"), JSON.stringify({ old: ["old.ts"], next: ["new.ts"] }))
+  const { done } = await startUpdateWorker(t, root, paths)
+  assert.equal(await done, 1)
+  assert.equal(await readFile(join(paths.live, "old.ts"), "utf8"), "old source")
+  assert.equal(await readFile(join(paths.staged, "new.ts"), "utf8"), "new source")
+  for (const path of [paths.backup, `${paths.live}.update-result.json`, join(root, "restarted")]) await assert.rejects(access(path))
 })
 
 test("prepared dependencies survive retry, but changed or removed installs invalidate the cache", async (t) => {

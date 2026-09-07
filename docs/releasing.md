@@ -37,6 +37,8 @@ The Update action installs staged dependencies, rechecks both source trees, and 
 
 The helper signals readiness before Ernie quits, waits for process exit, and replaces tracked source, Git metadata, and dependencies. Profile directories stay in place, including saved Agents and native session files. After moving dependencies, activation atomically records Zenbu’s dependency signature for the final install path, preventing the launcher from repeating the staged installation. The packaged app permits one instance. A failed activation restores moved files and reopens Ernie with an error notice.
 
+Source integrity is checked again after native confirmation. If shutdown is cancelled, the helper times out without moving source and the running app returns to an error state with the staged candidate retained for retry. Failure to write the result notice does not prevent relaunch. Tracked files can become directories or vice versa; replacements that would consume local files or untracked directories are rejected.
+
 ## Recover and verify distribution
 
 Activation retains a sibling `ernie.rollback-<timestamp>` directory containing previous source and dependencies. It does not duplicate profile data. Keep it until the updated app is verified. Remove old staging and rollback directories only after confirming they are no longer needed.

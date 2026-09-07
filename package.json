@@ -36,7 +36,7 @@
     "lint:unused": "knip",
     "release:check": "nub --node scripts/release.ts check",
     "release:build": "nub --node scripts/release.ts build",
-    "test:integration:updates": "nub --test src/integration/updates.integration.test.ts"
+    "test:integration:updates": "nub --test src/integration/updates.integration.test.ts src/integration/update-topology.integration.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

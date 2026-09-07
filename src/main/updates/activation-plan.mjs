@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises"
+import { readFile, lstat, readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { exists } from "./activation-files.mjs"
 
@@ -15,10 +15,38 @@ function parsePaths(value) {
   return value.map(parsePath)
 }
 
+async function assertSourceDirectory(live, path, previous) {
+  // Every descendant must belong to the old source tree, including empty
+  // directories: a local directory is not permission to delete its contents.
+  if (![...previous].some((entry) => entry.startsWith(`${path}/`))) throw new Error("Update conflicts with local data")
+  for (const name of await readdir(join(live, path))) {
+    const child = `${path}/${name}`
+    const stat = await lstat(join(live, child))
+    if (stat.isDirectory()) await assertSourceDirectory(live, child, previous)
+    else if (!previous.has(child)) throw new Error("Update conflicts with local data")
+  }
+}
+
 async function assertNoLocalConflicts(live, old, next) {
   const previous = new Set(old)
-  for (const path of next.filter((path) => !previous.has(path))) {
-    if (await exists(join(live, path))) throw new Error("Update conflicts with local data")
+  for (const path of next) {
+    const parts = path.split("/")
+    let replacedAncestor = false
+    for (let index = 1; index < parts.length; index++) {
+      const ancestor = parts.slice(0, index).join("/")
+      if (!await exists(join(live, ancestor))) break
+      const stat = await lstat(join(live, ancestor))
+      if (stat.isSymbolicLink()) throw new Error("Update conflicts with local data")
+      if (!stat.isDirectory()) {
+        if (!previous.has(ancestor)) throw new Error("Update conflicts with local data")
+        replacedAncestor = true
+        break
+      }
+    }
+    if (replacedAncestor || !await exists(join(live, path))) continue
+    const stat = await lstat(join(live, path))
+    if (stat.isDirectory()) await assertSourceDirectory(live, path, previous)
+    else if (!previous.has(path)) throw new Error("Update conflicts with local data")
   }
 }
 

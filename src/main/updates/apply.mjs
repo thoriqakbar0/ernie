@@ -16,8 +16,8 @@ async function run() {
   const paths = readRestartArguments(process.argv.slice(2))
   process.send?.("ready")
   await waitForExit(paths.parent)
-  await activateAndRecord(paths)
-  await relaunch(paths.executable)
+  // Reporting must not prevent reopening the app after activation or rollback.
+  try { await activateAndRecord(paths) } finally { await relaunch(paths.executable) }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

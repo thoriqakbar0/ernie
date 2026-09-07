@@ -60,6 +60,7 @@ export class UpdatesService extends Service.create({ key: "updates", deps: { upd
 
   /** Checks a separate clone; repeated requests share one operation. */
   check(): Promise<UpdateState> {
+    if (this.state.phase === "restarting") return Promise.resolve(this.state)
     return this.run(async () => {
       const context = await this.ctx.updater.getAppContext()
       if (!context || this.disposed) return
@@ -95,13 +96,25 @@ export class UpdatesService extends Service.create({ key: "updates", deps: { upd
       const answer = await dialog.showMessageBox({ type: "question", buttons: ["Cancel", "Update and restart"], defaultId: 0, cancelId: 0,
         title: "Update Ernie", message: `Install Ernie ${candidate.version}?`, detail: "Ernie will restart. Unsent drafts and reading positions will be cleared. Saved Agents and session files will be retained." })
       if (answer.response !== 1) { this.state = { phase: "available", version: candidate.version, revision: candidate.revision }; return }
+      if (this.disposed) return
+      // Native confirmation can remain open while installed or staged files change.
+      await assertInstallationUnchanged(context, candidate)
+      await assertInstallationUnchanged({ ...context, appsDir: candidate.directory }, { ...candidate, currentRevision: candidate.revision })
       await writeFile(join(candidate.directory, ".ernie-update-tracked.json"), JSON.stringify({ dependencySignature: await installedSignature(candidate.directory, context.appsDir, context.packageManager, process.versions.electron ?? "no-electron"), old: await git.listFiles({ fs, dir: context.appsDir }), next: await git.listFiles({ fs, dir: candidate.directory }) }))
       const worker = spawn(process.execPath, [join(context.appsDir, "src/main/updates/apply.mjs"), context.appsDir, candidate.directory,
         `${context.appsDir}.rollback-${Date.now()}`, process.execPath, String(process.pid)], { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"], env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } })
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => { worker.kill(); reject(new Error("Update helper did not start")) }, 10_000)
         worker.once("error", () => { clearTimeout(timeout); reject(new Error("Update helper failed")) })
-        worker.once("exit", () => { clearTimeout(timeout); reject(new Error("Update helper exited")) })
+        worker.once("exit", () => {
+          clearTimeout(timeout)
+          reject(new Error("Update helper exited"))
+          // A cancelled quit leaves this process alive until the helper times out.
+          if (!this.disposed && this.state.phase === "restarting") {
+            this.candidate = candidate
+            this.state = { phase: "error", message: "Ernie did not restart. Close any pending dialogs and try the update again." }
+          }
+        })
         worker.once("message", (message: unknown) => {
           clearTimeout(timeout)
           if (message !== "ready") { worker.kill(); reject(new Error("Invalid update helper handshake")); return }

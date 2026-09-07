@@ -126,7 +126,7 @@ export function createMockPrimeAgentClient(
 
   const usefulSnapshot = (session: MockSession): PrimeUsefulSessionContext => {
     const fixture = createPrimeUsefulSessionFixture(session.summary, session.messages)
-    return { ...fixture, structuredMessages: [...(session.useful?.structuredMessages.filter((message) => message.role === "toolResult") ?? []), ...fixture.structuredMessages],
+    return { ...fixture, children: session.useful?.children ?? fixture.children, childrenAvailable: session.useful?.childrenAvailable, structuredMessages: [...(session.useful?.structuredMessages.filter((message) => message.role === "toolResult") ?? []), ...fixture.structuredMessages],
       state: { ...fixture.state, activeToolNames: session.summary.state === "working" ? session.useful?.state.activeToolNames ?? [] : [],
         sessionActions: { ...fixture.state.sessionActions, queuedCount: session.followUps.length, followUps: [...session.followUps] } } }
   }

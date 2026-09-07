@@ -39,3 +39,9 @@ Generated characters persist a seed, so navigation and reload preserve identity.
 Each Agent binds one durable Prime Agent root. Preparation writes the native file before activation; retries resolve the same identity. Legacy profiles with several sessions require a root choice and retain all earlier associations.
 
 [[src/main/services/agents.ts#AgentsService]] owns serialized binding and presentation updates. [[src/main/prime-agent/service.ts#PrimeAgentService]] owns native activation, rename, and validated child inspection. [ADR 0002](../docs/adr/0002-native-agent-roots.md) records the ownership decision.
+
+## Subagent roster inspection
+
+Conversation activity exposes native child status, parent relationships, and reply previews without changing the selected session. Cached rosters remain inspectable with a last-known-state label.
+
+[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns preview selection and focus restoration. Parent links resolve only within the supplied roster. Previews preserve source attribution and add no daemon commands.

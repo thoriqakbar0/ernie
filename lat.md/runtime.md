@@ -39,3 +39,9 @@ Failed external reconnects keep the last snapshot and pause commands. Ernie retr
 [[tests#Behavior specifications#Development boundary#Browser recovery]] proves session recovery.
 
 The external daemon and socket survive cleanup, as required by [[tests#Behavior specifications#Daemon boundary#External daemon ownership]].
+
+## Daemon integration reference
+
+The [daemon docs](../docs/prime-agent/README.md) separate Ernie ownership from upstream capability, including version evidence and recovery limits.
+
+The [API reference](../docs/prime-agent/api/README.md) inventories installed command fields and client methods, with Ernie service signatures and example ownership patterns.

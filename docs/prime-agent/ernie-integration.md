@@ -23,9 +23,13 @@ Each logical attachment owns its connection, subscription, snapshot, and cleanup
 
 ## Endpoint lifecycle
 
-[Development config](../../scripts/dev/config.ts) and packaged Ernie connect to the existing upstream user socket. Set `ERNIE_PRIME_AGENT_SOCKET` to select another socket. Ernie does not launch, install, or terminate a daemon. The Prime Agent client SDK remains a dependency.
+[Development config](../../scripts/dev/config.ts) and packaged Ernie connect to the existing upstream user socket. Set `ERNIE_PRIME_AGENT_SOCKET` to select another socket. Ernie connects first. An absent endpoint permits starting the already installed executable; an accepting endpoint without a greeting does not. Set `ERNIE_PRIME_AGENT_START_DAEMON=0` to keep an endpoint connect-only. Installation and upgrades remain user actions. The Prime Agent client SDK remains a dependency, but is excluded from automatic executable discovery.
 
-[Handshake validation](../../src/main/prime-agent/daemon-client.ts) requires protocol and schema compatibility. External package versions can differ. Missing or incompatible endpoints report a connection failure and leave existing daemons untouched. Service disposal releases only Ernie's attachments and client.
+[Handshake validation](../../src/main/prime-agent/daemon-client.ts) requires protocol and schema compatibility. External package versions can differ. Incompatible greetings stop recovery immediately and leave existing daemons untouched. Service disposal releases only Ernie’s attachments and client.
+
+[Installed daemon startup](../../src/main/prime-agent/installed-daemon.ts) searches absolute PATH entries and common GUI bin directories. `ERNIE_PRIME_AGENT_EXECUTABLE` selects an absolute executable without fallback. A three-second `--version` probe requires 0.9.3 or newer before launching `--mode daemon --daemon-socket`. Ernie removes inherited internal daemon-role and Electron/Node injection variables. The upstream socket lease and supervisor ownership registry arbitrate competing launches.
+
+Ernie deliberately avoids upstream `ensureInteractiveDaemonRunning`, which can shut down an idle daemon with an older version. Startup readiness waits at most 30 seconds; failed probes never kill the launched process. The service retains a live child reference to avoid relaunching it on retries.
 
 ## Identity and synchronization
 
@@ -41,4 +45,4 @@ The service supports catalog/selection, root preparation and activation, rename,
 
 The service receipt ledger is in-memory. Its `checkSend` path does not dispatch native work. Do not infer crash-safe exactly-once delivery from upstream journal support: this service does not explicitly enable `DaemonClient.enableRequestRecovery()`. See [receipt semantics](../data-structures.md#send-receipts-and-recovery).
 
-On disconnect, Ernie retains the last snapshot and runs owned recovery before commands resume. Disposal cancels recovery and releases resources. [Integration tests](../../src/integration/prime-agent-daemon.integration.test.ts) cover logical isolation, external lifecycle, native resume, and service recovery; their existence is not a claim that a particular checkout passed them.
+On disconnect, Ernie retains the last snapshot and tries recovery up to three times. A missing installation or incompatible greeting stops immediately. Explicit retry grants a fresh budget, and catalog polling pauses while disconnected. Disposal cancels recovery and releases resources. [Integration tests](../../src/integration/prime-agent-daemon.integration.test.ts) cover logical isolation, external lifecycle, native resume, and service recovery; their existence is not a claim that a particular checkout passed them.

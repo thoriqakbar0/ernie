@@ -1,7 +1,9 @@
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
+import { Option, Schema } from "effect"
 import { DAEMON_PROTOCOL_NAME, DAEMON_PROTOCOL_VERSION, DaemonClient, VERSION } from "prime-agent"
 
+/** A rejected greeting never grants access to session commands. */
 export class IncompatiblePrimeDaemonError extends Error {
   override name = "IncompatiblePrimeDaemonError"
   readonly _tag = "IncompatiblePrimeDaemonError"
@@ -21,17 +23,27 @@ export const connectPrimeDaemon = async (socketPath: string, ownership: "managed
   const client = new DaemonClient(socketPath)
   try {
     await client.connect(500)
-    const hello = await client.waitForHello(1000)
+    const parsed = Schema.decodeUnknownOption(
+      Schema.Struct({
+        appVersion: Schema.optionalKey(Schema.String),
+        protocol: Schema.Struct({ name: Schema.String, version: Schema.Natural }),
+        schemaRevision: Schema.Natural,
+      }),
+    )(await client.waitForHello(1000))
     if (
-      hello.protocol.name !== DAEMON_PROTOCOL_NAME ||
-      hello.protocol.version !== DAEMON_PROTOCOL_VERSION ||
-      (hello.schemaRevision ?? 0) < 26 ||
-      (ownership === "managed" && hello.appVersion !== VERSION)
+      Option.isNone(parsed) ||
+      parsed.value.protocol.name !== DAEMON_PROTOCOL_NAME ||
+      parsed.value.protocol.version !== DAEMON_PROTOCOL_VERSION ||
+      parsed.value.schemaRevision < 26 ||
+      (ownership === "managed" && parsed.value.appVersion !== VERSION)
     ) {
       throw new IncompatiblePrimeDaemonError(
-        `Prime Agent at ${socketPath} is incompatible (version ${hello.appVersion ?? "unknown"}, schema ${hello.schemaRevision ?? "unknown"}). ` +
-          `Use Prime Agent ${VERSION} with protocol ${DAEMON_PROTOCOL_VERSION} and schema 26 or newer. The existing daemon was left running.`,
+        `Prime Agent is incompatible. Use protocol ${DAEMON_PROTOCOL_VERSION} and schema 26 or newer ` +
+          `(client package ${VERSION}). Check or update your daemon yourself, then retry.`,
       )
+    }
+    if (!client.isConnected) {
+      throw new Error("Prime Agent closed during its handshake")
     }
     return client
   } catch (error) {

@@ -34,15 +34,15 @@ One daemon client may carry several logical attachments. Each attachment keeps i
 
 ## Daemon ownership
 
-Ernie connects to an existing user daemon and closes only its client. `ERNIE_PRIME_AGENT_SOCKET` overrides the upstream default socket.
+Ernie connects first and starts an already installed daemon only when the endpoint is absent. It never installs or terminates Prime Agent. `ERNIE_PRIME_AGENT_SOCKET` selects the endpoint.
 
 [[src/main/prime-agent/service.ts#PrimeAgentService]] owns the main-process connection. [[development#Development workflow#Development profiles]] defines endpoint selection.
 
 ## External recovery
 
-Failed external reconnects keep the last snapshot and pause commands. Ernie retries one connection attempt at a time until recovery or disposal.
+Failed reconnects preserve snapshots and pause commands. Recovery stops after three attempts; missing installations and incompatible greetings stop immediately. Explicit retry resets the budget.
 
-[[src/main/prime-agent/recovery-retry.ts#runPrimeAgentRecoveryLoop]] stops retries during disposal.
+[[src/main/prime-agent/recovery-retry.ts#runPrimeAgentRecoveryLoop]] bounds retries and stops during disposal. [[src/main/prime-agent/installed-daemon.ts#InstalledPrimeDaemon]] discovers installed executables and retains launched process lifetime. Startup readiness has a 30-second deadline.
 
 [[tests#Behavior specifications#Development boundary#Browser recovery]] proves session recovery.
 

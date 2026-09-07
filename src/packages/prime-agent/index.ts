@@ -1,3 +1,4 @@
+import { Schema } from "effect"
 import type { SendRequest, SendReceipt } from "./send"
 
 export { SendRequest, SendReceipt } from "./send"
@@ -25,8 +26,26 @@ export type PrimeSessionInspection = Readonly<{
   snapshot?: PrimeSessionSnapshot
 }>
 
+/** Main-process connection health; endpoints are externally owned. */
+export const PrimeDaemonConnectionSchema = Schema.Struct({
+  socketPath: Schema.NonEmptyString,
+  state: Schema.Union([
+    Schema.Struct({ status: Schema.Literal("disconnected") }),
+    Schema.Struct({ status: Schema.Literal("starting") }),
+    Schema.Struct({ attempt: Schema.Natural, status: Schema.Literal("connecting") }),
+    Schema.Struct({ status: Schema.Literal("connected"), version: Schema.String }),
+    Schema.Struct({
+      error: Schema.String,
+      status: Schema.Literals(["unavailable", "incompatible", "not-installed", "failed"]),
+    }),
+  ]),
+})
+/** Validated projection of the external daemon connection. */
+export type PrimeDaemonConnection = typeof PrimeDaemonConnectionSchema.Type
+
 /** One authoritative session-state revision published by Ernie's main process. */
 export type PrimeSessionState = Readonly<{
+  connection?: PrimeDaemonConnection
   revision: number
   selectedSessionId?: string
   sessions: readonly PrimeSessionSummary[]
@@ -254,6 +273,9 @@ export type SessionAction = Readonly<{
 
 /** The Prime Agent operations required by Ernie's first chat flow. */
 export interface PrimeAgentClient {
+  /** Explicitly connects a live client; injected scenario clients can omit transport controls. */
+  connectDaemon?: () => Promise<PrimeSessionState>
+
   /** Identifies the current main-process receipt owner before dispatch. */
   getSendEpoch: () => Promise<string>
 

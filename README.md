@@ -45,7 +45,7 @@ Development state is isolated under `.zenbu/dev/browser/`:
 └── runtime.json
 ```
 
-Ernie connects to your existing Prime Agent daemon. It does not start or stop the daemon. See [daemon ownership](docs/architecture.md#prime-agent-version-boundary).
+Ernie connects to your existing Prime Agent daemon on startup. If it is absent, Ernie starts your installed Prime Agent executable. Installation and upgrades remain your responsibility. Quitting Ernie leaves the daemon running. See [daemon ownership](docs/architecture.md#prime-agent-version-boundary).
 
 Use a separate profile and port for concurrent worktrees or agents:
 
@@ -59,7 +59,19 @@ To read sessions from another Prime Agent supervisor, provide its absolute socke
 ERNIE_PRIME_AGENT_SOCKET=/absolute/path/to/prime-agent.sock nub run dev
 ```
 
-Ernie treats an explicit socket as externally owned. It reports an unavailable socket instead of starting or replacing a daemon at that path.
+The socket remains externally owned, including when Ernie starts its daemon. Ernie checks compatibility before loading sessions and never replaces an incompatible daemon.
+
+If a GUI launch cannot find your installation, select its executable explicitly:
+
+```sh
+ERNIE_PRIME_AGENT_EXECUTABLE=/absolute/path/to/prime-agent nub run dev
+```
+
+Ernie searches absolute `PATH` entries and common user/system bin directories, excluding project `node_modules`. It never runs a package installer. **Not installed**, **Starting**, **Incompatible**, and failure states appear in the sidebar and footer. Use **Retry connection** after fixing your installation or endpoint. Startup waits at most 30 seconds after launch; ordinary reconnects stop after three attempts.
+
+Set `ERNIE_PRIME_AGENT_START_DAEMON=0` for a connect-only endpoint. Disposable restart fixtures use this setting to prevent launching a user installation.
+
+For disposable checks, set upstream `PRIME_AGENT_CODING_AGENT_DIR` to a fresh temporary directory and choose a socket inside that directory. Do not point fixtures at your normal agent directory.
 
 A profile has one owner. A second owner fails instead of deleting or sharing live state. Runtime metadata is local, mode `0600`, ignored by Git, and never prints the Zenbu authentication token.
 

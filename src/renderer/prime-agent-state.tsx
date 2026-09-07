@@ -27,29 +27,31 @@ const sessionKeys = {
   workspacePath: ["app", "workspace-path"] as const,
 }
 
-type SessionStateView =
-  | Readonly<{
-      data: readonly PrimeSessionSummary[]
-      isError: false
-      isPending: true
-      isSuccess: false
-      selectedSessionId?: string
-    }>
-  | Readonly<{
-      data: readonly PrimeSessionSummary[]
-      error: unknown
-      isError: true
-      isPending: false
-      isSuccess: false
-      selectedSessionId?: string
-    }>
-  | Readonly<{
-      data: readonly PrimeSessionSummary[]
-      isError: false
-      isPending: false
-      isSuccess: true
-      selectedSessionId?: string
-    }>
+type SessionStateView = Readonly<{ connection?: PrimeSessionState["connection"] }> &
+  (
+    | Readonly<{
+        data: readonly PrimeSessionSummary[]
+        isError: false
+        isPending: true
+        isSuccess: false
+        selectedSessionId?: string
+      }>
+    | Readonly<{
+        data: readonly PrimeSessionSummary[]
+        error: unknown
+        isError: true
+        isPending: false
+        isSuccess: false
+        selectedSessionId?: string
+      }>
+    | Readonly<{
+        data: readonly PrimeSessionSummary[]
+        isError: false
+        isPending: false
+        isSuccess: true
+        selectedSessionId?: string
+      }>
+  )
 
 class PrimeAgentRuntime {
   private readonly workspace
@@ -100,6 +102,17 @@ class PrimeAgentRuntime {
       this.acceptState(state)
     }
     void loadState()
+  }
+
+  async connectDaemon() {
+    if (!this.client.connectDaemon) {
+      return
+    }
+    try {
+      this.acceptState(await this.client.connectDaemon())
+    } catch (error) {
+      this.failState(error, true)
+    }
   }
 
   getStateView = () => this.stateView
@@ -238,6 +251,7 @@ class PrimeAgentRuntime {
     }
     this.stateRevision = state.revision
     this.stateView = {
+      connection: state.connection,
       data: state.sessions,
       isError: false,
       isPending: false,
@@ -249,11 +263,12 @@ class PrimeAgentRuntime {
     }
   }
 
-  private failState(error: unknown) {
-    if (this.stateRevision >= 0) {
+  private failState(error: unknown, force = false) {
+    if (!force && this.stateRevision >= 0) {
       return
     }
     this.stateView = {
+      connection: this.stateView.connection,
       data: this.stateView.data,
       error,
       isError: true,
@@ -367,6 +382,12 @@ export const useConversationCommands = () => {
 export const usePrimeSessionState = () => {
   const runtime = usePrimeAgentRuntime()
   return useSyncExternalStore(runtime.subscribeState, runtime.getStateView, runtime.getStateView)
+}
+
+/** Requests an explicit connection through the existing runtime owner. */
+export const useConnectPrimeDaemon = () => {
+  const runtime = usePrimeAgentRuntime()
+  return useCallback(() => runtime.connectDaemon(), [runtime])
 }
 
 /** Reads the initial workspace path from Ernie's main-process configuration. */

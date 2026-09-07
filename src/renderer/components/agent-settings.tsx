@@ -445,7 +445,7 @@ export const AgentSettingsDialog = ({
                 </div>
               }
               agentName={settings.name}
-              connected
+              connected={!sessions.connection || sessions.connection.state.status === "connected"}
               draft={draft}
               draftHero
               feedback={flow.submission}

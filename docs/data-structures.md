@@ -4,7 +4,7 @@
 
 ## Catalog and snapshots
 
-`PrimeSessionState` contains summaries and selection at one catalog revision. `PrimeSessionSnapshot` combines a session summary, readable messages, structured context, and transport health. Render related information from one accepted snapshot.
+`PrimeSessionState` contains summaries, selection, and daemon connection health at one revision. Live services include the endpoint and a tagged connection state; injected scenario clients may omit connection metadata. Connected daemon version and installed client package version remain distinct. `PrimeSessionSnapshot` combines a session summary, readable messages, structured context, and transport health. Render related information from one accepted snapshot.
 
 Catalog revisions and per-session snapshot revisions are separate streams. Names and paths are not identifiers. Message updates match by message ID. Missing optional context means unavailable, not empty.
 

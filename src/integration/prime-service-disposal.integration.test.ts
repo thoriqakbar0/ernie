@@ -8,7 +8,8 @@ import test from "node:test"
 
 const execute = promisify(execFile)
 
-const runFixture = async (refreshBurst: boolean) => {
+const runFixture = async (mode: "disposal" | "refresh" | "connection") => {
+  const refreshBurst = mode === "refresh"
   const require = createRequire(import.meta.url)
   const electron: unknown = require("electron")
   assert.equal(typeof electron, "string")
@@ -21,7 +22,7 @@ const runFixture = async (refreshBurst: boolean) => {
   try {
     const entry = path.join(directory, "fixture.mjs")
     await execute(esbuild, [
-      "src/integration/fixtures/prime-service-disposal.ts",
+      `src/integration/fixtures/prime-service-${mode === "connection" ? "connection" : "disposal"}.ts`,
       "--bundle",
       "--platform=node",
       "--packages=external",
@@ -41,10 +42,14 @@ const runFixture = async (refreshBurst: boolean) => {
       {
         env: environment,
         killSignal: "SIGKILL",
-        timeout: 15_000,
+        timeout: 25_000,
       },
     )
-    assert.match(result.stdout, /service disposal verified/u, result.stderr)
+    assert.match(
+      result.stdout,
+      mode === "connection" ? /external connection flow verified/u : /service disposal verified/u,
+      result.stderr,
+    )
     if (refreshBurst) {
       console.log(result.stdout.trim())
     }
@@ -57,12 +62,19 @@ const runFixture = async (refreshBurst: boolean) => {
 test(
   "service shutdown joins a pending native attachment and rejects later acquisition",
   { timeout: 20_000 },
-  () => runFixture(false),
+  () => runFixture("disposal"),
 )
 
 // @lat: [[tests#Behavior specifications#Daemon boundary#Refresh burst coalescing]]
 test(
   "event bursts bound projection work and preserve updates during a native read",
   { timeout: 20_000 },
-  () => runFixture(true),
+  () => runFixture("refresh"),
+)
+
+// @lat: [[tests#Behavior specifications#Daemon boundary#Explicit connection recovery]]
+test(
+  "external connection starts safely and retries without mutating daemon data",
+  { timeout: 30_000 },
+  () => runFixture("connection"),
 )

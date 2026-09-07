@@ -56,20 +56,33 @@ export const createPrimeAgentRecoveryRetry = (delayMs: number) =>
 
 type RunPrimeAgentRecoveryLoopOptions = Readonly<{
   attempt: () => Promise<boolean>
+  remainingAttempts?: number
   shouldStop: () => boolean
   wait: () => Promise<void>
 }>
 
 // @lat: [[runtime#Prime Agent runtime#External recovery]]
-/** Repeats one Prime Agent recovery attempt until it succeeds or the owner stops. */
+/** Repeats one Prime Agent recovery attempt at most three times, stopping sooner on success or disposal. */
 export const runPrimeAgentRecoveryLoop = async ({
   attempt,
+  remainingAttempts = 3,
   shouldStop,
   wait,
 }: RunPrimeAgentRecoveryLoopOptions): Promise<void> => {
-  if (shouldStop() || (await attempt()) || shouldStop()) {
+  if (
+    remainingAttempts <= 0 ||
+    shouldStop() ||
+    (await attempt()) ||
+    shouldStop() ||
+    remainingAttempts === 1
+  ) {
     return
   }
   await wait()
-  return runPrimeAgentRecoveryLoop({ attempt, shouldStop, wait })
+  return runPrimeAgentRecoveryLoop({
+    attempt,
+    remainingAttempts: remainingAttempts - 1,
+    shouldStop,
+    wait,
+  })
 }

@@ -19,9 +19,9 @@ Renderer caches mirror accepted runtime state. Menus and other temporary present
 
 ### Prime Agent version boundary
 
-The client SDK and companion overrides use pinned GitHub release assets. Ernie connects to the existing user daemon socket by default; `ERNIE_PRIME_AGENT_SOCKET` selects a custom endpoint. Neither development nor packaged Ernie launches or terminates the daemon.
+The client SDK and companion overrides use pinned GitHub release assets. Ernie connects to the existing user daemon socket by default; `ERNIE_PRIME_AGENT_SOCKET` selects a custom endpoint. When the endpoint is absent, Ernie starts an already installed executable in daemon mode. Ernie never installs, upgrades, or terminates Prime Agent.
 
-Before session commands, require protocol 7 and schema revision 26 or newer. Compatible external daemons may report another package version. Incompatibility closes only Ernie's client. Missing endpoints report a disconnected state without spawning a replacement.
+Before session commands, require protocol 7 and schema revision 26 or newer. Compatible external daemons may report another package version. Incompatibility closes only Ernie's client. Missing installations and startup failures remain visible while the shell renders. The installed launcher retains its process after Ernie quits; upstream socket leases arbitrate concurrent starts.
 
 Saved root files and native session leases remain authoritative across endpoint changes. Attachments use supervisor transport and catalog polling; roster subscriptions and direct transport require separate integration.
 

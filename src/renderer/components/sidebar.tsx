@@ -9,6 +9,7 @@ import type { Agent } from "../../packages/agents"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
 import { useAgents } from "../agent-state"
 import {
+  useConnectPrimeDaemon,
   usePrimeSessionSelection,
   usePrimeSessionState,
   usePrimeSessionSnapshot,
@@ -17,7 +18,7 @@ import { useAppNavigation } from "../app-navigation"
 import { AppSettings } from "./app-settings"
 import { ErnieMark } from "./ernie-mark"
 import { PlusIcon } from "./plus-icon"
-import { GeneratedCharacter } from "./generated-avatar"
+import { SidebarEmptyState } from "./sidebar-empty-state"
 import { AgentAvatar } from "./agent-avatar"
 import { useAgentCreation } from "../agent-creation"
 
@@ -112,24 +113,12 @@ const AgentRosterAvatar = ({ agent, root }: { agent: Agent; root?: PrimeSessionS
   )
 }
 
-const getEmptyTitle = (search: string, pending: boolean, error: boolean) => {
-  if (search) {
-    return `No Agents match “${search}”`
-  }
-  if (pending) {
-    return "Loading conversations…"
-  }
-  if (error) {
-    return "Conversations unavailable"
-  }
-  return "No active conversations yet"
-}
-
 /** Production roster, also rendered by isolated development scenarios. */
 export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
   const { navigate } = useAppNavigation()
   const { roster, client, execute, error, pending } = useAgents()
   const sessions = usePrimeSessionState()
+  const connectDaemon = useConnectPrimeDaemon()
   const { selectedSessionId } = usePrimeSessionSelection()
   const [search, setSearch] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
@@ -166,7 +155,6 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
         a.createdAt - b.createdAt ||
         a.id.localeCompare(b.id),
     )
-  const showGhost = !search && !sessions.isPending && !sessions.isError
   return (
     <aside aria-label="Agents" {...stylex.props(styles.sessionSidebar)} id="ernie-sidebar">
       <div {...stylex.props(styles.sidebarBrand)}>
@@ -320,44 +308,18 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
             )
           })}
         </ul>
-        {agents.length === 0 && showGhost ? (
-          <div {...stylex.props(rosterStyles.ghostRow)}>
-            <span {...stylex.props(rosterStyles.hidden)}>No active conversations yet.</span>
-            <div aria-hidden="true" {...stylex.props(rosterStyles.ghostAgent)}>
-              <GeneratedCharacter seed={42} animated={false} />
-            </div>
-            <div {...stylex.props(rosterStyles.ghostCopy)}>
-              <p {...stylex.props(rosterStyles.ghostTitle)}>a little quiet here.</p>
-              <p>let’s make something together.</p>
-            </div>
-          </div>
-        ) : null}
-        {agents.length === 0 && !showGhost ? (
-          <div role={search ? "status" : undefined} {...stylex.props(rosterStyles.empty)}>
-            <h2 {...stylex.props(rosterStyles.emptyTitle)}>
-              {getEmptyTitle(search, sessions.isPending, sessions.isError)}
-            </h2>
-            {search ? null : (
-              <p {...stylex.props(rosterStyles.emptyDescription)}>
-                Send your first message to an Agent to see them here.
-              </p>
-            )}
-            <button
-              type="button"
-              {...stylex.props(rosterStyles.emptyAction)}
-              onClick={() => {
-                if (search) {
-                  setSearch("")
-                  window.requestAnimationFrame(() => searchRef.current?.focus())
-                } else {
-                  setAdding(true)
-                  openOnMobile()
-                }
-              }}
-            >
-              {search ? "Clear search" : "Add Agent"}
-            </button>
-          </div>
+        {agents.length === 0 ? (
+          <SidebarEmptyState
+            search={search}
+            pending={sessions.isPending}
+            error={sessions.isError}
+            connection={sessions.connection}
+            retry={connectDaemon}
+            clearSearch={() => {
+              setSearch("")
+              window.requestAnimationFrame(() => searchRef.current?.focus())
+            }}
+          />
         ) : null}
       </nav>
       <div

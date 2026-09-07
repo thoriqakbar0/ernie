@@ -1,4 +1,5 @@
 import { Option, Schema } from "effect"
+import { PrimeDaemonConnectionSchema } from "./index"
 
 import type {
   PrimeSessionChange,
@@ -187,6 +188,7 @@ const sessionSummarySchema = Schema.Struct({
 })
 
 const sessionStateSchema = Schema.Struct({
+  connection: Schema.optionalKey(PrimeDaemonConnectionSchema),
   revision: Schema.Natural,
   selectedSessionId: Schema.optionalKey(Schema.NonEmptyString),
   sessions: Schema.Array(sessionSummarySchema),

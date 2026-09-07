@@ -216,7 +216,7 @@ const connectRosterRpc = async (runtimeFile: string) => {
       >
       primeAgent: Pick<
         PrimeAgentService,
-        "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"
+        "connectDaemon" | "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"
       >
     }
   }>({
@@ -507,6 +507,7 @@ test(
           ERNIE_DEV_PROFILE: `agent-roster-${process.pid}`,
           ERNIE_DEV_STATE_ROOT: path.join(root, "ernie"),
           ERNIE_PRIME_AGENT_SOCKET: socketPath,
+          ERNIE_PRIME_AGENT_START_DAEMON: "0",
         },
         stdio: ["ignore", "pipe", "pipe"],
       })
@@ -522,6 +523,7 @@ test(
     await waitForOutput(host, "Runtime:", 45_000)
     t.diagnostic("isolated service ready")
     let connection = await connectRosterRpc(runtimeFile)
+    await connection.prime.connectDaemon()
     closeRpc = connection.close
     const settings = {
       avatar: "fern" as const,
@@ -790,6 +792,7 @@ test(
     await waitForOutput(host, "Runtime:", 45_000)
     connection = await connectRosterRpc(runtimeFile)
     closeRpc = connection.close
+    await connection.prime.connectDaemon()
     assert.notEqual(await connection.prime.getSendEpoch(), epoch)
     const restartedSend = await connection.prime.sendMessage(send)
     assert.equal(restartedSend.status, "unknown")
@@ -820,6 +823,7 @@ test(
     assert.equal(absentSendResult.status, "not-sent")
     daemon = startDaemon(socketPath, path.join(root, "agent"))
     daemonClient = await connectDaemon(socketPath)
+    await connection.prime.connectDaemon()
     t.diagnostic("checking attachment after daemon restart")
     await connection.prime.attachSession({ sessionId })
     const catalog = Schema.decodeUnknownSync(

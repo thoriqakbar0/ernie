@@ -1,16 +1,26 @@
 import * as stylex from "@stylexjs/stylex"
 import erniePackage from "../../../package.json"
 import primePackage from "../../../node_modules/prime-agent/package.json"
-import { usePrimeSessionState } from "../prime-agent-state"
+import { useConnectPrimeDaemon, usePrimeSessionState } from "../prime-agent-state"
+import { describePrimeDaemonConnection } from "../prime-daemon-status"
 import { theme } from "../theme.stylex"
 
 const styles = stylex.create({
+  button: {
+    backgroundColor: theme["--surface-strong"],
+    borderRadius: 6,
+    color: theme["--ink"],
+    cursor: "pointer",
+    padding: "5px 10px",
+  },
+  details: { flexBasis: "100%", overflowWrap: "anywhere" },
   footer: {
+    alignItems: "center",
     color: theme["--muted"],
     display: "flex",
     flexShrink: 0,
     flexWrap: "wrap",
-    fontSize: 10,
+    fontSize: 11,
     fontVariantNumeric: "tabular-nums",
     gap: "4px 10px",
     justifyContent: "flex-end",
@@ -20,25 +30,41 @@ const styles = stylex.create({
   ready: { color: theme["--success"] },
 })
 
-/** Package versions are build metadata; catalog health does not imply a running session. */
+/** Shows authoritative external connection health separately from package metadata. */
 export const RuntimeStatus = () => {
   const state = usePrimeSessionState()
-  let status = "ready"
-  if (state.isPending) {
-    status = "loading"
-  } else if (state.isError) {
-    status = "unavailable"
-  }
+  const connect = useConnectPrimeDaemon()
+  const { connection } = state
+  const status = connection?.state.status ?? (state.isError ? "unavailable" : "loading")
+  const connected = connection?.state.status === "connected"
+  const description = connection ? describePrimeDaemonConnection(connection.state) : undefined
+  const busy = description?.busy
   return (
-    <footer
-      {...stylex.props(styles.footer)}
-      title="Prime Agent package version and session catalog status. External daemon versions may differ."
-    >
-      <span>
-        Prime Agent pkg {primePackage.version} ·{" "}
-        <span {...stylex.props(status === "ready" && styles.ready)}>{status}</span>
+    <footer {...stylex.props(styles.footer)}>
+      <output>
+        Prime Agent ·{" "}
+        <span {...stylex.props(connected && styles.ready)}>{description?.label ?? status}</span>
+        {connection?.state.status === "connecting" ? ` (${connection.state.attempt}/3)` : null}
+        {connection?.state.status === "connected" ? ` · daemon ${connection.state.version}` : null}
+      </output>
+      {connection && !connected ? (
+        <button type="button" disabled={busy} {...stylex.props(styles.button)} onClick={connect}>
+          Retry connection
+        </button>
+      ) : null}
+      <span title="Installed client package versions">
+        client {primePackage.version} · Ernie {erniePackage.version}
       </span>
-      <span>Ernie {erniePackage.version}</span>
+      {connection && !connected ? (
+        <div {...stylex.props(styles.details)}>
+          <div>{connection.socketPath}</div>
+          <output>{description?.message}</output>
+          <div>For another endpoint, set ERNIE_PRIME_AGENT_SOCKET before launching Ernie.</div>
+          {state.isError ? (
+            <div>Ernie could not complete the connection request. Retry connection.</div>
+          ) : null}
+        </div>
+      ) : null}
     </footer>
   )
 }

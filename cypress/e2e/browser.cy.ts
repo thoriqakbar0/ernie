@@ -45,9 +45,9 @@ describe("Ernie browser development", () => {
     cy.get("#chat-message").should("be.enabled")
     cy.task("stopExternalPrimeAgentDaemon", null, { log: false })
     cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
-    cy.wait(1250, { log: false })
-    cy.contains("Couldn’t reconnect to Prime Agent.").should("be.visible")
+    cy.contains("Prime Agent is unavailable", { timeout: 10_000 }).should("be.visible")
     cy.task("startExternalPrimeAgentDaemon", null, { log: false })
+    cy.contains("button", "Retry connection").first().click()
     cy.contains("Couldn’t reconnect to Prime Agent.").should("not.exist")
     cy.get("#chat-message").should("be.enabled")
 

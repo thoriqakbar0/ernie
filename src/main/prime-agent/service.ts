@@ -1,3 +1,4 @@
+import { InstalledPrimeDaemon, isPrimeDaemonAbsent } from "./installed-daemon"
 import { readModelCatalog } from "./model-catalog"
 import { createHash } from "node:crypto"
 import { readFile, readdir, mkdir, stat } from "node:fs/promises"
@@ -19,6 +20,7 @@ import type { DaemonClient, AgentConnectionEvent, DaemonCommand, DaemonResponse 
 
 import { SendRequest } from "../../packages/prime-agent"
 import type {
+  PrimeDaemonConnection,
   PrimeSessionInspection,
   PrimeModel,
   PrimeSessionState,
@@ -57,6 +59,7 @@ type CommandBody = DaemonCommand extends infer Command
   : never
 
 type PrimeAgentEndpoint = Readonly<{
+  autoStart: boolean
   ownership: "external"
   socketPath: string
 }>
@@ -252,6 +255,10 @@ const isUnknownActiveSessionError = (error: unknown) =>
   error instanceof Error && error.message.startsWith("Unknown active session:")
 
 const readPrimeAgentEndpoint = (): PrimeAgentEndpoint => ({
+  autoStart:
+    Schema.decodeUnknownSync(Schema.Literals(["0", "1"]))(
+      process.env.ERNIE_PRIME_AGENT_START_DAEMON ?? "1",
+    ) === "1",
   ownership: "external",
   socketPath:
     readAbsolutePath(process.env.ERNIE_PRIME_AGENT_SOCKET, "ERNIE_PRIME_AGENT_SOCKET") ??
@@ -266,6 +273,8 @@ export class PrimeAgentService extends Service.create({
 }) {
   private readonly sendReceipts = new SendReceipts()
   private readonly endpoint = readPrimeAgentEndpoint()
+  private readonly installedDaemon = new InstalledPrimeDaemon()
+  private launchAttempted = false
   private readonly attachments = new Map<string, SessionAttachment>()
   private readonly attachmentPromises = new Map<string, Promise<SessionAttachment>>()
   private readonly summaries = new Map<string, PrimeSessionSummary>()
@@ -275,7 +284,10 @@ export class PrimeAgentService extends Service.create({
   private catalogSessions: readonly PrimeSessionSummary[] = []
   private catalogRefresh: Promise<void> | undefined
   private client: DaemonClient | undefined
-  private connecting: Promise<DaemonClient> | undefined
+  private connection: PrimeDaemonConnection = {
+    socketPath: this.endpoint.socketPath,
+    state: { status: "disconnected" },
+  }
   private unsubscribeClientClose: (() => void) | undefined
   private recoveryPromise: Promise<void> | undefined
   private readonly recoveryRetry = createPrimeAgentRecoveryRetry(RECOVERY_RETRY_INTERVAL_MS)
@@ -284,10 +296,15 @@ export class PrimeAgentService extends Service.create({
 
   /** Registers one cleanup owner for every Prime Agent resource. */
   evaluate() {
-    this.setup("prime-agent-runtime", () => () => this.disposeRuntime())
+    this.setup("prime-agent-runtime", () => {
+      this.beginRecovery()
+      return () => this.disposeRuntime()
+    })
     this.setup("prime-agent-catalog", () => {
       const timer = setInterval(async () => {
-        await Promise.allSettled([this.refreshSessionCatalog()])
+        if (this.connection.state.status === "connected" && !this.recoveryPromise) {
+          await this.refreshConnectedCatalog()
+        }
       }, SESSION_CATALOG_REFRESH_MS)
       return () => clearInterval(timer)
     })
@@ -295,8 +312,21 @@ export class PrimeAgentService extends Service.create({
 
   /** Reads the newest authoritative session state. */
   async getSessionState(): Promise<PrimeSessionState> {
-    await this.refreshSessionCatalog()
+    this.requireActiveRuntime()
+    if (this.connection.state.status === "connected" && !this.recoveryPromise) {
+      await this.refreshConnectedCatalog()
+    }
     return this.sessionState()
+  }
+
+  /** Explicitly connects to the configured external daemon; concurrent clicks share recovery. */
+  async connectDaemon(): Promise<PrimeSessionState> {
+    this.requireActiveRuntime()
+    if (!this.recoveryPromise && this.connection.state.status !== "connected") {
+      this.beginRecovery()
+    }
+    await this.recoveryPromise
+    return this.getSessionState()
   }
 
   /** Selects the session displayed by Ernie, or clears selection. */
@@ -1132,8 +1162,24 @@ export class PrimeAgentService extends Service.create({
     }
   }
 
+  private async refreshConnectedCatalog() {
+    try {
+      await this.refreshSessionCatalog()
+    } catch {
+      if (this.disposed || this.recoveryPromise) {
+        return
+      }
+      this.detachClient()
+      this.failAllAttachments()
+      this.setConnection({
+        error: "Prime Agent did not return its session catalog. Check your daemon, then retry.",
+        status: "unavailable",
+      })
+    }
+  }
+
   private async readSessionCatalog() {
-    const data = await this.request({ all: true, type: "list" })
+    const data = await this.request({ all: true, type: "list" }, 5000)
     if (this.disposed) {
       return
     }
@@ -1240,6 +1286,7 @@ export class PrimeAgentService extends Service.create({
 
   private sessionState(): PrimeSessionState {
     return {
+      connection: this.connection,
       revision: this.stateRevision,
       ...(this.selectedSessionId ? { selectedSessionId: this.selectedSessionId } : {}),
       sessions: this.catalogSessions,
@@ -1257,20 +1304,33 @@ export class PrimeAgentService extends Service.create({
     })
   }
 
-  private beginRecovery() {
-    this.recoveryRequested = true
-    if (this.disposed || this.recoveryPromise) {
+  private setConnection(state: PrimeDaemonConnection["state"]) {
+    if (this.disposed) {
       return
     }
+    this.connection = { socketPath: this.endpoint.socketPath, state }
+    this.publishSessionState()
+  }
+
+  private beginRecovery() {
+    if (this.disposed) {
+      return
+    }
+    this.recoveryRequested = true
+    if (this.recoveryPromise) {
+      return
+    }
+    this.launchAttempted = false
     const recovery = this.recoverUntilReady()
     const trackRecovery = async () => {
       try {
         await recovery
       } finally {
         this.recoveryPromise = undefined
-        if (this.recoveryRequested && !this.disposed) {
-          this.beginRecovery()
-        }
+        this.recoveryRequested = false
+      }
+      if (!this.disposed && this.connection.state.status === "connected") {
+        await this.refreshConnectedCatalog()
       }
     }
     const tracked = trackRecovery()
@@ -1278,9 +1338,12 @@ export class PrimeAgentService extends Service.create({
   }
 
   private async recoverUntilReady() {
+    let attempt = 0
     await runPrimeAgentRecoveryLoop({
       attempt: async () => {
+        attempt += 1
         this.recoveryRequested = false
+        this.setConnection({ attempt, status: "connecting" })
         let recovered: boolean
         try {
           recovered = await this.recoverAttachments()
@@ -1291,12 +1354,28 @@ export class PrimeAgentService extends Service.create({
         const ready = recovered && !this.recoveryRequested && this.client?.isConnected === true
         if (ready) {
           this.recoveryRetry.clear()
+          this.setConnection({
+            status: "connected",
+            version: this.client?.hello?.appVersion ?? "unknown",
+          })
         }
         return ready
       },
-      shouldStop: () => this.disposed,
+      shouldStop: () => this.disposed || (attempt > 0 && this.connectionFailedPermanently()),
       wait: () => this.recoveryRetry.wait(),
     })
+    if (
+      !this.disposed &&
+      this.connection.state.status !== "connected" &&
+      !this.connectionFailedPermanently()
+    ) {
+      this.detachClient()
+      this.setConnection({
+        error:
+          "Prime Agent is unavailable after 3 attempts. Start or check your existing daemon, then retry.",
+        status: "unavailable",
+      })
+    }
   }
 
   private async recoverAttachments() {
@@ -1411,25 +1490,7 @@ export class PrimeAgentService extends Service.create({
     if (this.client?.isConnected) {
       return this.client
     }
-    if (this.connecting) {
-      return this.connecting
-    }
-
-    const connecting = this.openClient()
-    this.connecting = connecting
-    try {
-      const client = await connecting
-      if (this.disposed) {
-        client.close()
-        throw new Error("Prime Agent service is shutting down")
-      }
-      this.installClient(client)
-      return client
-    } finally {
-      if (this.connecting === connecting) {
-        this.connecting = undefined
-      }
-    }
+    throw new Error("Prime Agent is not connected. Use Retry connection in the connection status.")
   }
 
   private async replaceClient() {
@@ -1452,6 +1513,14 @@ export class PrimeAgentService extends Service.create({
     this.client = undefined
   }
 
+  private connectionFailedPermanently() {
+    return (
+      this.connection.state.status === "incompatible" ||
+      this.connection.state.status === "not-installed" ||
+      this.connection.state.status === "failed"
+    )
+  }
+
   private async openClient() {
     this.requireActiveRuntime()
     try {
@@ -1459,12 +1528,57 @@ export class PrimeAgentService extends Service.create({
     } catch (error) {
       this.requireActiveRuntime()
       if (error instanceof IncompatiblePrimeDaemonError) {
+        this.setConnection({ error: error.message, status: "incompatible" })
         throw error
       }
-      throw new Error(
-        "Prime Agent is not connected. Start your existing Prime Agent daemon and reconnect.",
-        { cause: error },
-      )
+      if (
+        !this.endpoint.autoStart ||
+        this.launchAttempted ||
+        !(await isPrimeDaemonAbsent(this.endpoint.socketPath))
+      ) {
+        throw new Error("Prime Agent is unavailable. Check your daemon, then retry.", {
+          cause: error,
+        })
+      }
+      this.requireActiveRuntime()
+      this.launchAttempted = true
+      const launch = await this.installedDaemon.start(this.endpoint.socketPath, () => this.disposed)
+      this.requireActiveRuntime()
+      if (launch.status !== "started") {
+        this.setConnection(launch)
+        throw new Error(launch.error, { cause: error })
+      }
+      this.setConnection({ status: "starting" })
+      return this.waitForStartedDaemon(Date.now() + 30_000)
+    }
+  }
+
+  private async waitForStartedDaemon(
+    deadline: number,
+    exitDeadline?: number,
+  ): Promise<DaemonClient> {
+    this.requireActiveRuntime()
+    try {
+      return await connectPrimeDaemon(this.endpoint.socketPath, this.endpoint.ownership)
+    } catch (error) {
+      this.requireActiveRuntime()
+      if (error instanceof IncompatiblePrimeDaemonError) {
+        this.setConnection({ error: error.message, status: "incompatible" })
+        throw error
+      }
+      // A competing launcher may have won the upstream lock. Give its greeting time to arrive.
+      const exitedAt = exitDeadline ?? (this.installedDaemon.exited ? Date.now() + 2000 : undefined)
+      if (Date.now() >= Math.min(deadline, exitedAt ?? deadline)) {
+        const failure = {
+          error:
+            "Prime Agent did not become ready within the startup limit. Check its daemon logs and executable, then retry. Ernie left the process untouched.",
+          status: "failed" as const,
+        }
+        this.setConnection(failure)
+        throw new Error(failure.error, { cause: error })
+      }
+      await this.recoveryRetry.wait()
+      return this.waitForStartedDaemon(deadline, exitedAt)
     }
   }
 
@@ -1477,7 +1591,6 @@ export class PrimeAgentService extends Service.create({
     this.recoveryRetry.clear()
     const attachments = [...this.attachments.values()]
     const pendingAttachments = [...this.attachmentPromises.values()]
-    const { connecting } = this
     this.attachments.clear()
     // Reject in-flight native requests before joining their cleanup. Socket closure
     // releases native attachments without terminating the externally owned daemon.
@@ -1486,7 +1599,6 @@ export class PrimeAgentService extends Service.create({
       attachments.map((attachment) => PrimeAgentService.releaseAttachment(attachment)),
     )
     await Promise.allSettled(pendingAttachments)
-    await Promise.allSettled([connecting])
     await Promise.allSettled([recovery])
     this.detachClient()
   }

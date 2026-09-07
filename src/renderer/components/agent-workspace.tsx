@@ -87,7 +87,7 @@ export const EmptyAgentWorkspace = ({ agent }: { agent: Agent }) => {
         >
           <PrimeComposer
             agentName={agent.name}
-            connected
+            connected={!catalog.connection || catalog.connection.state.status === "connected"}
             draft={draft}
             draftHero
             feedback={flow.submission}

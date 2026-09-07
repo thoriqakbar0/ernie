@@ -12,9 +12,9 @@ The development gateway prints its runtime and browser addresses. Browser integr
 
 Each profile owns a state root, database, runtime descriptor, process owner, and Electron user data.
 
-All development roles connect to an externally owned Prime Agent socket. Ernie never starts or stops that daemon. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
+All development roles use an externally owned Prime Agent socket. Ernie starts a missing daemon through its installed executable and never installs or terminates it. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
 
-[[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects an external daemon and disables daemon ownership.
+[[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects the external endpoint. `ERNIE_PRIME_AGENT_EXECUTABLE` selects the installed launcher.
 
 ## UI iteration
 

@@ -74,7 +74,12 @@ export function AppSettingsPage() {
       <p role="status" {...stylex.props(styles.description)}>{availability === "desktop" ? "Customization is available in the desktop app." : availability === "checking" ? "Checking app history…" : availability === "unavailable" ? "App history needs attention before you can customize." : "Start a conversation. Review your idea before sending."}</p>
       {availability === "ready" ? <div {...stylex.props(styles.suggestions)}>{suggestions.map(prompt => <button key={prompt} type="button" disabled={pending} onClick={() => void customize(prompt)} {...stylex.props(styles.button, styles.suggestion)}>{prompt}</button>)}</div> : null}
     </section>
-    <p {...stylex.props(styles.description)}>Saved app changes stay on this device. Restoring keeps your conversations and Agents.</p>
+    <p {...stylex.props(styles.description)}>Saved app changes stay on this device. Review checkpoints in App history. Restoring keeps your conversations and Agents.</p>
+    <section aria-labelledby="agent-settings-heading" {...stylex.props(styles.scope)}>
+      <h2 id="agent-settings-heading" {...stylex.props(styles.scopeTitle)}>Settings for each Agent</h2>
+      <p {...stylex.props(styles.description)}>Open an Agent’s conversation and choose Agent settings in its header. Name and character edits apply when you choose Save changes.</p>
+      <p {...stylex.props(styles.description)}>Unsent messages stay while you switch conversations. Reloading Ernie clears those drafts.</p>
+    </section>
 
     {error ? <p role="alert" {...stylex.props(styles.description)}>{error}</p> : null}
     </>}</div>

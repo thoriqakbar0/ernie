@@ -27,5 +27,7 @@ export const styles = stylex.create({
   historyDescription: { fontSize: 13, lineHeight: 1.5, color: theme["--muted"] },
   tabs: { display: "flex", gap: 8, marginBottom: 24, borderBottom: "1px solid", borderColor: theme["--rule"], paddingBottom: 8 },
   selectedTab: { backgroundColor: theme["--surface-muted"], fontWeight: 600 },
+  scope: { marginTop: 24, paddingTop: 20, borderTop: "1px solid", borderColor: theme["--rule"] },
+  scopeTitle: { margin: 0, fontSize: 16, fontWeight: 600 },
   hidden: { display: "none" },
 })

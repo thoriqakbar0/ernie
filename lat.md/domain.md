@@ -44,4 +44,10 @@ Each Agent binds one durable Prime Agent root. Preparation writes the native fil
 
 Conversation activity exposes native child status, parent relationships, and reply previews without changing the selected session. Cached rosters remain inspectable with a last-known-state label.
 
-[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns preview selection and focus restoration. Parent links resolve only within the supplied roster. Previews preserve source attribution and add no daemon commands.
+[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns preview selection and focus restoration. When a selected child disappears, selection clears and focus returns to a surviving roster control or the activity summary. Parent links resolve only within the supplied roster. Previews preserve source attribution and add no daemon commands.
+
+## Agent settings feedback
+
+Agent edits remain local to the form until accepted by the save command. Unchanged forms cannot submit; rejected saves retain edits, and accepted saves announce success after closing.
+
+[[src/renderer/components/agent-settings.tsx#AgentSettingsDialog]] compares edits with the opened values without changing optimistic revision checks. [[src/renderer/components/agent-settings.tsx#AgentControls]] owns the success announcement. Prepared roots keep instructions and working folders read-only; the folder remains visible in full.

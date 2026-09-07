@@ -8,17 +8,27 @@ export function SubagentActivity({ snapshot }: { snapshot: PrimeSessionSnapshot 
   const [selectedId, setSelectedId] = useState<string>()
   const opener = useRef<HTMLButtonElement | null>(null)
   const heading = useRef<HTMLHeadingElement | null>(null)
+  const roster = useRef<HTMLElement | null>(null)
   const panelId = useId()
   useEffect(() => { if (selectedId) heading.current?.focus() }, [selectedId])
   const children = snapshot.useful.children
   const selected = children.find(child => child.id === selectedId)
+  useEffect(() => {
+    if (!selectedId || selected) return
+    const section = roster.current
+    const fallback = section?.querySelector<HTMLButtonElement>("button")
+      ?? section?.closest("details")?.querySelector<HTMLElement>("summary")
+    setSelectedId(undefined)
+    opener.current = null
+    fallback?.focus()
+  }, [selectedId, selected])
   const current = snapshot.transport.status === "connected" && snapshot.useful.childrenAvailable !== false
   const nameOf = (id: string) => {
     const child = children.find(item => item.id === id)
     return child?.sessionName ?? child?.label ?? id
   }
-  if (!children.length) return null
-  return <section aria-label="Subagent activity" {...stylex.props(styles.root)}>
+  if (!children.length && !selectedId) return null
+  return <section ref={roster} aria-label="Subagent activity" {...stylex.props(styles.root)}>
     <p>Subagents · {children.length}{current ? "" : " · last known state"}</p>
     <div {...stylex.props(styles.list)}>{children.map(child => <button
       key={child.id} type="button" aria-expanded={selectedId === child.id} aria-controls={panelId}

@@ -4,7 +4,7 @@ Each Agent represents one native Prime Agent root. [ADR 0002](adr/0002-native-ag
 
 ## Visual direction
 
-Use warm paper surfaces, dark ink, restrained Pandai green accents, and existing character artwork. Start directly with content; never add eyebrow labels. Keep decoration quiet in active transcripts.
+Use warm paper surfaces, dark ink, restrained orange accents, and existing character artwork. Start directly with content; never add eyebrow labels. Keep decoration quiet in active transcripts.
 
 Use [theme tokens](../src/renderer/theme.stylex.ts), colocated styles, and shared controls. Keep exact dimensions, font sizes, breakpoints, and animation timings in source, not duplicated here. [The StyleX map](../lat.md/styling.md) identifies those boundaries.
 
@@ -26,7 +26,9 @@ Add Agent and the unselected empty workspace share the welcome composer. Generat
 
 The folder capsule shows the current directory and offers up to eight known folders plus the native chooser; cancel preserves the form. Failed creation retains input and retry identity. The creation model picker uses the selected session’s live catalog when available, otherwise shows Default model and explains that models require a conversation. Model selection edits only the new Agent draft; runtime model controls remain available in the conversation.
 
-Existing settings open below the composer. Closing restores the actual opener's focus and preserves the draft. Once prepared, root instructions and folder are read-only until a reset workflow is designed. Changing a tab must not shift the empty-state greeting or composer. Panels may animate with a reduced-motion alternative.
+Existing settings open below the composer. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
+
+Closing restores the actual opener's focus and preserves the draft. Once prepared, root instructions and folder are read-only until a reset workflow is designed. Changing a tab must not shift the empty-state greeting or composer. Panels may animate with a reduced-motion alternative.
 
 ## Message-to-work flow
 

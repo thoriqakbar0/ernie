@@ -36,8 +36,8 @@ export const theme = stylex.defineVars({
     "@media (prefers-color-scheme: dark)": "#c1b4aa",
   },
   "--faint": {
-    default: "#8d8178",
-    "@media (prefers-color-scheme: dark)": "#978980",
+    default: "#756b63",
+    "@media (prefers-color-scheme: dark)": "#a99a8f",
   },
   "--rule": {
     default: "#ded5ce",
@@ -52,7 +52,7 @@ export const theme = stylex.defineVars({
     "@media (prefers-color-scheme: dark)": "#ff8d4d",
   },
   "--accent-hover": {
-    default: "#ce500a",
+    default: "#e65c0a",
     "@media (prefers-color-scheme: dark)": "#ff6f1e",
   },
   "--on-accent": "#2b1a07",

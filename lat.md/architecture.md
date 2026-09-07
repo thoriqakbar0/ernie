@@ -64,6 +64,8 @@ Assistant replies use `src/renderer/components/message-markdown.tsx` with React 
 
 The run inspector opens during active work and follows new tool calls, then retains its selection when work settles. Python calls appear before their results arrive.
 
+[[src/renderer/components/conversation-activity.tsx#ConversationActivity]] defers detail content until the first expansion. After opening, details remain mounted across collapse so run selection and native roster inspection survive reopening.
+
 Code and output wrap without individual scroll areas. The fixed-height inspector body owns scrolling; mouse run markers use a compact seven-pixel pitch, with larger touch targets. The marker rail centers when it fits and scrolls when it overflows. Hover and keyboard focus magnify three neighboring markers using transform-only transitions; reduced motion removes the transition.
 
 ## Stable run content

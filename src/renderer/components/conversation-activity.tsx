@@ -50,9 +50,14 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
   const [disclosure, setDisclosure] = useState({
     active: activity.active,
     expanded: activity.active,
+    hasOpened: activity.active,
   })
   if (disclosure.active !== activity.active) {
-    setDisclosure({ active: activity.active, expanded: activity.active || disclosure.expanded })
+    setDisclosure({
+      active: activity.active,
+      expanded: activity.active || disclosure.expanded,
+      hasOpened: activity.active || disclosure.hasOpened,
+    })
   }
   const followUps = useMemo(() => {
     const occurrences = new Map<string, number>()
@@ -74,7 +79,11 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
     <details
       open={disclosure.expanded}
       onToggle={(event) =>
-        setDisclosure({ active: activity.active, expanded: event.currentTarget.open })
+        setDisclosure({
+          active: activity.active,
+          expanded: event.currentTarget.open,
+          hasOpened: disclosure.hasOpened || event.currentTarget.open,
+        })
       }
       {...stylex.props(styles.activity)}
     >
@@ -90,19 +99,21 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
           <span {...stylex.props(styles.queue)}>{activity.queued} queued</span>
         ) : null}
       </summary>
-      <div {...stylex.props(styles.body)}>
-        {activity.phase ? <p>Current phase: {activity.phase}</p> : null}
-        {activity.tools.length ? <p>Active tools: {activity.tools.join(", ")}</p> : null}
-        {followUps.map(({ id, text }) => (
-          <p key={id} {...stylex.props(styles.queuedMessage)}>
-            Queued follow-up: {text}
-          </p>
-        ))}
-        <SubagentActivity snapshot={snapshot} />
-        {activity.results.length ? (
-          <RunInspector results={activity.results} active={activity.active} />
-        ) : null}
-      </div>
+      {disclosure.hasOpened ? (
+        <div {...stylex.props(styles.body)}>
+          {activity.phase ? <p>Current phase: {activity.phase}</p> : null}
+          {activity.tools.length ? <p>Active tools: {activity.tools.join(", ")}</p> : null}
+          {followUps.map(({ id, text }) => (
+            <p key={id} {...stylex.props(styles.queuedMessage)}>
+              Queued follow-up: {text}
+            </p>
+          ))}
+          <SubagentActivity snapshot={snapshot} />
+          {activity.results.length ? (
+            <RunInspector results={activity.results} active={activity.active} />
+          ) : null}
+        </div>
+      ) : null}
     </details>
   )
 }

@@ -4,6 +4,7 @@ import primePackage from "../../../node_modules/prime-agent/package.json"
 import { useConnectPrimeDaemon, usePrimeSessionState } from "../prime-agent-state"
 import { describePrimeDaemonConnection } from "../prime-daemon-status"
 import { theme } from "../theme.stylex"
+import { RuntimeConnectionStatus } from "./runtime-connection-status"
 
 const styles = stylex.create({
   button: {
@@ -27,8 +28,6 @@ const styles = stylex.create({
     lineHeight: 1.5,
     padding: "6px 12px",
   },
-  ready: { color: theme["--success"] },
-  summary: { cursor: "pointer" },
 })
 
 /** Shows authoritative external connection health separately from package metadata. */
@@ -43,7 +42,11 @@ export const RuntimeStatus = () => {
   return (
     <footer {...stylex.props(styles.footer)}>
       <output>
-        <span {...stylex.props(connected && styles.ready)}>{description?.label ?? status}</span>
+        <RuntimeConnectionStatus
+          label={description?.label ?? status}
+          version={connection?.state.status === "connected" ? connection.state.version : undefined}
+          clientVersion={primePackage.version}
+        />
         {connection?.state.status === "connecting" ? ` (${connection.state.attempt}/3)` : null}
       </output>
       {connection && !connected ? (
@@ -52,21 +55,6 @@ export const RuntimeStatus = () => {
         </button>
       ) : null}
       <span>Ernie {erniePackage.version}</span>
-      <details>
-        <summary {...stylex.props(styles.summary)}>Connection details</summary>
-        <dl>
-          {connection?.state.status === "connected" ? (
-            <div>
-              <dt>Prime Agent version</dt>
-              <dd>{connection.state.version}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Client version</dt>
-            <dd>{primePackage.version}</dd>
-          </div>
-        </dl>
-      </details>
       {connection && !connected ? (
         <div {...stylex.props(styles.details)}>
           <div>{connection.socketPath}</div>

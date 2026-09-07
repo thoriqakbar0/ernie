@@ -44,6 +44,8 @@ Conversations with messages omit settings shortcuts and subagent disclosures bel
 
 ## Pickers and accessibility
 
+Footer diagnostic metadata uses an accessible tooltip on the connection status, available on hover and keyboard focus and dismissible with Escape. Do not use native details/summary disclosures for this metadata. Keep actionable connection errors and retry controls visible.
+
 Model and effort controls show accepted values, pending changes, and rejection. Missing effort displays Default. Empty filters offer recovery and restore useful focus. Escape closes pickers and returns focus to their trigger.
 
 The development workspace picker opens an existing conversation; it does not change its execution directory. Show full paths, preserve search on failure, prevent overlapping selections, and close after success.

@@ -50,7 +50,7 @@ The external daemon and socket survive cleanup, as required by [[tests#Behavior 
 
 ## Connection footer
 
-[[src/renderer/components/runtime-status.tsx#RuntimeStatus]] shows connection status and the Ernie version. A native Connection details disclosure separates the live Prime Agent version from the installed client version.
+[[src/renderer/components/runtime-status.tsx#RuntimeStatus]] shows connection status and the Ernie version. A tooltip on the status separates the live Prime Agent version from the installed client version.
 
 Disconnected states retain visible diagnostics and the existing retry action. Connected status reads “Connected to Prime Agent” without repeating version metadata in the main line.
 

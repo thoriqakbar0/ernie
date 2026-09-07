@@ -32,9 +32,11 @@ Admission follows fallible session preparation. Uncertain dispatch retains its e
 
 ## Customization entry
 
-Settings offers appearance preferences and a separate App history tab. Browser development shows labeled example history. The customization promotion and Agent settings guidance are no longer shown.
+Settings distinguishes local appearance preferences from managed-source customization. The customizer disclosure names the selected Agent workspace and opens the existing dedicated root without sending a prompt.
 
-The App history page owns checkpoint browsing and recovery feedback. Removing the settings promotion does not remove the underlying customization service.
+[[src/renderer/components/app-customization-entry.tsx#AppCustomizationEntry]] consumes the existing customization service and roster command owner. Pending opens prevent duplicate clicks; failed opens retain retry feedback. Navigation away suppresses a delayed return to conversation.
+
+[[src/renderer/components/appearance-settings.tsx#AppearanceSettings]] reports successful preference writes and retries only failed preference groups. Local preferences are outside source checkpoints. The App history page retains checkpoint browsing and recovery feedback.
 
 ## Checkpoint inspection
 

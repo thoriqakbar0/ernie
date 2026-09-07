@@ -8,12 +8,13 @@ import { styles } from "./app-settings.styles"
 /** Local appearance controls apply immediately and retain an honest save status. */
 export function AppearanceSettings() {
   const [typography, setTypography] = useState(readTypography)
-  const [fontStatus, setFontStatus] = useState<"saved" | "unavailable">("saved")
+  const [fontStatus, setFontStatus] = useState<"saved" | "unavailable" | "unchanged">("unchanged")
   const [palette, setPalette] = useState(readPalette)
   const [mode, setMode] = useState(readAppearance)
-  const [saveStatus, setSaveStatus] = useState({ palette: "saved", mode: "saved" })
-  return <section aria-labelledby="appearance-heading" {...stylex.props(styles.appearance)}>
+  const [saveStatus, setSaveStatus] = useState({ palette: "unchanged", mode: "unchanged" })
+  return <section data-ernie-scope="local-appearance" aria-describedby="appearance-scope" aria-labelledby="appearance-heading" {...stylex.props(styles.appearance)}>
     <h2 id="appearance-heading" {...stylex.props(styles.scopeTitle)}>Appearance</h2>
+    <p id="appearance-scope" {...stylex.props(styles.description)}>Applies to this browser or app profile. Preferences stay on this device and are outside App history.</p>
     <div {...stylex.props(styles.appearanceRows)}>
     <div {...stylex.props(styles.appearanceRow)}>
     <div><h3 {...stylex.props(styles.appearanceLabel)}>Theme</h3><p {...stylex.props(styles.appearanceHint)}>Choose your palette.</p></div>
@@ -66,7 +67,18 @@ export function AppearanceSettings() {
 0123456789 · Il1 O0</pre>
     </div>
     </div>
-    {fontStatus === "unavailable" ? <p role="alert">Font applied but not saved. Choose a font to retry.</p> : null}
-    {(saveStatus.palette === "unavailable" || saveStatus.mode === "unavailable") ? <p role="alert">Theme applied but not saved. Select the theme or mode again to retry.</p> : null}
+    <p role="status" aria-live="polite" {...stylex.props(styles.description)}>
+      {saveStatus.palette === "saved" ? `Palette ${palettes.find(option => option.value === palette)?.label} applied and saved. ` : ""}
+      {saveStatus.mode === "saved" ? `Color mode ${mode} applied and saved. ` : ""}
+      {fontStatus === "saved" ? "Font preferences applied and saved. Installed fonts determine the displayed face." : ""}
+    </p>
+    {fontStatus === "unavailable" ? <p role="alert">Fonts applied for this visit but could not be saved.</p> : null}
+    {(saveStatus.palette === "unavailable" || saveStatus.mode === "unavailable") ? <p role="alert">Theme preferences applied for this visit but could not be saved.</p> : null}
+    {(fontStatus === "unavailable" || saveStatus.palette === "unavailable" || saveStatus.mode === "unavailable") ? <button type="button" {...stylex.props(styles.button)} onClick={() => {
+      if (fontStatus === "unavailable") setFontStatus(saveTypography(typography))
+      const paletteResult = saveStatus.palette === "unavailable" ? savePalette(palette) : saveStatus.palette
+      const modeResult = saveStatus.mode === "unavailable" ? saveAppearance(mode) : saveStatus.mode
+      setSaveStatus({ palette: paletteResult, mode: modeResult })
+    }}>Retry saving preferences</button> : null}
   </section>
 }

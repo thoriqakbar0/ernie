@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react"
+import { InterfaceKit } from "interface-kit/react"
 import { createRoot } from "react-dom/client"
 import { View, ZenbuProvider } from "@zenbujs/core/react"
 import { App } from "./components/app"
@@ -37,9 +38,12 @@ const UpdateScenario = import.meta.env.DEV && search.get("scenario") === "update
 const content = route === null ? <App updates={!browserDevelopment ? <UpdateNotice /> : null} /> : <View name={route} />
 
 createRoot(rootElement).render(
-  UpdateScenario ? <Suspense fallback={<p>Loading update scenario…</p>}><UpdateScenario /></Suspense> : <ZenbuProvider wsUrl={browserWsUrl}>
+  <>
+  {UpdateScenario ? <Suspense fallback={<p>Loading update scenario…</p>}><UpdateScenario /></Suspense> : <ZenbuProvider wsUrl={browserWsUrl}>
     {WorkspaceScenarios ? <Suspense fallback={<p>Loading development scenario…</p>}><WorkspaceScenarios/></Suspense> : AgentScenarios ? <Suspense fallback={<p>Loading development scenario…</p>}><AgentScenarios/></Suspense> : <PrimeAgentStateProvider>
       {content}
     </PrimeAgentStateProvider>}
-  </ZenbuProvider>,
+  </ZenbuProvider>}
+  {import.meta.env.DEV ? <InterfaceKit /> : null}
+  </>,
 )

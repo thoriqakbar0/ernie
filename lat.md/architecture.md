@@ -68,6 +68,8 @@ The run inspector opens during active work and follows new tool calls, then reta
 
 [[src/renderer/components/conversation-activity.tsx#ConversationActivity]] defers detail content until the first expansion. After opening, details remain mounted across collapse so run selection and native roster inspection survive reopening.
 
+[[src/renderer/conversation-activity.ts#describeConversationToolResults]] parses tool history only when structured messages or the streaming message change. Connection and activity status still update from each accepted snapshot without rescanning unchanged history.
+
 Code and output wrap without individual scroll areas. The fixed-height inspector body owns scrolling; mouse run markers use a compact seven-pixel pitch, with larger touch targets. The marker rail centers when it fits and scrolls when it overflows. Hover and keyboard focus magnify three neighboring markers using transform-only transitions; reduced motion removes the transition.
 
 ## Stable run content

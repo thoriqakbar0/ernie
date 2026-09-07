@@ -5,7 +5,10 @@ import * as stylex from "@stylexjs/stylex"
 import { ChevronDownIcon, TerminalIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import type { PrimeSessionSnapshot } from "../../packages/prime-agent"
-import { describeConversationActivity } from "../conversation-activity"
+import {
+  describeConversationActivity,
+  describeConversationToolResults,
+} from "../conversation-activity"
 import { theme } from "../theme.stylex"
 
 const styles = stylex.create({
@@ -46,7 +49,15 @@ const styles = stylex.create({
 
 /** Compact, session-scoped execution evidence within the conversation scroll area. */
 export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot }) => {
-  const activity = useMemo(() => describeConversationActivity(snapshot), [snapshot])
+  const { structuredMessages, streamingMessage } = snapshot.useful
+  const results = useMemo(
+    () => describeConversationToolResults(structuredMessages, streamingMessage),
+    [structuredMessages, streamingMessage],
+  )
+  const activity = useMemo(
+    () => describeConversationActivity(snapshot, results),
+    [snapshot, results],
+  )
   const [disclosure, setDisclosure] = useState({
     active: activity.active,
     expanded: activity.active,

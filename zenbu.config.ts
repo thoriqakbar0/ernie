@@ -2,7 +2,12 @@ import {
   defineConfig,
   defineBuildConfig,
 } from "@zenbujs/core/config"
+import { Schema } from "effect"
+import { readFileSync } from "node:fs"
 import { isAbsolute } from "node:path"
+
+const release = Schema.decodeUnknownSync(Schema.Struct({ target: Schema.String, branch: Schema.String }))(JSON.parse(readFileSync(new URL("./release.json", import.meta.url), "utf8")))
+if (!/^[\w.-]+\/[\w.-]+$/.test(release.target) || !/^[a-zA-Z0-9][\w/-]*$/.test(release.branch) || ["main", "master"].includes(release.branch)) throw new Error("Invalid dedicated release destination")
 
 const dbOverride = process.env.ERNIE_ZENBU_DB
 const browserDevelopment = process.env.ERNIE_RENDERER_MODE === "server"
@@ -19,8 +24,8 @@ export default defineConfig({
   pluginsFiles: "./zenbu.plugins.jsonc",
 
   // Build pipeline for `zen build:source` (mirror staging) and
-  // `zen build:electron` (packaged .app via electron-builder). Set
-  // `mirror.target` to "<owner>/<repo>" before shipping.
+  // `zen build:electron` (packaged .app via electron-builder).
+  // release.json owns the dedicated distribution branch; see docs/releasing.md.
   build: defineBuildConfig({
     // Zenbu embeds this toolchain in built apps. Local development uses Nub.
     packageManager: { type: "pnpm", version: "10.33.0" },
@@ -28,9 +33,8 @@ export default defineConfig({
     // read at build time and baked into <bundle>/host.json. Bump
     // `package.json#version` every time you ship a new .app build.
     // Each commit's `package.json#zenbu.host` semver range is checked
-    // against that value at launch (and from `UpdaterService.update()`);
-    // incompatible commits are skipped, so older .apps stay pinned to
-    // source they can actually run.
+    // against that value during first-install source selection.
+    // Zenbu 0.6 does not update existing installations automatically.
     source: ".",
     out: ".zenbu/build/source",
     include: [
@@ -40,6 +44,7 @@ export default defineConfig({
       ".gitignore",
       ".npmrc",
       "package.json",
+      "release.json",
       "pnpm-lock.yaml",
       "tsconfig.json",
       "zenbu.config.ts",
@@ -54,8 +59,9 @@ export default defineConfig({
       "src/**/*.spec.ts",
       "src/**/*.spec.tsx",
       "src/browser/**",
+      "src/integration/**",
       "src/dev-only/**",
     ],
-    mirror: { target: "thoriqakbar0/ernie", branch: "main" },
+    mirror: release,
   }),
 })

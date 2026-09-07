@@ -1,7 +1,7 @@
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { collapsedSidebarLayout } from "../shell-layout.stylex"
 import { View } from "@zenbujs/core/react"
 import { PanelLeftOpenIcon } from "lucide-react"
@@ -16,7 +16,7 @@ import { AppSettingsPage } from "./app-settings-page"
 import { ChatWorkspace } from "./chat-workspace"
 
 // @lat: [[product#Product contract#Responsive workspace]]
-export function App({ roster, agentClient }: { roster?: Roster; agentClient?: AgentClient } = {}) {
+export function App({ roster, agentClient, updates }: { roster?: Roster; agentClient?: AgentClient; updates?: ReactNode } = {}) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const shell = useRef<HTMLDivElement>(null)
   const restoreToggleFocus = useRef(false)
@@ -74,6 +74,7 @@ export function App({ roster, agentClient }: { roster?: Roster; agentClient?: Ag
         )}
         <div id="ernie-main-content" tabIndex={-1} {...stylex.props(styles.workspaceSlot, sidebarOpen && styles.workspaceBehindSidebar)}><WorkspacePages /></div>
       </main>
+      {updates}
     </div></MessageReadingProvider></ConversationFlowProvider></AgentCreationProvider></ConversationDraftProvider></AgentStateProvider></AppNavigationProvider>
   )
 }

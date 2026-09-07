@@ -4,6 +4,7 @@ import { View, ZenbuProvider } from "@zenbujs/core/react"
 import { App } from "./components/app"
 import { PrimeAgentStateProvider } from "./prime-agent-state"
 import "./main.css"
+import { UpdateNotice } from "./components/update-notice"
 
 const rootElement = document.getElementById("root")
 
@@ -30,10 +31,13 @@ if (import.meta.env.DEV && search.get("scenario") === "history") {
   url.searchParams.set("page", "history")
   window.history.replaceState(null, "", url)
 }
-const content = route === null ? <App /> : <View name={route} />
+const UpdateScenario = import.meta.env.DEV && search.get("scenario") === "updates"
+  ? lazy(() => import("../dev-only/update-scenario"))
+  : undefined
+const content = route === null ? <App updates={!browserDevelopment ? <UpdateNotice /> : null} /> : <View name={route} />
 
 createRoot(rootElement).render(
-  <ZenbuProvider wsUrl={browserWsUrl}>
+  UpdateScenario ? <Suspense fallback={<p>Loading update scenario…</p>}><UpdateScenario /></Suspense> : <ZenbuProvider wsUrl={browserWsUrl}>
     {WorkspaceScenarios ? <Suspense fallback={<p>Loading development scenario…</p>}><WorkspaceScenarios/></Suspense> : AgentScenarios ? <Suspense fallback={<p>Loading development scenario…</p>}><AgentScenarios/></Suspense> : <PrimeAgentStateProvider>
       {content}
     </PrimeAgentStateProvider>}

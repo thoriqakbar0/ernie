@@ -24,7 +24,8 @@ nub run release:build:unsigned
 archive="dist/Ernie Preview-${version}-arm64-mac.zip"
 [[ -f "$archive" ]] || { echo "Missing arm64 archive: $archive" >&2; exit 1; }
 codesign --verify --deep --strict 'dist/mac-arm64/Ernie Preview.app'
-(cd dist && shasum -a 256 "$(basename "$archive")" > SHA256SUMS)
+# GitHub replaces spaces in uploaded filenames with periods.
+(cd dist && shasum -a 256 "$(basename "$archive")" | sed 's/  Ernie Preview-/  Ernie.Preview-/' > SHA256SUMS)
 mirror=$(git ls-remote origin refs/heads/release-preview)
 if [[ -z "$mirror" ]]; then
   nub run publish:source init

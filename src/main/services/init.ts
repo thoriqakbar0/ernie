@@ -1,5 +1,7 @@
 import { Service } from "@zenbujs/core/runtime"
-import { HttpService, WindowService } from "@zenbujs/core/services"
+import { BaseWindowService, HttpService, WindowService } from "@zenbujs/core/services"
+import { app } from "electron"
+import { BrowserService } from "./browser"
 import { SIDEBAR_VIEW_TYPE } from "../../packages/view-types"
 import {
   publishRuntimeDescriptor,
@@ -9,6 +11,8 @@ import {
 
 export class InitService extends Service.create({
   deps: {
+    baseWindow: BaseWindowService,
+    browser: BrowserService,
     http: HttpService,
     window: WindowService,
   },
@@ -32,6 +36,27 @@ export class InitService extends Service.create({
       return
     }
 
-    await this.ctx.window.openWindow({})
+    this.setup("reopen-browser-window", () => {
+      const activate = async () => {
+        if (this.ctx.baseWindow.windows.size > 0) {
+          return
+        }
+        try {
+          await this.openMainWindow()
+        } catch (error: unknown) {
+          console.error("Could not reopen Ernie", error)
+        }
+      }
+      // Register the window synchronously before Zenbu's default activation listener runs.
+      app.prependListener("activate", activate)
+      return () => {
+        app.removeListener("activate", activate)
+      }
+    })
+    await this.openMainWindow()
+  }
+
+  private openMainWindow() {
+    return this.ctx.window.openWindow({ webContentsView: { webPreferences: { webviewTag: true } } })
   }
 }

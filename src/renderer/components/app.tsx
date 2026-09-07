@@ -16,6 +16,7 @@ import { AgentCreationProvider } from "../agent-creation"
 import { AppNavigationProvider, useAppNavigation } from "../app-navigation"
 import { AppSettingsPage } from "./app-settings-page"
 import { ChatWorkspace } from "./chat-workspace"
+import { BrowserWorkspace } from "./browser-workspace"
 
 /** Keep the conversation mounted so page navigation preserves drafts and scroll position. */
 const WorkspacePages = () => {
@@ -144,7 +145,9 @@ export const App = ({
                         sidebarOpen && styles.workspaceBehindSidebar,
                       )}
                     >
-                      <WorkspacePages />
+                      <BrowserWorkspace>
+                        <WorkspacePages />
+                      </BrowserWorkspace>
                     </div>
                   </main>
                   {updates}

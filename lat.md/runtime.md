@@ -54,7 +54,7 @@ The external daemon and socket survive cleanup, as required by [[tests#Behavior 
 
 [[src/renderer/components/runtime-status.tsx#RuntimeStatus]] shows connection status and the Ernie version. A tooltip on the status separates the live Prime Agent version from the installed client version.
 
-Disconnected states retain visible diagnostics and the existing retry action. Connected status reads “Connected to Prime Agent” without repeating version metadata in the main line.
+The footer owns one actionable recovery notice and preserves the existing retry action. Socket paths and technical errors stay in a collapsed disclosure. Selected-session restoration takes precedence over a ready daemon label. Sidebar and composer avoid duplicating connection warnings. Unrelated action and send failures retain their own feedback. A failed refresh preserves an already-loaded transcript. The model trigger retains the accepted native model while the capability catalog recovers; it never inserts a fallback option or sends a model change.
 
 ## Composer inference settings
 

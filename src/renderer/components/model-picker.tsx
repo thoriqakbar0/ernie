@@ -451,9 +451,11 @@ export const ModelPicker = ({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const selectedOptionRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const selected = models.find(
-    (model) => model.id === selectedModel?.id && model.provider === selectedModel.provider,
-  )
+  // Accepted native identity remains visible while the capability catalog recovers.
+  const selected =
+    models.find(
+      (model) => model.id === selectedModel?.id && model.provider === selectedModel.provider,
+    ) ?? selectedModel
   const providers = useMemo(
     () =>
       [...new Set(models.map(({ provider }) => provider))].toSorted((left, right) =>

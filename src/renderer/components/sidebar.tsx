@@ -105,7 +105,7 @@ const AgentRosterAvatar = ({ agent, root }: { agent: Agent; root?: PrimeSessionS
 
 /** Production roster, also rendered by isolated development scenarios. */
 export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
-  const { navigate } = useAppNavigation()
+  const { navigate, page } = useAppNavigation()
   const { roster, client, execute, error, pending } = useAgents()
   const sessions = usePrimeSessionState()
   const connectDaemon = useConnectPrimeDaemon()
@@ -191,10 +191,13 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
         {...stylex.props(rosterStyles.nav, draftSettingsDocked && rosterStyles.concealed)}
         aria-label="Agents"
       >
-        {error ? (
-          <p {...stylex.props(rosterStyles.feedback)} role="alert">
-            {error}
-          </p>
+        {error && page !== "conversation" ? (
+          <div role="alert" {...stylex.props(rosterStyles.feedback)}>
+            <details>
+              <summary>Last action failed</summary>
+              {error}
+            </details>
+          </div>
         ) : null}
         <ul {...stylex.props(rosterStyles.list)}>
           {agents.map((agent) => {
@@ -300,6 +303,7 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
         </ul>
         {agents.length === 0 ? (
           <SidebarEmptyState
+            showRecovery={page !== "conversation"}
             search={search}
             pending={sessions.isPending}
             error={sessions.isError}

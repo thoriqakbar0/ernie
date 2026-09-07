@@ -12,7 +12,6 @@ import type { PrimeModel } from "../../packages/prime-agent"
 import { useAgents, useConversationDraft, useResponseAnnotations } from "../agent-state"
 import type { Agent } from "../../packages/agents"
 import { AgentWorkspaceHeader, EmptyAgentWorkspace } from "./agent-workspace"
-import { styles as rosterStyles } from "./agent-roster.styles"
 import { useConversationFlow } from "../conversation-flow"
 import { EmptyConversation } from "./empty-conversation"
 import { AgentWelcome } from "./agent-welcome"
@@ -48,8 +47,6 @@ const idleModelChange: ModelChangeState = {
   status: "idle",
 }
 const emptyModels: readonly PrimeModel[] = []
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Prime Agent could not start a conversation"
 
 const useSessionWorkspace = (sessionId: string) => {
   const snapshotQuery = usePrimeSessionSnapshot(sessionId)
@@ -136,40 +133,19 @@ const useSessionWorkspace = (sessionId: string) => {
 }
 
 const WorkspaceNotices = ({
-  snapshot,
-  connected,
-  recovering,
   actionError,
-}: Pick<
-  ReturnType<typeof useSessionWorkspace>,
-  "snapshot" | "connected" | "recovering" | "actionError"
->) => (
-  <>
-    {snapshot?.transport.status === "reconnecting" ? (
-      <SessionNotice tone="warning">
-        <strong>Reconnecting to Prime Agent.</strong> Your session is saved and commands will resume
-        after recovery.
-      </SessionNotice>
-    ) : null}
-    {snapshot?.transport.status === "failed" ? (
+}: Pick<ReturnType<typeof useSessionWorkspace>, "actionError">) =>
+  actionError ? (
+    <>
       <SessionNotice tone="danger">
-        <strong>Couldn’t reconnect to Prime Agent.</strong> Commands are paused until the connection
-        returns. <span>{snapshot.transport.error}</span>
+        <strong>The conversation wasn’t updated.</strong> Try the action again.
       </SessionNotice>
-    ) : null}
-    {connected && recovering ? (
-      <SessionNotice tone="warning">
-        <strong>Restoring this Prime Agent session.</strong> Commands will return when recovery
-        finishes.
-      </SessionNotice>
-    ) : null}
-    {actionError ? (
-      <SessionNotice tone="danger">
-        <strong>The conversation wasn’t updated.</strong> {actionError}. Try the action again.
-      </SessionNotice>
-    ) : null}
-  </>
-)
+      <details {...stylex.props(styles.errorDescription)}>
+        <summary>Action details</summary>
+        {actionError}
+      </details>
+    </>
+  ) : null
 
 const SessionAgentControls = ({
   agent,
@@ -210,21 +186,12 @@ const PrimeSessionWorkspace = ({
     updateModel,
   } = useSessionWorkspace(sessionId)
   const { add: handleAnnotate, remove: handleRemoveAnnotation } = feedbackDraft
-  const openingError = snapshotQuery.isError ? (
-    <div role="alert" {...stylex.props(styles.openError)}>
-      <h2>Unable to open this conversation</h2>
-      <p {...stylex.props(styles.errorDescription)}>{getErrorMessage(snapshotQuery.error)}.</p>
-      <button
-        onClick={async () => {
-          await snapshotQuery.refetch()
-        }}
-        type="button"
-        {...stylex.props(styles.secondaryButton)}
-      >
-        Try again
-      </button>
-    </div>
-  ) : undefined
+  const openingError =
+    snapshotQuery.isError && !snapshot ? (
+      <div {...stylex.props(styles.openError)}>
+        <h2>Conversation unavailable</h2>
+      </div>
+    ) : undefined
   let content = openingError
   if (!content) {
     if (draftHero && session) {
@@ -245,58 +212,48 @@ const PrimeSessionWorkspace = ({
     }
   }
   return (
-    <>
-      <WorkspaceNotices
-        snapshot={snapshot}
-        connected={connected}
-        recovering={recovering}
-        actionError={actionError}
-      />
-
-      <div {...stylex.props(styles.workspaceContent)}>
-        <div {...stylex.props(styles.sessionStage)}>
+    <div {...stylex.props(styles.workspaceContent)}>
+      <div {...stylex.props(styles.sessionStage)}>
+        <div {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}>
+          {content}
           <div
-            {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}
+            data-composer-placement={draftHero ? "hero" : "docked"}
+            {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}
           >
-            {content}
-            <div
-              data-composer-placement={draftHero ? "hero" : "docked"}
-              {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}
-            >
-              {agent?.id.startsWith("ernie-customization-") ? (
-                <AppChangeProtection workspace={agent.cwd} working={Boolean(working)} />
-              ) : null}
-              <PrimeComposer
-                sessionId={sessionId}
-                agentName={agent?.name}
-                feedback={flow.submission}
-                releaseSend={() => flow.release(sessionId)}
-                opening={!snapshot && !snapshotQuery.isError}
-                connected={connected}
-                draft={draft}
-                annotations={feedbackDraft.annotations}
-                onRemoveAnnotation={handleRemoveAnnotation}
-                draftHero={draftHero}
-                models={models.data ?? emptyModels}
-                modelChangePending={modelChange.status === "pending"}
-                modelsPending={models.isPending}
-                onDraftChange={setDraft}
-                onModelSelect={(model) => updateModel(model.provider, model.id)}
-                recovering={recovering}
-                selectedModel={snapshot?.useful.state.model ?? session?.model}
-                sessionSelected
-                stopAction={stopAction}
-                stopping={stopping}
-                submitAction={submitAction}
-                submitting={submitting}
-                working={working}
-              />
-              <SessionAgentControls agent={agent} draftHero={draftHero} snapshot={snapshot} />
-            </div>
+            {agent?.id.startsWith("ernie-customization-") ? (
+              <AppChangeProtection workspace={agent.cwd} working={Boolean(working)} />
+            ) : null}
+            <WorkspaceNotices actionError={actionError} />
+            <PrimeComposer
+              sessionId={sessionId}
+              agentName={agent?.name}
+              feedback={flow.submission}
+              releaseSend={() => flow.release(sessionId)}
+              opening={!snapshot && !snapshotQuery.isError}
+              connected={connected}
+              draft={draft}
+              annotations={feedbackDraft.annotations}
+              onRemoveAnnotation={handleRemoveAnnotation}
+              draftHero={draftHero}
+              models={models.data ?? emptyModels}
+              modelChangePending={modelChange.status === "pending"}
+              modelsPending={models.isPending}
+              onDraftChange={setDraft}
+              onModelSelect={(model) => updateModel(model.provider, model.id)}
+              recovering={recovering}
+              selectedModel={snapshot?.useful.state.model ?? session?.model}
+              sessionSelected
+              stopAction={stopAction}
+              stopping={stopping}
+              submitAction={submitAction}
+              submitting={submitting}
+              working={working}
+            />
+            <SessionAgentControls agent={agent} draftHero={draftHero} snapshot={snapshot} />
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -335,13 +292,8 @@ export const ChatWorkspace = () => {
         participants={adding ? null : <SessionSubagentParticipants sessionId={sessionId} />}
         utilities={<UiAnnotationTrigger />}
       />
-      {error ? (
-        <p role="alert" {...stylex.props(rosterStyles.feedback)}>
-          {error}
-        </p>
-      ) : null}
       {content}
-      <RuntimeStatus />
+      <RuntimeStatus sessionId={sessionId} actionError={error} />
     </section>
   )
 }

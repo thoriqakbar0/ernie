@@ -74,20 +74,6 @@ const getFeedbackMessage = (feedback: ConversationSubmission | undefined, workin
   }
 }
 
-const getConnectionMessage = (opening: boolean, connected: boolean, recovering: boolean) => {
-  if (opening) {
-    return (
-      <p>
-        <output>Opening conversation… You can keep writing.</output>
-      </p>
-    )
-  }
-  if (!connected || recovering) {
-    return <p>You can keep writing. New messages need a connection.</p>
-  }
-  return null
-}
-
 const ComposerActions = ({
   connected,
   working,
@@ -150,9 +136,7 @@ const ComposerFeedback = ({
   releaseSend,
   unavailable,
   opening = false,
-  connected,
-  recovering,
-}: Pick<PrimeComposerProps, "feedback" | "releaseSend" | "opening" | "connected" | "recovering"> & {
+}: Pick<PrimeComposerProps, "feedback" | "releaseSend" | "opening"> & {
   feedbackId: string
   message: string | undefined
   uncertain: boolean
@@ -181,7 +165,11 @@ const ComposerFeedback = ({
         </button>
       </>
     ) : null}
-    {getConnectionMessage(opening, connected, recovering)}
+    {opening ? (
+      <p>
+        <output>Opening conversation… You can keep writing.</output>
+      </p>
+    ) : null}
   </div>
 )
 
@@ -287,8 +275,6 @@ export const PrimeComposer = ({
         releaseSend={releaseSend}
         unavailable={unavailable}
         opening={opening}
-        connected={connected}
-        recovering={recovering}
       />
     </form>
   )

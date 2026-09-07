@@ -7,6 +7,7 @@ import { GeneratedCharacter } from "./generated-avatar"
 /** Keeps a confirmed empty catalog distinct from loading or unavailable daemon data. */
 export const SidebarEmptyState = ({
   search,
+  showRecovery = true,
   pending,
   error,
   connection,
@@ -14,6 +15,7 @@ export const SidebarEmptyState = ({
   retry,
 }: Readonly<{
   search: string
+  showRecovery?: boolean
   pending: boolean
   error: boolean
   connection?: PrimeDaemonConnection
@@ -45,6 +47,9 @@ export const SidebarEmptyState = ({
       </div>
     )
   }
+  if (!showRecovery) {
+    return null
+  }
   let title = "Loading conversations…"
   let message = "Waiting for Prime Agent connection status."
   let busy = pending
@@ -60,7 +65,10 @@ export const SidebarEmptyState = ({
       <h2 {...stylex.props(styles.emptyTitle)}>
         <output>{title}</output>
       </h2>
-      <p {...stylex.props(styles.emptyDescription)}>{message}</p>
+      <details {...stylex.props(styles.emptyDescription)}>
+        <summary>Connection details</summary>
+        {message}
+      </details>
       {connection?.state.status === "not-installed" ? (
         <a
           href="https://github.com/PrimeIntellect-ai/prime-agent#installation"

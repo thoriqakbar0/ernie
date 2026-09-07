@@ -1,0 +1,20 @@
+describe("Update controls with an isolated transport", () => {
+  it("checks, offers an update, and applies only after interaction", () => {
+    cy.visit("/?browser=1&scenario=updates")
+    cy.contains("button", "Check for updates").click()
+    cy.contains("Ernie 0.1.1 is available.").should("be.visible")
+    cy.contains("Apply requests: 0").should("be.visible")
+    cy.contains("button", "Update…").click()
+    cy.contains("Apply requests: 1").should("be.visible")
+    cy.contains("Restarting Ernie…").should("be.visible")
+  })
+  it("shows a failed check and allows recovery", () => {
+    cy.visit("/?browser=1&scenario=updates")
+    cy.contains("label", "Reject checks").find("input").check()
+    cy.contains("button", "Check for updates").click()
+    cy.contains("Download unavailable. Try again.").should("be.visible")
+    cy.contains("label", "Reject checks").find("input").uncheck()
+    cy.contains("button", "Check for updates").click()
+    cy.contains("Ernie 0.1.1 is available.").should("be.visible")
+  })
+})

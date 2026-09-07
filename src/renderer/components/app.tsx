@@ -1,7 +1,7 @@
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { collapsedSidebarLayout } from "../shell-layout.stylex"
 import { View } from "@zenbujs/core/react"
 import { PanelLeftOpenIcon } from "lucide-react"
@@ -14,7 +14,7 @@ import { AgentCreationProvider } from "../agent-creation"
 import { ChatWorkspace } from "./chat-workspace"
 
 // @lat: [[product#Product contract#Responsive workspace]]
-export function App({ roster, agentClient }: { roster?: Roster; agentClient?: AgentClient } = {}) {
+export function App({ roster, agentClient, updates }: { roster?: Roster; agentClient?: AgentClient; updates?: ReactNode } = {}) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   return (
     <AgentStateProvider roster={roster} client={agentClient}><ConversationDraftProvider><AgentCreationProvider><ConversationFlowProvider><MessageReadingProvider><div {...stylex.props(styles.appShell)}>
@@ -46,6 +46,7 @@ export function App({ roster, agentClient }: { roster?: Roster; agentClient?: Ag
         )}
         <div {...stylex.props(styles.workspaceSlot, sidebarOpen && styles.workspaceBehindSidebar)}><ChatWorkspace /></div>
       </main>
+      {updates}
     </div></MessageReadingProvider></ConversationFlowProvider></AgentCreationProvider></ConversationDraftProvider></AgentStateProvider>
   )
 }

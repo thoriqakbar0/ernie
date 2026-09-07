@@ -8,7 +8,7 @@ Each surface owns a colocated style module. Shared composer styles and theme val
 
 Components apply styles with `stylex.props`. Reusable controls accept typed `xstyle` overrides and merge them after their defaults. Styles attach directly to owned elements; they do not depend on descendant class selectors.
 
-[[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the system color scheme. Stable custom property names let document defaults and portal content use the same theme. Orange accents retain dark ink on filled actions, including hover states; status colors keep their semantic roles. Faint text remains readable on the sidebar and picker surfaces.
+[[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the document color scheme. Stable custom property names let document defaults and portal content use the same theme. Orange accents retain dark ink on filled actions, including hover states; status colors keep their semantic roles. Faint text remains readable on the sidebar and picker surfaces.
 
 ## Dynamic state and portals
 
@@ -29,3 +29,19 @@ Vendor styles remain vendor-owned. Generated Zenbu files do not belong to the fi
 Use the existing development runtime and hot module replacement for UI feedback. Type checking and styling guards do not open windows.
 
 Full integration tests, desktop smoke checks, builds, and Electron restarts require a separate request. A quiet styling check does not establish full behavioral coverage.
+
+## Saved appearance
+
+Settings uses dropdowns for ten palettes, defaulting to Black & white and System, Light, and Dark modes. Preferences persist locally and apply before React mounts. Unavailable storage falls back to System on restart.
+
+[[src/renderer/appearance.ts#saveAppearance]] applies the document color scheme and reports storage failure. Shared tokens reach portals and native controls. Explicit CSS branch variables avoid color-function lowering differences between the StyleX and document stylesheets. The separate native splash retains system appearance.
+
+## Animated tabs
+
+[[src/renderer/components/ui/animated-tabs.tsx#AnimatedTabs]] provides a StyleX pill strip over Base UI tabs. Base UI measures the moving indicator; reduced motion disables transitions and settings retains URL-controlled selection.
+
+## Saved typography
+
+[[src/renderer/typography.ts]] persists interface and monospace font choices locally. Document variables apply before React mounts; code, file paths, and portal controls inherit them. Character display headings retain their own typeface.
+
+Font lists use local faces with system fallbacks. Appearance shows separate text and code previews.

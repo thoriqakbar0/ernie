@@ -72,6 +72,8 @@ Unchanged releases require metadata only. A validated candidate and successful d
 
 The signature adapter is checked against the pinned Zenbu implementation. [[src/main/updates/preparation.ts#PreparedDependencies]] owns preparation invalidation. [[src/renderer/components/use-update-state.ts#useUpdateState]] owns subscription lifetime, initial refresh, and immediate feedback.
 
-## InterfaceKit
+## Interface Kit
 
-The renderer mounts InterfaceKit beside root content in development only. It never wraps application providers or children, and the package supplies its own stylesheet.
+Development renderers mount Interface Kit beside root content for visual inspection. It never wraps application providers or renders in production.
+
+`interface-kit/react` supplies its own styles. [[src/renderer/main.tsx]] owns the development-only mount.

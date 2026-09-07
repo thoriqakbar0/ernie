@@ -48,8 +48,7 @@ export function App({ roster, agentClient, updates }: { roster?: Roster; agentCl
         Skip to workspace
       </a>
       <main {...stylex.props(styles.appMain, !sidebarOpen && styles.appMainSidebarClosed, !sidebarOpen && collapsedSidebarLayout)}>
-        {sidebarOpen ? (
-          <div aria-label="Agent navigation" {...stylex.props(styles.appSidebarSlot)}>
+        <div aria-label="Agent navigation" inert={!sidebarOpen} aria-hidden={!sidebarOpen} {...stylex.props(styles.appSidebarSlot, !sidebarOpen && styles.sidebarLeaving)}>
             <View
               args={{
                 onClose: closeSidebar,
@@ -58,7 +57,7 @@ export function App({ roster, agentClient, updates }: { roster?: Roster; agentCl
               {...stylex.props(styles.viewFill)}
             />
           </div>
-        ) : (
+        {!sidebarOpen ? (
           <button
             aria-controls="ernie-sidebar"
             aria-expanded="false"
@@ -71,7 +70,7 @@ export function App({ roster, agentClient, updates }: { roster?: Roster; agentCl
           >
             <PanelLeftOpenIcon {...stylex.props(sharedStyles.controlIcon, styles.openIcon)} />
           </button>
-        )}
+        ) : null}
         <div id="ernie-main-content" tabIndex={-1} {...stylex.props(styles.workspaceSlot, sidebarOpen && styles.workspaceBehindSidebar)}><WorkspacePages /></div>
       </main>
       {updates}

@@ -10,7 +10,7 @@ const styles = stylex.create({
   list: { paddingInlineStart: 24, listStyleType: "disc" },
   ordered: { paddingInlineStart: 24, listStyleType: "decimal" },
   link: { color: theme["--focus"], textDecoration: "underline", textUnderlineOffset: 3 },
-  code: { fontFamily: "ui-monospace, monospace", fontSize: ".875em", backgroundColor: theme["--surface-muted"], borderRadius: 4, padding: "2px 4px" },
+  code: { fontFamily: "var(--font-mono, ui-monospace, monospace)", fontSize: ".875em", backgroundColor: theme["--surface-muted"], borderRadius: 4, padding: "2px 4px" },
   pre: { minWidth: 0, maxWidth: "100%", overflowX: "auto", whiteSpace: "pre", padding: 14, borderRadius: 10, backgroundColor: theme["--surface-muted"] },
   quote: { borderInlineStart: "3px solid", borderColor: theme["--rule"], paddingInlineStart: 14, color: theme["--muted"] },
   table: { display: "block", overflowX: "auto", borderCollapse: "collapse" },

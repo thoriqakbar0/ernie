@@ -55,10 +55,12 @@ export const AppSettingsPage = () => {
             }
           }}
         >
-          <Tabs.Panel value="settings">
+          <Tabs.Panel value="settings" {...stylex.props(styles.panel)}>
             <AppearanceSettings />
           </Tabs.Panel>
-          <Tabs.Panel value="history">{historyContent}</Tabs.Panel>
+          <Tabs.Panel value="history" {...stylex.props(styles.panel)}>
+            {historyContent}
+          </Tabs.Panel>
         </AnimatedTabs>
       </div>
     </section>

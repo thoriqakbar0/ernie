@@ -29,14 +29,12 @@ export const AppearanceSettings = () => {
         Appearance
       </h2>
       <p id="appearance-scope" {...stylex.props(styles.description)}>
-        Applies to this browser or app profile. Preferences stay on this device and are outside App
-        history.
+        Saved on this device. Appearance changes aren’t included in App history.
       </p>
       <div {...stylex.props(styles.appearanceRows)}>
         <div {...stylex.props(styles.appearanceRow)}>
           <div>
             <h3 {...stylex.props(styles.appearanceLabel)}>Theme</h3>
-            <p {...stylex.props(styles.appearanceHint)}>Choose your palette.</p>
           </div>
           <Select
             value={palette}
@@ -69,7 +67,6 @@ export const AppearanceSettings = () => {
             <h3 id="color-mode-heading" {...stylex.props(styles.appearanceLabel)}>
               Color mode
             </h3>
-            <p {...stylex.props(styles.appearanceHint)}>Light, dark, or match your device.</p>
           </div>
           <Select
             value={mode}

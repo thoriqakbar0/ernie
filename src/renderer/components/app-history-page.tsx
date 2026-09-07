@@ -1,3 +1,4 @@
+import { HistoryFeedback } from "./history-feedback"
 import type { KeyboardEvent } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRpc } from "@zenbujs/core/react"
@@ -268,42 +269,6 @@ const HistoryStatusMessage = ({ status }: { status: typeof HistoryStatus.Type })
   )
 }
 
-const HistoryFeedback = ({
-  message,
-  notice,
-  pending,
-  retry,
-}: {
-  message?: string
-  notice?: string
-  pending: string | null
-  retry?: () => Promise<void>
-}) => (
-  <div>
-    {message ? <p role="alert">{message}</p> : null}
-    {message && retry ? (
-      <button
-        type="button"
-        disabled={pending !== null}
-        {...stylex.props(styles.button)}
-        onClick={retry}
-      >
-        Try again
-      </button>
-    ) : null}
-    {notice ? (
-      <p>
-        <output>{notice}</output>
-      </p>
-    ) : null}
-    {pending ? (
-      <p {...stylex.props(styles.description)}>
-        <output>{pending}</output>
-      </p>
-    ) : null}
-  </div>
-)
-
 /** Full history page uses the same controller as independent recovery and agents. */
 export const AppHistoryPage = ({
   client,
@@ -529,7 +494,9 @@ export const AppHistoryPage = ({
                 </details>
               </div>
             </div>
-            {items.length ? null : <p>No saved checkpoints yet.</p>}
+            {items.length ? null : (
+              <p {...stylex.props(styles.feedback)}>No saved checkpoints yet.</p>
+            )}
             <ol
               aria-label="Saved checkpoints"
               {...stylex.props(styles.list, styles.checkpointList)}
@@ -587,7 +554,7 @@ export const AppHistoryPage = ({
           </>
         ) : null}
         {!status && !historyError ? (
-          <p>
+          <p {...stylex.props(styles.feedback)}>
             <output>Loading app history…</output>
           </p>
         ) : null}

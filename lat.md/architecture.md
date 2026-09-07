@@ -77,3 +77,9 @@ The implementation lives in `src/renderer/components/run-inspector.tsx`; panel e
 Tool source uses lazy Shiki Python highlighting with a shared JavaScript regex engine and a bounded token cache. Source remains readable if highlighting cannot load or exceeds 40,000 characters.
 
 `src/renderer/components/python-source.tsx` renders tokens as text spans. The run heading shows status only for tool errors.
+
+## Embedded browser
+
+Desktop browsing uses renderer-hosted Chromium guests with a separate browser partition. Tabs stay mounted while hidden; only explicit tab closure destroys a guest.
+
+[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel and tab state. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records the T3 Code reference and remaining integration.

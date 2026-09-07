@@ -83,3 +83,11 @@ App history puts a white Save checkpoint action in the list header and moves Ref
 Checkpoint details use a rounded surface with the changed-file count, a divider, and aligned metadata rows. Startup checks describe readiness only. Settings tabs use a rounded sliding indicator with a reduced-motion alternative.
 
 Appearance also offers independent interface and monospace font dropdowns with live samples. Font preferences persist locally; unavailable fonts use system fallbacks. Code and path text share the monospace preference. Character headings keep their display typeface.
+
+### Scoped customization
+
+Appearance describes its local profile scope and announces successful writes. Retry saving preferences retries failed groups without requiring a different selection. Selecting a font reports the saved preference; platform availability still determines the displayed face.
+
+The Customize Ernie with an Agent disclosure identifies the selected Agent and conversation workspace from the existing roster. Open Ernie customizer invokes the existing service, which resolves the managed app source and opens its dedicated root. Opening does not dispatch an editing request. Pending opens prevent duplicate clicks; failures retain a retry action. Development without recovery explains that source customization requires the installed app. Inspect App history links to the existing checkpoint page.
+
+For a source change, request one scoped outcome, then inspect changed files, the observed interface result, and the returned checkpoint ID. A source checkpoint proves capture only. Native screenshot evidence and operation-to-checkpoint presentation follow their own host/history implementation; local appearance preferences remain outside source history.

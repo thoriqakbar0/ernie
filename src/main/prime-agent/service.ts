@@ -1,7 +1,8 @@
+import { inspectNativeChild } from "./child-inspection"
 import { InstalledPrimeDaemon, isPrimeDaemonAbsent } from "./installed-daemon"
 import { readModelCatalog, projectModelCatalog } from "./model-catalog"
 import { createHash } from "node:crypto"
-import { readFile, readdir, mkdir, stat } from "node:fs/promises"
+import { readdir, mkdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { Service } from "@zenbujs/core/runtime"
@@ -34,11 +35,7 @@ import {
   parsePrimeSessionChangeEnvelope,
   parsePrimeSessionSnapshotEnvelope,
 } from "../../packages/prime-agent/sync"
-import {
-  projectSavedMessages,
-  diffPrimeSessionSnapshots,
-  projectPrimeSessionSnapshot,
-} from "./projection"
+import { diffPrimeSessionSnapshots, projectPrimeSessionSnapshot } from "./projection"
 import { admitHistoryTurn } from "./history-admission"
 import { SendReceipts } from "./send-receipts"
 import { checkPrimeAgentCommandAvailability } from "./command-availability"
@@ -559,68 +556,27 @@ export class PrimeAgentService extends Service.create({
     if (parent.snapshot.transport.status !== "connected") {
       throw new Error("Reconnect the parent to inspect its subagents.")
     }
-    const child = parent.snapshot.useful.children.find((item) => item.id === input.childId)
-    if (!child) {
-      throw new Error("This child is not in the parent’s native roster.")
-    }
-    if (!child.activeSessionId) {
-      const metadata = Schema.decodeUnknownSync(
-        Schema.Struct({
-          childId: Schema.NonEmptyString,
-          sessionFile: Schema.NonEmptyString,
-          type: Schema.Literal("rlm_subagent"),
-        }),
-      )(JSON.parse(await readFile(path.join(child.sessionDir, "rlm-subagent.json"), "utf-8")))
-      if (
-        metadata.childId !== input.childId ||
-        path.dirname(metadata.sessionFile) !== child.sessionDir
-      ) {
-        throw new Error("The saved child identity does not match the native roster.")
-      }
-      await stat(metadata.sessionFile)
-      const manager = SessionManager.open(metadata.sessionFile)
-      const header = manager.getHeader()
-      if (
-        !header ||
-        header.parentSession !== this.sessionTargets.get(input.parentSessionId)?.sessionFile ||
-        !(header.rlmDepth && header.rlmDepth > 0)
-      ) {
-        throw new Error("The saved transcript does not belong to this parent.")
-      }
-      const context = manager.buildSessionContext()
-      return {
-        messages: projectSavedMessages(context.messages, manager.getSessionId()),
-        name: manager.getSessionName(),
-        sessionId: manager.getSessionId(),
-        source: "saved",
-      }
-    }
-    const connection = new DaemonAgentConnection(await this.getClient(), child.activeSessionId, {
-      closeClientOnDispose: false,
+    return inspectNativeChild({
+      childId: input.childId,
+      children: parent.snapshot.useful.children,
+      parent: {
+        sessionFile: this.sessionTargets.get(input.parentSessionId)?.sessionFile,
+        sessionId: input.parentSessionId,
+      },
+      readLive: async (activeSessionId) => {
+        const connection = new DaemonAgentConnection(await this.getClient(), activeSessionId, {
+          closeClientOnDispose: false,
+        })
+        try {
+          await connection.attach()
+          return projectPrimeSessionSnapshot(
+            enrichPrimeSessionSnapshot({ snapshot: await connection.getInitialSnapshot() }),
+          )
+        } finally {
+          await connection.dispose()
+        }
+      },
     })
-    try {
-      await connection.attach()
-      const snapshot = projectPrimeSessionSnapshot(
-        enrichPrimeSessionSnapshot({ snapshot: await connection.getInitialSnapshot() }),
-      )
-      if (
-        snapshot.useful.parent?.sessionId !== input.parentSessionId ||
-        snapshot.useful.parent.childId !== input.childId
-      ) {
-        throw new Error(
-          "The native child identity changed. Refresh the parent roster before inspecting it.",
-        )
-      }
-      return {
-        messages: snapshot.messages,
-        name: snapshot.session.name,
-        sessionId: snapshot.session.id,
-        snapshot,
-        source: "live",
-      }
-    } finally {
-      await connection.dispose()
-    }
   }
 
   /** Returns the identity of this in-memory receipt owner. */

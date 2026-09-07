@@ -54,3 +54,9 @@ Model catalog entries expose `supportedEfforts` from the installed native capabi
 Draft Agent settings accept optional `thinkingLevel` and `rlmMaxDepth`. Initial effort uses native `config.thinking`. Native creation config has no depth field, so prepared-root activation applies `setRlmMaxDepth` before returning the bound root. Reopening a bound root does not reapply either draft choice.
 
 Depth accepts nonnegative safe integers, with zero disabling child delegation. Native precedence is chat, inherited, global, environment, then default 2. Ernie omits the setter's `global` option. Native `setThinkingLevel`, however, persists the session level and also updates Prime Agent's default thinking setting. Neither control is a per-message override.
+
+## Nested child inspection
+
+`inspectChild` accepts the attached root's durable session id and a child node id from its native roster. For descendants, the backend follows roster `parentId` links and resolves each ancestor's native identity before inspecting the next child. It validates every live snapshot's parent session id and child id, or each saved transcript header's parent file. The renderer does not substitute an active id for a durable id.
+
+Inspection uses temporary logical attachments or saved session files; it never resumes or sends. Missing, ambiguous, cyclic, or mismatched ancestry fails explicitly. Retirement during inspection can require refreshing the roster. Saved results contain messages without a live snapshot.

@@ -46,6 +46,8 @@ Subagent threads sit below the conversation header, separate from execution deta
 
 [[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns child selection and a read-only side panel with a parent return path. [[src/renderer/components/subagent-conversation.tsx#SubagentConversation]] mounts native inspection only while open; failed refreshes preserve prior messages. ConversationMessages owns shared memoized message rendering without execution subscriptions. The parent draft stays attached; no child send, cancel, or resume action is exposed. Waiting derives only from native running activity waiting.
 
+[[src/main/prime-agent/child-inspection.ts#inspectNativeChild]] resolves nested roster node ids into native parent identities one edge at a time. Live snapshots must match the immediate parent and child; saved headers must reference the validated parent file. Missing or cyclic ancestry never weakens those checks.
+
 ## Agent settings feedback
 
 Agent edits remain local to the form until accepted by the save command. Unchanged forms cannot submit; rejected saves retain edits, and accepted saves announce success after closing.

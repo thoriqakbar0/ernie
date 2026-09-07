@@ -29,8 +29,6 @@ export const styles = stylex.create({
     gap: 2,
     listStyle: "none",
     margin: 0,
-    maxWidth: "min(180px, 30vw)",
-    overflowX: "auto",
     padding: 3,
   },
   more: {

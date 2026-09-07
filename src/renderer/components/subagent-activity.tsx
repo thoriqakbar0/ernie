@@ -1,5 +1,5 @@
 import { SubagentAvatar } from "./subagent-avatar"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { ArrowLeftIcon } from "lucide-react"
 import type { PrimeRlmChild, PrimeSessionSnapshot } from "../../packages/prime-agent"
@@ -8,8 +8,17 @@ import { ChildRow } from "./subagent-row"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog"
 import { SubagentConversation } from "./subagent-conversation"
 
+const subscribeCompact = (notify: () => void) => {
+  const query = window.matchMedia("(max-width: 480px)")
+  query.addEventListener("change", notify)
+  return () => query.removeEventListener("change", notify)
+}
+const isCompact = () => window.matchMedia("(max-width: 480px)").matches
+
 /** A native child roster opens read-only threads while preserving the parent draft. */
 export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot }) => {
+  const compact = useSyncExternalStore(subscribeCompact, isCompact, () => false)
+  const visibleCount = compact ? 1 : 3
   const [selectedId, setSelectedId] = useState<string>()
   const opener = useRef<HTMLButtonElement | null>(null)
   const rosterHeading = useRef<HTMLElement | null>(null)
@@ -37,7 +46,7 @@ export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot 
       {...stylex.props(styles.root)}
     >
       <ul {...stylex.props(styles.list)}>
-        {children.slice(0, 3).map((child) => (
+        {children.slice(0, visibleCount).map((child) => (
           <ChildRow
             key={child.id}
             child={child}
@@ -54,16 +63,23 @@ export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot 
           />
         ))}
       </ul>
-      {children.length > 3 ? (
+      {children.length > visibleCount ? (
         <details {...stylex.props(styles.overflow)}>
           <summary
-            aria-label={`Show ${children.length - 3} more participants`}
+            onKeyDown={(event) => {
+              const details = event.currentTarget.parentElement
+              if (event.key === "Escape" && details instanceof HTMLDetailsElement) {
+                details.open = false
+                event.stopPropagation()
+              }
+            }}
+            aria-label={`Show ${children.length - visibleCount} more ${children.length - visibleCount === 1 ? "participant" : "participants"}`}
             {...stylex.props(styles.more)}
           >
-            +{children.length - 3}
+            +{children.length - visibleCount}
           </summary>
           <ul aria-label="More participants" {...stylex.props(styles.overflowList)}>
-            {children.slice(3).map((child) => (
+            {children.slice(visibleCount).map((child) => (
               <ChildRow
                 key={child.id}
                 child={child}

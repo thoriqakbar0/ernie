@@ -12,7 +12,7 @@ import { SubagentConversation } from "./subagent-conversation"
 export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot }) => {
   const [selectedId, setSelectedId] = useState<string>()
   const opener = useRef<HTMLButtonElement | null>(null)
-  const rosterHeading = useRef<HTMLHeadingElement | null>(null)
+  const rosterHeading = useRef<HTMLElement | null>(null)
   const openChild = useCallback((next: PrimeRlmChild, element: HTMLButtonElement) => {
     opener.current = element
     setSelectedId(next.id)
@@ -30,16 +30,18 @@ export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot 
   }
   const parentName = snapshot.session.name ?? "conversation"
   return (
-    <section aria-label="Subagent threads" {...stylex.props(styles.root)}>
-      <h2 ref={rosterHeading} tabIndex={-1} {...stylex.props(styles.heading)}>
-        Subagents · {children.length}
-        {current ? "" : " · last known state"}
-      </h2>
+    <section
+      ref={rosterHeading}
+      tabIndex={-1}
+      aria-label="Conversation participants"
+      {...stylex.props(styles.root)}
+    >
       <ul {...stylex.props(styles.list)}>
-        {children.map((child) => (
+        {children.slice(0, 3).map((child) => (
           <ChildRow
             key={child.id}
             child={child}
+            current={current}
             parentName={
               child.parentId
                 ? (byId.get(child.parentId)?.sessionName ??
@@ -52,6 +54,34 @@ export const SubagentActivity = ({ snapshot }: { snapshot: PrimeSessionSnapshot 
           />
         ))}
       </ul>
+      {children.length > 3 ? (
+        <details {...stylex.props(styles.overflow)}>
+          <summary
+            aria-label={`Show ${children.length - 3} more participants`}
+            {...stylex.props(styles.more)}
+          >
+            +{children.length - 3}
+          </summary>
+          <ul aria-label="More participants" {...stylex.props(styles.overflowList)}>
+            {children.slice(3).map((child) => (
+              <ChildRow
+                key={child.id}
+                child={child}
+                current={current}
+                parentName={
+                  child.parentId
+                    ? (byId.get(child.parentId)?.sessionName ??
+                      byId.get(child.parentId)?.label ??
+                      child.parentId)
+                    : undefined
+                }
+                selected={selectedId === child.id}
+                onOpen={openChild}
+              />
+            ))}
+          </ul>
+        </details>
+      ) : null}
       <Dialog
         open={Boolean(selected)}
         onOpenChange={(open) => {

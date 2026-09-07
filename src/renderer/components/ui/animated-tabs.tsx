@@ -9,7 +9,7 @@ export interface AnimatedTabsProps {
   onValueChange?: (value: string) => void
   disabled?: boolean
   label?: string
-  shape?: "pill" | "rounded"
+  shape?: "pill" | "rounded" | "plain"
   wrap?: boolean
   onDeselect?: () => void
   "aria-label"?: string
@@ -48,6 +48,24 @@ const styles = stylex.create({
     padding: 4,
     position: "relative",
     width: "fit-content",
+  },
+  plainList: {
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    borderWidth: 0,
+    gap: 24,
+    marginBlock: 0,
+    padding: 0,
+  },
+  plainTab: {
+    borderBottomColor: { ":is([data-active])": theme["--ink"], default: "transparent" },
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    borderRadius: 0,
+    color: { ":is([data-active])": theme["--ink"], default: theme["--muted"] },
+    fontSize: 13,
+    height: 40,
+    paddingInline: 0,
   },
   root: { gridColumn: "1 / -1", minWidth: 0 },
   roundedList: { borderRadius: 12 },
@@ -100,11 +118,18 @@ export const AnimatedTabs = ({
   >
     <Tabs.List
       aria-label={ariaLabel ?? label}
-      {...stylex.props(styles.list, shape === "rounded" && styles.roundedList, wrap && styles.wrap)}
+      {...stylex.props(
+        styles.list,
+        shape === "rounded" && styles.roundedList,
+        shape === "plain" && styles.plainList,
+        wrap && styles.wrap,
+      )}
     >
-      <Tabs.Indicator
-        {...stylex.props(styles.indicator, shape === "rounded" && styles.roundedTab)}
-      />
+      {shape === "plain" ? null : (
+        <Tabs.Indicator
+          {...stylex.props(styles.indicator, shape === "rounded" && styles.roundedTab)}
+        />
+      )}
       {tabs.map((tab) => (
         <Tabs.Tab
           key={tab.value ?? tab.label}
@@ -115,7 +140,11 @@ export const AnimatedTabs = ({
             }
           }}
           disabled={disabled || tab.disabled}
-          {...stylex.props(styles.tab, shape === "rounded" && styles.roundedTab)}
+          {...stylex.props(
+            styles.tab,
+            shape === "rounded" && styles.roundedTab,
+            shape === "plain" && styles.plainTab,
+          )}
         >
           {tab.label}
         </Tabs.Tab>

@@ -42,7 +42,7 @@ export const AppSettingsPage = () => {
           <h1 {...stylex.props(styles.title)}>Settings</h1>
         </header>
         <AnimatedTabs
-          shape="rounded"
+          shape="plain"
           label="Settings sections"
           tabs={[
             { label: "Appearance", value: "settings" },

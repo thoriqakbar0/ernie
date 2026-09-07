@@ -72,7 +72,7 @@ export const styles = stylex.create({
   checkpointText: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0 },
   checkpointTitle: { fontSize: 14, fontWeight: 500, overflowWrap: "anywhere" },
   completeBadge: { backgroundColor: theme["--success-soft"], color: theme["--success"] },
-  content: { containerType: "inline-size", marginInline: "auto", maxWidth: 680 },
+  content: { containerType: "inline-size", marginInline: "auto", maxWidth: 600 },
   currentCheckpoint: {
     backgroundColor: { ":hover": theme["--surface-strong"], default: theme["--surface-muted"] },
   },
@@ -296,7 +296,7 @@ export const styles = stylex.create({
     minHeight: 40,
     padding: "10px 12px",
   },
-  title: { fontSize: 24, fontWeight: 600, margin: 0 },
+  title: { fontSize: 20, fontWeight: 600, margin: 0 },
   trigger: {
     alignItems: "center",
     color: theme["--muted"],

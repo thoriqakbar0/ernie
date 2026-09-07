@@ -52,4 +52,4 @@ The compact header contains Save checkpoint and an actions disclosure for refres
 
 The capture manifest includes release.json because packaged source configuration reads it at startup. Preview packaging supplies distinct source and history roots while retaining the shared Prime Agent daemon.
 
-Settings uses restrained rows with responsive label/control alignment, font previews under their controls, and shared theme tokens. History progress, empty notices, and recoverable errors use the presentation-only HistoryFeedback component; runtime loading and retry ownership remain in AppHistoryPage.
+Settings uses a 600px content column and plain text Base UI tabs with a quiet selected underline. Restrained rows retain responsive label/control alignment, font previews under their controls, and shared theme tokens. History progress, empty notices, and recoverable errors use the presentation-only HistoryFeedback component; runtime loading and retry ownership remain in AppHistoryPage.

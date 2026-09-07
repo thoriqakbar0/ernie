@@ -5,6 +5,8 @@
   "type": "module",
   "main": "node_modules/@zenbujs/core/dist/setup-gate.mjs",
   "scripts": {
+    "brand:sync": "nub --node scripts/brand.mjs",
+    "brand:check": "nub --node scripts/brand.mjs --check",
     "dev": "nub --node scripts/dev.ts",
     "dev:web": "nub --node scripts/dev.ts web",
     "dev:server": "nub --node scripts/dev.ts server",

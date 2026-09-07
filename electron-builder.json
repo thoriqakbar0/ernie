@@ -6,7 +6,10 @@
     "output": "dist"
   },
   "mac": {
+    "icon": "build/brand/icon.icns",
     "category": "public.app-category.developer-tools",
     "target": ["zip"]
-  }
+  },
+  "win": { "icon": "build/brand/icon.ico" },
+  "linux": { "icon": "build/brand/icon.png" }
 }

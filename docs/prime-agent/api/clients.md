@@ -453,4 +453,3 @@ watchSession(activeSessionId: string): Promise<AgentConnectionSessionWatcher | u
 ```typescript
 dispose(): Promise<void>;
 ```
-

@@ -68,5 +68,3 @@ The returned function unsubscribes the listener, so return it from your effect's
 * **Events** are for transient updates that don't need to be persisted, like streaming terminal output or push notifications.
 * **RPC** is for getting the main process to run code the renderer process can't, like reading a file or calling a system API.
 * **Database** is for state that should persist and drive your UI.
-
-

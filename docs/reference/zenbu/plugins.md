@@ -152,5 +152,3 @@ This is a type-only dependency. `dependsOn` tells `zen link` where to find the o
 ```bash theme={null}
 zen link
 ```
-
-

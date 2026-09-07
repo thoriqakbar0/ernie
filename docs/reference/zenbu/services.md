@@ -89,5 +89,3 @@ The returned function is the cleanup. It runs before the next setup with the sam
 ## Hot reloading
 
 When you edit a service file and save, the framework re-evaluates affected services automatically. This works in both development and production.
-
-

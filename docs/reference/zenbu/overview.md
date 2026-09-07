@@ -71,5 +71,3 @@ pnpm run db:generate
 pnpm run build:source
 pnpm run build:electron
 ```
-
-

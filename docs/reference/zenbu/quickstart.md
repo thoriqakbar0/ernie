@@ -151,7 +151,3 @@ Add a `schema: "./src/main/schema.ts"` field to the plugin when you're ready to 
     Learn the plugin model, state, and RPC.
   </Card>
 </CardGroup>
-
-
-
-

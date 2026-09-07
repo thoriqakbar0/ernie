@@ -71,5 +71,3 @@ try {
 
 * **Take a single object argument.** This keeps argument signatures stable as the API grows.
 * **Return JSON-serializable values.** Anything that round-trips through `JSON.stringify` works.
-
-

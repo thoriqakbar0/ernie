@@ -26,5 +26,3 @@ New features, updates, and fixes for Zenbu.js.
   * **Proxy memory leak resolved.** Long-running sessions no longer accumulate memory through the RPC proxy layer used by [RPC](/core/rpc) and [advice](/core/advice).
   * **Garbage collection issues fixed.** Several plugin lifecycle objects were being retained after teardown; they are now released correctly, lowering steady-state memory use.
 </Update>
-
-

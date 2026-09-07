@@ -248,5 +248,3 @@ export const migration: KyjuMigration = {
 ```
 
 Migrations run automatically when the app starts. Each migration runs at most once, and during development, adding or editing a migration file triggers a reload without restarting the app.
-
-

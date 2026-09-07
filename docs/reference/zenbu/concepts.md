@@ -133,5 +133,3 @@ function Notifications() {
 ## Injections
 
 When a plugin wants to add UI to the app, it registers an [**injection**](/core/injections). The host already looks for injections in known places (sidebars, the bottom panel, the title bar, the footer) and renders them. A service registers one with `this.inject({ name, modulePath, meta })`, and any other plugin discovers it with `useInjections({ kind })` or renders it with `<View name="..." />`. The same primitive also covers [advice](/core/advice) and code that just needs to run at boot.
-
-

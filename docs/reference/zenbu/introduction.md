@@ -28,5 +28,3 @@ The SDK also handles the hard parts of application development, like syncing sta
     Understand the plugin model, state, and RPC.
   </Card>
 </CardGroup>
-
-

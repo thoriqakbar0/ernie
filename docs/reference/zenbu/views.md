@@ -81,5 +81,3 @@ useRegisterInjection("terminal", TerminalView, {
 
 * [Injections](/core/injections) for the full registration surface and `meta` conventions.
 * [Advice](/core/advice) for wrapping or replacing another plugin's view.
-
-

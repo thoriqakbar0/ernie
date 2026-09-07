@@ -130,5 +130,3 @@ The `type` field controls how the wrapper relates to the original:
 ## Hot reloading
 
 Adding, removing, or editing a `this.inject(...)` call invalidates the renderer prelude and reloads the window. Edits inside the injection module itself hot-replace through Vite.
-
-

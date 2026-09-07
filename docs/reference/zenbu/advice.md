@@ -111,5 +111,3 @@ export function afterSave(result: void, args: { path: string }) {
 ## Hot reloading
 
 Adding, removing, or editing a `this.advise(...)` call reloads the renderer so the new advice takes effect. Edits inside the advice module itself hot-replace through Vite's normal HMR.
-
-

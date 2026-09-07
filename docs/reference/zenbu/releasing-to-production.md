@@ -206,5 +206,3 @@ You can pass flags through to electron-builder:
 pnpm run build:electron -- --mac dmg
 pnpm run build:electron -- --publish always
 ```
-
-

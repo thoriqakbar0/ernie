@@ -3,7 +3,7 @@ import { SubagentAvatar } from "./subagent-avatar"
 import { MessageMarkdown } from "./message-markdown"
 import { AnnotatableResponse } from "./annotatable-response"
 import type { ResponseAnnotation } from "../response-annotation"
-import { memo } from "react"
+import { Fragment, memo } from "react"
 import type { ReactNode } from "react"
 import { styles } from "./conversation-transcript.styles"
 import * as stylex from "@stylexjs/stylex"
@@ -22,6 +22,7 @@ export type ConversationMessagesProps = Readonly<{
   sessionId?: string
   agentName?: string
   activity?: ReactNode
+  beforeMessages?: ReadonlyMap<string, ReactNode>
   onAnnotate?: (annotation: ResponseAnnotation) => void
   messages: readonly PrimeSessionMessage[]
 }>
@@ -119,6 +120,7 @@ const Transcript = ({
   sessionId,
   messages,
   activity,
+  beforeMessages,
   agentName,
   participantId,
   onAnnotate,
@@ -132,14 +134,17 @@ const Transcript = ({
     >
       <MessageScrollerContent xstyle={[styles.conversationTranscriptInner]}>
         {messages.map((message) => (
-          <MessageRow
-            key={message.id}
-            message={message}
-            regionId={`message:${sessionId ?? "root"}:${participantId ?? "parent"}:${message.id}`}
-            participantId={participantId}
-            agentName={agentName}
-            onAnnotate={onAnnotate}
-          />
+          <Fragment key={message.id}>
+            {beforeMessages?.get(message.id)}
+            <MessageRow
+              key={message.id}
+              message={message}
+              regionId={`message:${sessionId ?? "root"}:${participantId ?? "parent"}:${message.id}`}
+              participantId={participantId}
+              agentName={agentName}
+              onAnnotate={onAnnotate}
+            />
+          </Fragment>
         ))}
         {activity}
         <UiAnnotationHost

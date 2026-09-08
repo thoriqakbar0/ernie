@@ -18,12 +18,11 @@ const styles = stylex.create({
   },
   positioner: { zIndex: 100 },
   ready: { color: theme["--success"] },
-  row: { display: "flex", flexWrap: "wrap", gap: "4px 16px", justifyContent: "space-between" },
   trigger: {
     backgroundColor: "transparent",
     borderWidth: 0,
     color: theme["--muted"],
-    cursor: "help",
+    cursor: "default",
     fontFamily: "inherit",
     fontSize: "inherit",
     lineHeight: "inherit",
@@ -56,18 +55,7 @@ export const RuntimeConnectionStatus = ({
           {...stylex.props(styles.positioner)}
         >
           <Tooltip.Popup {...stylex.props(styles.popup)}>
-            <dl>
-              {version === undefined ? null : (
-                <div {...stylex.props(styles.row)}>
-                  <dt>Prime Agent version</dt>
-                  <dd>{version}</dd>
-                </div>
-              )}
-              <div {...stylex.props(styles.row)}>
-                <dt>Client version</dt>
-                <dd>{clientVersion}</dd>
-              </div>
-            </dl>
+            {version ? `Prime Agent ${version}` : `Prime Agent ${clientVersion} (installed client)`}
           </Tooltip.Popup>
         </Tooltip.Positioner>
       </Tooltip.Portal>

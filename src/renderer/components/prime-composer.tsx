@@ -1,16 +1,18 @@
+import { PendingMessages } from "./pending-messages"
 import type { ResponseAnnotation } from "../response-annotation"
 import { ResponseFeedback } from "./response-feedback"
 import { styles as sharedStyles } from "../component-styles"
 import * as stylex from "@stylexjs/stylex"
 import { useId, useState } from "react"
 import type { ReactNode, KeyboardEvent } from "react"
-import { ArrowUpIcon, SquareIcon } from "lucide-react"
-import type { PrimeModel } from "../../packages/prime-agent"
+import { SquareIcon } from "lucide-react"
+import type { PrimeSessionActions, PrimeModel } from "../../packages/prime-agent"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "./ui/input-group"
 import { ComposerModelControls } from "./composer-model-controls"
 import type { ConversationSubmission } from "../conversation-flow"
 
 type PrimeComposerProps = Readonly<{
+  queue?: PrimeSessionActions
   sessionId?: string
   footerControl?: ReactNode
   connected: boolean
@@ -30,7 +32,7 @@ type PrimeComposerProps = Readonly<{
   recovering: boolean
   selectedModel: PrimeModel | undefined
   sessionSelected: boolean
-  stopAction: () => void | Promise<void>
+  stopAction?: () => void | Promise<void>
   stopping: boolean
   submitAction: (formData: FormData) => void | Promise<void>
   submitting: boolean
@@ -41,7 +43,7 @@ const EMPTY_ANNOTATIONS: readonly ResponseAnnotation[] = []
 const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>, unavailable: boolean) => {
   if (
     event.key !== "Enter" ||
-    event.shiftKey ||
+    (event.shiftKey && !event.metaKey && !event.ctrlKey) ||
     event.nativeEvent.isComposing ||
     event.keyCode === 229
   ) {
@@ -49,7 +51,11 @@ const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>, unavailable: b
   }
   event.preventDefault()
   if (!unavailable) {
-    event.currentTarget.form?.requestSubmit()
+    const form = event.currentTarget.form
+    const delivery = !event.altKey && (event.metaKey || event.ctrlKey) && event.shiftKey ? "steer" : "follow-up"
+    const button = form?.querySelector<HTMLButtonElement>(`button[name="delivery"][value="${delivery}"]`)
+    if (button && !button.disabled) form?.requestSubmit(button)
+    else form?.requestSubmit()
   }
 }
 
@@ -75,53 +81,57 @@ const getFeedbackMessage = (feedback: ConversationSubmission | undefined, workin
 }
 
 const ComposerActions = ({
-  connected,
   working,
   stopping,
+  connected,
   stopAction,
   uncertain,
   sendDisabled,
-}: Pick<PrimeComposerProps, "connected" | "working" | "stopping" | "stopAction"> & {
+  reviewRequired,
+}: Pick<PrimeComposerProps, "working" | "stopping" | "connected" | "stopAction"> & {
   uncertain: boolean
   sendDisabled: boolean
+  reviewRequired: boolean
 }) => {
+  const showStop = Boolean(stopAction) && (working || stopping) && !uncertain
   let sendLabel = "Send message"
-  if (uncertain) {
-    sendLabel = "Check send"
+  if (showStop) {
+    sendLabel = stopping ? "Stopping Prime Agent" : "Stop Prime Agent"
+  } else if (uncertain) {
+    sendLabel = reviewRequired ? "Review conversation before sending" : "Check send"
   } else if (working) {
     sendLabel = "Queue follow-up"
   }
   return (
     <div {...stylex.props(sharedStyles.composerActions)}>
-      {working || stopping ? (
-        <InputGroupButton
-          aria-label="Stop Prime Agent"
-          title="Stop current work"
-          disabled={!connected || stopping}
-          onClick={() => {
-            void stopAction()
-          }}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <SquareIcon {...stylex.props(sharedStyles.controlIcon)} />
-          <span>{stopping ? "Stopping…" : "Stop"}</span>
-        </InputGroupButton>
+      {working && !uncertain ? (
+        <>
+          <InputGroupButton type="submit" name="delivery" value="follow-up" size="sm" disabled={sendDisabled} title="Send after the current work finishes">Queue</InputGroupButton>
+          <InputGroupButton type="submit" name="delivery" value="steer" size="sm" disabled={sendDisabled} title="Guide the current work at its next interruption point">Steer</InputGroupButton>
+        </>
       ) : null}
       <InputGroupButton
         aria-label={sendLabel}
         title={sendLabel}
-        disabled={sendDisabled}
-        size={uncertain ? "sm" : "icon-sm"}
-        type="submit"
+        disabled={showStop ? !connected || stopping : sendDisabled}
+        size={showStop ? "icon-sm" : "sm"}
+        type={showStop ? "button" : "submit"}
+        onClick={
+          showStop
+            ? () => {
+                void stopAction?.()
+              }
+            : undefined
+        }
         variant="default"
         xstyle={[sharedStyles.composerAction]}
       >
-        {uncertain ? (
-          <span>Check send</span>
+        {showStop ? (
+          <SquareIcon {...stylex.props(sharedStyles.controlIcon)} />
+        ) : uncertain ? (
+          <span>{reviewRequired ? "Review send" : "Check send"}</span>
         ) : (
-          <ArrowUpIcon {...stylex.props(sharedStyles.controlIcon)} />
+          <span>Send</span>
         )}
       </InputGroupButton>
     </div>
@@ -153,7 +163,11 @@ const ComposerFeedback = ({
     ) : null}
     {uncertain && releaseSend ? (
       <>
-        <p>Your next action checks the original send. Sending again may duplicate it.</p>
+        <p>
+          {feedback?.status === "unknown" && feedback.canCheck === false
+            ? "No further receipt is available. Review the conversation before allowing another send."
+            : "Check send looks up the original receipt without sending again."}
+        </p>
         <button
           type="button"
           disabled={unavailable}
@@ -176,6 +190,7 @@ const ComposerFeedback = ({
 /** Keeps composition editable while creation, attachment, and sending settle. */
 export const PrimeComposer = ({
   sessionId,
+  queue,
   footerControl,
   connected,
   draft,
@@ -194,8 +209,8 @@ export const PrimeComposer = ({
   recovering,
   selectedModel,
   sessionSelected,
-  stopAction,
   stopping,
+  stopAction,
   submitAction,
   submitting,
   working,
@@ -204,15 +219,17 @@ export const PrimeComposer = ({
   const feedbackId = useId()
   const [focused, setFocused] = useState(false)
   const uncertain = feedback?.status === "unknown"
+  const reviewRequired = uncertain && feedback.canCheck === false
   const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
   const message = getFeedbackMessage(feedback, working)
-  const sendDisabled = unavailable || (!uncertain && !draft.trim() && !annotations.length)
+  const sendDisabled =
+    reviewRequired || unavailable || (!uncertain && !draft.trim() && !annotations.length)
   // Keep pending feedback urgent while external session selection changes during creation.
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        void submitAction(new FormData(event.currentTarget))
+        if (!sendDisabled) void submitAction(new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter))
       }}
       data-chat-composer
       {...stylex.props(sharedStyles.primeComposer, draftHero && sharedStyles.primeComposerHero)}
@@ -220,6 +237,7 @@ export const PrimeComposer = ({
       {onRemoveAnnotation && annotations.length ? (
         <ResponseFeedback annotations={annotations} onRemove={onRemoveAnnotation} />
       ) : null}
+      <PendingMessages queue={queue} sessionId={sessionId} />
       <InputGroup xstyle={[sharedStyles.composerGroup]}>
         <label htmlFor={inputId} {...stylex.props(sharedStyles.srOnly)}>
           Message {agentName}
@@ -238,7 +256,7 @@ export const PrimeComposer = ({
           value={draft}
           xstyle={[sharedStyles.composerControl, sharedStyles.composerField]}
         />
-        <InputGroupAddon align="block-end">
+        <InputGroupAddon align="block-end" xstyle={sharedStyles.composerToolbar}>
           {footerControl ??
             (sessionSelected ? (
               <ComposerModelControls
@@ -253,19 +271,24 @@ export const PrimeComposer = ({
             ))}
           <ComposerActions
             connected={connected}
-            working={working}
             stopping={stopping}
             stopAction={stopAction}
+            working={working}
             uncertain={uncertain}
             sendDisabled={sendDisabled}
+            reviewRequired={reviewRequired}
           />
         </InputGroupAddon>
       </InputGroup>
       <p
         aria-hidden="true"
-        {...stylex.props(sharedStyles.composerHint, focused && sharedStyles.composerHintVisible)}
+        {...stylex.props(
+          sharedStyles.composerHint,
+          !draftHero && sharedStyles.composerHintDocked,
+          focused && sharedStyles.composerHintVisible,
+        )}
       >
-        Enter to send · Shift+Enter for newline
+        {working ? `Enter to queue · ${navigator.platform.includes("Mac") ? "Option" : "Alt"}+Enter queue · ${navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}+Shift+Enter steer` : "Enter to send · Shift+Enter for newline"}
       </p>
       <ComposerFeedback
         feedbackId={feedbackId}

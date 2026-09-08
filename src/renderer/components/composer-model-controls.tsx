@@ -1,3 +1,4 @@
+import { ModelSettingsPopover } from "./model-settings-popover"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeModel } from "../../packages/prime-agent"
 import { ModelPicker } from "./model-picker"
@@ -29,15 +30,20 @@ export const ComposerModelControls = ({
   onSelect: (model: PrimeModel) => void
 }) => (
   <div {...stylex.props(styles.controls)}>
-    <ModelPicker
+    <ModelSettingsPopover
+      label={selectedModel?.label ?? selectedModel?.id ?? "Model settings"}
       disabled={disabled}
-      models={models}
-      onSelect={onSelect}
-      selectedModel={selectedModel}
-      side="top"
-    />
-    {sessionId ? (
-      <SessionInferenceControls key={sessionId} sessionId={sessionId} disabled={disabled} />
-    ) : null}
+    >
+      <ModelPicker
+        disabled={disabled}
+        models={models}
+        onSelect={onSelect}
+        selectedModel={selectedModel}
+        side="top"
+      />
+      {sessionId ? (
+        <SessionInferenceControls key={sessionId} sessionId={sessionId} disabled={disabled} />
+      ) : null}
+    </ModelSettingsPopover>
   </div>
 )

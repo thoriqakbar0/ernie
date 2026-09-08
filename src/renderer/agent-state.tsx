@@ -20,6 +20,7 @@ import type { AgentsService } from "../main/services/agents"
 /** Narrow client seam shared by live UI and isolated development scenarios. */
 export type AgentClient = Pick<
   AgentsService,
+  | "remove"
   | "save"
   | "pin"
   | "select"
@@ -118,6 +119,7 @@ const LiveAgentState = ({ children }: PropsWithChildren) => {
       chooseWorkspace: () => rpc.app.agents.chooseWorkspace(),
       createConversation: (input) => rpc.app.agents.createConversation(input),
       openConversation: (input) => rpc.app.agents.openConversation(input),
+      remove: (input) => rpc.app.agents.remove(input),
       pin: (input) => rpc.app.agents.pin(input),
       save: (input) => rpc.app.agents.save(input),
       select: (input) => rpc.app.agents.select(input),

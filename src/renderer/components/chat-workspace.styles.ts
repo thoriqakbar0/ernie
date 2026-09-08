@@ -3,6 +3,7 @@ import { theme } from "../theme.stylex"
 
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
+  hidden: { display: "none" },
   chatWorkspace: {
     backgroundColor: theme["--surface"],
     color: theme["--ink"],
@@ -19,9 +20,9 @@ export const styles = stylex.create({
     maxHeight: "60dvh",
     overflowY: "auto",
     overscrollBehavior: "contain",
-    padding: "14px 28px max(8px, env(safe-area-inset-bottom))",
+    padding: "14px 28px env(safe-area-inset-bottom, 0px)",
     paddingBottom: {
-      "@media (max-width: 720px)": "max(8px, env(safe-area-inset-bottom))",
+      "@media (max-width: 720px)": "env(safe-area-inset-bottom, 0px)",
       default: null,
     },
     paddingInline: {

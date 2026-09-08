@@ -2,7 +2,6 @@ import { SubagentAvatar } from "./subagent-avatar"
 import { memo } from "react"
 import { Tooltip } from "@base-ui/react/tooltip"
 import * as stylex from "@stylexjs/stylex"
-import { ChevronRightIcon } from "lucide-react"
 import type { PrimeRlmChild } from "../../packages/prime-agent"
 import { styles, statusOf, icons } from "./subagent.styles"
 
@@ -28,9 +27,8 @@ const ChildRowContent = ({
         <Tooltip.Root>
           <Tooltip.Trigger
             aria-label={label}
-            aria-haspopup="dialog"
-            aria-expanded={selected}
-            {...stylex.props(styles.row)}
+            aria-current={selected ? "page" : undefined}
+            {...stylex.props(styles.row, selected && styles.selected)}
             onClick={(event) => onOpen(child, event.currentTarget)}
           >
             <SubagentAvatar
@@ -39,9 +37,8 @@ const ChildRowContent = ({
               working={current && status === "Running"}
             />
             <span {...stylex.props(styles.status)}>
-              <Icon size={10} aria-hidden="true" />
+              <Icon size={14} strokeWidth={2.5} aria-hidden="true" />
             </span>
-            <ChevronRightIcon size={10} aria-hidden="true" />
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Positioner

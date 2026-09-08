@@ -58,7 +58,7 @@ The footer owns one actionable recovery notice and preserves the existing retry 
 
 ## Composer inference settings
 
-[[src/renderer/components/inference-controls.tsx#InferenceControls]] groups capability-driven effort choices and RLM depth presets beside model selection. The controls retain accepted values and preserve unknown defaults.
+[[src/renderer/components/inference-controls.tsx#InferenceControls]] groups capability-driven effort choices and an RLM depth slider beside model selection. The controls retain accepted values and preserve unknown defaults.
 
 [[src/renderer/components/session-inference-controls.tsx#SessionInferenceControls]] reads live effort capabilities from the snapshot and depth from the existing per-chat RPC. Rejected changes retain prior values. [[src/renderer/components/draft-composer-controls.tsx#DraftComposerControls]] stores optional choices in Agent settings and clears unsupported effort when the selected model changes.
 
@@ -81,3 +81,13 @@ Selecting a saved Agent keeps the active native session until root activation se
 Automatic renderer reconnect attempts belong to the roster provider, so workspace remounts reuse the same attempt; failed attempts require explicit retry.
 
 See `src/main/services/agents.ts`, `src/renderer/agent-state.tsx`, and `src/renderer/components/reconnect-agent.tsx`.
+
+The depth slider previews changes locally and commits on release or keyboard completion. Zero disables subagents. Draft settings retain Use default; accepted depths above the usual slider range remain representable.
+
+## Model settings panel
+
+Composer model selection, reasoning, and RLM depth share a Model settings popover in both new and existing chats. The composer toolbar shows only the selected model trigger; inference state remains with its existing draft or session owner.
+
+### Composer delivery choices
+
+While working, Queue sends a native follow-up and Send now sends steering for the next interruption point. Enter queues by default. Pending messages come from session actions; receipt recovery preserves the original delivery mode.

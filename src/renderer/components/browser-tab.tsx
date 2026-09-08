@@ -17,8 +17,18 @@ export const BrowserTab = ({
   onPageChange: (id: string, url: string, title: string) => void
 }) => {
   const guest = useRef<WebviewTag | null>(null)
-  const input = useRef<HTMLInputElement>(null)
   const [source, setSource] = useState<string>()
+  useEffect(() => {
+    if (!visible) return
+    const refresh = (event: Event) => {
+      if (!guest.current || !source) return
+      if (event instanceof CustomEvent && event.detail?.ignoreCache === true) guest.current.reloadIgnoringCache()
+      else guest.current.reload()
+    }
+    window.addEventListener("ernie:refresh-browser", refresh)
+    return () => window.removeEventListener("ernie:refresh-browser", refresh)
+  }, [visible, source])
+  const input = useRef<HTMLInputElement>(null)
   const [address, setAddress] = useState("")
   const focusedNewTab = useRef(false)
   const editingAddress = useRef(false)
@@ -186,7 +196,7 @@ export const BrowserTab = ({
             inputMode="url"
             autoComplete="off"
             spellCheck={false}
-            placeholder="example.com or localhost:3000"
+            placeholder="localhost:3000"
             aria-invalid={Boolean(addressError)}
             aria-describedby={addressError ? `browser-address-error-${id}` : undefined}
             value={address}
@@ -222,7 +232,6 @@ export const BrowserTab = ({
           {addressError}
         </p>
       ) : null}
-      <output {...stylex.props(styles.loadStatus)}>{state.loading ? "Loading page…" : ""}</output>
       {loadError ? (
         <div role="alert" {...stylex.props(styles.error)}>
           <p {...stylex.props(styles.errorMessage)}>{loadError}</p>

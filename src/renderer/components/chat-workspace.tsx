@@ -1,10 +1,14 @@
+import { ContinueInFolder } from "./continue-in-folder"
+import { ComposerModelControls } from "./composer-model-controls"
+import { saveComposerModel } from "../composer-model"
+import { useAppNavigation } from "../app-navigation"
+import { SubagentConversation } from "./subagent-conversation"
 import { UiAnnotationTrigger } from "./ui-annotation-trigger"
 import { SessionSubagentParticipants } from "./session-subagent-participants"
 import { RuntimeStatus } from "./runtime-status"
 import { useAgentCreation } from "../agent-creation"
 import { AppChangeProtection } from "./app-change-protection"
 import { AgentNativeSessions } from "./agent-native-sessions"
-import { AgentControls } from "./agent-settings"
 import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useRef, useState } from "react"
@@ -66,7 +70,7 @@ const useSessionWorkspace = (sessionId: string) => {
     },
     [],
   )
-  const submitAction = () => flow.send({ sessionId })
+  const submitAction = (data: FormData) => flow.send({ sessionId, delivery: data.get("delivery") === "steer" ? "steer" : "follow-up" })
   const stopAction = () => flow.stopAction(sessionId)
   const snapshot = snapshotQuery.data
   const session = snapshot?.session ?? catalog.data.find((item) => item.id === sessionId)
@@ -96,6 +100,7 @@ const useSessionWorkspace = (sessionId: string) => {
     })
     try {
       await actions.setModel(provider, modelId)
+      saveComposerModel(provider, modelId)
       if (modelSelectionRevision.current === revision) {
         setModelChange(idleModelChange)
       }
@@ -155,7 +160,6 @@ const SessionAgentControls = ({
   Pick<ReturnType<typeof useSessionWorkspace>, "draftHero" | "snapshot">) =>
   agent ? (
     <>
-      <AgentControls agent={agent} showTabs={draftHero} />
       {draftHero && agent.root ? <AgentNativeSessions agent={agent} snapshot={snapshot} /> : null}
     </>
   ) : null
@@ -164,6 +168,8 @@ const PrimeSessionWorkspace = ({
   agent,
   sessionId,
 }: Readonly<{ agent?: Agent; sessionId: string }>) => {
+  const { childChat } = useAppNavigation()
+  const selectedChild = childChat?.parentId === sessionId ? childChat : undefined
   const {
     snapshotQuery,
     models,
@@ -214,7 +220,13 @@ const PrimeSessionWorkspace = ({
   return (
     <div {...stylex.props(styles.workspaceContent)}>
       <div {...stylex.props(styles.sessionStage)}>
-        <div {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}>
+        <div
+          {...stylex.props(
+            styles.conversationPane,
+            draftHero && styles.draftConversationPane,
+            Boolean(selectedChild) && styles.hidden,
+          )}
+        >
           {content}
           <div
             data-composer-placement={draftHero ? "hero" : "docked"}
@@ -226,8 +238,28 @@ const PrimeSessionWorkspace = ({
             <WorkspaceNotices actionError={actionError} />
             <PrimeComposer
               sessionId={sessionId}
+              footerControl={
+                agent ? (
+                  <>
+                    <ContinueInFolder agent={agent} compact />
+                    <ComposerModelControls
+                      sessionId={sessionId}
+                      disabled={
+                        !connected ||
+                        recovering ||
+                        modelChange.status === "pending" ||
+                        models.isPending
+                      }
+                      models={models.data ?? emptyModels}
+                      selectedModel={snapshot?.useful.state.model ?? session?.model}
+                      onSelect={(model) => updateModel(model.provider, model.id)}
+                    />
+                  </>
+                ) : undefined
+              }
               agentName={agent?.name}
               feedback={flow.submission}
+              queue={snapshot?.useful.state.sessionActions}
               releaseSend={() => flow.release(sessionId)}
               opening={!snapshot && !snapshotQuery.isError}
               connected={connected}
@@ -252,6 +284,13 @@ const PrimeSessionWorkspace = ({
             <SessionAgentControls agent={agent} draftHero={draftHero} snapshot={snapshot} />
           </div>
         </div>
+        {selectedChild ? (
+          <SubagentConversation
+            key={selectedChild.childId}
+            parentId={sessionId}
+            childId={selectedChild.childId}
+          />
+        ) : null}
       </div>
     </div>
   )

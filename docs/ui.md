@@ -26,7 +26,7 @@ Add Agent and the unselected empty workspace share the centered welcome composer
 
 The folder capsule shows the current directory and offers up to eight known folders plus the native chooser; cancel preserves the form. Failed creation retains input and retry identity. The creation model picker reads configured models from Prime Agent before a conversation exists. It offers six models directly and opens a searchable provider-tabbed catalog through Browse all models. Catalog prices show USD input/output costs per million tokens; subscription models do not imply token billing. Models without configured credentials remain visible but disabled. Update dates are unavailable in the installed catalog, so ordering falls back to numeric model version/name, with configured models first in the full catalog. Model selection edits only the new Agent draft; runtime model controls remain available in the conversation.
 
-Existing settings open below the composer. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
+Existing Agent settings open in the sidebar. Opening settings reveals a collapsed sidebar. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
 
 Closing restores the actual opener's focus and preserves the draft. Once prepared, root instructions and folder are read-only until a reset workflow is designed. Changing a tab must not shift the empty-state greeting or composer. Panels may animate with a reduced-motion alternative.
 
@@ -103,3 +103,7 @@ Appearance describes its local profile scope and announces successful writes. Re
 Settings contains Appearance and App history tabs. Managed-source customization remains available through the backend without a disclosure or launch controls in Settings.
 
 For a source change, request one scoped outcome, then inspect changed files, the observed interface result, and the returned checkpoint ID. A source checkpoint proves capture only. Native screenshot evidence and operation-to-checkpoint presentation follow their own host/history implementation; local appearance preferences remain outside source history.
+
+## Subagent chats
+
+Native subagents appear beneath their parent as sidebar chats. Sidebar rows and header participants open the main conversation surface; the parent draft stays saved. Child inspection remains read-only.

@@ -21,6 +21,19 @@ export const styles = stylex.create({
     opacity: { ":disabled": 0.5, default: 1 },
     paddingInline: 10,
   },
+  positioner: { zIndex: 1000 },
+  popup: {
+    backgroundColor: theme["--surface"],
+    borderColor: theme["--rule"],
+    borderStyle: "solid",
+    borderWidth: 1,
+    borderRadius: 12,
+    boxShadow: "0 8px 32px rgb(0 0 0 / .16)",
+    paddingInline: 12,
+    width: "min(360px, calc(100vw - 24px))",
+    maxHeight: "var(--available-height)",
+    overflowY: "auto",
+  },
   contextual: { minWidth: 0, paddingInline: 8 },
   editor: {
     display: "grid",
@@ -71,6 +84,7 @@ export const styles = stylex.create({
     justifyContent: "flex-end",
     minHeight: 36,
   },
+  hiddenTrigger: { display: "none" },
   trigger: {
     alignItems: "center",
     backgroundColor: "transparent",

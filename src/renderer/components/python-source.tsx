@@ -13,16 +13,15 @@ let highlighter: Promise<HighlighterCore> | undefined
 const loadHighlighter = () =>
   (highlighter ??= (async () => {
     try {
-      const [core, engine, python, theme] = await Promise.all([
+      const [core, engine, python] = await Promise.all([
         import("shiki/core"),
         import("shiki/engine/javascript"),
         import("shiki/langs/python.mjs"),
-        import("shiki/themes/github-light.mjs"),
       ])
       return await core.createHighlighterCore({
         engine: engine.createJavaScriptRegexEngine(),
         langs: [python.default],
-        themes: [theme.default],
+        themes: [core.createCssVariablesTheme()],
       })
     } catch (error) {
       highlighter = undefined
@@ -51,7 +50,7 @@ const PythonSourceComponent = ({ source }: { source: string }) => {
             setHighlight({ source, tokens: cached })
             return
           }
-          const result = instance.codeToTokens(source, { lang: "python", theme: "github-light" })
+          const result = instance.codeToTokens(source, { lang: "python", theme: "css-variables" })
           let offset = 0
           const tokens = result.tokens.map((line) => {
             const highlightedLine = { offset, tokens: line }

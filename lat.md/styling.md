@@ -38,11 +38,11 @@ Full integration tests, desktop smoke checks, builds, and Electron restarts requ
 
 ## Saved appearance
 
-Settings uses dropdowns for eleven palettes, defaulting to Black & white and System, Light, and Dark modes. Preferences persist locally and apply before React mounts. Unavailable storage falls back to System on restart.
+Settings uses dropdowns for ten palettes, defaulting to Black & white and System, Light, and Dark modes. Preferences persist locally and apply before React mounts. Unavailable storage falls back to System on restart.
 
 [[src/renderer/appearance.ts#saveAppearance]] applies the document color scheme and reports storage failure. Shared tokens reach portals and native controls. Explicit CSS branch variables avoid color-function lowering differences between the StyleX and document stylesheets. The separate native splash retains system appearance.
 
-Prime Intellect adapts the charcoal, cool white, and green palette of [its official site](https://www.primeintellect.ai/). It supports every appearance mode without changing the saved selection. Semantic status colors remain shared.
+Unknown or removed saved palettes fall back to Black & white. Semantic status colors remain shared.
 
 ## Animated tabs
 
@@ -53,3 +53,21 @@ Prime Intellect adapts the charcoal, cool white, and green palette of [its offic
 [[src/renderer/typography.ts]] persists interface and monospace font choices locally. Document variables apply before React mounts; code, file paths, and portal controls inherit them. Character display headings retain their own typeface.
 
 Font lists use local faces with system fallbacks. Appearance shows separate text and code previews.
+
+## Syntax colors
+
+Python tool source and checkpoint JSON share Shiki CSS-variable roles. OKLCH light/dark pairs preserve readable syntax across palettes; plain text and punctuation inherit theme ink. Cached tokens respond to appearance changes without retokenizing.
+
+## Settings page layout
+
+The Settings heading and back control sit at the workspace top-left, outside the centered content column. Appearance and history tabs sit below the header with compact spacing.
+
+The appearance monospace sample uses Shiki with the shared light/dark syntax tokens, so font and color changes are visible together. The settings header uses a compact workspace inset while tabs retain the centered content column.
+
+## Anchored annotation editor
+
+Local UI notes open beside the selected element in a floating popup. Base UI tracks scroll and resize and adjusts placement at viewport edges. Saved-note review stays in its registered region.
+
+## Expanding details
+
+Activity details and subagent lists reveal from their top edge with a short expansion and fade. Reduced motion disables the animation.

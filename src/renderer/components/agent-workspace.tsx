@@ -1,22 +1,22 @@
+import { useAgentationActive } from "../use-agentation-active"
+import { useAppNavigation } from "../app-navigation"
 import { AgentHeaderName } from "./agent-header-name"
 import type { ReactNode } from "react"
 import { BrowserToggle } from "./browser-toggle"
 import { ReconnectAgent } from "./reconnect-agent"
 import * as stylex from "@stylexjs/stylex"
-import { useAgentCreation } from "../agent-creation"
+import { AgentSettingsPopover } from "./agent-settings-popover"
 import { styles as rosterStyles } from "./agent-roster.styles"
-import { SettingsIcon } from "lucide-react"
 import type { Agent } from "../../packages/agents"
 import { useAgents, useConversationDraft } from "../agent-state"
 import { usePrimeSessionState } from "../prime-agent-state"
 import { AgentAvatar } from "./agent-avatar"
-import { AgentControls } from "./agent-settings"
 import { PrimeComposer } from "./prime-composer"
 import { useConversationFlow } from "../conversation-flow"
 import { EmptyConversation } from "./empty-conversation"
 import { styles as chatStyles } from "./chat-workspace.styles"
 
-/** The header identifies the native root; settings open beside its composer. */
+/** The header identifies the native root; settings open from the header. */
 export const AgentWorkspaceHeader = ({
   agent,
   sessionId,
@@ -28,29 +28,25 @@ export const AgentWorkspaceHeader = ({
   participants?: ReactNode
   utilities?: ReactNode
 }) => {
-  const { setEditing } = useAgentCreation()
+  const { childChat, navigate } = useAppNavigation()
+  const annotating = useAgentationActive()
   return (
-    <header {...stylex.props(rosterStyles.header)}>
+    <header {...stylex.props(rosterStyles.header, annotating && rosterStyles.annotationHeader)}>
       <div {...stylex.props(rosterStyles.headerLeading)}>
         <div {...stylex.props(rosterStyles.identity)}>
-          {agent ? <AgentAvatar avatar={agent.avatar} animated /> : null}
-          <AgentHeaderName name={agent?.name ?? (sessionId ? "Saved session" : "")} />
+          <AgentHeaderName
+            avatar={agent ? <AgentAvatar avatar={agent.avatar} animated /> : null}
+            onClick={() => navigate("conversation")}
+            selected={!childChat}
+            name={agent?.name ?? (sessionId ? "Saved session" : "")}
+          />
         </div>
         {participants}
       </div>
       <div {...stylex.props(rosterStyles.headerUtilities)}>
         {utilities}
         <BrowserToggle />
-        {agent ? (
-          <button
-            type="button"
-            aria-label="Agent settings"
-            {...stylex.props(rosterStyles.iconButton, rosterStyles.headerAction)}
-            onClick={() => setEditing({ agentId: agent.id, section: "Customize" })}
-          >
-            <SettingsIcon {...stylex.props(rosterStyles.icon)} />
-          </button>
-        ) : null}
+        {agent ? <AgentSettingsPopover agent={agent} /> : null}
       </div>
     </header>
   )
@@ -115,15 +111,11 @@ export const EmptyAgentWorkspace = ({ agent }: { agent: Agent }) => {
             recovering={false}
             selectedModel={undefined}
             sessionSelected={false}
-            stopAction={() => {
-              // There is no running session to stop in an empty workspace.
-            }}
             stopping={false}
             submitting={submitting}
             working={false}
             submitAction={() => flow.send({ agentId: agent.id })}
           />
-          <AgentControls agent={agent} />
         </div>
       </div>
     </div>

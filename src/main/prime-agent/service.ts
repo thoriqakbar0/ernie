@@ -646,6 +646,11 @@ export class PrimeAgentService extends Service.create({
       )(state)
       const history = await prepareHistory()
       return async () => {
+        if (request.mode === "steer") {
+          requireSuccess(await client.request({ activeSessionId, message: history.content, type: "steer" }))
+          history.finish()
+          return { status: "accepted" }
+        }
         // The native convenience wrapper discards queued:false for a coalesced follow-up.
         const response = requireSuccess(
           await client.request({ activeSessionId, message: history.content, type: "follow_up" }),
@@ -663,6 +668,26 @@ export class PrimeAgentService extends Service.create({
             }
       }
     })
+  }
+
+  /** Atomically promotes an unchanged queued follow-up; never resends its text. */
+  async steerQueuedMessage(input: { sessionId: string; index: number; text: string }) {
+    const data = Schema.decodeUnknownSync(Schema.Struct({
+      sessionId: Schema.NonEmptyString, index: Schema.Natural, text: Schema.String,
+    }))(input)
+    const connection = await this.getReadyConnection(data.sessionId)
+    const [state, client] = await Promise.all([connection.getState(), this.getClient()])
+    const { activeSessionId } = Schema.decodeUnknownSync(
+      Schema.Struct({ activeSessionId: Schema.NonEmptyString }),
+    )(state)
+    const response = requireSuccess(await client.request({
+      type: "mutate_queued_message", activeSessionId, lane: "followUp",
+      index: data.index, expectedText: data.text,
+      mutation: { type: "replace", text: data.text, lane: "steering" },
+    }))
+    return Schema.decodeUnknownSync(Schema.Struct({
+      status: Schema.Literals(["applied", "rejected", "invalid"]),
+    }))(response)
   }
 
   /** Requests cancellation through its owning logical attachment. */

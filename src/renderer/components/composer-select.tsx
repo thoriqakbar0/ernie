@@ -34,6 +34,7 @@ const styles = stylex.create({
 /** Compact, labelled composer choices use the shared accessible select behavior. */
 export const ComposerSelect = ({
   label,
+  compact = false,
   description,
   icon: Icon,
   value,
@@ -43,6 +44,7 @@ export const ComposerSelect = ({
   onChange,
 }: {
   label: string
+  compact?: boolean
   description: string
   icon: LucideIcon
   value: string | undefined
@@ -73,7 +75,7 @@ export const ComposerSelect = ({
           }
         >
           <Icon size={14} aria-hidden="true" />
-          <span>{label} ·</span>
+          {compact ? null : <span>{label} ·</span>}
           <SelectValue placeholder={placeholder}>
             {options.find((option) => option.value === value)?.label}
           </SelectValue>

@@ -259,6 +259,8 @@ export const styles = stylex.create({
   selectedCheckpoint: {
     backgroundColor: { ":hover": theme["--focus-soft"], default: theme["--focus-soft"] },
   },
+  settingsHeader: { gap: 7, marginBottom: 19 },
+  settingsPage: { paddingBlockStart: 8, paddingInline: 9 },
   selectedTab: { backgroundColor: theme["--surface-muted"], fontWeight: 600 },
   tabs: {
     borderBottomStyle: "solid",

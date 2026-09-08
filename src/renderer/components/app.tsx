@@ -3,7 +3,7 @@ import { UiAnnotationHost } from "./ui-annotation-host"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { collapsedSidebarLayout } from "../shell-layout.stylex"
 import { View } from "@zenbujs/core/react"
@@ -20,8 +20,16 @@ import { AppSettingsPage } from "./app-settings-page"
 import { ChatWorkspace } from "./chat-workspace"
 import { BrowserWorkspace } from "./browser-workspace"
 
+const DevelopmentDials = import.meta.env.DEV ? lazy(() => import("./execution-dials").then((module) => ({ default: module.ExecutionDials }))) : null
+
+const DevelopmentAgentation = import.meta.env.DEV
+  ? lazy(() =>
+      import("./agentation-toolbar").then((module) => ({ default: module.AgentationToolbar })),
+    )
+  : null
+
 /** Keep the conversation mounted so page navigation preserves drafts and scroll position. */
-const WorkspacePages = () => {
+const WorkspacePages = ({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => void }) => {
   const { page } = useAppNavigation()
   return (
     <>
@@ -150,11 +158,17 @@ export const App = ({
                         )}
                       >
                         <BrowserWorkspace>
-                          <WorkspacePages />
+                          <WorkspacePages setSidebarOpen={setSidebarOpen} />
                         </BrowserWorkspace>
                       </div>
                     </main>
                     {updates}
+                    {DevelopmentDials ? <Suspense fallback={null}><DevelopmentDials /></Suspense> : null}
+                    {DevelopmentAgentation ? (
+                      <Suspense fallback={null}>
+                        <DevelopmentAgentation />
+                      </Suspense>
+                    ) : null}
                   </div>
                 </MessageReadingProvider>
               </ConversationFlowProvider>

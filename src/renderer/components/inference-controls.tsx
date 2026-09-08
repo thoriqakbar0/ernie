@@ -1,12 +1,12 @@
-import { BrainIcon, GitBranchIcon } from "lucide-react"
+import { BrainIcon } from "lucide-react"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeEffort } from "../../packages/prime-agent"
+import { DepthSlider } from "./depth-slider"
 import { ComposerSelect } from "./composer-select"
 
 const efforts: readonly PrimeEffort[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
-const depthPresets = [0, 1, 2, 3, 4, 5]
 const styles = stylex.create({
-  controls: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 2, minWidth: 0 },
+  controls: { display: "contents" },
 })
 
 /** Capability-driven effort and per-chat recursion presets retain the accepted values. */
@@ -17,6 +17,7 @@ export const InferenceControls = ({
   depth,
   disabled,
   allowDefault = false,
+  modelName,
   onEffortChange,
   onDepthChange,
 }: {
@@ -26,6 +27,7 @@ export const InferenceControls = ({
   depth: number | undefined
   disabled: boolean
   allowDefault?: boolean
+  modelName?: string
   onEffortChange: (effort?: PrimeEffort) => void
   onDepthChange: (depth?: number) => void
 }) => {
@@ -34,17 +36,20 @@ export const InferenceControls = ({
     label: item.charAt(0).toUpperCase() + item.slice(1),
     value: item,
   }))
-  const depths =
-    depth !== undefined && !depthPresets.includes(depth)
-      ? [...depthPresets, depth].toSorted((left, right) => left - right)
-      : depthPresets
-  const defaults = allowDefault ? [{ label: "Default", value: "default" }] : []
+  const defaults = allowDefault
+    ? [
+        {
+          label: modelName ? `Use ${modelName} settings` : "Use the selected model’s settings",
+          value: "default",
+        },
+      ]
+    : []
   const defaultValue = allowDefault ? "default" : undefined
-  const depthValue = depth === undefined ? defaultValue : String(depth)
   return (
     <div {...stylex.props(styles.controls)}>
       <ComposerSelect
         label="Reasoning"
+        compact
         icon={BrainIcon}
         description={`How much reasoning effort the model uses. ${effortDescription ?? "Applies when this conversation starts."}`}
         value={effort ?? defaultValue}
@@ -62,27 +67,12 @@ export const InferenceControls = ({
           }
         }}
       />
-      <ComposerSelect
-        label="RLM depth"
-        icon={GitBranchIcon}
-        description="Maximum subagent nesting for this conversation. Zero disables recursion. This is a limit, not the current depth."
-        value={depthValue}
-        options={[
-          ...defaults,
-          ...depths.map((item) => ({ label: String(item), value: String(item) })),
-        ]}
-        disabled={disabled || (!allowDefault && depth === undefined)}
-        placeholder="Loading…"
-        onChange={(value) => {
-          if (value === "default") {
-            onDepthChange()
-          } else {
-            const accepted = depths.find((item) => String(item) === value)
-            if (accepted !== undefined) {
-              onDepthChange(accepted)
-            }
-          }
-        }}
+      <DepthSlider
+        key={depth ?? "default"}
+        depth={depth}
+        disabled={disabled}
+        allowDefault={allowDefault}
+        onChange={onDepthChange}
       />
     </div>
   )

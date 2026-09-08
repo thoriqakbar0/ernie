@@ -1,12 +1,16 @@
+import { useAgents } from "../agent-state"
+import { usePrimeSessionSelection } from "../prime-agent-state"
+import { useAppNavigation } from "../app-navigation"
+import { useAgentCreation } from "../agent-creation"
 import { BrowserControlsContext } from "../browser-controls"
 import { Tooltip } from "@base-ui/react/tooltip"
-import { Globe2Icon, PanelLeftCloseIcon, PlusIcon, XIcon } from "lucide-react"
+import { Globe2Icon, PanelRightCloseIcon, PlusIcon, XIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { BrowserButton } from "./browser-button"
 import { BrowserTab } from "./browser-tab"
-import { styles, browserConversationLayout } from "./browser.styles"
+import { styles } from "./browser.styles"
 
 interface Tab {
   id: string
@@ -14,11 +18,41 @@ interface Tab {
   title: string
 }
 
+type BrowserSession = { open: boolean; tabs: Tab[]; selected?: string }
+const emptyBrowser: BrowserSession = { open: false, tabs: [] }
+
 /** Keeps browser tabs alive beside the workspace until explicitly closed. */
 export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
-  const [open, setOpen] = useState(false)
-  const [tabs, setTabs] = useState<Tab[]>([])
-  const [selected, setSelected] = useState<string>()
+  const { roster } = useAgents()
+  const { selectedSessionId } = usePrimeSessionSelection()
+  const { childChat } = useAppNavigation()
+  const { adding } = useAgentCreation()
+  const parentSession = childChat?.parentId ?? selectedSessionId
+  const owner = adding ? undefined : roster.agents.find((agent) => agent.root?.sessionId === parentSession)?.id
+    ?? (adding ? undefined : roster.selectedAgentId)
+  const [browsers, setBrowsers] = useState<Record<string, BrowserSession>>({})
+  const { open, tabs, selected } = owner ? browsers[owner] ?? emptyBrowser : emptyBrowser
+  const update = (change: (current: BrowserSession) => BrowserSession) => {
+    if (!owner) return
+    setBrowsers((current) => ({ ...current, [owner]: change(current[owner] ?? emptyBrowser) }))
+  }
+  const setOpen = (value: boolean) => update((current) => ({ ...current, open: value }))
+  const setSelected = (value: string | undefined) => update((current) => ({ ...current, selected: value }))
+  const setTabs = (value: Tab[] | ((current: Tab[]) => Tab[])) =>
+    update((current) => ({ ...current, tabs: typeof value === "function" ? value(current.tabs) : value }))
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      if (!open) {
+        window.location.reload()
+        return
+      }
+      window.dispatchEvent(new CustomEvent("ernie:refresh-browser", {
+        detail: event instanceof CustomEvent ? event.detail : undefined,
+      }))
+    }
+    window.addEventListener("ernie:refresh", refresh)
+    return () => window.removeEventListener("ernie:refresh", refresh)
+  }, [open])
   const opener = useRef<HTMLButtonElement>(null)
   const tabStrip = useRef<HTMLDivElement>(null)
   const restoreOpener = useRef(false)
@@ -49,13 +83,9 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
     return () => observer.disconnect()
   }, [selected])
   const updatePage = useCallback((id: string, location: string, title: string) => {
-    setTabs((current) =>
-      current.map((tab) =>
-        tab.id === id && (tab.location !== location || tab.title !== title)
-          ? { ...tab, location, title }
-          : tab,
-      ),
-    )
+    setBrowsers((current) => Object.fromEntries(Object.entries(current).map(([key, browser]) => [
+      key, { ...browser, tabs: browser.tabs.map((tab) => tab.id === id ? { ...tab, location, title } : tab) },
+    ])))
   }, [])
   const addTab = () => {
     const id = crypto.randomUUID()
@@ -83,6 +113,7 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
   }
 
   const toggle = (trigger: HTMLButtonElement) => {
+    if (!owner) return
     opener.current = trigger
     if (open) {
       closePanel()
@@ -103,6 +134,7 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
       <Tooltip.Provider>
         <div {...stylex.props(styles.workspace)}>
           <div {...stylex.props(styles.split, open && styles.splitOpen)}>
+            <div {...stylex.props(styles.conversation)}>{children}</div>
             <aside
               id="ernie-browser"
               aria-label="Browser"
@@ -188,11 +220,11 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
                 <BrowserButton label="New tab" icon={PlusIcon} onClick={addTab} />
                 <BrowserButton
                   label="Hide browser"
-                  icon={PanelLeftCloseIcon}
+                  icon={PanelRightCloseIcon}
                   onClick={closePanel}
                 />
               </div>
-              {tabs.map((tab) => (
+              {Object.values(browsers).flatMap((browser) => browser.tabs).map((tab) => (
                 <BrowserTab
                   key={tab.id}
                   id={tab.id}
@@ -201,9 +233,6 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
                 />
               ))}
             </aside>
-            <div {...stylex.props(styles.conversation, open && browserConversationLayout)}>
-              {children}
-            </div>
           </div>
         </div>
       </Tooltip.Provider>

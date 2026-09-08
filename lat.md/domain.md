@@ -14,6 +14,8 @@ The shared contract is [[src/packages/prime-agent/index.ts#PrimeSessionSummary]]
 
 One chat session owns an immutable send until admission is known. Main-service receipts prevent repeat dispatch within one service epoch.
 
+A lost renderer acknowledgement can be checked without dispatch. A terminal unknown receipt requires conversation review and explicit release; repeated checks cannot resolve it.
+
 [[src/packages/chat-session/index.ts#createChatSession]] shares pending work and preserves the original request during recovery. [[src/main/prime-agent/send-receipts.ts#SendReceipts]] retains receipt evidence and refuses stale epochs; uncertain native delivery never triggers automatic redelivery. Receipt inspection closes missing identities against late requests and never dispatches a message.
 
 ## Session synchronization
@@ -42,9 +44,11 @@ Each Agent binds one durable Prime Agent root. Preparation writes the native fil
 
 ## Subagent roster inspection
 
-Subagent characters sit beside the parent identity in the conversation header. Each opens its own read-only thread. Accessible labels report native status; cached status is marked last known and never animates as current activity.
+Subagents appear as additional sidebar chats and beside the parent identity in the conversation header. Each selects its read-only transcript within the existing parent workspace.
 
-[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] owns child selection and a read-only side panel with a parent return path. [[src/renderer/components/subagent-conversation.tsx#SubagentConversation]] mounts native inspection only while open; failed refreshes preserve prior messages. ConversationMessages owns shared memoized message rendering without execution subscriptions. The parent draft stays attached; no child send, cancel, or resume action is exposed. Waiting derives only from native running activity waiting.
+Accessible labels report native status; cached status is marked last known and never animates as current activity.
+
+[[src/renderer/components/subagent-activity.tsx#SubagentActivity]] opens child navigation through the shared application navigation owner with a parent return path. [[src/renderer/components/subagent-conversation.tsx#SubagentConversation]] mounts native inspection only while open; failed refreshes preserve prior messages. ConversationMessages owns shared memoized message rendering without execution subscriptions. The parent draft stays attached; no child send, cancel, or resume action is exposed. Waiting derives only from native running activity waiting.
 
 [[src/main/prime-agent/child-inspection.ts#inspectNativeChild]] resolves nested roster node ids into native parent identities one edge at a time. Live snapshots must match the immediate parent and child; saved headers must reference the validated parent file. Missing or cyclic ancestry never weakens those checks.
 
@@ -61,3 +65,19 @@ Models expose native supported effort levels. Draft choices seed the native root
 [[src/main/prime-agent/model-catalog.ts#projectModelCatalog]] projects capabilities through the installed native helper. [[src/main/prime-agent/agent-config.ts#nativeConversationConfig]] supplies initial effort; prepared-root activation applies depth before first send. Live effort changes also update Prime Agent's default effort, while depth changes stay chat-local. Native depth defaults to 2 when no chat, inherited, global, or environment override exists.
 
 SubagentAvatar owns the existing deterministic sidebar character recipe, reused by the participant list, child thread header, and assistant replies. Child transcripts label input as Task message rather than claiming the user personally sent it; assistant identity comes from the inspected child. Separate native threads are not merged into an invented group timeline.
+
+## Composer model preference
+
+New Agent composers restore the last locally selected provider and model. Draft selections save immediately; native model changes save only after acceptance. Existing sessions retain their own model. Invalid storage falls back to Agent defaults.
+
+## Live child conversation
+
+Opening a child first validates its native identity through inspection, then subscribes to that live session for streaming messages and tool activity. Saved children retain snapshot inspection.
+
+Header participants switch the transcript in place; selecting the parent name restores its mounted conversation and composer.
+
+## Continue in another folder
+
+Folder controls prepare a new Agent draft with copied settings and a chosen folder. The original root and messages remain unchanged. The new root is created only on first send; its conversation starts empty.
+
+Composer folder controls also edit unsent drafts.

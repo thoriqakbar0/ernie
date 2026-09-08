@@ -138,7 +138,8 @@ const styles = stylex.create({
   },
   positioner: {
     isolation: "isolate",
-    zIndex: 50,
+    // Select menus portal to the document and must clear their parent popovers.
+    zIndex: 1200,
   },
   selectIcon: {
     color: "var(--muted)",

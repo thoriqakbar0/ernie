@@ -1,7 +1,7 @@
 import { RunInspector } from "./run-inspector"
 import Scritto from "@scritto/react"
 import * as stylex from "@stylexjs/stylex"
-import { ChevronDownIcon, TerminalIcon } from "lucide-react"
+import { ChevronDownIcon, SquareCheckIcon, TerminalIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import type { PrimeSessionSnapshot } from "../../packages/prime-agent"
 import {
@@ -9,6 +9,11 @@ import {
   describeConversationToolResults,
 } from "../conversation-activity"
 import { theme } from "../theme.stylex"
+
+const expandIn = stylex.keyframes({
+  from: { opacity: 0, transform: "translateY(-6px) scaleY(.94)" },
+  to: { opacity: 1, transform: "translateY(0) scaleY(1)" },
+})
 
 const styles = stylex.create({
   activity: {
@@ -20,12 +25,29 @@ const styles = stylex.create({
     width: "100%",
   },
   body: {
+    animationName: expandIn,
+    animationDuration: { "@media (prefers-reduced-motion: reduce)": "0ms", default: "220ms" },
+    animationTimingFunction: "cubic-bezier(.2,.8,.2,1)",
+    transformOrigin: "top center",
+
     display: "grid",
     gap: 4,
     gridTemplateColumns: "minmax(0, 1fr)",
     minWidth: 0,
     padding: "0 12px 12px",
   },
+  preview: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 400,
+    color: theme["--muted"],
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
+    marginTop: 4,
+  },
+  command: { fontFamily: "var(--font-mono, monospace)" },
   count: { fontSize: 12, fontVariantNumeric: "tabular-nums" },
   focus: {
     boxShadow: { ":focus-visible": "0 0 0 2px var(--focus)", default: null },
@@ -57,16 +79,19 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
     () => describeConversationActivity(snapshot, results),
     [snapshot, results],
   )
+  const running = activity.active || Boolean(streamingMessage)
   const [disclosure, setDisclosure] = useState({
-    active: activity.active,
-    expanded: activity.active,
-    hasOpened: activity.active,
+    active: running,
+    streaming: Boolean(streamingMessage),
+    expanded: running,
+    hasOpened: running,
   })
-  if (disclosure.active !== activity.active) {
+  if (disclosure.active !== running || disclosure.streaming !== Boolean(streamingMessage)) {
     setDisclosure({
-      active: activity.active,
-      expanded: activity.active || disclosure.expanded,
-      hasOpened: activity.active || disclosure.hasOpened,
+      active: running,
+      streaming: Boolean(streamingMessage),
+      expanded: running || disclosure.expanded,
+      hasOpened: running || disclosure.hasOpened,
     })
   }
   const followUps = useMemo(() => {
@@ -90,7 +115,8 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
       open={disclosure.expanded}
       onToggle={(event) =>
         setDisclosure({
-          active: activity.active,
+          active: running,
+          streaming: Boolean(streamingMessage),
           expanded: event.currentTarget.open,
           hasOpened: disclosure.hasOpened || event.currentTarget.open,
         })
@@ -98,8 +124,24 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
       {...stylex.props(styles.activity)}
     >
       <summary {...stylex.props(styles.summary, styles.focus)}>
-        <TerminalIcon size={16} aria-hidden="true" />
-        <span {...stylex.props(styles.heading)}>{heading}</span>
+        {activity.responseStatus === "Response complete" && !running ? (
+          <SquareCheckIcon size={16} aria-hidden="true" />
+        ) : (
+          <TerminalIcon size={16} aria-hidden="true" />
+        )}
+        <span {...stylex.props(styles.heading)}>
+          {heading}
+          {activity.commandPreview ? (
+            <span {...stylex.props(styles.preview, styles.command)}>
+              Code · {activity.commandPreview.replaceAll(/\s+/gu, " ").slice(0, 180)}
+            </span>
+          ) : null}
+          {activity.messagePreview ? (
+            <span {...stylex.props(styles.preview)}>
+              Message · {activity.messagePreview.replaceAll(/\s+/gu, " ").slice(-180)}
+            </span>
+          ) : null}
+        </span>
         <span {...stylex.props(styles.count)}>
           <Scritto value={activity.results.length} />{" "}
           {activity.results.length === 1 ? "execution" : "executions"}
@@ -112,14 +154,19 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
       {disclosure.hasOpened ? (
         <div {...stylex.props(styles.body)}>
           {activity.phase ? <p>Current phase: {activity.phase}</p> : null}
-          {activity.tools.length ? <p>Active tools: {activity.tools.join(", ")}</p> : null}
+          {activity.tools.length ? (
+            <details>
+              <summary>Active tools · {activity.tools.length}</summary>
+              <p>{activity.tools.join(", ")}</p>
+            </details>
+          ) : null}
           {followUps.map(({ id, text }) => (
             <p key={id} {...stylex.props(styles.queuedMessage)}>
               Queued follow-up: {text}
             </p>
           ))}
           {activity.results.length ? (
-            <RunInspector results={activity.results} active={activity.active} />
+            <RunInspector results={activity.results} active={running} />
           ) : null}
         </div>
       ) : null}

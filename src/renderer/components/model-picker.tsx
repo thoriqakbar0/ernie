@@ -610,6 +610,7 @@ export const ModelPicker = ({
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (
         event.target instanceof Node &&
+        !(event.target instanceof Element && event.target.closest("[data-agentation-root]")) &&
         !rootRef.current?.contains(event.target) &&
         !popupRef.current?.contains(event.target) &&
         !(event.target instanceof Element && event.target.closest("[data-slot=select-content]"))

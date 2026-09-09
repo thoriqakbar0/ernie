@@ -3,6 +3,7 @@
   import Brand from './lib/Brand.svelte'
   import Characters from './lib/Characters.svelte'
   import WorkspaceDemo from './lib/WorkspaceDemo.svelte'
+  import ScreenshotGallery from './lib/ScreenshotGallery.svelte'
   import BlogArticle from './lib/BlogArticle.svelte'
   const essayUrl = 'https://ta-0.com/blog/the-best-software-is-yet-to-be-made'
   if (window.location.pathname.replace(/\/$/, '') === '/blog/introducing-ernie-2') {
@@ -24,6 +25,7 @@
       <div><h1 id="hero-title">make yourself<br /><em>at home.</em></h1><Characters seeds={[356, 17, 85]} /></div>
       <div class="hero-intro"><p>ask your agent to make Ernie<br class="desktop-break" /> work your way.</p></div>
     </section>
+    <ScreenshotGallery />
     <section class="example page-width ruled" id="workspace" aria-labelledby="example-title">
       <h2 id="example-title">a sidebar. an input.<br /><em>is that it?</em></h2>
       <p class="request">Tell Ernie what you’re working on. Let your agent choose an interface that helps, then ask it to change what doesn’t.</p>

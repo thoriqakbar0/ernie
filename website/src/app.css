@@ -48,3 +48,5 @@
 .journal > .journal-note { font-size:13px; margin-top:24px; color:var(--muted); }
 
 .article-end .button { margin-top:0; }
+
+.site-footer .footer-links a:hover, .site-footer .footer-links a:focus-visible { text-decoration:underline; text-underline-offset:4px; }

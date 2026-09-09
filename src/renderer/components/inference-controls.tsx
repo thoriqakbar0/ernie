@@ -1,10 +1,10 @@
-import { BrainIcon, GitBranchIcon } from "lucide-react"
+import { BrainIcon } from "lucide-react"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeEffort } from "../../packages/prime-agent"
+import { DepthRail } from "./depth-rail"
 import { ComposerSelect } from "./composer-select"
 
 const efforts: readonly PrimeEffort[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
-const depthPresets = [0, 1, 2, 3, 4, 5]
 const styles = stylex.create({
   controls: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 2, minWidth: 0 },
 })
@@ -34,56 +34,44 @@ export const InferenceControls = ({
     label: item.charAt(0).toUpperCase() + item.slice(1),
     value: item,
   }))
-  const depths =
-    depth !== undefined && !depthPresets.includes(depth)
-      ? [...depthPresets, depth].toSorted((left, right) => left - right)
-      : depthPresets
   const defaults = allowDefault ? [{ label: "Default", value: "default" }] : []
   const defaultValue = allowDefault ? "default" : undefined
-  const depthValue = depth === undefined ? defaultValue : String(depth)
   return (
-    <div {...stylex.props(styles.controls)}>
-      <ComposerSelect
-        label="Reasoning"
-        icon={BrainIcon}
-        description={`How much reasoning effort the model uses. ${effortDescription ?? "Applies when this conversation starts."}`}
-        value={effort ?? defaultValue}
-        options={[...defaults, ...effortOptions]}
-        disabled={disabled || available.length === 0}
-        placeholder={available.length ? "Default" : "Unavailable"}
-        onChange={(value) => {
-          if (value === "default") {
-            onEffortChange()
-          } else {
-            const accepted = available.find((item) => item === value)
-            if (accepted) {
-              onEffortChange(accepted)
+    <details>
+      <summary>
+        Reasoning · {effort ?? "Default"} · Depth · {depth ?? "Default"}
+      </summary>
+      <div {...stylex.props(styles.controls)}>
+        <ComposerSelect
+          label="Reasoning"
+          icon={BrainIcon}
+          description={`How much reasoning effort the model uses. ${effortDescription ?? "Applies when this conversation starts."}`}
+          value={effort ?? defaultValue}
+          options={[...defaults, ...effortOptions]}
+          disabled={disabled || available.length === 0}
+          placeholder={available.length ? "Default" : "Unavailable"}
+          onChange={(value) => {
+            if (value === "default") {
+              onEffortChange()
+            } else {
+              const accepted = available.find((item) => item === value)
+              if (accepted) {
+                onEffortChange(accepted)
+              }
             }
-          }
-        }}
-      />
-      <ComposerSelect
-        label="RLM depth"
-        icon={GitBranchIcon}
-        description="Maximum subagent nesting for this conversation. Zero disables recursion. This is a limit, not the current depth."
-        value={depthValue}
-        options={[
-          ...defaults,
-          ...depths.map((item) => ({ label: String(item), value: String(item) })),
-        ]}
-        disabled={disabled || (!allowDefault && depth === undefined)}
-        placeholder="Loading…"
-        onChange={(value) => {
-          if (value === "default") {
-            onDepthChange()
-          } else {
-            const accepted = depths.find((item) => String(item) === value)
-            if (accepted !== undefined) {
-              onDepthChange(accepted)
-            }
-          }
-        }}
-      />
-    </div>
+          }}
+        />
+        <DepthRail
+          value={depth}
+          disabled={disabled || (!allowDefault && depth === undefined)}
+          onChange={onDepthChange}
+        />
+        {allowDefault && depth !== undefined ? (
+          <button type="button" disabled={disabled} onClick={() => onDepthChange()}>
+            Default
+          </button>
+        ) : null}
+      </div>
+    </details>
   )
 }

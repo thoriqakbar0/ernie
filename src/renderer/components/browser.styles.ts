@@ -91,7 +91,14 @@ export const styles = stylex.create({
     maxWidth: 280,
     textWrap: "pretty",
   },
-  emptyIcon: { color: theme["--muted"], flexShrink: 0, marginBottom: 16 },
+  emptyIllustration: {
+    display: "block",
+    flexShrink: 0,
+    height: "auto",
+    marginBottom: 18,
+    maxWidth: "100%",
+    width: 264,
+  },
   emptyTitle: {
     color: theme["--ink"],
     fontSize: 15,

@@ -1,8 +1,9 @@
 import { parseBrowserAddress } from "../../packages/browser"
-import { ArrowLeftIcon, ArrowRightIcon, Globe2Icon, RotateCwIcon, SquareIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, RotateCwIcon, SquareIcon } from "lucide-react"
 import { createElement, useEffect, useEffectEvent, useRef, useState } from "react"
 import type { WebviewTag } from "electron"
 import * as stylex from "@stylexjs/stylex"
+import browserEmptyAgents from "../assets/browser-empty-agents.png"
 import { BrowserButton } from "./browser-button"
 import { styles } from "./browser.styles"
 
@@ -249,7 +250,14 @@ export const BrowserTab = ({
         })
       ) : (
         <div {...stylex.props(styles.empty)}>
-          <Globe2Icon size={28} aria-hidden="true" {...stylex.props(styles.emptyIcon)} />
+          <img
+            src={browserEmptyAgents}
+            alt=""
+            aria-hidden="true"
+            width={264}
+            height={136}
+            {...stylex.props(styles.emptyIllustration)}
+          />
           <h2 {...stylex.props(styles.emptyTitle)}>Browse the web</h2>
           <p {...stylex.props(styles.emptyDescription)}>
             {desktop

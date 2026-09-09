@@ -25,8 +25,7 @@ export const DraftComposerControls = ({
     <ModelSettingsPopover
       label={selected?.label ?? (settings.model || "Model settings")}
       disabled={disabled}
-    >
-      <DraftModelPicker
+      modelControl={<DraftModelPicker
         sessionId={sessionId}
         provider={settings.provider}
         model={settings.model}
@@ -44,7 +43,8 @@ export const DraftComposerControls = ({
               : {}),
           })
         }}
-      />
+      />}
+    >
       <InferenceControls
         modelName={selected?.label ?? (settings.model || undefined)}
         allowDefault

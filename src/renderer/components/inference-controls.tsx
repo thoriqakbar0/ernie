@@ -1,15 +1,12 @@
 import { BrainIcon } from "lucide-react"
+import { Tabs } from "@base-ui/react/tabs"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeEffort } from "../../packages/prime-agent"
 import { DepthSlider } from "./depth-slider"
 import { ComposerSelect } from "./composer-select"
+import { modelSettingsPanelStyles } from "./model-settings-panel.styles"
 
 const efforts: readonly PrimeEffort[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
-const styles = stylex.create({
-  controls: { display: "grid", gap: 12, paddingBlockStart: 12 },
-  disclosure: { gridColumn: "1 / -1", minWidth: 0 },
-  summary: { color: "var(--muted)", cursor: "pointer", fontSize: 12, paddingBlock: 4 },
-})
 
 /** Capability-driven effort and per-chat recursion presets retain the accepted values. */
 export const InferenceControls = ({
@@ -48,11 +45,8 @@ export const InferenceControls = ({
     : []
   const defaultValue = allowDefault ? "default" : undefined
   return (
-    <details {...stylex.props(styles.disclosure)}>
-      <summary {...stylex.props(styles.summary)}>
-        Reasoning · {effort ?? "Default"} · Depth {depth ?? "Default"}
-      </summary>
-      <div {...stylex.props(styles.controls)}>
+    <>
+      <Tabs.Panel value="reasoning" {...stylex.props(modelSettingsPanelStyles.panel)}>
         <ComposerSelect
           label="Reasoning"
           compact
@@ -73,6 +67,8 @@ export const InferenceControls = ({
             }
           }}
         />
+      </Tabs.Panel>
+      <Tabs.Panel value="depth" {...stylex.props(modelSettingsPanelStyles.panel)}>
         <DepthSlider
           key={depth ?? "default"}
           depth={depth}
@@ -80,7 +76,7 @@ export const InferenceControls = ({
           allowDefault={allowDefault}
           onChange={onDepthChange}
         />
-      </div>
-    </details>
+      </Tabs.Panel>
+    </>
   )
 }

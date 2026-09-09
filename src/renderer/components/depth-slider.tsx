@@ -8,7 +8,7 @@ const styles = stylex.create({
     display: "grid",
     fontSize: 12,
     gap: "8px 12px",
-    gridTemplateColumns: "minmax(0, 1fr) 58px",
+    gridTemplateColumns: "minmax(0, 1fr) 80px",
   },
   label: { gridColumn: "1 / -1" },
   number: {
@@ -18,7 +18,7 @@ const styles = stylex.create({
     color: "var(--ink)",
     minHeight: 28,
     paddingInline: 5,
-    width: 58,
+    width: 80,
   },
   rail: { minWidth: 0 },
   range: { accentColor: "var(--accent, #855a50)", cursor: "pointer", margin: 0, width: "100%" },

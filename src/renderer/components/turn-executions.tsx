@@ -1,5 +1,5 @@
 import { Accordion } from "@base-ui/react/accordion"
-import { ChevronDownIcon, CircleStopIcon, SquareCheckIcon, TerminalIcon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 import { useState } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { RunInspector } from "./run-inspector"
@@ -51,15 +51,6 @@ export const TurnExecutions = ({
   if (state.active !== turn.active) setState({ active: turn.active, open: turn.active })
   // An active assistant turn can exist before its first tool call; there is no execution to disclose yet.
   if (turn.runs.length === 0) return null
-  const StatusIcon =
-    turn.status === "Response complete"
-      ? SquareCheckIcon
-      : turn.status === "Working…"
-        ? TerminalIcon
-        : turn.status === "Stopped"
-          ? CircleStopIcon
-          : null
-  const iconOnly = turn.status === "Response complete" || turn.status === "Working…"
   return (
     <Accordion.Root<string>
       value={state.open ? ["work"] : []}
@@ -72,9 +63,7 @@ export const TurnExecutions = ({
       <Accordion.Item value="work">
       <div {...stylex.props(styles.header)}>
       <Accordion.Header {...stylex.props(styles.header)}>
-      <Accordion.Trigger aria-label={`${turn.status} · ${turn.runs.length} ${turn.runs.length === 1 ? "run" : "runs"}`} {...stylex.props(styles.summary)}>
-        {StatusIcon ? <StatusIcon size={16} aria-hidden="true" /> : null}
-        {iconOnly ? null : <span>{turn.status} ·</span>}
+      <Accordion.Trigger title={turn.status} aria-label={`${turn.status} · ${turn.runs.length} ${turn.runs.length === 1 ? "run" : "runs"}`} {...stylex.props(styles.summary)}>
         <span>{turn.runs.length} {turn.runs.length === 1 ? "run" : "runs"}</span>
 
         <ChevronDownIcon size={16} aria-hidden="true" {...stylex.props(styles.chevron, state.open && styles.expanded)} />

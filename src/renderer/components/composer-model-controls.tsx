@@ -33,14 +33,17 @@ export const ComposerModelControls = ({
     <ModelSettingsPopover
       label={selectedModel?.label ?? selectedModel?.id ?? "Model settings"}
       disabled={disabled}
+      inferenceDisabled={!sessionId}
+      modelControl={
+        <ModelPicker
+          disabled={disabled}
+          models={models}
+          onSelect={onSelect}
+          selectedModel={selectedModel}
+          side="top"
+        />
+      }
     >
-      <ModelPicker
-        disabled={disabled}
-        models={models}
-        onSelect={onSelect}
-        selectedModel={selectedModel}
-        side="top"
-      />
       {sessionId ? (
         <SessionInferenceControls key={sessionId} sessionId={sessionId} disabled={disabled} />
       ) : null}

@@ -142,6 +142,12 @@ The parent Agent trigger selects its conversation. A separate subagent-count but
 
 ### Composer settings disclosure
 
-ModelSettingsPopover owns the shared draft and session settings panel. InferenceControls discloses reasoning and recursion together.
+ModelSettingsPopover owns the shared draft and session settings panel with Model, Reasoning, and RLM depth tabs. InferenceControls supplies the reasoning and depth panels while preserving capability checks and accepted-value updates.
+
+The panels share aligned insets and reserve enough width for the exact depth field's Default placeholder. The draft working-folder trigger reads "choose folder?" and retains the current folder in its accessible label.
+
+Model settings use equal-width tabs and a shared minimum panel height to reduce movement between choices. Opening and panel transitions are brief and disabled under reduced motion; taller content remains free to grow and scroll.
+
+The draft model menu lists concrete models without a synthetic Default model option. Leaving the model unset preserves the runtime's existing default selection. TurnExecutions uses the same count-and-chevron disclosure for every status; the accessible label and tooltip retain completion, failure, or stopped status.
 
 DepthSlider previews drag gestures locally, commits once, and returns to the accepted daemon value on rejection. Reasoning choices come from model capabilities.

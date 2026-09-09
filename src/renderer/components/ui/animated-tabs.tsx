@@ -10,13 +10,18 @@ export interface AnimatedTabsProps {
   disabled?: boolean
   label?: string
   shape?: "pill" | "rounded" | "plain"
+  radii?: { list: number; tab: number; indicator: number }
   wrap?: boolean
+  fill?: boolean
   onDeselect?: () => void
   "aria-label"?: string
   children?: ReactNode
 }
 
 const styles = stylex.create({
+  filledIndicator: { transitionTimingFunction: "cubic-bezier(.22, 1, .36, 1)" },
+  filledList: { marginBlock: 0, width: "100%" },
+  filledTab: { flex: "1 1 0", height: "auto", minHeight: 36, minWidth: 0, paddingBlock: 8, whiteSpace: "normal" },
   indicator: {
     backgroundColor: theme["--ink"],
     borderRadius: 999,
@@ -67,6 +72,7 @@ const styles = stylex.create({
     height: 40,
     paddingInline: 0,
   },
+  radius: (radius: number) => ({ borderRadius: radius }),
   root: { gridColumn: "1 / -1", minWidth: 0 },
   roundedList: { borderRadius: 12 },
   roundedTab: { borderRadius: 8 },
@@ -100,10 +106,12 @@ export const AnimatedTabs = ({
   onValueChange,
   disabled,
   wrap,
+  fill,
   onDeselect,
   children,
   label = "Sections",
   shape = "pill",
+  radii,
   "aria-label": ariaLabel,
 }: AnimatedTabsProps) => (
   <Tabs.Root
@@ -123,11 +131,18 @@ export const AnimatedTabs = ({
         shape === "rounded" && styles.roundedList,
         shape === "plain" && styles.plainList,
         wrap && styles.wrap,
+        fill && styles.filledList,
+        radii && styles.radius(radii.list),
       )}
     >
       {shape === "plain" ? null : (
         <Tabs.Indicator
-          {...stylex.props(styles.indicator, shape === "rounded" && styles.roundedTab)}
+          {...stylex.props(
+            styles.indicator,
+            fill && styles.filledIndicator,
+            shape === "rounded" && styles.roundedTab,
+            radii && styles.radius(radii.indicator),
+          )}
         />
       )}
       {tabs.map((tab) => (
@@ -144,6 +159,8 @@ export const AnimatedTabs = ({
             styles.tab,
             shape === "rounded" && styles.roundedTab,
             shape === "plain" && styles.plainTab,
+            fill && styles.filledTab,
+            radii && styles.radius(radii.tab),
           )}
         >
           {tab.label}

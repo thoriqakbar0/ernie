@@ -90,7 +90,7 @@ export const DraftModelPicker = ({
         >
           {provider ? <ProviderBrand provider={provider} /> : null}
           <span {...stylex.props(styles.truncate)}>
-            {selected?.label ?? (model || "Default model")}
+            {selected?.label ?? (model || "Choose model")}
           </span>
           <ChevronDownIcon size={14} aria-hidden="true" />
         </DropdownMenuTrigger>
@@ -98,24 +98,14 @@ export const DraftModelPicker = ({
           <DropdownMenuRadioGroup
             value={modelKey(provider, model)}
             onValueChange={(value: unknown) => {
-              if (value === modelKey("", "")) {
-                onChange("", "")
-              } else {
-                const item = models.find(
-                  (candidate) => modelKey(candidate.provider, candidate.id) === value,
-                )
-                if (item) {
-                  onChange(item.provider, item.id)
-                }
+              const item = models.find(
+                (candidate) => modelKey(candidate.provider, candidate.id) === value,
+              )
+              if (item) {
+                onChange(item.provider, item.id)
               }
             }}
           >
-            <DropdownMenuRadioItem value={modelKey("", "")} disabled={disabled}>
-              <span {...stylex.props(styles.optionText)}>Default model</span>
-              <DropdownMenuRadioItemIndicator>
-                <CheckIcon size={14} />
-              </DropdownMenuRadioItemIndicator>
-            </DropdownMenuRadioItem>
             {models.slice(0, 6).map((item) => (
               <DropdownMenuRadioItem
                 key={modelKey(item.provider, item.id)}

@@ -12,11 +12,17 @@ Components apply styles with `stylex.props`. Reusable controls accept typed `xst
 
 [[src/renderer/components/app.styles.ts#styles]] places the collapsed sidebar opener below the same native-window clearance. Its touch target and keyboard shortcut remain available outside draggable regions.
 
+The opener follows the workspace in App's DOM order. Electron applies overlapping native drag regions in that order, so an earlier no-drag button can otherwise lose pointer clicks to the workspace header even with a higher z-index.
+
+[[src/renderer/components/agent-settings-tabs.tsx#AgentSettingsTabs]] loads DialKit 2 only during development. Draft and existing Agent settings share a 12px outer radius and 8px tab and indicator radii. Production uses those fixed values without importing the tuning module or vendor styles.
+
 [[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the document color scheme. Stable custom property names let document defaults and portal content use the same theme. Orange accents retain dark ink on filled actions, including hover states; status colors keep their semantic roles. Faint text remains readable on the sidebar and picker surfaces.
 
 ## Dynamic state and portals
 
 React state selects explicit style variants. Attribute conditions express control states, and a StyleX ancestor marker reveals model actions on hover.
+
+[[src/renderer/components/development-tuning.tsx#DevelopmentTuning]] owns one development-only DialKit root, open by default. Message scroller width adjusts the transcript and message measure from 360px to 1600px, clamped by the available viewport. Production retains the 720px transcript and 66ch message defaults.
 
 [[src/renderer/components/model-picker.tsx#ModelPicker]] computes popup coordinates and passes them through a dynamic StyleX style. Base UI retains ownership of its portal positioning and internal inline styles.
 

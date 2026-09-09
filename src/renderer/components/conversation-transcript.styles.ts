@@ -46,7 +46,7 @@ export const styles = stylex.create({
     fontWeight: 400,
     gap: "12px",
     lineHeight: 1.6,
-    maxWidth: "66ch",
+    maxWidth: "min(100%, var(--transcript-width, 66ch))",
     overflowWrap: "anywhere",
     whiteSpace: "pre-wrap",
   },

@@ -22,13 +22,21 @@ import { BrowserWorkspace } from "./browser-workspace"
 import { AppShortcuts } from "./app-shortcuts"
 
 const DevelopmentAgentation = import.meta.env.DEV
-  ? lazy(() =>
-      import("./agentation-toolbar").then((module) => ({ default: module.AgentationToolbar })),
-    )
+  ? lazy(async () => {
+      const module = await import("./agentation-toolbar")
+      return { default: module.AgentationToolbar }
+    })
+  : null
+
+const DevelopmentTuning = import.meta.env.DEV
+  ? lazy(async () => {
+      const module = await import("./development-tuning")
+      return { default: module.DevelopmentTuning }
+    })
   : null
 
 /** Keep the conversation mounted so page navigation preserves drafts and scroll position. */
-const WorkspacePages = ({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => void }) => {
+const WorkspacePages = () => {
   const { page } = useAppNavigation()
   return (
     <>
@@ -130,6 +138,19 @@ export const App = ({
                           {...stylex.props(styles.viewFill)}
                         />
                       </div>
+                      <div
+                        id="ernie-main-content"
+                        tabIndex={-1}
+                        {...stylex.props(
+                          styles.workspaceSlot,
+                          sidebarOpen && styles.workspaceBehindSidebar,
+                        )}
+                      >
+                        <BrowserWorkspace>
+                          <WorkspacePages />
+                        </BrowserWorkspace>
+                      </div>
+                      {/* Electron applies overlapping drag regions in DOM order. */}
                       {sidebarOpen ? null : (
                         <button
                           aria-controls="ernie-sidebar"
@@ -149,20 +170,13 @@ export const App = ({
                           />
                         </button>
                       )}
-                      <div
-                        id="ernie-main-content"
-                        tabIndex={-1}
-                        {...stylex.props(
-                          styles.workspaceSlot,
-                          sidebarOpen && styles.workspaceBehindSidebar,
-                        )}
-                      >
-                        <BrowserWorkspace>
-                          <WorkspacePages setSidebarOpen={setSidebarOpen} />
-                        </BrowserWorkspace>
-                      </div>
                     </main>
                     {updates}
+                    {DevelopmentTuning ? (
+                      <Suspense fallback={null}>
+                        <DevelopmentTuning />
+                      </Suspense>
+                    ) : null}
                     {DevelopmentAgentation ? (
                       <Suspense fallback={null}>
                         <DevelopmentAgentation />

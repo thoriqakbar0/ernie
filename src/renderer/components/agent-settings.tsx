@@ -1,13 +1,13 @@
 import { readComposerModel } from "../composer-model"
 import { DraftComposerControls } from "./draft-composer-controls"
-import { AnimatedTabs } from "./ui/animated-tabs"
+import { AgentSettingsTabs } from "./agent-settings-tabs"
 import * as stylex from "@stylexjs/stylex"
 import { DraftAgentSettingsPanel } from "./draft-agent-settings-panel"
 import { Tabs } from "@base-ui/react/tabs"
 import { Effect } from "effect"
 import { constVoid } from "effect/Function"
 import { useId, useRef, useState } from "react"
-import { CircleHelpIcon, FolderIcon, ShuffleIcon } from "lucide-react"
+import { FolderIcon, ShuffleIcon } from "lucide-react"
 import type { Agent, AgentSettings } from "../../packages/agents"
 import { randomAgentFirstName, randomAgentNameExcept } from "../../packages/agents/names"
 import { useConversationFlow } from "../conversation-flow"
@@ -181,7 +181,7 @@ const SettingsPanel = ({
               {folder || "Choose a folder"}
             </span>
           </div>
-          {!persistedRoot ? (
+          {persistedRoot ? null : (
             <button
               type="button"
               disabled={choosingFolder}
@@ -190,7 +190,7 @@ const SettingsPanel = ({
             >
               {choosingFolder ? "Choosing…" : "Change folder"}
             </button>
-          ) : null}
+          )}
         </div>
         {persistedRoot ? (
           <p {...stylex.props(styles.description)}>
@@ -236,7 +236,8 @@ const SettingsForm = ({
       {agent ? (
         renderPanel(section)
       ) : (
-        <AnimatedTabs
+        <AgentSettingsTabs
+          shape="rounded"
           tabs={[{ label: "Customize" }, { label: "Folder" }]}
           aria-label="Agent settings"
           disabled={saving || choosingFolder || creationStarted}
@@ -256,7 +257,7 @@ const SettingsForm = ({
               {renderPanel(item)}
             </Tabs.Panel>
           ))}
-        </AnimatedTabs>
+        </AgentSettingsTabs>
       )}
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>
@@ -329,7 +330,6 @@ export const AgentSettingsDialog = ({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [choosingFolder, setChoosingFolder] = useState(false)
-  const [folderHelpVisible, setFolderHelpVisible] = useState(false)
   const [error, setError] = useState<string>()
   const nameInputId = useId()
   const [previousName, setPreviousName] = useState<string>()
@@ -431,24 +431,26 @@ export const AgentSettingsDialog = ({
                   <button
                     type="button"
                     title={choosingFolder ? "Choosing folder…" : `Current folder: ${folder}`}
-                    aria-label={choosingFolder ? "Choosing working folder…" : `Choose working folder. Current folder: ${folder}`}
+                    aria-label={
+                      choosingFolder
+                        ? "Choosing working folder…"
+                        : `Choose working folder. Current folder: ${folder}`
+                    }
                     disabled={creationStarted || choosingFolder}
-                    onPointerEnter={() => setFolderHelpVisible(true)}
-                    onPointerLeave={() => setFolderHelpVisible(false)}
-                    onFocus={() => setFolderHelpVisible(true)}
-                    onBlur={() => setFolderHelpVisible(false)}
                     onClick={() => {
                       void chooseFolder()
                     }}
                     {...stylex.props(styles.composerFolder, styles.keyboard)}
                   >
-                    {choosingFolder ? "Choosing…" : "Choose folder"}
-                    {choosingFolder ? null : <CircleHelpIcon size={14} aria-hidden="true" {...stylex.props(styles.composerFolderHint, folderHelpVisible && styles.composerFolderHintVisible)} />}
+                    {choosingFolder ? "Choosing…" : "choose folder?"}
                   </button>
                   {folder !== workspace.data && !persistedRoot ? (
-                    <button type="button" disabled={creationStarted || !workspace.data}
+                    <button
+                      type="button"
+                      disabled={creationStarted || !workspace.data}
                       {...stylex.props(styles.composerFolder, styles.keyboard)}
-                      onClick={() => update("cwd", workspace.data ?? "")}>
+                      onClick={() => update("cwd", workspace.data ?? "")}
+                    >
                       Use system folder
                     </button>
                   ) : null}
@@ -551,7 +553,7 @@ export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTa
             }
           }}
         >
-          <AnimatedTabs
+          <AgentSettingsTabs
             shape="rounded"
             tabs={[{ label: "Customize" }, { label: "Folder" }]}
             aria-label="Agent settings sections"
@@ -575,7 +577,7 @@ export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTa
                 }}
               />
             </Tabs.Panel>
-          </AnimatedTabs>
+          </AgentSettingsTabs>
         </div>
       ) : null}
       {!open && saved?.agentId === agent.id ? (

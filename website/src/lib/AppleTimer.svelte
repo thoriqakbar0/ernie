@@ -15,8 +15,7 @@
 <div class="apple-timer">
   <div class="timer-tabs"><button aria-pressed={phase === 'Focus'} onclick={() => setPhase('Focus',1500)}>Focus · 25 min</button><button aria-pressed={phase === 'Break'} onclick={() => setPhase('Break',300)}>Break · 5 min</button></div>
   <div class="timer-apple" aria-hidden="true">🍎</div>
-  <h3>one thing at a time.</h3>
   <div class="timer-digits" role="timer" aria-label={`${phase} time remaining`}>{display}</div>
   <div class="timer-actions"><button onclick={toggle}>{running ? 'Pause' : remaining === duration ? 'Start' : 'Resume'}</button><button onclick={() => setPhase(phase,duration)}>Reset</button></div>
-  <p aria-live="polite">{announcement || 'A little focus. Then a little room to breathe.'}</p>
+  <p aria-live="polite">{announcement}</p>
 </div>

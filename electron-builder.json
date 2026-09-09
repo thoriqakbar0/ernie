@@ -8,7 +8,9 @@
   "mac": {
     "icon": "build/brand/icon.icns",
     "category": "public.app-category.developer-tools",
-    "target": ["zip"]
+    "target": [
+      "zip"
+    ]
   },
   "win": {
     "icon": "build/brand/icon.ico"

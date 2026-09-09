@@ -40,7 +40,11 @@ export class UpdatesService extends Service.create({
     if (!context) {
       return
     }
-    if (!app.requestSingleInstanceLock()) {
+    // The immutable recovery parent already owns the app lock. Its IPC child
+    // must not compete for that same lock while loading the editable app.
+    const recoveryChild =
+      process.connected && process.argv.some((arg) => arg.startsWith("--ernie-history-child="))
+    if (!recoveryChild && !app.requestSingleInstanceLock()) {
       app.quit()
       return
     }

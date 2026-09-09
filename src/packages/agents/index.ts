@@ -1,4 +1,5 @@
 import { Effect, Schema } from "effect"
+import { PrimeEffortSchema, PrimeRlmMaxDepthSchema } from "../prime-agent"
 
 /** A saved recipe generates the same character on every surface and after reload. */
 const GeneratedAvatar = Schema.Struct({ kind: Schema.Literal("generated"), seed: Schema.Natural })
@@ -12,7 +13,9 @@ const AgentSettingsSchema = Schema.Struct({
   model: Schema.String,
   name: Schema.NonEmptyString,
   provider: Schema.String,
+  rlmMaxDepth: Schema.optionalKey(PrimeRlmMaxDepthSchema),
   role: Schema.String,
+  thinkingLevel: Schema.optionalKey(PrimeEffortSchema),
 })
 export { AgentSettingsSchema as AgentSettings }
 export type AgentSettings = Schema.Schema.Type<typeof AgentSettingsSchema>
@@ -42,6 +45,8 @@ const ConversationOriginSchema = Schema.Struct({
   instructions: Schema.String,
   model: Schema.String,
   provider: Schema.String,
+  rlmMaxDepth: Schema.optionalKey(PrimeRlmMaxDepthSchema),
+  thinkingLevel: Schema.optionalKey(PrimeEffortSchema),
 })
 export { ConversationOriginSchema as ConversationOrigin }
 export type ConversationOrigin = Schema.Schema.Type<typeof ConversationOriginSchema>
@@ -67,9 +72,12 @@ export const emptyRoster: Roster = { agents: [], associations: [], selectedAgent
 export class AgentFailure extends Schema.TaggedError<AgentFailure>()("AgentFailure", {
   cause: Schema.optionalKey(Schema.Defect()),
   message: Schema.String,
+  reason: Schema.optionalKey(Schema.Literal("connection")),
 }) {}
 /** JSON-safe RPC outcome. */
-export type AgentResult<A> = { ok: true; value: A } | { ok: false; error: string }
+export type AgentResult<A> =
+  | { ok: true; value: A }
+  | { ok: false; error: string; reason?: "connection" }
 /** Executes an Effect at the Zenbu Promise boundary. */
 export const runAgentOperation = <A>(
   operation: Effect.Effect<A, AgentFailure>,
@@ -77,7 +85,11 @@ export const runAgentOperation = <A>(
   Effect.runPromise(
     operation.pipe(
       Effect.match({
-        onFailure: (error): AgentResult<A> => ({ error: error.message, ok: false }),
+        onFailure: (error): AgentResult<A> => ({
+          error: error.message,
+          ok: false,
+          ...(error.reason ? { reason: error.reason } : {}),
+        }),
         onSuccess: (value): AgentResult<A> => ({ ok: true, value }),
       }),
     ),

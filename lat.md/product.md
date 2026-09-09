@@ -36,6 +36,8 @@ Agents act as persistent contacts. One send creates and submits an empty Agent c
 
 The unselected workspace opens a centered first-message composer. Sending saves an Agent and starts its native conversation; opening the page creates nothing. Empty conversations retain Agent identity and editable drafts.
 
+The empty heading and character form one leading-aligned group above the working folder and 720px composer. Top spacing is bounded on tall windows; narrow panes wrap the group and controls without moving the composer to a fixed bottom position.
+
 [[src/renderer/components/agent-welcome.tsx#AgentWelcome]] pairs the heading and procedural character previews with shared chat composition. [[src/renderer/components/draft-agent-settings-panel.tsx#DraftAgentSettingsPanel]] opens from the composer footer and docks optional draft settings in the sidebar and falls back below the composer when navigation is hidden or narrow. The form keeps ownership of local settings across placement changes. Draft settings use Base UI tabs for Customize and Folder, with keyboard navigation and a moving selection pill. The loaded empty sidebar shows a translucent procedural Agent. Decorative seeds remain stable across renders. [[src/renderer/components/empty-conversation.tsx#EmptyConversation]] introduces new work. [[src/renderer/components/chat-workspace.tsx#ChatWorkspace]] keeps creation feedback visible until session draft ownership transfers.
 
 [[src/renderer/components/provider-brand.tsx#ProviderBrand]] owns local company marks and provider display names for the conversation model picker. Attribution follows the selected session model; an unresolved provider does not imply OpenAI.
@@ -69,3 +71,11 @@ Custom model ID fields are removed from Agent settings. The composer dropdown se
 Failed first-message creation unlocks draft identity controls. Retries save current settings with the last acknowledged revision, preserving the Agent ID and creation request ID. Prepared roots retain immutable folder/model controls.
 
 Pre-session model catalogs load in a bounded worker thread because Prime Agent registry construction reads files synchronously. Concurrent requests share in-flight work; only validated model metadata returns to the host.
+
+Composer controls distinguish Reasoning from the configured RLM depth limit with visible labels, separate icons, title-case values, and hover/focus help. The live reasoning description retains the Prime Agent default side effect. Populated conversations reserve eight pixels plus the safe-area minimum below the composer hint.
+
+UiAnnotationProvider lazily initializes the installed React Grab core on first use. One app-shell owner keeps note drafts and saved notes across page navigation until reload. Selection stops before editing beside the selected message or in its declared content region. Only registered hosts accept the editor; navigation or unmounting moves it to an explicit visible workspace fallback while retaining the original selection and comment. No editor mounts inside an input or arbitrary React-owned selected DOM. The inactive annotator occupies no bottom space. Header controls reveal review only on request after notes exist; notes are copied explicitly, with no Agent send, endpoint, or telemetry. Meta/Ctrl+Shift+A annotates the focused app element, and Escape exits selection. Embedded website content is outside this renderer-only boundary.
+
+## Agent settings location
+
+Existing Agent Customize and Folder controls open in a popover anchored to the chat gear. The sidebar remains visible; the popover contains the existing editable panels and closes with Escape or an outside click.

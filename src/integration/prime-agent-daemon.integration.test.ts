@@ -1,6 +1,6 @@
 import { createServer } from "node:net"
 import { readDevConfig } from "../../scripts/dev/config"
-import { managedDaemonSocketPath, connectPrimeDaemon } from "../main/prime-agent/daemon-client"
+import { existingDaemonSocketPath, connectPrimeDaemon } from "../main/prime-agent/daemon-client"
 import { connectRpc } from "@zenbujs/core/rpc"
 import { RuntimeDescriptor } from "../dev/runtime-descriptor"
 import type { PrimeAgentService } from "../main/prime-agent/service"
@@ -216,7 +216,7 @@ const connectRosterRpc = async (runtimeFile: string) => {
       >
       primeAgent: Pick<
         PrimeAgentService,
-        "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"
+        "connectDaemon" | "attachSession" | "getSendEpoch" | "sendMessage" | "checkSend"
       >
     }
   }>({
@@ -252,8 +252,7 @@ test(
   { timeout: 30_000 },
   async (t) => {
     const root = await mkdtemp(path.join(tmpdir(), "ernie-prime-agent-"))
-    const config = readDevConfig(["desktop"], { ERNIE_DEV_STATE_ROOT: root }, root)
-    const socketPath = config.daemonSocketPath
+    const socketPath = path.join(root, "daemon.sock")
     const agentDir = path.join(root, "agent")
     let legacyConnections = 0
     const legacySocket = path.join(root, "prime-agent.sock")
@@ -267,7 +266,7 @@ test(
     t.after(() => promisify(legacy.close.bind(legacy))())
     assert.notEqual(socketPath, legacySocket)
     for (const role of ["all", "server", "web"]) {
-      assert.equal(readDevConfig([role], {}, root).daemonSocketPath, managedDaemonSocketPath())
+      assert.equal(readDevConfig([role], {}, root).daemonSocketPath, existingDaemonSocketPath())
     }
     const external = readDevConfig(["server"], { ERNIE_PRIME_AGENT_SOCKET: legacySocket }, root)
     assert.equal(external.daemonSocketPath, legacySocket)
@@ -368,7 +367,7 @@ test(
     const daemon = startDaemon(socketPath, agentDir)
     const daemonClient = await connectDaemon(socketPath)
     const projectRoot = path.resolve(import.meta.dirname, "../..")
-    const development = spawn("nub", ["--node", "scripts/dev.ts", "server"], {
+    const development = spawn(process.execPath, ["scripts/dev.ts", "server"], {
       cwd: projectRoot,
       env: {
         ...process.env,
@@ -508,6 +507,7 @@ test(
           ERNIE_DEV_PROFILE: `agent-roster-${process.pid}`,
           ERNIE_DEV_STATE_ROOT: path.join(root, "ernie"),
           ERNIE_PRIME_AGENT_SOCKET: socketPath,
+          ERNIE_PRIME_AGENT_START_DAEMON: "0",
         },
         stdio: ["ignore", "pipe", "pipe"],
       })
@@ -523,6 +523,7 @@ test(
     await waitForOutput(host, "Runtime:", 45_000)
     t.diagnostic("isolated service ready")
     let connection = await connectRosterRpc(runtimeFile)
+    await connection.prime.connectDaemon()
     closeRpc = connection.close
     const settings = {
       avatar: "fern" as const,
@@ -791,6 +792,7 @@ test(
     await waitForOutput(host, "Runtime:", 45_000)
     connection = await connectRosterRpc(runtimeFile)
     closeRpc = connection.close
+    await connection.prime.connectDaemon()
     assert.notEqual(await connection.prime.getSendEpoch(), epoch)
     const restartedSend = await connection.prime.sendMessage(send)
     assert.equal(restartedSend.status, "unknown")
@@ -821,6 +823,7 @@ test(
     assert.equal(absentSendResult.status, "not-sent")
     daemon = startDaemon(socketPath, path.join(root, "agent"))
     daemonClient = await connectDaemon(socketPath)
+    await connection.prime.connectDaemon()
     t.diagnostic("checking attachment after daemon restart")
     await connection.prime.attachSession({ sessionId })
     const catalog = Schema.decodeUnknownSync(

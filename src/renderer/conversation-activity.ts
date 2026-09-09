@@ -76,14 +76,13 @@ const describeActivitySummary = (snapshot: PrimeSessionSnapshot, resultCount: nu
   return resultCount ? "Execution details" : undefined
 }
 
-/** Projects supported runtime details without making task-level success or ownership claims. */
-export const describeConversationActivity = (snapshot: PrimeSessionSnapshot) => {
-  const { session, useful, transport } = snapshot
-  const { state } = useful
-  const action = state.sessionActions.active
-  const results: ConversationToolResult[] = []
+/** Parses tool history independently of connection and activity status updates. */
+export const describeConversationToolResults = (
+  structuredMessages: PrimeSessionSnapshot["useful"]["structuredMessages"],
+  streamingMessage: PrimeSessionSnapshot["useful"]["streamingMessage"],
+): readonly ConversationToolResult[] => {
   const runs = new Map<string, ConversationToolResult>()
-  for (const message of [...useful.structuredMessages, useful.streamingMessage]) {
+  for (const message of [...structuredMessages, streamingMessage]) {
     const assistant = Option.getOrUndefined(decodeAssistant(message))
     for (const part of assistant?.content ?? []) {
       const call = Option.getOrUndefined(decodePython(part))
@@ -117,7 +116,17 @@ export const describeConversationActivity = (snapshot: PrimeSessionSnapshot) => 
       text,
     })
   }
-  results.push(...runs.values())
+  return [...runs.values()]
+}
+
+/** Projects current runtime status alongside the corresponding parsed tool results. */
+export const describeConversationActivity = (
+  snapshot: PrimeSessionSnapshot,
+  results: readonly ConversationToolResult[],
+) => {
+  const { session, useful, transport } = snapshot
+  const { state } = useful
+  const action = state.sessionActions.active
   // Only the last finalized message can establish completion; a newer user/tool
   // message invalidates an older response's stop reason.
   const lastMessage = useful.structuredMessages.at(-1)
@@ -130,9 +139,24 @@ export const describeConversationActivity = (snapshot: PrimeSessionSnapshot) => 
   const responseStatus = describeResponseStatus(settled, ending)
   const active = session.state === "working"
   const summary = describeActivitySummary(snapshot, results.length)
+  const streaming = Option.getOrUndefined(decodeAssistant(useful.streamingMessage))
+  const messagePreview = (streaming?.content ?? [])
+    .flatMap((part) => {
+      const text = Option.getOrUndefined(decodeText(part))
+      return text ? [text.text] : []
+    })
+    .join(" ")
+    .trim()
+  const latestRun = results.at(-1)
+  const commandPreview =
+    active && latestRun && (latestRun.pending || state.activeToolNames.includes(latestRun.name))
+      ? latestRun.code?.trim()
+      : undefined
   return {
     active: active && transport.status === "connected",
     children: useful.children,
+    messagePreview,
+    commandPreview,
     followUps: state.sessionActions.followUps,
     phase: active ? action?.phase : undefined,
     queued: state.sessionActions.queuedCount,

@@ -1,7 +1,9 @@
+import { UiAnnotationProvider } from "./global-ui-annotator"
+import { UiAnnotationHost } from "./ui-annotation-host"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { collapsedSidebarLayout } from "../shell-layout.stylex"
 import { View } from "@zenbujs/core/react"
@@ -16,6 +18,22 @@ import { AgentCreationProvider } from "../agent-creation"
 import { AppNavigationProvider, useAppNavigation } from "../app-navigation"
 import { AppSettingsPage } from "./app-settings-page"
 import { ChatWorkspace } from "./chat-workspace"
+import { BrowserWorkspace } from "./browser-workspace"
+import { AppShortcuts } from "./app-shortcuts"
+
+const DevelopmentAgentation = import.meta.env.DEV
+  ? lazy(async () => {
+      const module = await import("./agentation-toolbar")
+      return { default: module.AgentationToolbar }
+    })
+  : null
+
+const DevelopmentTuning = import.meta.env.DEV
+  ? lazy(async () => {
+      const module = await import("./development-tuning")
+      return { default: module.DevelopmentTuning }
+    })
+  : null
 
 /** Keep the conversation mounted so page navigation preserves drafts and scroll position. */
 const WorkspacePages = () => {
@@ -29,6 +47,7 @@ const WorkspacePages = () => {
         <ChatWorkspace />
       </div>
       {page === "conversation" ? null : <AppSettingsPage />}
+      <UiAnnotationHost id="workspace-fallback" page={page} fallback={1} />
     </>
   )
 }
@@ -84,76 +103,92 @@ export const App = ({
   }, [sidebarOpen])
   return (
     <AppNavigationProvider>
-      <AgentStateProvider roster={roster} client={agentClient}>
-        <ConversationDraftProvider>
-          <AgentCreationProvider>
-            <ConversationFlowProvider>
-              <MessageReadingProvider>
-                <div ref={shell} {...stylex.props(styles.appShell)}>
-                  <a href="#ernie-main-content" {...stylex.props(styles.skipLink)}>
-                    Skip to workspace
-                  </a>
-                  <main
-                    {...stylex.props(
-                      styles.appMain,
-                      !sidebarOpen && styles.appMainSidebarClosed,
-                      !sidebarOpen && collapsedSidebarLayout,
-                    )}
-                  >
-                    <div
-                      aria-label="Agent navigation"
-                      inert={!sidebarOpen}
-                      aria-hidden={!sidebarOpen}
+      <UiAnnotationProvider>
+        <AgentStateProvider roster={roster} client={agentClient}>
+          <ConversationDraftProvider>
+            <AgentCreationProvider>
+              <ConversationFlowProvider>
+                <MessageReadingProvider>
+                  <AppShortcuts />
+                  <div ref={shell} {...stylex.props(styles.appShell)}>
+                    <a href="#ernie-main-content" {...stylex.props(styles.skipLink)}>
+                      Skip to workspace
+                    </a>
+                    <main
                       {...stylex.props(
-                        styles.appSidebarSlot,
-                        !sidebarOpen && styles.sidebarLeaving,
+                        styles.appMain,
+                        !sidebarOpen && styles.appMainSidebarClosed,
+                        !sidebarOpen && collapsedSidebarLayout,
                       )}
                     >
-                      <View
-                        args={{
-                          onClose: closeSidebar,
-                        }}
-                        name={SIDEBAR_VIEW_TYPE}
-                        {...stylex.props(styles.viewFill)}
-                      />
-                    </div>
-                    {sidebarOpen ? null : (
-                      <button
-                        aria-controls="ernie-sidebar"
-                        aria-expanded="false"
-                        aria-label="Open sidebar"
-                        aria-keyshortcuts="Meta+B"
-                        title="Open sidebar (⌘B)"
-                        onClick={() => {
-                          restoreToggleFocus.current = true
-                          setSidebarOpen(true)
-                        }}
-                        type="button"
-                        {...stylex.props(styles.sidebarOpenButton)}
+                      <div
+                        aria-label="Agent navigation"
+                        inert={!sidebarOpen}
+                        aria-hidden={!sidebarOpen}
+                        {...stylex.props(
+                          styles.appSidebarSlot,
+                          !sidebarOpen && styles.sidebarLeaving,
+                        )}
                       >
-                        <PanelLeftOpenIcon
-                          {...stylex.props(sharedStyles.controlIcon, styles.openIcon)}
+                        <View
+                          args={{
+                            onClose: closeSidebar,
+                          }}
+                          name={SIDEBAR_VIEW_TYPE}
+                          {...stylex.props(styles.viewFill)}
                         />
-                      </button>
-                    )}
-                    <div
-                      id="ernie-main-content"
-                      tabIndex={-1}
-                      {...stylex.props(
-                        styles.workspaceSlot,
-                        sidebarOpen && styles.workspaceBehindSidebar,
+                      </div>
+                      <div
+                        id="ernie-main-content"
+                        tabIndex={-1}
+                        {...stylex.props(
+                          styles.workspaceSlot,
+                          sidebarOpen && styles.workspaceBehindSidebar,
+                        )}
+                      >
+                        <BrowserWorkspace>
+                          <WorkspacePages />
+                        </BrowserWorkspace>
+                      </div>
+                      {/* Electron applies overlapping drag regions in DOM order. */}
+                      {sidebarOpen ? null : (
+                        <button
+                          aria-controls="ernie-sidebar"
+                          aria-expanded="false"
+                          aria-label="Open sidebar"
+                          aria-keyshortcuts="Meta+B"
+                          title="Open sidebar (⌘B)"
+                          onClick={() => {
+                            restoreToggleFocus.current = true
+                            setSidebarOpen(true)
+                          }}
+                          type="button"
+                          {...stylex.props(styles.sidebarOpenButton)}
+                        >
+                          <PanelLeftOpenIcon
+                            {...stylex.props(sharedStyles.controlIcon, styles.openIcon)}
+                          />
+                        </button>
                       )}
-                    >
-                      <WorkspacePages />
-                    </div>
-                  </main>
-                  {updates}
-                </div>
-              </MessageReadingProvider>
-            </ConversationFlowProvider>
-          </AgentCreationProvider>
-        </ConversationDraftProvider>
-      </AgentStateProvider>
+                    </main>
+                    {updates}
+                    {DevelopmentTuning ? (
+                      <Suspense fallback={null}>
+                        <DevelopmentTuning />
+                      </Suspense>
+                    ) : null}
+                    {DevelopmentAgentation ? (
+                      <Suspense fallback={null}>
+                        <DevelopmentAgentation />
+                      </Suspense>
+                    ) : null}
+                  </div>
+                </MessageReadingProvider>
+              </ConversationFlowProvider>
+            </AgentCreationProvider>
+          </ConversationDraftProvider>
+        </AgentStateProvider>
+      </UiAnnotationProvider>
     </AppNavigationProvider>
   )
 }

@@ -33,10 +33,9 @@ const WorkspaceScenarios =
   import.meta.env.DEV && search.get("scenario") === "workspaces"
     ? lazy(() => import("../dev-only/workspace-picker-scenarios"))
     : undefined
-// Old preview links now open history within the normal settings shell.
+// Explicit history scenarios stay in the settings shell without enabling fixtures elsewhere.
 if (import.meta.env.DEV && search.get("scenario") === "history") {
   const url = new URL(window.location.href)
-  url.searchParams.delete("scenario")
   url.searchParams.set("page", "history")
   window.history.replaceState(null, "", url)
 }

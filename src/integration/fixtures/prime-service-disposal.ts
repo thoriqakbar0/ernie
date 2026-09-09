@@ -155,6 +155,7 @@ const verifyDisposal = async () => {
     await runtime.whenIdle()
     const service = runtime.getSlot("primeAgent")?.instance
     assert.ok(service instanceof PrimeAgentService)
+    await service.connectDaemon()
     if (refreshBurst) {
       await service.attachSession({ sessionId: "saved-fixture" })
       const inspector = new Session()

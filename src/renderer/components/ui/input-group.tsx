@@ -72,7 +72,7 @@ const styles = stylex.create({
     margin: 0,
     minWidth: 0,
     opacity: {
-      ":has(:disabled)": 0.5,
+      ':has([data-slot="input-group-control"]:disabled)': 0.5,
       default: 1,
     },
     outlineStyle: "none",

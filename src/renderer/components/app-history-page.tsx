@@ -1,3 +1,4 @@
+import { HistoryFeedback } from "./history-feedback"
 import type { KeyboardEvent } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRpc } from "@zenbujs/core/react"
@@ -23,6 +24,24 @@ import { CheckpointSource } from "./checkpoint-source"
 import { styles } from "./app-settings.styles"
 
 type Client = (input: HistoryRequest) => Promise<unknown>
+class HistoryRequestError extends Error {
+  readonly code: string
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = "HistoryRequestError"
+    this.code = code
+  }
+}
+const decodeHistoryResponse = (raw: unknown) => {
+  const response = Schema.decodeUnknownSync(HistoryResponse)(raw)
+  if (!response.ok) {
+    throw new HistoryRequestError(
+      response.error.code,
+      `${response.error.message} ${response.error.nextAction ?? ""}`,
+    )
+  }
+  return response.value
+}
 const origins = {
   baseline: "Initial app",
   before_restore: "Before restore",
@@ -236,14 +255,19 @@ const CheckpointDetails = ({
   </section>
 )
 
-const HistoryStatusMessage = ({ status }: { status: typeof HistoryStatus.Type }) => (
-  <p {...stylex.props(styles.historyStatus)}>
-    <output>
-      {status.captureError?.message ??
-        (status.unsavedChanges ? "Changes since last checkpoint" : "No unsaved changes.")}
-    </output>
-  </p>
-)
+const HistoryStatusMessage = ({ status }: { status: typeof HistoryStatus.Type }) => {
+  let message = "No unsaved changes."
+  if (status.unsavedChanges === null) {
+    message = "Unsaved changes could not be checked."
+  } else if (status.unsavedChanges) {
+    message = "Changes since last checkpoint"
+  }
+  return (
+    <p {...stylex.props(styles.historyStatus)}>
+      <output>{status.captureError?.message ?? message}</output>
+    </p>
+  )
+}
 
 /** Full history page uses the same controller as independent recovery and agents. */
 export const AppHistoryPage = ({
@@ -253,15 +277,8 @@ export const AppHistoryPage = ({
   const rpc = useRpc()
   const { navigate } = useAppNavigation()
   const request = useCallback(
-    async (input: HistoryRequest) => {
-      const response = Schema.decodeUnknownSync(HistoryResponse)(
-        await (client ? client(input) : rpc.app.appHistory.request(input)),
-      )
-      if (!response.ok) {
-        throw new Error(`${response.error.message} ${response.error.nextAction ?? ""}`)
-      }
-      return response.value
-    },
+    async (input: HistoryRequest) =>
+      decodeHistoryResponse(await (client ? client(input) : rpc.app.appHistory.request(input))),
     [client, rpc],
   )
   const [items, setItems] = useState<readonly CheckpointSummary[]>([])
@@ -276,7 +293,10 @@ export const AppHistoryPage = ({
   }>()
   const source = sourceResult?.text
   const sourcePage = sourceResult?.next
-  const [errorMessage, setErrorMessage] = useState<string>()
+  const [historyError, setHistoryError] = useState<Error>()
+  const unsupportedWorkspace =
+    historyError instanceof HistoryRequestError && historyError.code === "unsupported_workspace"
+  const errorMessage = unsupportedWorkspace ? undefined : historyError?.message
   const [notice, setNotice] = useState<string>()
   const [pending, setPending] = useState<string | null>(null)
   const busy = pending !== null
@@ -305,7 +325,7 @@ export const AppHistoryPage = ({
         await refresh(controller.signal)
       } catch (error) {
         if (!controller.signal.aborted) {
-          setErrorMessage(error instanceof Error ? error.message : "History unavailable")
+          setHistoryError(error instanceof Error ? error : new Error("History unavailable"))
         }
       }
     }
@@ -317,13 +337,13 @@ export const AppHistoryPage = ({
   }, [refresh])
   const act = async (operation: () => Promise<void>, label = "Updating…") => {
     setPending(label)
-    setErrorMessage(undefined)
+    setHistoryError(undefined)
     setNotice(undefined)
     try {
       await operation()
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "History could not complete this action.",
+      setHistoryError(
+        error instanceof Error ? error : new Error("History could not complete this action."),
       )
     } finally {
       setPending(null)
@@ -395,17 +415,12 @@ export const AppHistoryPage = ({
             <h1 {...stylex.props(styles.title)}>App history</h1>
           </header>
         )}
-        {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-        {notice ? (
-          <p>
-            <output>{notice}</output>
-          </p>
-        ) : null}
-        {pending ? (
-          <p {...stylex.props(styles.description)}>
-            <output>{pending}</output>
-          </p>
-        ) : null}
+        <HistoryFeedback
+          message={errorMessage}
+          notice={unsupportedWorkspace ? "No app history to show." : notice}
+          pending={pending}
+          retry={status ? undefined : () => act(refresh, "Refreshing…")}
+        />
         {status ? (
           <>
             <div {...stylex.props(styles.historyToolbar)}>
@@ -479,7 +494,9 @@ export const AppHistoryPage = ({
                 </details>
               </div>
             </div>
-            {items.length ? null : <p>No saved checkpoints yet.</p>}
+            {items.length ? null : (
+              <p {...stylex.props(styles.feedback)}>No saved checkpoints yet.</p>
+            )}
             <ol
               aria-label="Saved checkpoints"
               {...stylex.props(styles.list, styles.checkpointList)}
@@ -536,8 +553,8 @@ export const AppHistoryPage = ({
             ) : null}
           </>
         ) : null}
-        {!status && !errorMessage ? (
-          <p>
+        {!status && !historyError ? (
+          <p {...stylex.props(styles.feedback)}>
             <output>Loading app history…</output>
           </p>
         ) : null}

@@ -3,6 +3,7 @@ import { theme } from "../theme.stylex"
 
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
+  hidden: { display: "none" },
   chatWorkspace: {
     backgroundColor: theme["--surface"],
     color: theme["--ink"],
@@ -19,9 +20,9 @@ export const styles = stylex.create({
     maxHeight: "60dvh",
     overflowY: "auto",
     overscrollBehavior: "contain",
-    padding: "14px 28px max(18px, env(safe-area-inset-bottom))",
+    padding: "14px 28px env(safe-area-inset-bottom, 0px)",
     paddingBottom: {
-      "@media (max-width: 720px)": "max(8px, env(safe-area-inset-bottom))",
+      "@media (max-width: 720px)": "env(safe-area-inset-bottom, 0px)",
       default: null,
     },
     paddingInline: {
@@ -41,8 +42,8 @@ export const styles = stylex.create({
     overflowY: "visible",
     padding: "0",
     width: {
-      "@media (max-width: 720px)": "min(calc(100% - 32px), 719px)",
-      default: "min(calc(100% - 48px), 719px)",
+      "@media (max-width: 720px)": "min(calc(100% - 32px), 720px)",
+      default: "min(calc(100% - 48px), 720px)",
     },
     zIndex: "10",
   },
@@ -76,7 +77,10 @@ export const styles = stylex.create({
       "@media (max-width: 720px)": "36px",
       default: "48px",
     },
-    paddingTop: { "@media (max-width: 720px)": "36px", default: "max(48px, calc(50dvh - 155px))" },
+    paddingBlockStart: {
+      "@media (max-width: 720px)": "36px",
+      default: "clamp(48px, 16dvh, 180px)",
+    },
   },
   draftHeroTitle: {
     color: theme["--ink-strong"],
@@ -87,7 +91,7 @@ export const styles = stylex.create({
     margin: "0",
     textAlign: "center",
     width: {
-      "@media (max-width: 720px)": "min(calc(100% - 32px), 719px)",
+      "@media (max-width: 720px)": "min(calc(100% - 32px), 720px)",
       default: "min(calc(100% - 48px), 720px)",
     },
   },
@@ -95,7 +99,6 @@ export const styles = stylex.create({
   emptyAvatar: {
     display: "inline-flex",
     flexShrink: 0,
-    paddingRight: { "@media (max-width: 720px)": 0, default: 24 },
     transform: "rotate(7deg)",
   },
   emptyConversation: {
@@ -103,7 +106,7 @@ export const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     gap: 14,
-    textAlign: "left",
+    textAlign: "start",
     width: {
       "@media (max-width: 720px)": "calc(100% - 32px)",
       default: "min(calc(100% - 48px), 720px)",
@@ -112,8 +115,9 @@ export const styles = stylex.create({
   emptyHeading: {
     alignItems: "center",
     display: "flex",
-    gap: 20,
-    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    justifyContent: "flex-start",
     minWidth: 0,
     width: "100%",
   },
@@ -127,7 +131,7 @@ export const styles = stylex.create({
   emptyTitle: {
     color: theme["--ink-strong"],
     fontFamily: '"gelica", Georgia, serif',
-    fontSize: "clamp(36px, 4.8vw, 62px)",
+    fontSize: "clamp(32px, 4.8vw, 48px)",
     fontWeight: 500,
     letterSpacing: "-0.045em",
     lineHeight: 1.08,

@@ -12,13 +12,19 @@ The development gateway prints its runtime and browser addresses. Browser integr
 
 Each profile owns a state root, database, runtime descriptor, process owner, and Electron user data.
 
-Browser roles share the versioned managed daemon endpoint; desktop profiles own an agent directory and versioned socket within their state root. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
+All development roles use an externally owned Prime Agent socket. Ernie starts a missing daemon through its installed executable and never installs or terminates it. See [daemon version policy](../docs/architecture.md#prime-agent-version-boundary).
 
-[[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects an external daemon and disables daemon ownership.
+[[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects the external endpoint. `ERNIE_PRIME_AGENT_EXECUTABLE` selects the installed launcher.
+
+## Desktop close shortcut
+
+Command+W is suppressed in Electron web contents so it cannot accidentally close the Ernie window. Explicit window controls and application quit remain available. Browser development keeps its service host independent of browser tabs.
 
 ## UI iteration
 
 The agent reproduces one visible problem, edits through browser HMR, and inspects the result using the existing development runtime.
+
+Annotation and browser controls live at the top right of the chat header. The Settings heading does not duplicate them.
 
 Follow the [agent-native workflow](../docs/workflow.md) for scenario context, correction, and handoff. Read [UI guidance](../docs/ui.md) for design requirements and [architecture guidance](../docs/architecture.md) for ownership decisions.
 
@@ -77,3 +83,17 @@ The signature adapter is checked against the pinned Zenbu implementation. [[src/
 ## InterfaceKit
 
 InterfaceKit is disabled: the renderer does not import or mount its floating editor toolbar.
+
+## Release channel commands
+
+Development keeps local profiles. Releases use the Ernie identity and ad-hoc signing. Prerelease status changes GitHub metadata only. Official signing remains optional.
+
+See [release commands](../docs/releasing.md). Packaged source and app-history paths derive from the validated package identity. Preparation changes local files; publication requires a clean committed checkout.
+
+## Packaged startup ownership
+
+The recovery parent owns the application lock and uses a separate Chromium profile. Its editable child reuses that ownership and reports renderer readiness over IPC. Reopening the app focuses the child.
+
+## Agentation feedback
+
+Development mounts Agentation locally. Send to Agent stages annotated interface feedback in the selected parent chat for review. The interface workflow in docs/workflow.md requires live observation before source edits and HMR verification afterward.

@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex"
 import { readAppearance, saveAppearance, readPalette, savePalette, palettes } from "../appearance"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 import { interfaceFonts, monoFonts, readTypography, saveTypography } from "../typography"
+import { CheckpointSource } from "./checkpoint-source"
 import { styles } from "./app-settings.styles"
 
 /** Local appearance controls apply immediately and retain an honest save status. */
@@ -29,14 +30,12 @@ export const AppearanceSettings = () => {
         Appearance
       </h2>
       <p id="appearance-scope" {...stylex.props(styles.description)}>
-        Applies to this browser or app profile. Preferences stay on this device and are outside App
-        history.
+        Saved on this device. Appearance changes aren’t included in App history.
       </p>
       <div {...stylex.props(styles.appearanceRows)}>
         <div {...stylex.props(styles.appearanceRow)}>
           <div>
             <h3 {...stylex.props(styles.appearanceLabel)}>Theme</h3>
-            <p {...stylex.props(styles.appearanceHint)}>Choose your palette.</p>
           </div>
           <Select
             value={palette}
@@ -69,7 +68,6 @@ export const AppearanceSettings = () => {
             <h3 id="color-mode-heading" {...stylex.props(styles.appearanceLabel)}>
               Color mode
             </h3>
-            <p {...stylex.props(styles.appearanceHint)}>Light, dark, or match your device.</p>
           </div>
           <Select
             value={mode}
@@ -156,7 +154,10 @@ export const AppearanceSettings = () => {
             </SelectContent>
           </Select>
           <pre {...stylex.props(styles.fontPreview, styles.monoPreview)}>
-            const greeting = &quot;Hello, Ernie&quot;; 0123456789 · Il1 O0
+            <CheckpointSource
+              language="javascript"
+              source={'const greeting = "Hello, Ernie";\n// 0123456789 · Il1 O0'}
+            />
           </pre>
         </div>
       </div>

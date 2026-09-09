@@ -258,3 +258,34 @@ input:disabled {
   --ernie-light: ;
   --ernie-dark: initial;
 }
+
+/* Shiki keeps semantic roles; appearance owns their light and dark colors. */
+:root {
+  --shiki-foreground: var(--ink);
+  --shiki-background: var(--surface-muted);
+  --shiki-token-comment: light-dark(oklch(0.4 0.015 260), oklch(0.8 0.015 260));
+  --shiki-token-keyword: light-dark(oklch(0.4 0.08 20), oklch(0.82 0.08 20));
+  --shiki-token-string: light-dark(oklch(0.4 0.055 160), oklch(0.82 0.055 160));
+  --shiki-token-constant: light-dark(oklch(0.4 0.08 260), oklch(0.82 0.08 260));
+  --shiki-token-function: light-dark(oklch(0.4 0.08 310), oklch(0.82 0.08 310));
+  --shiki-token-parameter: var(--shiki-foreground);
+  --shiki-token-punctuation: var(--shiki-foreground);
+  --shiki-token-string-expression: var(--shiki-token-string);
+  --shiki-token-link: var(--shiki-token-constant);
+  --shiki-token-inserted: var(--shiki-token-string);
+  --shiki-token-deleted: var(--shiki-token-keyword);
+  --shiki-token-changed: var(--shiki-token-function);
+}
+
+/* The parent row owns hover and current-conversation emphasis. */
+button [data-subagent-count] {
+  text-decoration: none;
+}
+button[aria-current="page"] [data-subagent-count] {
+  text-decoration: underline;
+}
+@media (hover: hover) {
+  button:hover [data-subagent-count] {
+    text-decoration: underline;
+  }
+}

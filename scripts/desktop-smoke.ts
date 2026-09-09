@@ -3,36 +3,14 @@ import type { ChildProcess } from "node:child_process"
 import { access, mkdir, mkdtemp, rm } from "node:fs/promises"
 import { createRequire } from "node:module"
 import path from "node:path"
-import { once } from "node:events"
+import { setTimeout as delay } from "node:timers/promises"
 import { tmpdir } from "node:os"
 
 import { stopOwnedProcess } from "./dev/process.ts"
-import { shutdownPrimeAgentDaemon } from "./dev/prime-agent-daemon.ts"
 import { resolveDaemonSocketPath } from "./dev/config.ts"
 
 const redactRuntimeToken = (value: string) =>
   value.replaceAll(/wsToken=[^&\s]+/gu, "wsToken=[redacted]")
-
-const waitForExit = async (
-  smokeProcess: ChildProcess,
-  timeoutMs: number,
-): Promise<[number | null, NodeJS.Signals | null]> => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => {
-    controller.abort(new Error("Desktop smoke timed out"))
-  }, timeoutMs)
-  try {
-    await once(smokeProcess, "exit", { signal: controller.signal })
-    return [smokeProcess.exitCode, smokeProcess.signalCode]
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw controller.signal.reason
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 const fileExists = async (filePath: string) => {
   try {
@@ -71,10 +49,9 @@ Object.assign(environment, {
   ERNIE_PRIME_AGENT_AGENT_DIR: agentDirectory,
   ERNIE_PRIME_AGENT_EXECUTABLE: electronExecutable,
   ERNIE_PRIME_AGENT_SOCKET: daemonSocketPath,
-  ERNIE_PRIME_AGENT_START_DAEMON: "1",
+  ERNIE_PRIME_AGENT_START_DAEMON: "0",
   ERNIE_RENDERER_MODE: "desktop",
   ERNIE_ZENBU_DB: databaseDirectory,
-  ZENBU_AUTO_QUIT_AFTER_READY_MS: "5000",
 })
 
 let output = ""
@@ -106,23 +83,30 @@ try {
     process.stderr.write(safe)
   })
 
-  const [code, signal] = await waitForExit(child, 45_000)
-  if (code !== 0) {
-    throw new Error(`Desktop smoke exited with ${code ?? signal ?? "an unknown status"}`)
+  // Observe the renderer handshake instead of scheduling quit before startup
+  // has completed. The harness owns process cleanup independently of readiness.
+  const deadline = Date.now() + 60_000
+  const waitForRenderer = async (): Promise<void> => {
+    if (output.includes("[zenbu] ready") && (await fileExists(readyFile))) {
+      return
+    }
+    if (child?.exitCode !== null || child?.signalCode !== null) {
+      throw new Error("Desktop smoke exited before readiness")
+    }
+    if (Date.now() >= deadline) {
+      throw new Error("Desktop renderer did not connect within 60 seconds")
+    }
+    await delay(100)
+    return waitForRenderer()
   }
+  await waitForRenderer()
   if (!output.includes("[zenbu] renderer-url")) {
     throw new Error("Desktop smoke never opened the real renderer")
   }
-  if (!output.includes("[zenbu] ready")) {
-    throw new Error("Desktop smoke never reached Zenbu readiness")
-  }
-  if (!(await fileExists(readyFile))) {
-    throw new Error("Desktop smoke renderer never connected to Zenbu")
-  }
+  console.log("Desktop startup smoke passed without a Prime Agent daemon")
 } finally {
   if (child) {
     await stopOwnedProcess(child)
   }
-  await shutdownPrimeAgentDaemon(daemonSocketPath)
   await rm(temporaryRoot, { force: true, recursive: true })
 }

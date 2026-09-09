@@ -24,6 +24,8 @@ Settings uses Base UI tabs for Appearance and App history, with URL-controlled s
 
 [[src/renderer/app-navigation.tsx#AppNavigationProvider]] owns page navigation. [[src/renderer/components/app-history-page.tsx#AppHistoryPage]] reads controller facts, displays checkpoint differences. Independent host recovery retains restore approval.
 
+Normal development settings use the same history service. Unsupported workspaces show “No app history to show.” without a retry action; other failures retain feedback and retry. Synthetic checkpoints require an explicit development `scenario=history` URL. Empty history and unknown unsaved-change status remain explicit.
+
 ## Agent access
 
 The local authenticated socket, CLI, and stdio MCP share checkpoint identities and errors. Editing clients register an interval before changing the managed application.
@@ -32,11 +34,11 @@ The local authenticated socket, CLI, and stdio MCP share checkpoint identities a
 
 Admission follows fallible session preparation. Uncertain dispatch retains its editing interval until resolved; inactive managed roots cannot admit new work.
 
-## Customization entry
+## Appearance and customization
 
-Settings distinguishes local appearance preferences from managed-source customization. The customizer disclosure names the selected Agent workspace and opens the existing dedicated root without sending a prompt.
+Settings exposes local appearance preferences and App history. Managed-source customization remains a backend capability without a Settings disclosure.
 
-[[src/renderer/components/app-customization-entry.tsx#AppCustomizationEntry]] consumes the existing customization service and roster command owner. Pending opens prevent duplicate clicks; failed opens retain retry feedback. Navigation away suppresses a delayed return to conversation.
+[[src/main/services/app-history.ts#AppHistoryService]] retains the customization service and existing managed-source Agent workflow.
 
 [[src/renderer/components/appearance-settings.tsx#AppearanceSettings]] reports successful preference writes and retries only failed preference groups. Local preferences are outside source checkpoints. The App history page retains checkpoint browsing and recovery feedback.
 
@@ -45,3 +47,9 @@ Settings distinguishes local appearance preferences from managed-source customiz
 History separates saving from recovery. A grouped checkpoint list distinguishes current and selected entries; each row expands inline to inspect metadata and source.
 
 The compact header contains Save checkpoint and an actions disclosure for refresh and previous-state inspection. Status sits below the list. Screenshot stacks show an explicit empty state because checkpoint data has no image capture. Compact metadata keeps exact timestamps and origins in details.
+
+## Preview source completeness
+
+The capture manifest includes release.json because packaged source configuration reads it at startup. Preview packaging supplies distinct source and history roots while retaining the shared Prime Agent daemon.
+
+Settings uses a 600px content column and plain text Base UI tabs with a quiet selected underline. Restrained rows retain responsive label/control alignment, font previews under their controls, and shared theme tokens. History progress, empty notices, and recoverable errors use the presentation-only HistoryFeedback component; runtime loading and retry ownership remain in AppHistoryPage.

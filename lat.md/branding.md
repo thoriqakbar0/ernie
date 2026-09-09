@@ -9,3 +9,9 @@ Two canonical PNGs in `assets/brand/` own Ernie's identity. The production mark 
 ## Restored app design
 
 The renderer uses the checked-in orange palette and Ernie sidebar identity from `a0a2201`. Settings history and reconnect behavior remain available.
+
+## Distribution
+
+All distributions use the normal Ernie artwork. GitHub prerelease status does not create another app identity.
+
+See [release instructions](../docs/releasing.md) for explicit unsigned packaging and macOS installation limits.

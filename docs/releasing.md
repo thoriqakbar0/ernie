@@ -1,29 +1,42 @@
-# Release and update Ernie
+# Develop and release Ernie
 
-Ernie uses Zenbu source updates. The signed Electron package installs source from the dedicated `release` branch. Installed apps check that branch automatically and offer an explicit update-and-restart action.
+Ernie uses one app identity for development and distribution. macOS archives use ad-hoc signing by default, without Developer ID or notarization.
 
-## Publish compatible source
+## Commands
 
-`release.json` owns the destination: `thoriqakbar0/ernie#release`. Both packaging and the publisher read it. Configuration and publisher checks reject `main` and `master`.
+| Stage | Command | Result |
+| --- | --- | --- |
+| Develop | `nub run dev` | Browser renderer and backend with HMR |
+| Backend | `nub run dev:server` | Backend for an attached browser |
+| Attach browser | `nub run dev:web` | Connect to the development backend |
+| Desktop | `nub run dev:desktop` | Electron development app |
+| Check development | `nub run dev:check` | Link types and typecheck |
+| Prepare version | `nub run release:prepare 0.2.1` | Set version and host compatibility locally |
+| Validate | `nub run release:check` | Validate Ernie identity and destination |
+| Build | `nub run release:build` | Ad-hoc signed archive without publication |
+| Official signing | `nub run release:build:signed` | Build with configured Apple credentials |
+| Prerelease | `nub run release:preview` | Publish normal Ernie with GitHub prerelease metadata |
+| Production | `nub run release:prod` | Publish normal Ernie as the latest release |
+| Initialize source | `nub run release:source:init` | Initialize the release source branch |
+| Update source | `nub run release:source:push` | Publish compatible source changes |
 
-Run `nub run release:check` to validate the destination and host compatibility without network access or publication. Publication requires a clean committed checkout and explicit authorization:
+## Prepare and verify
 
-1. Run `nub run publish:source init` once to initialize the dedicated mirror branch.
-2. Run `nub run publish:source push` for later source releases.
+Use an isolated worktree. Prepare the version, add `docs/releases/<version>.md`, review changes, and run smoke tests before publication. Release commands require a clean committed candidate. Existing remote tags stop publication.
 
-Each publication stages source first. The wrapper rejects extra flags, preventing destination overrides and forced publication. Git’s configured credential helper supplies publisher authentication; the wrapper removes token environment variables before invoking Zenbu, whose success output can otherwise include a credential-bearing URL.
+Both publication commands use the same app name, artwork, bundle ID, and source branch. The preview command only selects GitHub prerelease metadata. The historical v0.2.0 Preview tag remains unchanged.
 
-Do not invoke `zen publish:source` directly against the development branch: it replaces the target’s tracked tree with staged source. Installed apps require credential-free read access to the mirror and dependency assets. Protect the release branch so only reviewed source can reach installed apps.
+Ernie uses `dev.zenbu.ernie`, source branch `release`, installed source `~/.zenbu/apps/ernie`, and history `~/.ernie/app-history`. Canonical artwork lives in `assets/brand/production.png`.
 
-## Package the Electron host
+The app connects to an existing Prime Agent daemon. It does not launch or stop the daemon. Set `ERNIE_PRIME_AGENT_SOCKET` for a custom socket; otherwise the upstream user socket convention applies. The client SDK remains an application dependency.
 
-`package.json#version` becomes the packaged host version. `package.json#zenbu.host` declares compatible hosts; `0.1.0` satisfies the current `>=0.1.0 <0.2.0` range.
+## Publish without Apple credentials
 
-Run `nub run release:build` from a clean committed checkout after initializing the mirror. It stages source and invokes the existing macOS ZIP packaging with signing required, hardened runtime enabled, notarization enabled, and publishing disabled. Apple signing and notarization credentials must be available to electron-builder. Keep their values outside source control and logs.
+On Apple Silicon, run the publication command after local installation, startup, connection, and shutdown checks pass. The publisher builds, verifies the ad-hoc signature, writes checksums, publishes source, pushes the candidate and tag, and creates the GitHub release.
 
-Bump the version for each Electron package. Change the compatibility range when source requires another embedded runtime or toolchain. Source updates cannot replace Electron or the launcher: incompatible releases display a message requiring a newer Electron package.
+The archive is not Developer ID signed or notarized. macOS may require approval in System Settings > Privacy & Security after first launch. Do not disable Gatekeeper globally.
 
-Local development uses Nub. Installed apps retain Zenbu’s embedded pnpm 10.33.0 toolchain.
+Source, tags, and assets are separate operations. If publication fails, inspect what succeeded before retrying. Never overwrite a published tag to repair an archive; prepare a new version.
 
 ## Apply an update
 

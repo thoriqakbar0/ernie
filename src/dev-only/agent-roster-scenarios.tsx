@@ -314,6 +314,14 @@ const Scenario = ({ preset }: { preset: Preset }) => {
         }),
       )
     return {
+      remove: (input) => command(() => {
+        const roster = current.current
+        update({ ...roster,
+          agents: roster.agents.filter((agent) => agent.id !== input.agentId),
+          associations: roster.associations.filter((item) => item.agentId !== input.agentId),
+          selectedAgentId: roster.selectedAgentId === input.agentId ? null : roster.selectedAgentId,
+        })
+      }),
       assign: (input) =>
         command((): undefined => {
           const existing = current.current.associations.find(

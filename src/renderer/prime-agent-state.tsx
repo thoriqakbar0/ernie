@@ -1,3 +1,4 @@
+import { createPrimeQueryRecovery } from "./prime-query-recovery"
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   createContext,
@@ -27,29 +28,34 @@ const sessionKeys = {
   workspacePath: ["app", "workspace-path"] as const,
 }
 
-type SessionStateView =
-  | Readonly<{
-      data: readonly PrimeSessionSummary[]
-      isError: false
-      isPending: true
-      isSuccess: false
-      selectedSessionId?: string
-    }>
-  | Readonly<{
-      data: readonly PrimeSessionSummary[]
-      error: unknown
-      isError: true
-      isPending: false
-      isSuccess: false
-      selectedSessionId?: string
-    }>
-  | Readonly<{
-      data: readonly PrimeSessionSummary[]
-      isError: false
-      isPending: false
-      isSuccess: true
-      selectedSessionId?: string
-    }>
+type SessionStateView = Readonly<{
+  connection?: PrimeSessionState["connection"]
+  connectionGeneration: number
+}> &
+  (
+    | Readonly<{
+        data: readonly PrimeSessionSummary[]
+        isError: false
+        isPending: true
+        isSuccess: false
+        selectedSessionId?: string
+      }>
+    | Readonly<{
+        data: readonly PrimeSessionSummary[]
+        error: unknown
+        isError: true
+        isPending: false
+        isSuccess: false
+        selectedSessionId?: string
+      }>
+    | Readonly<{
+        data: readonly PrimeSessionSummary[]
+        isError: false
+        isPending: false
+        isSuccess: true
+        selectedSessionId?: string
+      }>
+  )
 
 class PrimeAgentRuntime {
   private readonly workspace
@@ -57,6 +63,7 @@ class PrimeAgentRuntime {
   private readonly stateListeners = new Set<() => void>()
   private stateRevision = -1
   private stateView: SessionStateView = {
+    connectionGeneration: 0,
     data: [],
     isError: false,
     isPending: true,
@@ -100,6 +107,17 @@ class PrimeAgentRuntime {
       this.acceptState(state)
     }
     void loadState()
+  }
+
+  async connectDaemon() {
+    if (!this.client.connectDaemon) {
+      return
+    }
+    try {
+      this.acceptState(await this.client.connectDaemon())
+    } catch (error) {
+      this.failState(error, true)
+    }
   }
 
   getStateView = () => this.stateView
@@ -156,10 +174,10 @@ class PrimeAgentRuntime {
     attachment.chat.releaseUncertainSend()
   }
 
-  async submit(sessionId: string, content: string) {
+  async submit(sessionId: string, content: string, delivery?: "steer" | "follow-up") {
     const attachment = await this.getAttachment(sessionId)
     return attachment.snapshot.session.state === "working"
-      ? attachment.chat.followUp(content)
+      ? delivery === "follow-up" ? attachment.chat.followUp(content) : attachment.chat.steer(content)
       : attachment.chat.submitDraft(content)
   }
 
@@ -233,11 +251,19 @@ class PrimeAgentRuntime {
   }
 
   private acceptState(state: PrimeSessionState) {
-    if (state.revision <= this.stateRevision) {
+    if (
+      state.revision < this.stateRevision ||
+      (state.revision === this.stateRevision && !this.stateView.isError)
+    ) {
       return
     }
     this.stateRevision = state.revision
+    const recovered =
+      state.connection?.state.status === "connected" &&
+      this.stateView.connection?.state.status !== "connected"
     this.stateView = {
+      connection: state.connection,
+      connectionGeneration: this.stateView.connectionGeneration + (recovered ? 1 : 0),
       data: state.sessions,
       isError: false,
       isPending: false,
@@ -249,11 +275,16 @@ class PrimeAgentRuntime {
     }
   }
 
-  private failState(error: unknown) {
-    if (this.stateRevision >= 0) {
+  private failState(error: unknown, force = false) {
+    if (!force && this.stateRevision >= 0) {
       return
     }
     this.stateView = {
+      connection: this.stateView.connection,
+      connectionGeneration: this.stateView.connectionGeneration,
+      ...(this.stateView.selectedSessionId
+        ? { selectedSessionId: this.stateView.selectedSessionId }
+        : {}),
       data: this.stateView.data,
       error,
       isError: true,
@@ -293,8 +324,16 @@ const PrimeAgentState = ({
   )
 
   useEffect(() => {
+    const refresh = createPrimeQueryRecovery(
+      queryClient,
+      runtime.getStateView().connectionGeneration,
+    )
+    const unsubscribe = runtime.subscribeState(() => {
+      void refresh(runtime.getStateView().connectionGeneration)
+    })
     runtime.start()
     return () => {
+      unsubscribe()
       void runtime.dispose()
       queryClient.clear()
     }
@@ -357,7 +396,7 @@ export const useConversationCommands = () => {
     () => ({
       release: (sessionId: string) => runtime.releaseSend(sessionId),
       stop: (sessionId: string) => runtime.stop(sessionId),
-      submit: (sessionId: string, content: string) => runtime.submit(sessionId, content),
+      submit: (sessionId: string, content: string, delivery?: "steer" | "follow-up") => runtime.submit(sessionId, content, delivery),
     }),
     [runtime],
   )
@@ -367,6 +406,12 @@ export const useConversationCommands = () => {
 export const usePrimeSessionState = () => {
   const runtime = usePrimeAgentRuntime()
   return useSyncExternalStore(runtime.subscribeState, runtime.getStateView, runtime.getStateView)
+}
+
+/** Requests an explicit connection through the existing runtime owner. */
+export const useConnectPrimeDaemon = () => {
+  const runtime = usePrimeAgentRuntime()
+  return useCallback(() => runtime.connectDaemon(), [runtime])
 }
 
 /** Reads the initial workspace path from Ernie's main-process configuration. */
@@ -476,9 +521,22 @@ export const usePrimeSessionActions = (sessionId: string | undefined) => {
 /** Reads the model catalog owned by the attached Prime Agent session. */
 export const usePrimeModels = (sessionId?: string, all = false) => {
   const runtime = usePrimeAgentRuntime()
+  const { connection } = usePrimeSessionState()
   return useQuery({
+    enabled: !sessionId || !connection || connection.state.status === "connected",
     queryFn: () => runtime.getModels(sessionId, all),
     queryKey: ["prime-agent", "models", sessionId ?? "none", all],
+  })
+}
+
+/** Reads the accepted per-chat RLM recursion limit from the existing daemon capability. */
+export const usePrimeRecurrentDepth = (sessionId: string) => {
+  const runtime = usePrimeAgentRuntime()
+  const { connection } = usePrimeSessionState()
+  return useQuery({
+    enabled: !connection || connection.state.status === "connected",
+    queryFn: () => runtime.getRecurrentDepth(sessionId),
+    queryKey: sessionKeys.recurrentDepth(sessionId),
   })
 }
 

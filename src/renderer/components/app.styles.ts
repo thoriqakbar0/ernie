@@ -95,6 +95,7 @@ export const styles = stylex.create({
     visibility: "hidden",
   },
   sidebarOpenButton: {
+    WebkitAppRegion: "no-drag",
     backgroundColor: {
       ":hover": theme["--surface-muted"],
       default: theme["--surface"],
@@ -109,7 +110,7 @@ export const styles = stylex.create({
     cursor: "pointer",
     display: "grid",
     height: "44px",
-    insetBlockStart: "8px",
+    insetBlockStart: "32px",
     insetInlineStart: "8px",
     placeItems: "center",
     position: "absolute",

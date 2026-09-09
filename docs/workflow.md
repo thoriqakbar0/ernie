@@ -69,3 +69,15 @@ Use Codex's @Browser with the URL printed by `nub run dev`. Reuse the same tab f
 Read the tab's accessibility state before clicking, filling, or sending keyboard input. Read it again after each action; element references can change. Use a search field or disclosure for a safe interaction check. Sending messages and editing Agents affect real data.
 
 Keep the tab available for the next iteration. This workflow runs through Codex's Browser tool session, not a standalone shell command. The cloud recorder remains available for separate video and trace recordings.
+
+## Interface iteration
+
+For interface requests, treat the rendered page and the user's annotations as the starting evidence.
+
+1. Inspect the running Ernie window or browser page with an available browser/computer tool. Read its current accessibility state and capture the affected viewport. Identify the visible control, state, and desired result before locating its source.
+2. Use Agentation to select elements and write visual feedback. In development, Send to Agent stages feedback in the selected parent chat's composer; review and send it there. Without a selected parent chat, copy the feedback into a new message. Annotations identify the target and requested change; source snippets only help locate its implementation.
+3. Reproduce the interaction and record the viewport, open panels, and state needed to see the problem. Use the existing HMR runtime. Keep user drafts and the current conversation intact.
+4. Follow the observed element to its source and make the smallest complete change. Reinspect the same UI state after HMR; exercise the affected action and its keyboard path. Iterate on visible problems before declaring completion.
+5. Report the visible before/after result and what you observed. Distinguish source checks from live verification. If the current agent lacks browser/computer tools, say which access is missing and request it; source inspection alone cannot verify interface behavior.
+
+The development Agentation toolbar stores annotations locally. Its Send to Agent action prepares a draft; it does not submit a prompt or require an MCP service. For existing conversations, staged feedback explicitly points to this workflow.

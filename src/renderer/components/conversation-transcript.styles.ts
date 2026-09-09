@@ -11,14 +11,14 @@ export const styles = stylex.create({
   conversationTranscriptInner: {
     display: "flex",
     flexDirection: "column",
-    gap: "20px",
+    gap: "var(--transcript-gap, 20px)",
     margin: "0 auto",
     padding: "38px 28px 48px",
     paddingInline: {
       "@media (max-width: 720px)": "18px",
       default: null,
     },
-    width: "min(100%, 720px)",
+    width: "min(100%, var(--transcript-width, 720px))",
   },
   conversationTranscriptShell: {
     flex: "1",
@@ -46,7 +46,7 @@ export const styles = stylex.create({
     fontWeight: 400,
     gap: "12px",
     lineHeight: 1.6,
-    maxWidth: "66ch",
+    maxWidth: "min(100%, var(--transcript-width, 66ch))",
     overflowWrap: "anywhere",
     whiteSpace: "pre-wrap",
   },
@@ -63,6 +63,15 @@ export const styles = stylex.create({
   },
   messageParagraph: {
     margin: "0",
+  },
+  participantHeader: {
+    alignItems: "center",
+    color: theme["--ink"],
+    display: "flex",
+    fontSize: 13,
+    fontWeight: 500,
+    gap: 8,
+    marginBlockEnd: 8,
   },
   systemMessageContent: {
     color: theme["--muted"],

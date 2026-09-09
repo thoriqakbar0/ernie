@@ -1,9 +1,12 @@
+import type { AgentSettings } from "../packages/agents"
 import { createContext, useContext, useMemo, useState } from "react"
 import type { ReactNode } from "react"
 
 export type AgentSection = "Customize" | "Folder"
-type Editing = { agentId: string; section: AgentSection } | null
+type Editing = { agentId: string; section: AgentSection; focusName?: boolean } | null
 const AgentCreationContext = createContext<{
+  continuation: AgentSettings | null
+  beginInFolder: (settings: AgentSettings) => void
   editing: Editing
   setEditing: (editing: Editing) => void
   adding: boolean
@@ -15,7 +18,8 @@ const AgentCreationContext = createContext<{
 } | null>(null)
 export const AgentCreationProvider = ({ children }: { children: ReactNode }) => {
   const [editing, setEditing] = useState<Editing>(null)
-  const [adding, setAdding] = useState(false)
+  const [adding, updateAdding] = useState(false)
+  const [continuation, setContinuation] = useState<AgentSettings | null>(null)
   const [draftSettingsHost, setDraftSettingsHost] = useState<HTMLDivElement | null>(null)
   const [draftSettingsDocked, setDraftSettingsDocked] = useState(false)
   const value = useMemo(
@@ -24,12 +28,21 @@ export const AgentCreationProvider = ({ children }: { children: ReactNode }) => 
       draftSettingsDocked,
       draftSettingsHost,
       editing,
-      setAdding,
+      continuation,
+      beginInFolder: (settings: AgentSettings) => {
+        setContinuation(settings)
+        setEditing(null)
+        updateAdding(true)
+      },
+      setAdding: (next: boolean) => {
+        setContinuation(null)
+        updateAdding(next)
+      },
       setDraftSettingsDocked,
       setDraftSettingsHost,
       setEditing,
     }),
-    [adding, draftSettingsDocked, draftSettingsHost, editing],
+    [adding, continuation, draftSettingsDocked, draftSettingsHost, editing],
   )
   return <AgentCreationContext value={value}>{children}</AgentCreationContext>
 }

@@ -13,9 +13,6 @@ const popupIn = stylex.keyframes({
 })
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
-  effortTrigger: {
-    minWidth: "82px",
-  },
   hiddenModelsToggle: {
     alignSelf: "flex-start",
     backgroundColor: "transparent",
@@ -29,20 +26,6 @@ export const styles = stylex.create({
     cursor: "pointer",
     fontSize: "10px",
     margin: "7px 10px 0",
-  },
-  modelEffortControl: {
-    alignItems: "center",
-    borderTopColor: theme["--rule"],
-    borderTopStyle: "solid",
-    borderTopWidth: "1px",
-    color: theme["--muted"],
-    display: "flex",
-    flexShrink: "0",
-    fontSize: "12px",
-    gap: "12px",
-    justifyContent: "space-between",
-    minHeight: "52px",
-    padding: "8px 12px",
   },
   modelEmpty: {
     color: theme["--muted"],

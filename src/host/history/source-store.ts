@@ -21,6 +21,7 @@ export const sourceManifest = {
   optional: ["electron-builder.json", ".gitignore", "vite.config.ts", "doctor.config.json"],
   required: [
     "package.json",
+    "release.json",
     "pnpm-lock.yaml",
     "zenbu.config.ts",
     "zenbu.plugin.ts",

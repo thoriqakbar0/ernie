@@ -52,6 +52,8 @@ The transcript mounts every readable message. Memoized rows reuse unchanged mess
 
 [[src/renderer/components/conversation-transcript.tsx#ConversationTranscript]] owns the transcript tree. Message parsing belongs to memoized rows, so accepted updates only reparse changed rows. [[src/renderer/components/ui/message-scroller.tsx#MessageScrollerProvider]] publishes at-end changes to context consumers.
 
+The transcript boundary also memoizes unchanged props. Draft keystrokes avoid traversing the message list, while new snapshots, session identity, Agent names, or annotation callbacks still update the transcript.
+
 ## Conversation page bounds and markdown
 
 The conversation page constrains its flex layout to the workspace grid. The transcript scrolls inside that space while the header and composer remain visible.
@@ -63,6 +65,10 @@ Assistant replies use `src/renderer/components/message-markdown.tsx` with React 
 ## Tool run inspection
 
 The run inspector opens during active work and follows new tool calls, then retains its selection when work settles. Python calls appear before their results arrive.
+
+[[src/renderer/components/conversation-activity.tsx#ConversationActivity]] defers detail content until the first expansion. After opening, details remain mounted across collapse so run selection and native roster inspection survive reopening.
+
+[[src/renderer/conversation-activity.ts#describeConversationToolResults]] parses tool history only when structured messages or the streaming message change. Connection and activity status still update from each accepted snapshot without rescanning unchanged history.
 
 Code and output wrap without individual scroll areas. The fixed-height inspector body owns scrolling; mouse run markers use a compact seven-pixel pitch, with larger touch targets. The marker rail centers when it fits and scrolls when it overflows. Hover and keyboard focus magnify three neighboring markers using transform-only transitions; reduced motion removes the transition.
 
@@ -77,3 +83,71 @@ The implementation lives in `src/renderer/components/run-inspector.tsx`; panel e
 Tool source uses lazy Shiki Python highlighting with a shared JavaScript regex engine and a bounded token cache. Source remains readable if highlighting cannot load or exceeds 40,000 characters.
 
 `src/renderer/components/python-source.tsx` renders tokens as text spans. The run heading shows status only for tool errors.
+
+## Embedded browser
+
+Desktop browsing uses renderer-hosted Chromium guests to the right of the conversation, with a separate browser partition. Tabs and address drafts remain mounted while hidden; explicit tab closure destroys the guest.
+
+The conversation fills the available height; its annotation fallback row sizes to content so an empty host reserves no space.
+
+[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel visibility, keyboard tab selection, and overflow reveal. Header controls and Command+Option+B use its context; toggling the browser does not replace the conversation or page providers. The compact chrome uses one navigation bar; available workspace width controls split or stacked layout. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation and shows the illustration in `src/renderer/assets/browser-empty-agents.png` before a page is loaded. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.
+
+## Roster huddles and streaming motion
+
+Roster group portraits clip the parent and child faces inside one circle. The tool-run rail magnifies nearby markers only during an active streaming message; selecting completed runs remains available without magnification.
+
+## Run inspector interaction
+
+The run strip magnifies hovered and neighboring bars during active and settled work. Streaming opens the activity panel and follows incoming runs. Completed responses display “Response complete” so completion cannot be confused with loading.
+
+## Activity previews
+
+The activity summary shows the latest active Python code and a trailing excerpt of streaming assistant text. Previews update from the existing snapshot, exclude reasoning, and retain the authoritative execution status.
+
+Full code remains in the inspector.
+
+## Per-turn execution history
+
+Native user-message boundaries group tool runs per turn. Work details precede the final response, open during execution, and collapse when work settles. Execution details remain within their respective turns.
+
+### Execution disclosure controls
+
+Turns with no recorded runs omit the disclosure. Run targets use compact pointers and 24px touch targets. Pending output stays mounted and marked Running; active sections remain collapsible, and completion does not imply task success.
+
+### Header styling
+
+Agent button and roster spacing use fixed styles shared by development and production. DialKit tuning panels are removed; the selected spacing and active background remain in the owning header styles.
+
+### Keyboard navigation
+
+[[src/renderer/components/app-shortcuts.tsx#AppShortcuts]] maps Cmd+N to the existing Add Agent flow and Cmd+[ / Cmd+] to the current parent's native child roster. Editable fields, IME composition, and unrelated parent rosters remain untouched.
+
+### Parent-owned browser tabs
+
+Each parent Agent owns its browser tabs, selected tab, and panel visibility for the window lifetime. Child chats reuse the parent browser. Switching Agents hides guests without unmounting them; new drafts do not inherit another Agent’s tabs.
+
+### Active conversation participants
+
+Header selection uses a themed background, including the parent avatar. Navigation owns selection; activity indicators remain independent.
+
+### Queued message steering
+
+The composer sends active-work messages through native steering by default. An explicit Queue action preserves follow-up delivery; the queue-management list is removed.
+
+Idle messages still start a normal turn; existing daemon messages are not resent or cleared.
+
+### Parent roster disclosure
+
+The parent Agent trigger selects its conversation. A separate subagent-count button toggles the child list without changing the selected chat. Search exposes matching children.
+
+### Composer settings disclosure
+
+ModelSettingsPopover owns the shared draft and session settings panel with Model, Reasoning, and RLM depth tabs. InferenceControls supplies the reasoning and depth panels while preserving capability checks and accepted-value updates.
+
+The panels share aligned insets and reserve enough width for the exact depth field's Default placeholder. The draft working-folder trigger reads "choose folder?" and retains the current folder in its accessible label.
+
+Model settings use equal-width tabs and a shared minimum panel height to reduce movement between choices. Opening and panel transitions are brief and disabled under reduced motion; taller content remains free to grow and scroll.
+
+The draft model menu lists concrete models without a synthetic Default model option. Leaving the model unset preserves the runtime's existing default selection. TurnExecutions uses the same count-and-chevron disclosure for every status; the accessible label and tooltip retain completion, failure, or stopped status.
+
+DepthSlider previews drag gestures locally, commits once, and returns to the accepted daemon value on rejection. Reasoning choices come from model capabilities.

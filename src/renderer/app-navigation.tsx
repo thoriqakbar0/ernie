@@ -1,17 +1,31 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react"
 import type { ReactNode } from "react"
 
+export type ChildChat = Readonly<{
+  parentId: string
+  childId: string
+  name: string
+  parentName: string
+}>
+
 type AppPage = "conversation" | "settings" | "history"
-const context = createContext<{ page: AppPage; navigate: (page: AppPage) => void } | null>(null)
+const context = createContext<{
+  childChat: ChildChat | null
+  openChildChat: (child: ChildChat) => void
+  page: AppPage
+  navigate: (page: AppPage) => void
+} | null>(null)
 const readPage = (): AppPage => {
   const page = new URLSearchParams(window.location.search).get("page")
   return page === "settings" || page === "history" ? page : "conversation"
 }
 /** Top-level pages preserve conversation state while settings and history are open. */
 export const AppNavigationProvider = ({ children }: { children: ReactNode }) => {
+  const [childChat, setChildChat] = useState<ChildChat | null>(null)
   const [page, setPage] = useState<AppPage>(readPage)
   const lastHandledPage = useRef<AppPage | null>(null)
   const navigate = useCallback((next: AppPage) => {
+    if (next === "conversation") setChildChat(null)
     const url = new URL(window.location.href)
     if (next === "conversation") {
       url.searchParams.delete("page")
@@ -36,7 +50,17 @@ export const AppNavigationProvider = ({ children }: { children: ReactNode }) => 
     }
     document.querySelector<HTMLElement>("#ernie-main-content")?.focus({ preventScroll: true })
   })
-  const value = useMemo(() => ({ navigate, page }), [navigate, page])
+  const openChildChat = useCallback(
+    (child: ChildChat) => {
+      navigate("conversation")
+      setChildChat(child)
+    },
+    [navigate],
+  )
+  const value = useMemo(
+    () => ({ navigate, page, childChat, openChildChat }),
+    [navigate, page, childChat, openChildChat],
+  )
   return <context.Provider value={value}>{children}</context.Provider>
 }
 export const useAppNavigation = () => {

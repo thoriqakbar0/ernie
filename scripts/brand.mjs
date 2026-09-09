@@ -71,10 +71,10 @@ const ico = (images) => {
   return Buffer.concat([header, ...images.values()])
 }
 
-const generateAssets = () => {
+const generateAssets = (variant) => {
   // @lat: [[branding#Brand assets]]
   const production = new Map(
-    [16, 32, 48, 64, 128, 180, 256, 512, 1024].map((size) => [size, resize("production", size)]),
+    [16, 32, 48, 64, 128, 180, 256, 512, 1024].map((size) => [size, resize(variant, size)]),
   )
   const development = resize("development", 512)
   return new Map([
@@ -144,7 +144,7 @@ const writeAssets = async (outputs) => {
 }
 
 const main = async () => {
-  const outputs = generateAssets()
+  const outputs = generateAssets("production")
   await (check ? verifyAssets(outputs) : writeAssets(outputs))
   console.log(`${check ? "Verified" : "Generated"} ${outputs.size} brand assets.`)
 }

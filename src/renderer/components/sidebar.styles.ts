@@ -271,6 +271,7 @@ export const styles = stylex.create({
     alignItems: "center",
     borderWidth: 0,
     display: "flex",
+    flexShrink: "0",
     gap: "12px",
     justifyContent: "space-between",
     minHeight: {
@@ -278,8 +279,8 @@ export const styles = stylex.create({
       default: "68px",
     },
     padding: {
-      "@media (max-width: 720px)": "6px 12px",
-      default: "14px 14px 12px 16px",
+      "@media (max-width: 720px)": "32px 12px 6px",
+      default: "32px 14px 12px 16px",
     },
   },
   sidebarBrandActions: {

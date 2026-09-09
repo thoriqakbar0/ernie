@@ -1,15 +1,17 @@
-import { DraftModelPicker } from "./draft-model-picker"
-import { AnimatedTabs } from "./ui/animated-tabs"
+import { readComposerModel } from "../composer-model"
+import { DraftComposerControls } from "./draft-composer-controls"
+import { AgentSettingsTabs } from "./agent-settings-tabs"
 import * as stylex from "@stylexjs/stylex"
 import { DraftAgentSettingsPanel } from "./draft-agent-settings-panel"
 import { Tabs } from "@base-ui/react/tabs"
 import { Effect } from "effect"
 import { constVoid } from "effect/Function"
 import { useId, useRef, useState } from "react"
-import { FolderIcon, ShuffleIcon, XIcon } from "lucide-react"
+import { FolderIcon, ShuffleIcon } from "lucide-react"
 import type { Agent, AgentSettings } from "../../packages/agents"
 import { randomAgentFirstName, randomAgentNameExcept } from "../../packages/agents/names"
 import { useConversationFlow } from "../conversation-flow"
+import { ContinueInFolder } from "./continue-in-folder"
 import { PrimeComposer } from "./prime-composer"
 import { useAgents, useConversationDraft } from "../agent-state"
 import {
@@ -40,7 +42,9 @@ const settingsChanged = (settings: AgentSettings, initial: AgentSettings): boole
   settings.cwd !== initial.cwd ||
   settings.role !== initial.role ||
   settings.provider !== initial.provider ||
-  settings.model !== initial.model
+  settings.model !== initial.model ||
+  settings.thinkingLevel !== initial.thinkingLevel ||
+  settings.rlmMaxDepth !== initial.rlmMaxDepth
 
 const saveStatus = (saving: boolean, changed: boolean): string => {
   if (saving) {
@@ -177,19 +181,20 @@ const SettingsPanel = ({
               {folder || "Choose a folder"}
             </span>
           </div>
-          <button
-            type="button"
-            disabled={Boolean(persistedRoot)}
-            {...stylex.props(styles.changeFolder, styles.keyboard)}
-            onClick={chooseFolder}
-          >
-            {choosingFolder ? "Choosing…" : "Change folder"}
-          </button>
+          {persistedRoot ? null : (
+            <button
+              type="button"
+              disabled={choosingFolder}
+              {...stylex.props(styles.changeFolder, styles.keyboard)}
+              onClick={chooseFolder}
+            >
+              {choosingFolder ? "Choosing…" : "Change folder"}
+            </button>
+          )}
         </div>
         {persistedRoot ? (
           <p {...stylex.props(styles.description)}>
-            Saved with this Agent. Its working folder is read-only after its conversation is
-            prepared.
+            A different folder starts a new chat. This chat stays saved.
           </p>
         ) : null}
       </div>
@@ -231,7 +236,8 @@ const SettingsForm = ({
       {agent ? (
         renderPanel(section)
       ) : (
-        <AnimatedTabs
+        <AgentSettingsTabs
+          shape="rounded"
           tabs={[{ label: "Customize" }, { label: "Folder" }]}
           aria-label="Agent settings"
           disabled={saving || choosingFolder || creationStarted}
@@ -251,14 +257,14 @@ const SettingsForm = ({
               {renderPanel(item)}
             </Tabs.Panel>
           ))}
-        </AnimatedTabs>
+        </AgentSettingsTabs>
       )}
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>
           {error}
         </p>
       ) : null}
-      {agent ? (
+      {agent && (changed || saving) ? (
         <div {...stylex.props(styles.actions)}>
           <output {...stylex.props(styles.saveStatus)}>{saveStatus(saving, changed)}</output>
           <Button disabled={!changed} variant="secondary" xstyle={styles.save} type="submit">
@@ -283,25 +289,22 @@ export const AgentSettingsDialog = ({
   onSaved?: (name: string) => void
 }) => {
   const { roster, client, execute } = useAgents()
+  const { continuation } = useAgentCreation()
   const workspace = useWorkspacePath()
   const sessions = usePrimeSessionState()
   const { selectedSessionId } = usePrimeSessionSelection()
-  const currentWorkspace =
-    sessions.data.find((session) => session.id === selectedSessionId)?.cwd ??
-    roster.agents.find((item) => item.id === roster.selectedAgentId)?.cwd ??
-    workspace.data ??
-    ""
+  const currentWorkspace = agent?.cwd ?? continuation?.cwd ?? workspace.data ?? ""
   const [form, setForm] = useState(() => {
     const characters = agent ? [agent.avatar, ...createCharacters().slice(1)] : createCharacters()
-    const settings: AgentSettings = agent ?? {
-      avatar: characters[0] ?? "fern",
-      cwd: currentWorkspace,
-      instructions: "",
-      model: "",
-      name: Effect.runSync(randomAgentFirstName),
-      provider: "",
-      role: "",
-    }
+    const settings: AgentSettings = agent ??
+      continuation ?? {
+        avatar: characters[0] ?? "fern",
+        cwd: currentWorkspace,
+        instructions: "",
+        ...readComposerModel(),
+        name: Effect.runSync(randomAgentFirstName),
+        role: "",
+      }
     return {
       characters,
       expectedNativeName: agent?.name,
@@ -408,18 +411,10 @@ export const AgentSettingsDialog = ({
       {...stylex.props(agent ? styles.inlinePanel : styles.creationComposer)}
     >
       {agent ? (
-        <button
-          type="button"
-          aria-label="Close Agent settings"
-          disabled={saving || choosingFolder}
-          onClick={onClose}
-          {...stylex.props(styles.cancel, styles.keyboard)}
-        >
-          <XIcon size={16} />
-        </button>
-      ) : null}
-      {agent ? (
-        settingsForm
+        <>
+          {settingsForm}
+          {section === "Folder" && persistedRoot ? <ContinueInFolder agent={agent} /> : null}
+        </>
       ) : (
         <DraftAgentSettingsPanel
           name={settings.name}
@@ -433,34 +428,53 @@ export const AgentSettingsDialog = ({
               footerControl={
                 <div {...stylex.props(styles.draftFooter)}>
                   {control}
-                  <DraftModelPicker
-                    sessionId={selectedSessionId ?? undefined}
-                    provider={settings.provider}
-                    model={settings.model}
-                    disabled={creationStarted || choosingFolder || Boolean(persistedRoot)}
-                    onChange={(provider, model) =>
-                      setSettings((current) => ({ ...current, model, provider }))
+                  <button
+                    type="button"
+                    title={choosingFolder ? "Choosing folder…" : `Current folder: ${folder}`}
+                    aria-label={
+                      choosingFolder
+                        ? "Choosing working folder…"
+                        : `Choose working folder. Current folder: ${folder}`
                     }
+                    disabled={creationStarted || choosingFolder}
+                    onClick={() => {
+                      void chooseFolder()
+                    }}
+                    {...stylex.props(styles.composerFolder, styles.keyboard)}
+                  >
+                    {choosingFolder ? "Choosing…" : "choose folder?"}
+                  </button>
+                  {folder !== workspace.data && !persistedRoot ? (
+                    <button
+                      type="button"
+                      disabled={creationStarted || !workspace.data}
+                      {...stylex.props(styles.composerFolder, styles.keyboard)}
+                      onClick={() => update("cwd", workspace.data ?? "")}
+                    >
+                      Use system folder
+                    </button>
+                  ) : null}
+                  <DraftComposerControls
+                    sessionId={selectedSessionId ?? undefined}
+                    settings={settings}
+                    disabled={creationStarted || choosingFolder || Boolean(persistedRoot)}
+                    onChange={(next) => setSettings(() => next)}
                   />
                 </div>
               }
               agentName={settings.name}
-              connected
+              connected={!sessions.connection || sessions.connection.state.status === "connected"}
               draft={draft}
               draftHero
               feedback={flow.submission}
-              acceptedEffort={undefined}
               modelChangePending={false}
               models={[]}
               modelsPending={false}
               onDraftChange={setDraft}
-              onEffortChange={() => Effect.runPromise(Effect.void)}
-              onEffortError={constVoid}
               onModelSelect={constVoid}
               recovering={false}
               selectedModel={undefined}
               sessionSelected={false}
-              stopAction={constVoid}
               stopping={false}
               submitting={submitting || choosingFolder}
               working={false}
@@ -512,7 +526,7 @@ export const AgentSettingsDialog = ({
   )
 }
 
-/** A single inline panel keeps refinement beside the root’s composer and preserves its draft. */
+/** The sidebar owns refinement controls and preserves the open form draft. */
 export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTabs?: boolean }) => {
   const { editing, setEditing } = useAgentCreation()
   const open = editing?.agentId === agent.id
@@ -539,7 +553,8 @@ export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTa
             }
           }}
         >
-          <AnimatedTabs
+          <AgentSettingsTabs
+            shape="rounded"
             tabs={[{ label: "Customize" }, { label: "Folder" }]}
             aria-label="Agent settings sections"
             value={open ? editing.section : null}
@@ -562,7 +577,7 @@ export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTa
                 }}
               />
             </Tabs.Panel>
-          </AnimatedTabs>
+          </AgentSettingsTabs>
         </div>
       ) : null}
       {!open && saved?.agentId === agent.id ? (

@@ -1,3 +1,5 @@
+import { PrimeDaemonUnavailableError } from "../prime-agent/daemon-unavailable"
+import { PrimeAgentTransportUnavailableError } from "../prime-agent/command-availability"
 import path from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import { Service } from "@zenbujs/core/runtime"
@@ -44,7 +46,9 @@ const savedAgent = (
   pinned: previous?.pinned ?? false,
   provider: data.provider,
   revision: (previous?.revision ?? 0) + 1,
+  ...(data.rlmMaxDepth === undefined ? {} : { rlmMaxDepth: data.rlmMaxDepth }),
   role: data.role,
+  ...(data.thinkingLevel === undefined ? {} : { thinkingLevel: data.thinkingLevel }),
 })
 
 const validateSavedSettings = (
@@ -64,7 +68,7 @@ const validateSavedSettings = (
     }
     if (
       previous?.root &&
-      ["instructions", "cwd", "provider", "model"].some(
+      ["instructions", "cwd", "provider", "model", "thinkingLevel", "rlmMaxDepth"].some(
         (key) => previous[key as keyof Agent] !== data[key as keyof typeof data],
       )
     ) {
@@ -89,6 +93,26 @@ export class AgentsService extends Service.create({
     return runAgentOperation(this.ctx.store.read())
   }
 
+  /** Removes roster membership while retaining native conversation files. */
+  remove(input: { agentId: string }) {
+    return runAgentOperation(
+      this.lock.withPermit(
+        Effect.gen({ self: this }, function* remove() {
+          const data = yield* decodeAgentInput(
+            Schema.Struct({ agentId: Schema.NonEmptyString }), input,
+          )
+          const roster = yield* this.ctx.store.read()
+          yield* this.ctx.store.write({
+            ...roster,
+            agents: roster.agents.filter((agent) => agent.id !== data.agentId),
+            associations: roster.associations.filter((item) => item.agentId !== data.agentId),
+            selectedAgentId: roster.selectedAgentId === data.agentId ? null : roster.selectedAgentId,
+          })
+        }),
+      ),
+    )
+  }
+
   /** Opens the local folder chooser; cancellation leaves the Agent's folder unchanged. */
   chooseWorkspace() {
     return runAgentOperation(
@@ -99,7 +123,7 @@ export class AgentsService extends Service.create({
           // Browser development has no focused Electron window to bring the panel forward.
           const selection = dialog.showOpenDialog({
             buttonLabel: "Use this folder",
-            defaultPath: process.cwd(),
+            defaultPath: app.getPath("home"),
             properties: ["openDirectory", "createDirectory"],
             title: "Where should your Agent work?",
           })
@@ -139,6 +163,8 @@ export class AgentsService extends Service.create({
             "cwd",
             "provider",
             "model",
+            "thinkingLevel",
+            "rlmMaxDepth",
           ] as const
           if (
             previous?.revision === data.expectedRevision + 1 &&
@@ -469,6 +495,8 @@ export class AgentsService extends Service.create({
             instructions: agent.instructions,
             model: agent.model,
             provider: agent.provider,
+            ...(agent.rlmMaxDepth === undefined ? {} : { rlmMaxDepth: agent.rlmMaxDepth }),
+            ...(agent.thinkingLevel === undefined ? {} : { thinkingLevel: agent.thinkingLevel }),
           }
           // Commit the durable file identity before daemon admission, including uncertain responses.
           yield* this.ctx.store.write({
@@ -515,6 +543,10 @@ export class AgentsService extends Service.create({
       catch: (cause) =>
         new AgentFailure({
           cause,
+          ...(cause instanceof PrimeDaemonUnavailableError ||
+          cause instanceof PrimeAgentTransportUnavailableError
+            ? { reason: "connection" as const }
+            : {}),
           message:
             cause instanceof Error
               ? cause.message

@@ -1,6 +1,6 @@
 {
   "name": "ernie",
-  "version": "0.2.0-rc",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "main": "node_modules/@zenbujs/core/dist/setup-gate.mjs",
@@ -36,14 +36,22 @@
     "lint:unused": "knip",
     "build:history": "nub --node scripts/build-history-desktop.mjs",
     "release:check": "nub --node scripts/release.ts check",
-    "release:build": "nub --node scripts/release.ts build",
+    "release:build": "nub --node scripts/release.ts build-unsigned",
     "test:integration:updates": "nub --test src/integration/updates.integration.test.ts src/integration/update-topology.integration.test.ts",
     "lint": "oxlint",
     "lint:check": "ultracite check",
     "lint:fix": "ultracite fix",
     "lint:doctor": "ultracite doctor",
     "format:check": "oxfmt --check",
-    "format": "oxfmt --write"
+    "format": "oxfmt --write",
+    "release:build:unsigned": "nub --node scripts/release.ts build-unsigned",
+    "release:preview": "bash scripts/release-distribution.sh preview",
+    "release:prepare": "nub --node scripts/release-channel.ts",
+    "release:build:signed": "nub --node scripts/release.ts build",
+    "release:prod": "bash scripts/release-distribution.sh prod",
+    "dev:check": "nub run link && nub run typecheck",
+    "release:source:init": "nub --node scripts/release.ts init",
+    "release:source:push": "nub --node scripts/release.ts push"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -74,11 +82,13 @@
     "@types/react-dom": "^19.0.0",
     "@types/semver": "7.7.1",
     "dependency-cruiser": "^18.2.0",
+    "dialkit": "2.0.0",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.0",
     "husky": "^9.1.7",
     "knip": "6.34.0",
     "konsistent": "^1.0.0-beta.4",
+    "motion": "13.2.0",
     "oxfmt": "0.66.0",
     "oxlint": "1.81.0",
     "oxlint-plugin-react-doctor": "0.9.13",
@@ -91,7 +101,7 @@
     "url": "https://github.com/thoriqakbar0/ernie.git"
   },
   "zenbu": {
-    "host": ">=0.1.0 <0.2.0"
+    "host": ">=0.2.0 <0.3.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

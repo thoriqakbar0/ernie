@@ -9,14 +9,19 @@ export interface AnimatedTabsProps {
   onValueChange?: (value: string) => void
   disabled?: boolean
   label?: string
-  shape?: "pill" | "rounded"
+  shape?: "pill" | "rounded" | "plain"
+  radii?: { list: number; tab: number; indicator: number }
   wrap?: boolean
+  fill?: boolean
   onDeselect?: () => void
   "aria-label"?: string
   children?: ReactNode
 }
 
 const styles = stylex.create({
+  filledIndicator: { transitionTimingFunction: "cubic-bezier(.22, 1, .36, 1)" },
+  filledList: { marginBlock: 0, width: "100%" },
+  filledTab: { flex: "1 1 0", height: "auto", minHeight: 36, minWidth: 0, paddingBlock: 8, whiteSpace: "normal" },
   indicator: {
     backgroundColor: theme["--ink"],
     borderRadius: 999,
@@ -49,6 +54,25 @@ const styles = stylex.create({
     position: "relative",
     width: "fit-content",
   },
+  plainList: {
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    borderWidth: 0,
+    gap: 24,
+    marginBlock: 0,
+    padding: 0,
+  },
+  plainTab: {
+    borderBottomColor: { ":is([data-active])": theme["--ink"], default: "transparent" },
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    borderRadius: 0,
+    color: { ":is([data-active])": theme["--ink"], default: theme["--muted"] },
+    fontSize: 13,
+    height: 40,
+    paddingInline: 0,
+  },
+  radius: (radius: number) => ({ borderRadius: radius }),
   root: { gridColumn: "1 / -1", minWidth: 0 },
   roundedList: { borderRadius: 12 },
   roundedTab: { borderRadius: 8 },
@@ -82,10 +106,12 @@ export const AnimatedTabs = ({
   onValueChange,
   disabled,
   wrap,
+  fill,
   onDeselect,
   children,
   label = "Sections",
   shape = "pill",
+  radii,
   "aria-label": ariaLabel,
 }: AnimatedTabsProps) => (
   <Tabs.Root
@@ -100,11 +126,25 @@ export const AnimatedTabs = ({
   >
     <Tabs.List
       aria-label={ariaLabel ?? label}
-      {...stylex.props(styles.list, shape === "rounded" && styles.roundedList, wrap && styles.wrap)}
+      {...stylex.props(
+        styles.list,
+        shape === "rounded" && styles.roundedList,
+        shape === "plain" && styles.plainList,
+        wrap && styles.wrap,
+        fill && styles.filledList,
+        radii && styles.radius(radii.list),
+      )}
     >
-      <Tabs.Indicator
-        {...stylex.props(styles.indicator, shape === "rounded" && styles.roundedTab)}
-      />
+      {shape === "plain" ? null : (
+        <Tabs.Indicator
+          {...stylex.props(
+            styles.indicator,
+            fill && styles.filledIndicator,
+            shape === "rounded" && styles.roundedTab,
+            radii && styles.radius(radii.indicator),
+          )}
+        />
+      )}
       {tabs.map((tab) => (
         <Tabs.Tab
           key={tab.value ?? tab.label}
@@ -115,7 +155,13 @@ export const AnimatedTabs = ({
             }
           }}
           disabled={disabled || tab.disabled}
-          {...stylex.props(styles.tab, shape === "rounded" && styles.roundedTab)}
+          {...stylex.props(
+            styles.tab,
+            shape === "rounded" && styles.roundedTab,
+            shape === "plain" && styles.plainTab,
+            fill && styles.filledTab,
+            radii && styles.radius(radii.tab),
+          )}
         >
           {tab.label}
         </Tabs.Tab>

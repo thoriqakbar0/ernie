@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'"
+  /><title>Ernie app history</title>
+  <style>
+    body {
+      background: #fdfbf9;
+      color: #241d18;
+      font: 15px system-ui;
+      margin: 0;
+      padding: 28px;
+    }
+    h1 {
+      font-size: 26px;
+      margin: 0 0 12px;
+    }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 1px solid #d8d0c8;
+      background: transparent;
+      border-radius: 8px;
+      padding: 9px 12px;
+    }
+    button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px #008759;
+    }
+    @media (forced-colors: active) {
+      button:focus-visible {
+        border: 2px dashed Highlight;
+      }
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    #status {
+      min-height: 24px;
+      color: #655b54;
+    }
+    #list {
+      padding: 0;
+      list-style: none;
+    }
+    li {
+      border-bottom: 1px solid #ddd3ca;
+      padding: 12px 0;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    li button:first-child {
+      flex: 1;
+      text-align: left;
+      border: 0;
+    }
+    small {
+      display: block;
+      color: #655b54;
+      margin-top: 4px;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #f2ebe4;
+      padding: 12px;
+      max-height: 240px;
+      overflow: auto;
+    }
+    #detail {
+      border-top: 1px solid #ddd3ca;
+      padding-top: 16px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    dialog {
+      max-width: 620px;
+      width: 80%;
+      border: 1px solid #ddd3ca;
+      border-radius: 12px;
+      background: #fdfbf9;
+    }
+    dialog::backdrop {
+      background: #0005;
+    }
+  </style>
+  <header>
+    <h1>App history</h1>
+    <button id="save">Save checkpoint now</button>
+  </header>
+  <p>Return to an earlier saved app. Conversations and Agents stay.</p>
+  <p id="startup" role="status"></p>
+  <details>
+    <summary>Diagnostics</summary>
+    <p>
+      Recovery runs in the bundled desktop host. Startup checked means the app opened, not that
+      every feature works. Application checkpoints exclude conversations, credentials, and
+      databases.
+    </p>
+  </details>
+  <p id="status" role="status"></p>
+  <div class="actions">
+    <button id="retry">Try opening again</button><button id="refresh">Refresh</button
+    ><button id="previous" hidden>Return to previous state</button>
+  </div>
+  <div id="pending"></div>
+  <ul id="list"></ul>
+  <button id="more" hidden>Older checkpoints</button>
+  <section id="detail" tabindex="-1" hidden></section>
+  <script src="history-ui.js"></script>
+</html>

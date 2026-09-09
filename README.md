@@ -2,7 +2,29 @@
 
 <img src="src/renderer/icon.png" width="96" height="96" alt="Ernie ribbon e logo" />
 
-Ernie is a Zenbu.js application backed by the real Prime Agent daemon.
+A desktop app for working with [Prime Agent](https://github.com/PrimeIntellect-ai/prime-agent), built with [Zenbu.js](https://github.com/zenbu-labs/zenbu.js).
+
+Give your agents a name and a face, choose a working folder, and start a conversation. Ernie explores how an agent can help choose and adapt the interface around your work.
+
+[Explore Ernie](https://ernie.ta-0.com/) · [Read the introduction](https://ta-0.com/blog/introducing-ernie)
+
+![Ernie home screen with agents in the sidebar and a message composer](website/public/screenshots/ernie-home.png)
+
+## Inside the app
+
+### Make your agent yours
+
+Choose a name and character for the agent you work with.
+
+![Agent customization in Ernie](website/public/screenshots/ernie-customize.png)
+
+### Follow the work
+
+See the agent’s runs and subagents alongside the conversation. Here, Theo is researching electricity trends with two subagents.
+
+![Research session showing subagents and their requests](website/public/screenshots/ernie-research.png)
+
+Ernie uses the Prime Agent daemon for agent execution. Adapting the interface through Zenbu plugins is an ongoing experiment; the website’s interactive demos show a few possible arrangements.
 
 ## Development context
 

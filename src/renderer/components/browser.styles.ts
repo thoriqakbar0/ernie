@@ -2,12 +2,6 @@ import * as stylex from "@stylexjs/stylex"
 import { shellLayout } from "../shell-layout.stylex"
 import { theme } from "../theme.stylex"
 
-/** The conversation is clear of native controls when the browser occupies the leading edge. */
-export const browserConversationLayout = stylex.createTheme(shellLayout, {
-  headerInset: "20px",
-  headerTopInset: "0px",
-})
-
 /** Browser chrome uses the workspace palette and adapts to the space beside the conversation. */
 export const styles = stylex.create({
   address: {
@@ -18,7 +12,7 @@ export const styles = stylex.create({
     },
     borderStyle: "solid",
     borderWidth: { "@media (forced-colors: active)": 2, default: 0 },
-    boxShadow: { ":focus-visible": `inset 0 0 0 2px ${theme["--focus"]}`, default: "none" },
+    boxShadow: "none",
     color: theme["--ink"],
     flex: 1,
     fontFamily: "inherit",
@@ -31,7 +25,7 @@ export const styles = stylex.create({
   addressField: {
     alignItems: "center",
     backgroundColor: theme["--canvas"],
-    borderColor: theme["--rule"],
+    borderColor: { ":focus-within": theme["--focus"], default: theme["--rule"] },
     borderRadius: 7,
     borderStyle: "solid",
     borderWidth: 1,
@@ -127,12 +121,6 @@ export const styles = stylex.create({
   guest: { display: "flex", flex: 1, minHeight: 0, width: "100%" },
   hidden: { display: "none" },
   iconButton: { padding: 0, width: 30 },
-  loadStatus: {
-    ":empty": { display: "none" },
-    color: theme["--muted"],
-    fontSize: 12,
-    padding: "4px 12px",
-  },
   navigation: { borderWidth: 0, display: "flex", flexShrink: 0, gap: 1, margin: 0, padding: 0 },
   notice: {
     fontSize: 13,
@@ -144,15 +132,15 @@ export const styles = stylex.create({
   page: { display: "flex", flex: 1, flexDirection: "column", minHeight: 0, minWidth: 0 },
   panel: {
     "@container browser-workspace (max-width: 820px)": {
-      borderBottomColor: theme["--rule"],
-      borderBottomStyle: "solid",
-      borderBottomWidth: 1,
-      borderInlineEndWidth: 0,
+      borderTopColor: theme["--rule"],
+      borderTopStyle: "solid",
+      borderTopWidth: 1,
+      borderInlineStartWidth: 0,
     },
     backgroundColor: theme["--canvas"],
-    borderInlineEndColor: theme["--rule"],
-    borderInlineEndStyle: "solid",
-    borderInlineEndWidth: 1,
+    borderInlineStartColor: theme["--rule"],
+    borderInlineStartStyle: "solid",
+    borderInlineStartWidth: 1,
     containerName: "browser",
     containerType: "inline-size",
     display: "flex",
@@ -171,7 +159,7 @@ export const styles = stylex.create({
     paddingBlock: 4,
     paddingBlockStart: shellLayout.headerTopInset,
     paddingInlineEnd: 6,
-    paddingInlineStart: shellLayout.headerInset,
+    paddingInlineStart: `calc(${shellLayout.headerInset} - 18px)`,
   },
   retry: { backgroundColor: theme["--surface"], paddingInline: 12 },
   selected: { backgroundColor: theme["--canvas"], boxShadow: `inset 0 -2px ${theme["--ink"]}` },
@@ -185,11 +173,11 @@ export const styles = stylex.create({
   splitOpen: {
     gridTemplateColumns: {
       "@container browser-workspace (max-width: 820px)": "minmax(0, 1fr)",
-      default: "minmax(320px, 0.9fr) minmax(400px, 1.1fr)",
+      default: "minmax(400px, 1.1fr) minmax(320px, 0.9fr)",
     },
     gridTemplateRows: {
       "@container browser-workspace (max-width: 820px)":
-        "minmax(100px, min(35%, 260px)) minmax(0, 1fr)",
+        "minmax(0, 1fr) minmax(100px, min(35%, 260px))",
       default: "minmax(0, 1fr)",
     },
   },
@@ -217,7 +205,7 @@ export const styles = stylex.create({
     WebkitAppRegion: "no-drag",
     alignItems: "center",
     backgroundColor: theme["--surface"],
-    borderBottomColor: theme["--rule"],
+    borderTopColor: theme["--rule"],
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     display: "flex",

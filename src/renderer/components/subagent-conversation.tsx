@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex"
-import { useNativeInspection } from "../prime-agent-state"
-import { ConversationMessages } from "./conversation-messages"
+import { ConversationTranscript } from "./conversation-transcript"
+import { useNativeInspection, usePrimeSessionSnapshot } from "../prime-agent-state"
 import { theme } from "../theme.stylex"
 
 const styles = stylex.create({
@@ -23,6 +23,11 @@ export const SubagentConversation = ({
   childId: string
 }) => {
   const inspection = useNativeInspection(parentId, { id: childId, kind: "child" })
+  const live = usePrimeSessionSnapshot(
+    inspection.data?.source === "live" ? inspection.data.sessionId : undefined,
+  )
+  const snapshot = live.data ?? inspection.data?.snapshot
+  const messages = snapshot?.messages ?? inspection.data?.messages ?? []
   return (
     <div {...stylex.props(styles.body)}>
       {inspection.isPending ? (
@@ -51,17 +56,16 @@ export const SubagentConversation = ({
       ) : null}
       {inspection.data ? (
         <>
-          <p {...stylex.props(styles.feedback)}>
-            {inspection.data.source === "saved"
-              ? "Saved conversation · read only"
-              : "Child conversation · read only"}
-          </p>
-          {inspection.data.messages.length ? (
-            <ConversationMessages
+          {inspection.data.source === "live" && snapshot?.transport.status !== "connected" ? (
+            <p {...stylex.props(styles.feedback)}>Reconnecting to live conversation…</p>
+          ) : null}
+          {messages.length || snapshot ? (
+            <ConversationTranscript
               participantId={childId}
               sessionId={`inspection:${parentId}:${childId}`}
               agentName={inspection.data.name}
-              messages={inspection.data.messages}
+              messages={messages}
+              snapshot={snapshot}
             />
           ) : (
             <p {...stylex.props(styles.feedback)}>No messages yet.</p>

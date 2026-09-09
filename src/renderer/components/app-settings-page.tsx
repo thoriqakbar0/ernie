@@ -1,6 +1,4 @@
-import { BrowserToggle } from "./browser-toggle"
 import { UiAnnotationHost } from "./ui-annotation-host"
-import { UiAnnotationTrigger } from "./ui-annotation-trigger"
 import { lazy, Suspense } from "react"
 import { Tabs } from "@base-ui/react/tabs"
 import { ArrowLeftIcon } from "lucide-react"
@@ -31,22 +29,20 @@ export const AppSettingsPage = () => {
       data-ernie-page={page}
       data-ui-annotation-region={`settings:${page}`}
       aria-label={page === "history" ? "App history settings" : "Appearance settings"}
-      {...stylex.props(styles.page)}
+      {...stylex.props(styles.page, styles.settingsPage)}
     >
+      <header {...stylex.props(styles.header, styles.settingsHeader)}>
+        <button
+          type="button"
+          aria-label="Back to conversation"
+          onClick={() => navigate("conversation")}
+          {...stylex.props(styles.button)}
+        >
+          <ArrowLeftIcon size={18} />
+        </button>
+        <h1 {...stylex.props(styles.title)}>Settings</h1>
+      </header>
       <div {...stylex.props(styles.content)}>
-        <header {...stylex.props(styles.header)}>
-          <button
-            type="button"
-            aria-label="Back to conversation"
-            onClick={() => navigate("conversation")}
-            {...stylex.props(styles.button)}
-          >
-            <ArrowLeftIcon size={18} />
-          </button>
-          <h1 {...stylex.props(styles.title)}>Settings</h1>
-          <UiAnnotationTrigger />
-          <BrowserToggle />
-        </header>
         <AnimatedTabs
           shape="plain"
           label="Settings sections"

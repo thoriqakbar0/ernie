@@ -1,23 +1,23 @@
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useState } from "react"
-import type { ThemedTokenWithVariants } from "shiki"
+import type { ThemedToken } from "shiki"
 import type { HighlighterCore } from "shiki/core"
 
 let highlighter: Promise<HighlighterCore> | undefined
 const loadHighlighter = () => {
   highlighter ??= (async () => {
     try {
-      const [core, engine, json, light, dark] = await Promise.all([
+      const [core, engine, json, javascript, shellsession] = await Promise.all([
         import("shiki/core"),
         import("shiki/engine/javascript"),
         import("shiki/langs/json.mjs"),
-        import("shiki/themes/github-light.mjs"),
-        import("shiki/themes/github-dark.mjs"),
+        import("shiki/langs/javascript.mjs"),
+        import("shiki/langs/shellsession.mjs"),
       ])
       return await core.createHighlighterCore({
         engine: engine.createJavaScriptRegexEngine(),
-        langs: [json.default],
-        themes: [light.default, dark.default],
+        langs: [json.default, javascript.default, shellsession.default],
+        themes: [core.createCssVariablesTheme()],
       })
     } catch (error) {
       highlighter = undefined
@@ -31,11 +31,18 @@ const styles = stylex.create({
   token: (color: string) => ({ color }),
 })
 
-/** Highlight checkpoint JSON as escaped React text, with a readable loading fallback. */
-export const CheckpointSource = ({ source }: { source: string }) => {
+/** Highlight source as escaped text using the current appearance tokens. */
+export const CheckpointSource = ({
+  source,
+  language = "json",
+}: {
+  source: string
+  language?: "json" | "javascript" | "shellsession"
+}) => {
   const [highlight, setHighlight] = useState<{
     source: string
-    tokens: ThemedTokenWithVariants[][]
+    language: string
+    tokens: ThemedToken[][]
   }>()
   useEffect(() => {
     if (source.length > 40_000) {
@@ -45,12 +52,12 @@ export const CheckpointSource = ({ source }: { source: string }) => {
     const highlightSource = async () => {
       try {
         const instance = await loadHighlighter()
-        const tokens = instance.codeToTokensWithThemes(source, {
-          lang: "json",
-          themes: { dark: "github-dark", light: "github-light" },
+        const { tokens } = instance.codeToTokens(source, {
+          lang: language,
+          theme: "css-variables",
         })
         if (current) {
-          setHighlight({ source, tokens })
+          setHighlight({ source, language, tokens })
         }
       } catch {
         /* Keep source readable when highlighting is unavailable. */
@@ -60,24 +67,16 @@ export const CheckpointSource = ({ source }: { source: string }) => {
     return () => {
       current = false
     }
-  }, [source])
-  const tokens = highlight?.source === source ? highlight.tokens : undefined
+  }, [source, language])
+  const tokens =
+    highlight?.source === source && highlight.language === language ? highlight.tokens : undefined
   return (
     <code>
       {tokens
         ? tokens.flatMap((line, index) => [
             index ? "\n" : null,
             ...line.map((token) => (
-              <span
-                key={token.offset}
-                {...stylex.props(
-                  styles.token(
-                    token.variants?.light?.color && token.variants?.dark?.color
-                      ? `light-dark(${token.variants.light.color}, ${token.variants.dark.color})`
-                      : "inherit",
-                  ),
-                )}
-              >
+              <span key={token.offset} {...stylex.props(styles.token(token.color ?? "inherit"))}>
                 {token.content}
               </span>
             )),

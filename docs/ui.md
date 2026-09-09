@@ -26,7 +26,7 @@ Add Agent and the unselected empty workspace share the centered welcome composer
 
 The folder capsule shows the current directory and offers up to eight known folders plus the native chooser; cancel preserves the form. Failed creation retains input and retry identity. The creation model picker reads configured models from Prime Agent before a conversation exists. It offers six models directly and opens a searchable provider-tabbed catalog through Browse all models. Catalog prices show USD input/output costs per million tokens; subscription models do not imply token billing. Models without configured credentials remain visible but disabled. Update dates are unavailable in the installed catalog, so ordering falls back to numeric model version/name, with configured models first in the full catalog. Model selection edits only the new Agent draft; runtime model controls remain available in the conversation.
 
-Existing settings open below the composer. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
+Existing Agent settings open in the sidebar. Opening settings reveals a collapsed sidebar. The save action stays disabled until values differ from the opened form; unsaved and saving feedback sits beside it. Accepted saves close the form and announce success, while rejected saves retain edits for retry. Folder settings show the full path.
 
 Closing restores the actual opener's focus and preserves the draft. Once prepared, root instructions and folder are read-only until a reset workflow is designed. Changing a tab must not shift the empty-state greeting or composer. Panels may animate with a reduced-motion alternative.
 
@@ -34,7 +34,7 @@ Closing restores the actual opener's focus and preserves the draft. Once prepare
 
 Keep selection, transcript, composer context, and runtime state aligned. Drafts and reading positions survive navigation for the application lifetime; browser reload clears them.
 
-Enter sends, Shift+Enter inserts a newline, and input-method composition never sends. Focused input shows a keyboard hint in reserved space. Send uses a neutral disabled surface and orange when available. Reject blank submissions. Keep typing available during attachment, sending, and disconnection; command availability follows authoritative state.
+Enter sends, Shift+Enter inserts a newline, and input-method composition never sends. Focused input shows a keyboard hint in reserved space. Send uses a neutral disabled surface and orange when available. Reject blank submissions. Keep typing available during attachment and sending; disable message entry while Prime Agent is unavailable, preserving the draft until recovery. Command availability follows authoritative state.
 
 Show creation, admission, queued, stopping, and error feedback beside its action. Acknowledgement confirms admission, not completion. Active-work messages become follow-ups; Stop is a separate action and settles on authoritative state. Preserve newer draft edits when delayed responses arrive.
 
@@ -54,7 +54,7 @@ The development workspace picker opens an existing conversation; it does not cha
 
 At narrow widths, roster and chat occupy separate views. Selecting an Agent opens chat; Open sidebar returns to navigation. Keep primary flows usable at 320 CSS pixels and 200% zoom. Wrap long content or expose its full value accessibly when truncated.
 
-Command-B toggles the sidebar. Its controls expose the shortcut, and closing a focused sidebar moves focus to its reopen button.
+Command-B toggles the sidebar, and Command-Option-B toggles the embedded browser. Their controls expose the shortcuts, and closing a focused sidebar moves focus to its reopen button.
 
 Use semantic controls, accessible names, visible focus, non-color state cues, and restrained live announcements. Respect reduced motion and forced colors. Earlier transcript readers retain their position and a jump-to-latest action; readers at the end follow output.
 
@@ -103,3 +103,7 @@ Appearance describes its local profile scope and announces successful writes. Re
 Settings contains Appearance and App history tabs. Managed-source customization remains available through the backend without a disclosure or launch controls in Settings.
 
 For a source change, request one scoped outcome, then inspect changed files, the observed interface result, and the returned checkpoint ID. A source checkpoint proves capture only. Native screenshot evidence and operation-to-checkpoint presentation follow their own host/history implementation; local appearance preferences remain outside source history.
+
+## Subagent chats
+
+Native subagents appear beneath their parent as sidebar chats. Sidebar rows and header participants open the main conversation surface; the parent draft stays saved. Child inspection remains read-only.

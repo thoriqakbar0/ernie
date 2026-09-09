@@ -86,8 +86,62 @@ Tool source uses lazy Shiki Python highlighting with a shared JavaScript regex e
 
 ## Embedded browser
 
-Desktop browsing uses renderer-hosted Chromium guests to the left of the conversation, with a separate browser partition. Tabs and address drafts remain mounted while hidden; explicit tab closure destroys the guest.
+Desktop browsing uses renderer-hosted Chromium guests to the right of the conversation, with a separate browser partition. Tabs and address drafts remain mounted while hidden; explicit tab closure destroys the guest.
 
 The conversation fills the available height; its annotation fallback row sizes to content so an empty host reserves no space.
 
-[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel visibility, keyboard tab selection, and overflow reveal. Header controls use its context; toggling the browser does not replace the conversation or page providers. The compact chrome uses one navigation bar; available workspace width controls split or stacked layout. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation and shows the compact character illustration in `src/renderer/assets/browser-empty-agents.png` before a page is loaded. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.
+[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel visibility, keyboard tab selection, and overflow reveal. Header controls and Command+Option+B use its context; toggling the browser does not replace the conversation or page providers. The compact chrome uses one navigation bar; available workspace width controls split or stacked layout. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation and shows the illustration in `src/renderer/assets/browser-empty-agents.png` before a page is loaded. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.
+
+## Roster huddles and streaming motion
+
+Roster group portraits clip the parent and child faces inside one circle. The tool-run rail magnifies nearby markers only during an active streaming message; selecting completed runs remains available without magnification.
+
+## Run inspector interaction
+
+The run strip magnifies hovered and neighboring bars during active and settled work. Streaming opens the activity panel and follows incoming runs. Completed responses display “Response complete” so completion cannot be confused with loading.
+
+## Activity previews
+
+The activity summary shows the latest active Python code and a trailing excerpt of streaming assistant text. Previews update from the existing snapshot, exclude reasoning, and retain the authoritative execution status.
+
+Full code remains in the inspector.
+
+## Per-turn execution history
+
+Native user-message boundaries group tool runs per turn. Work details precede the final response, open during execution, and collapse when work settles. Execution details remain within their respective turns.
+
+### Execution disclosure controls
+
+Turns with no recorded runs omit the disclosure. Run targets use compact pointers and 24px touch targets. Pending output stays mounted and marked Running; active sections remain collapsible, and completion does not imply task success.
+
+### Header styling
+
+Agent button and roster spacing use fixed styles shared by development and production. DialKit tuning panels are removed; the selected spacing and active background remain in the owning header styles.
+
+### Keyboard navigation
+
+[[src/renderer/components/app-shortcuts.tsx#AppShortcuts]] maps Cmd+N to the existing Add Agent flow and Cmd+[ / Cmd+] to the current parent's native child roster. Editable fields, IME composition, and unrelated parent rosters remain untouched.
+
+### Parent-owned browser tabs
+
+Each parent Agent owns its browser tabs, selected tab, and panel visibility for the window lifetime. Child chats reuse the parent browser. Switching Agents hides guests without unmounting them; new drafts do not inherit another Agent’s tabs.
+
+### Active conversation participants
+
+Header selection uses a themed background, including the parent avatar. Navigation owns selection; activity indicators remain independent.
+
+### Queued message steering
+
+The composer sends active-work messages through native steering by default. An explicit Queue action preserves follow-up delivery; the queue-management list is removed.
+
+Idle messages still start a normal turn; existing daemon messages are not resent or cleared.
+
+### Parent roster disclosure
+
+The parent Agent trigger selects its conversation. A separate subagent-count button toggles the child list without changing the selected chat. Search exposes matching children.
+
+### Composer settings disclosure
+
+ModelSettingsPopover owns the shared draft and session settings panel. InferenceControls discloses reasoning and recursion together.
+
+DepthSlider previews drag gestures locally, commits once, and returns to the accepted daemon value on rejection. Reasoning choices come from model capabilities.

@@ -32,6 +32,7 @@ export class SendReceipts {
         message:
           "The send owner restarted. Check the conversation before sending this message again.",
         status: "unknown",
+        canCheck: false,
       }
     }
     const fingerprint = createHash("sha256")
@@ -40,7 +41,11 @@ export class SendReceipts {
     const existing = this.entries.get(request.commandId)
     if (existing) {
       if (existing.fingerprint !== fingerprint) {
-        return { message: "This send identity belongs to a different message.", status: "unknown" }
+        return {
+          message: "This send identity belongs to a different message.",
+          status: "unknown",
+          canCheck: false,
+        }
       }
       return existing.result
     }
@@ -81,6 +86,7 @@ export class SendReceipts {
           message:
             "Prime Agent did not confirm this send. It may already have the message. Check the conversation before sending it again.",
           status: "unknown",
+          canCheck: false,
         }
       }
     })()

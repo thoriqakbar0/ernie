@@ -1,3 +1,5 @@
+import { isAgentationInteraction } from "../../agentation-interaction"
+import { useAgentationActive } from "../../use-agentation-active"
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import * as stylex from "@stylexjs/stylex"
@@ -76,9 +78,23 @@ const styles = stylex.create({
   },
 })
 
-const Dialog = ({ ...props }: StyledProps<DialogPrimitive.Root.Props>) => (
-  <DialogPrimitive.Root data-slot="dialog" {...props} />
-)
+const Dialog = ({ onOpenChange, ...props }: StyledProps<DialogPrimitive.Root.Props>) => {
+  const annotating = useAgentationActive()
+  return (
+    <DialogPrimitive.Root
+      data-slot="dialog"
+      {...props}
+      modal={annotating ? false : props.modal}
+      onOpenChange={(open, details) => {
+        if (!open && isAgentationInteraction(details.event)) {
+          details.cancel()
+          return
+        }
+        onOpenChange?.(open, details)
+      }}
+    />
+  )
+}
 const DialogTrigger = ({ ...props }: StyledProps<DialogPrimitive.Trigger.Props>) => (
   <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 )

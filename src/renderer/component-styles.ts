@@ -48,15 +48,7 @@ export const styles = stylex.create({
     borderRadius: 20,
     opacity: { ":has(:disabled)": 1, default: 1 },
   },
-  composerHint: {
-    color: theme["--muted"],
-    fontSize: 11,
-    lineHeight: 1.5,
-    margin: "6px 12px 0",
-    minHeight: 18,
-    visibility: "hidden",
-  },
-  composerHintVisible: { visibility: "visible" },
+  composerToolbar: { marginTop: 7 },
   controlIcon: {
     flex: "0 0 auto",
     height: "16px",
@@ -65,6 +57,7 @@ export const styles = stylex.create({
   primeComposer: {
     margin: "0 auto",
     pointerEvents: "auto",
+    position: "relative",
     width: "min(100%, 720px)",
   },
   primeComposerHero: {

@@ -1,3 +1,5 @@
+import { ModelSettingsPopover } from "./model-settings-popover"
+import { saveComposerModel } from "../composer-model"
 import type { AgentSettings } from "../../packages/agents"
 import { usePrimeModels } from "../prime-agent-state"
 import { DraftModelPicker } from "./draft-model-picker"
@@ -20,13 +22,17 @@ export const DraftComposerControls = ({
     (item) => item.provider === settings.provider && item.id === settings.model,
   )
   return (
-    <>
+    <ModelSettingsPopover
+      label={selected?.label ?? (settings.model || "Model settings")}
+      disabled={disabled}
+    >
       <DraftModelPicker
         sessionId={sessionId}
         provider={settings.provider}
         model={settings.model}
         disabled={disabled}
         onChange={(provider, model) => {
+          saveComposerModel(provider, model)
           const next = catalog.data?.find((item) => item.provider === provider && item.id === model)
           const { thinkingLevel, ...rest } = settings
           onChange({
@@ -40,6 +46,7 @@ export const DraftComposerControls = ({
         }}
       />
       <InferenceControls
+        modelName={selected?.label ?? (settings.model || undefined)}
         allowDefault
         supportedEfforts={selected?.supportedEfforts ?? []}
         effort={settings.thinkingLevel}
@@ -58,6 +65,6 @@ export const DraftComposerControls = ({
           }
         }}
       />
-    </>
+    </ModelSettingsPopover>
   )
 }

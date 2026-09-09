@@ -90,7 +90,21 @@ export const styles = stylex.create({
     padding: 3,
     position: "relative",
   },
-  status: { bottom: 2, insetInlineStart: 24, position: "absolute" },
+  selected: {
+    backgroundColor: theme["--surface-muted"],
+    color: theme["--ink"],
+  },
+  status: {
+    alignItems: "center",
+    backgroundColor: theme["--surface"],
+    borderRadius: "50%",
+    color: theme["--ink"],
+    display: "inline-flex",
+    flexShrink: 0,
+    height: 20,
+    justifyContent: "center",
+    width: 20,
+  },
   tooltip: {
     backgroundColor: theme["--surface-strong"],
     borderRadius: 6,

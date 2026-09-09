@@ -52,13 +52,13 @@ The external daemon and socket survive cleanup, as required by [[tests#Behavior 
 
 ## Connection footer
 
-[[src/renderer/components/runtime-status.tsx#RuntimeStatus]] shows connection status and the Ernie version. A tooltip on the status separates the live Prime Agent version from the installed client version.
+[[src/renderer/components/runtime-status.tsx#RuntimeStatus]] shows compact connection status and the Ernie version. A tooltip on the status separates the live Prime Agent version from the installed client version.
 
-The footer owns one actionable recovery notice and preserves the existing retry action. Socket paths and technical errors stay in a collapsed disclosure. Selected-session restoration takes precedence over a ready daemon label. Sidebar and composer avoid duplicating connection warnings. Unrelated action and send failures retain their own feedback. A failed refresh preserves an already-loaded transcript. The model trigger retains the accepted native model while the capability catalog recovers; it never inserts a fallback option or sends a model change.
+The footer owns one actionable recovery notice and preserves the existing retry action. It stays compact; selected-session restoration takes precedence over a ready daemon label, while unrelated action and send failures retain their own feedback. A failed refresh preserves an already-loaded transcript. The model trigger retains the accepted native model while the capability catalog recovers; it never inserts a fallback option or sends a model change.
 
 ## Composer inference settings
 
-[[src/renderer/components/inference-controls.tsx#InferenceControls]] groups capability-driven effort choices and RLM depth presets beside model selection. The controls retain accepted values and preserve unknown defaults.
+[[src/renderer/components/inference-controls.tsx#InferenceControls]] groups capability-driven effort choices and an RLM depth slider beside model selection. The controls retain accepted values and preserve unknown defaults.
 
 [[src/renderer/components/session-inference-controls.tsx#SessionInferenceControls]] reads live effort capabilities from the snapshot and depth from the existing per-chat RPC. Rejected changes retain prior values. [[src/renderer/components/draft-composer-controls.tsx#DraftComposerControls]] stores optional choices in Agent settings and clears unsupported effort when the selected model changes.
 
@@ -81,3 +81,13 @@ Selecting a saved Agent keeps the active native session until root activation se
 Automatic renderer reconnect attempts belong to the roster provider, so workspace remounts reuse the same attempt; failed attempts require explicit retry.
 
 See `src/main/services/agents.ts`, `src/renderer/agent-state.tsx`, and `src/renderer/components/reconnect-agent.tsx`.
+
+The depth slider previews changes locally and commits on release or keyboard completion. Zero disables subagents. Draft settings retain Use default; accepted depths above the usual slider range remain representable.
+
+## Model settings panel
+
+Composer model selection, reasoning, and RLM depth share a Model settings popover in both new and existing chats. The composer toolbar shows only the selected model trigger; inference state remains with its existing draft or session owner.
+
+### Composer delivery choices
+
+While working, Queue sends a native follow-up and Send now sends steering for the next interruption point. Enter queues by default. Pending messages come from session actions; receipt recovery preserves the original delivery mode.

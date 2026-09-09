@@ -93,6 +93,26 @@ export class AgentsService extends Service.create({
     return runAgentOperation(this.ctx.store.read())
   }
 
+  /** Removes roster membership while retaining native conversation files. */
+  remove(input: { agentId: string }) {
+    return runAgentOperation(
+      this.lock.withPermit(
+        Effect.gen({ self: this }, function* remove() {
+          const data = yield* decodeAgentInput(
+            Schema.Struct({ agentId: Schema.NonEmptyString }), input,
+          )
+          const roster = yield* this.ctx.store.read()
+          yield* this.ctx.store.write({
+            ...roster,
+            agents: roster.agents.filter((agent) => agent.id !== data.agentId),
+            associations: roster.associations.filter((item) => item.agentId !== data.agentId),
+            selectedAgentId: roster.selectedAgentId === data.agentId ? null : roster.selectedAgentId,
+          })
+        }),
+      ),
+    )
+  }
+
   /** Opens the local folder chooser; cancellation leaves the Agent's folder unchanged. */
   chooseWorkspace() {
     return runAgentOperation(
@@ -103,7 +123,7 @@ export class AgentsService extends Service.create({
           // Browser development has no focused Electron window to bring the panel forward.
           const selection = dialog.showOpenDialog({
             buttonLabel: "Use this folder",
-            defaultPath: process.cwd(),
+            defaultPath: app.getPath("home"),
             properties: ["openDirectory", "createDirectory"],
             title: "Where should your Agent work?",
           })

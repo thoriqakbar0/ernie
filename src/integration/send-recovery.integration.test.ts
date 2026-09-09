@@ -16,6 +16,7 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
   let loseResponse = false
   let rejectPreparation = false
   let loseNativeAck = false
+  let receiptChecks = 0
   const deliveries: SendRequest[] = []
   const server = createServer((request, response) => {
     const handle = async () => {
@@ -27,6 +28,7 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
         response.end(JSON.stringify(ledger.epoch))
         return
       }
+      if (request.url === "/check") receiptChecks += 1
       const send = Schema.decodeUnknownSync(SendRequest)(
         JSON.parse(Buffer.concat(chunks).toString()),
       )
@@ -131,6 +133,8 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
   loseNativeAck = true
   const uncertainNativeSend = await chat.submitDraft("uncertain native send")
   assert.equal(uncertainNativeSend.status, "unknown")
+  assert.ok(uncertainNativeSend.status === "unknown" && uncertainNativeSend.canCheck === false)
+  const checksBeforeReview = receiptChecks
   loseNativeAck = false
   const unresolvedNativeSend = await chat.submitDraft("uncertain native send")
   assert.equal(unresolvedNativeSend.status, "unknown")
@@ -138,6 +142,7 @@ test("chat recovery crosses a dropped HTTP response without repeating delivery",
   ledger = new SendReceipts()
   const unresolvedAfterRestart = await chat.submitDraft("uncertain native send")
   assert.equal(unresolvedAfterRestart.status, "unknown")
+  assert.equal(receiptChecks, checksBeforeReview)
   assert.equal(deliveries.length, 4)
   chat.releaseUncertainSend()
   const explicitNewSend = await chat.submitDraft("explicit new send")

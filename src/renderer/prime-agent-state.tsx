@@ -174,10 +174,10 @@ class PrimeAgentRuntime {
     attachment.chat.releaseUncertainSend()
   }
 
-  async submit(sessionId: string, content: string) {
+  async submit(sessionId: string, content: string, delivery?: "steer" | "follow-up") {
     const attachment = await this.getAttachment(sessionId)
     return attachment.snapshot.session.state === "working"
-      ? attachment.chat.followUp(content)
+      ? delivery === "follow-up" ? attachment.chat.followUp(content) : attachment.chat.steer(content)
       : attachment.chat.submitDraft(content)
   }
 
@@ -396,7 +396,7 @@ export const useConversationCommands = () => {
     () => ({
       release: (sessionId: string) => runtime.releaseSend(sessionId),
       stop: (sessionId: string) => runtime.stop(sessionId),
-      submit: (sessionId: string, content: string) => runtime.submit(sessionId, content),
+      submit: (sessionId: string, content: string, delivery?: "steer" | "follow-up") => runtime.submit(sessionId, content, delivery),
     }),
     [runtime],
   )

@@ -75,3 +75,7 @@ Pre-session model catalogs load in a bounded worker thread because Prime Agent r
 Composer controls distinguish Reasoning from the configured RLM depth limit with visible labels, separate icons, title-case values, and hover/focus help. The live reasoning description retains the Prime Agent default side effect. Populated conversations reserve eight pixels plus the safe-area minimum below the composer hint.
 
 UiAnnotationProvider lazily initializes the installed React Grab core on first use. One app-shell owner keeps note drafts and saved notes across page navigation until reload. Selection stops before editing beside the selected message or in its declared content region. Only registered hosts accept the editor; navigation or unmounting moves it to an explicit visible workspace fallback while retaining the original selection and comment. No editor mounts inside an input or arbitrary React-owned selected DOM. The inactive annotator occupies no bottom space. Header controls reveal review only on request after notes exist; notes are copied explicitly, with no Agent send, endpoint, or telemetry. Meta/Ctrl+Shift+A annotates the focused app element, and Escape exits selection. Embedded website content is outside this renderer-only boundary.
+
+## Agent settings location
+
+Existing Agent Customize and Folder controls open in a popover anchored to the chat gear. The sidebar remains visible; the popover contains the existing editable panels and closes with Escape or an outside click.

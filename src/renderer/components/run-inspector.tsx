@@ -1,3 +1,6 @@
+import { createPortal } from "react-dom"
+import { RunSection } from "./run-section"
+import { CheckpointSource } from "./checkpoint-source"
 import { PythonSource } from "./python-source"
 import { memo, useState } from "react"
 import Scritto from "@scritto/react"
@@ -12,13 +15,15 @@ const styles = stylex.create({
     alignContent: "start",
     display: "grid",
     flex: 1,
-    gap: 16,
+    gap: "var(--run-section-gap, 8px)",
     minHeight: 0,
+    minWidth: 0,
     overflowWrap: "anywhere",
     overflowY: "auto",
-    padding: "0 12px 12px",
+    padding: "var(--run-content-padding, 12px) 0",
+    width: "100%",
   },
-  far: { transform: "scaleY(1.4)" },
+  far: { transform: "scaleY(1.45)", "@media (prefers-reduced-motion: reduce)": { transform: "none" } },
   heading: {
     alignItems: "center",
     color: theme["--ink"],
@@ -27,20 +32,21 @@ const styles = stylex.create({
     fontVariantNumeric: "tabular-nums",
     gap: 12,
     justifyContent: "space-between",
-    padding: 12,
+    padding: "var(--run-heading-padding, 8px) 0",
+    width: "100%",
   },
-  map: { minWidth: 0, overflowX: "auto" },
+  map: { minWidth: 0, maxWidth: "min(var(--execution-strip-width, 157px), 100%)", width: "max-content", justifySelf: "start", marginInline: 0, overflowX: "auto" },
   marker: {
     backgroundColor: "transparent",
     boxShadow: { ":focus-visible": "0 0 0 2px var(--focus)", default: null },
     cursor: "pointer",
     display: "grid",
     flexShrink: 0,
-    height: 38,
+    height: 34,
     placeItems: "center",
-    width: { "@media (pointer: coarse)": 24, default: 7 },
+    width: { default: "var(--execution-target-width, 8px)", "@media (pointer: coarse)": 24 },
   },
-  near: { transform: "scaleY(1.85)" },
+  near: { transform: "scaleY(2)", "@media (prefers-reduced-motion: reduce)": { transform: "none" } },
   output: {
     backgroundColor: theme["--surface-muted"],
     borderRadius: 8,
@@ -54,14 +60,15 @@ const styles = stylex.create({
   },
   panel: {
     backgroundColor: theme["--surface"],
-    borderRadius: 10,
+    borderRadius: "var(--run-radius, 10px)",
     display: "flex",
     flexDirection: "column",
-    height: "min(380px, 46dvh)",
+    maxHeight: "min(var(--run-max-height, 380px), 46dvh)",
     minWidth: 0,
     overflow: "hidden",
+    width: "100%",
   },
-  peak: { transform: "scaleY(2.3)" },
+  peak: { transform: "scale(1.3, 2.6)", "@media (prefers-reduced-motion: reduce)": { transform: "none" } },
   rail: {
     borderWidth: 0,
     display: "flex",
@@ -77,15 +84,15 @@ const styles = stylex.create({
     "@media (prefers-reduced-motion: reduce)": { transition: "none" },
     backgroundColor: theme["--rule-strong"],
     borderRadius: 1,
-    height: 14,
+    height: 10,
     transform: "scaleY(1)",
-    transition: "transform 160ms ease-out",
+    transition: "transform 180ms cubic-bezier(.2,.8,.2,1)",
     width: 3,
   },
 })
 
 /** Selection updates content in place; the panel and its scroll container retain identity. */
-const RunInspectorComponent = ({ results, active }: { results: Runs; active: boolean }) => {
+const RunInspectorComponent = ({ results, active, railHost }: { results: Runs; active: boolean; railHost?: HTMLElement | null }) => {
   const [selected, setSelected] = useState(() => results.length - 1)
   const [hovered, setHovered] = useState<number | null>(null)
   const lastId = results.at(-1)?.id
@@ -101,8 +108,7 @@ const RunInspectorComponent = ({ results, active }: { results: Runs; active: boo
     }
   }
   const result = results[selected]
-  return (
-    <>
+  const rail = (
       <div {...stylex.props(styles.map)}>
         <fieldset
           aria-label="Tool runs"
@@ -159,35 +165,45 @@ const RunInspectorComponent = ({ results, active }: { results: Runs; active: boo
           })}
         </fieldset>
       </div>
+  )
+  return (
+    <>
+      {railHost ? createPortal(rail, railHost) : rail}
       {result ? (
-        <div {...stylex.props(styles.panel)}>
+        <>
           <div {...stylex.props(styles.heading)}>
             <strong>
-              Run <Scritto value={selected + 1} transition={transition} /> ·{" "}
-              {result.name === "ipython" ? "Python" : result.name}
+              Run <Scritto value={selected + 1} transition={transition} />
+              {result.name === "ipython" ? null : ` · ${result.name}`}
             </strong>
-            {result.failed ? <output>Tool error</output> : null}
+            <output>
+              {result.failed ? "Tool error" : result.pending ? "Running…" : "Finished"}
+            </output>
           </div>
-          <div {...stylex.props(styles.content)}>
-            {result.code === undefined ? null : (
-              <div>
-                <p>Code</p>
-                <pre aria-label="Python source" {...stylex.props(styles.output)}>
-                  <PythonSource source={result.code} />
+          <div {...stylex.props(styles.panel)}>
+            <div {...stylex.props(styles.content)}>
+              {result.code === undefined ? null : (
+                <RunSection key={`code:${result.id}`} title="Code">
+                  <pre aria-label="Python source" {...stylex.props(styles.output)}>
+                    <PythonSource source={result.code} />
+                  </pre>
+                </RunSection>
+              )}
+              <RunSection key={`output:${result.id}`} title="Output" running={Boolean(result.pending)}>
+                <pre aria-label={`${result.name} output`} {...stylex.props(styles.output)}>
+                  {result.text ? (
+                    <CheckpointSource source={result.text} language="shellsession" />
+                  ) : result.pending ? (
+                    "Waiting for output…"
+                  ) : (
+                    "No output."
+                  )}
                 </pre>
-              </div>
-            )}
-            <div>
-              <p>Output</p>
-              <pre aria-label={`${result.name} output`} {...stylex.props(styles.output)}>
-                {result.text || (result.pending ? "Waiting for output…" : "No output.")}
-              </pre>
+              </RunSection>
             </div>
           </div>
-        </div>
-      ) : (
-        <p>Waiting for tool output.</p>
-      )}
+        </>
+      ) : null}
     </>
   )
 }

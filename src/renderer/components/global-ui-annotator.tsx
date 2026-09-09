@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState, useMemo } from "react"
-import * as stylex from "@stylexjs/stylex"
 import type { PropsWithChildren } from "react"
 import { createPortal } from "react-dom"
+import { UiAnnotationPopup } from "./ui-annotation-popup"
 import { useAppNavigation } from "../app-navigation"
 import { annotationContext } from "./ui-annotation-context"
 import type { AnnotationHost } from "./ui-annotation-context"
@@ -9,7 +9,6 @@ import type { ReactGrabAPI } from "react-grab/core"
 import { UiAnnotationEditor } from "./ui-annotation-editor"
 import type { UiAnnotation, UiSelection } from "./ui-annotation-editor"
 import { UiAnnotationReview } from "./ui-annotation-review"
-import { styles } from "./ui-annotations.styles"
 
 const findTrigger = () =>
   [...document.querySelectorAll<HTMLButtonElement>("[data-ui-annotation-trigger]")].find(
@@ -29,11 +28,12 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
   const { page } = useAppNavigation()
   const [hosts, setHosts] = useState<ReadonlyMap<string, AnnotationHost>>(new Map())
   const [editor, setEditor] = useState<{
+    anchor?: Element
     selection?: UiSelection
     regionId?: string
     comment: string
   }>({ comment: "" })
-  const { selection, regionId, comment } = editor
+  const { selection, regionId, comment, anchor } = editor
   const register = useCallback((id: string, host: AnnotationHost | null) => {
     setHosts((previous) => {
       const next = new Map(previous)
@@ -77,6 +77,7 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
     setEditor({
       comment: "",
       regionId: selectedRegion,
+      anchor: element,
       selection: {
         context,
         element:
@@ -240,7 +241,7 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
       {children}
       {host && (selection || review)
         ? createPortal(
-            <aside aria-label="UI annotation" {...stylex.props(styles.contextual)}>
+            <UiAnnotationPopup anchor={selection ? anchor : undefined}>
               {selection ? (
                 <UiAnnotationEditor
                   selection={selection}
@@ -271,8 +272,8 @@ export const UiAnnotationProvider = ({ children }: PropsWithChildren) => {
                   }
                 />
               ) : null}
-            </aside>,
-            host.element,
+            </UiAnnotationPopup>,
+            selection ? document.body : host.element,
           )
         : null}
     </annotationContext.Provider>

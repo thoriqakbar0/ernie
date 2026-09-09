@@ -11,6 +11,7 @@ export const BrowserButton = ({
   disabled = false,
   expanded,
   controls,
+  shortcut,
   onClick,
   type = "button",
 }: {
@@ -19,6 +20,7 @@ export const BrowserButton = ({
   disabled?: boolean
   expanded?: boolean
   controls?: string
+  shortcut?: string
   onClick?: MouseEventHandler<HTMLButtonElement>
   type?: "button" | "submit"
 }) => (
@@ -31,6 +33,7 @@ export const BrowserButton = ({
           aria-label={label}
           aria-expanded={expanded}
           aria-controls={controls}
+          aria-keyshortcuts={shortcut}
           onClick={onClick}
           {...stylex.props(styles.button, styles.iconButton)}
         />

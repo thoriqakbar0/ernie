@@ -11,6 +11,7 @@ export const BrowserToggle = () => {
       icon={Globe2Icon}
       expanded={browser.open}
       controls="ernie-browser"
+      shortcut="Meta+Alt+B"
       onClick={(event) => browser.toggle(event.currentTarget)}
     />
   ) : null

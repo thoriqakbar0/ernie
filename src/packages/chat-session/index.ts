@@ -9,6 +9,7 @@ export interface ChatSession {
   submitDraft: (content: string) => Promise<SubmitDraftResult>
   /** Queues a follow-up, or recovers the unresolved send with its original mode. */
   followUp: (content: string) => Promise<SubmitDraftResult>
+  steer: (content: string) => Promise<SubmitDraftResult>
   /** Explicitly releases uncertainty after the user checks the conversation. */
   releaseUncertainSend: () => void
   /** Requests cancellation, independently of send acknowledgement. */
@@ -33,7 +34,9 @@ export const createChatSession = ({
 }: ChatSessionDependencies): ChatSession => {
   let unresolved: SendRequest | undefined
   let pending: Promise<SubmitDraftResult> | undefined
+  let reviewRequired: SubmitDraftResult | undefined
   const send = (content: string, mode: SendRequest["mode"]): Promise<SubmitDraftResult> => {
+    if (reviewRequired) return Promise.resolve(reviewRequired)
     if (pending) {
       return pending
     }
@@ -71,7 +74,9 @@ export const createChatSession = ({
       if (receipt.status !== "unknown") {
         unresolved = undefined
       }
-      return { ...receipt, content: request.content }
+      const result = { ...receipt, content: request.content }
+      if (receipt.status === "unknown" && receipt.canCheck === false) reviewRequired = result
+      return result
     }
     pending = (async () => {
       try {
@@ -84,9 +89,11 @@ export const createChatSession = ({
   }
   return {
     followUp: (content) => send(content, "follow-up"),
+    steer: (content) => send(content, "steer"),
     releaseUncertainSend() {
       if (!pending) {
         unresolved = undefined
+        reviewRequired = undefined
       }
     },
     async stop() {

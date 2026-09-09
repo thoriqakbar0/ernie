@@ -12,7 +12,7 @@ export type ConversationSubmission =
   | Readonly<{ status: "idle" }>
   | Readonly<{ status: "creating" | "sending" }>
   | Readonly<{ status: "accepted" | "queued" }>
-  | Readonly<{ status: "error" | "unknown"; message: string }>
+  | Readonly<{ status: "error" | "unknown"; message: string; canCheck?: boolean }>
 
 type StopState =
   | Readonly<{ status: "idle" | "stopping" }>
@@ -22,7 +22,7 @@ const idle: FlowState = { stop: { status: "idle" }, submission: { status: "idle"
 type FlowContext = Readonly<{
   states: ReadonlyMap<string, FlowState>
   send: (
-    target: { agentId: string; settings?: AgentSettings } | { sessionId: string },
+    target: { agentId: string; settings?: AgentSettings } | { sessionId: string; delivery?: "steer" | "follow-up" },
   ) => Promise<void>
   release: (sessionId: string) => Promise<void>
   stop: (sessionId: string) => Promise<void>
@@ -120,7 +120,7 @@ export const ConversationFlowProvider = ({ children }: PropsWithChildren) => {
             if (!sendDrafts.current.has(sessionId)) {
               sendDrafts.current.set(sessionId, clear)
             }
-            const submission = await commands.submit(sessionId, draft.content)
+            const submission = await commands.submit(sessionId, draft.content, "sessionId" in target ? target.delivery : undefined)
             if (submission.status === "accepted" || submission.status === "queued") {
               sendDrafts.current.get(sessionId)?.()
               sendDrafts.current.delete(sessionId)
@@ -131,6 +131,7 @@ export const ConversationFlowProvider = ({ children }: PropsWithChildren) => {
             }
             return {
               message: submission.message,
+              canCheck: submission.status === "unknown" ? submission.canCheck : undefined,
               status:
                 submission.status === "unknown" ? ("unknown" as const) : ("not-sent" as const),
             }
@@ -162,6 +163,7 @@ export const ConversationFlowProvider = ({ children }: PropsWithChildren) => {
           update(feedbackKey, {
             submission: {
               message: result.message,
+              canCheck: result.canCheck,
               status: result.status === "unknown" ? "unknown" : "error",
             },
           })

@@ -16,9 +16,15 @@ All development roles use an externally owned Prime Agent socket. Ernie starts a
 
 [[scripts/dev/config.ts#readDevConfig]] parses profile configuration. An absolute `ERNIE_PRIME_AGENT_SOCKET` selects the external endpoint. `ERNIE_PRIME_AGENT_EXECUTABLE` selects the installed launcher.
 
+## Desktop close shortcut
+
+Command+W is suppressed in Electron web contents so it cannot accidentally close the Ernie window. Explicit window controls and application quit remain available. Browser development keeps its service host independent of browser tabs.
+
 ## UI iteration
 
 The agent reproduces one visible problem, edits through browser HMR, and inspects the result using the existing development runtime.
+
+Annotation and browser controls live at the top right of the chat header. The Settings heading does not duplicate them.
 
 Follow the [agent-native workflow](../docs/workflow.md) for scenario context, correction, and handoff. Read [UI guidance](../docs/ui.md) for design requirements and [architecture guidance](../docs/architecture.md) for ownership decisions.
 
@@ -87,3 +93,7 @@ See [release commands](../docs/releasing.md). Packaged source and app-history pa
 ## Packaged startup ownership
 
 The recovery parent owns the application lock and uses a separate Chromium profile. Its editable child reuses that ownership and reports renderer readiness over IPC. Reopening the app focuses the child.
+
+## Agentation feedback
+
+Development mounts Agentation locally. Send to Agent stages annotated interface feedback in the selected parent chat for review. The interface workflow in docs/workflow.md requires live observation before source edits and HMR verification afterward.

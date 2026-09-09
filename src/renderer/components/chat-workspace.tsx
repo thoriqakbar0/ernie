@@ -1,10 +1,14 @@
+import { ContinueInFolder } from "./continue-in-folder"
+import { ComposerModelControls } from "./composer-model-controls"
+import { saveComposerModel } from "../composer-model"
+import { useAppNavigation } from "../app-navigation"
+import { SubagentConversation } from "./subagent-conversation"
 import { UiAnnotationTrigger } from "./ui-annotation-trigger"
 import { SessionSubagentParticipants } from "./session-subagent-participants"
 import { RuntimeStatus } from "./runtime-status"
 import { useAgentCreation } from "../agent-creation"
 import { AppChangeProtection } from "./app-change-protection"
 import { AgentNativeSessions } from "./agent-native-sessions"
-import { AgentControls } from "./agent-settings"
 import { styles } from "./chat-workspace.styles"
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useRef, useState } from "react"
@@ -66,7 +70,8 @@ const useSessionWorkspace = (sessionId: string) => {
     },
     [],
   )
-  const submitAction = () => flow.send({ sessionId })
+  const submitAction = (data: FormData) =>
+    flow.send({ delivery: data.get("delivery") === "follow-up" ? "follow-up" : "steer", sessionId })
   const stopAction = () => flow.stopAction(sessionId)
   const snapshot = snapshotQuery.data
   const session = snapshot?.session ?? catalog.data.find((item) => item.id === sessionId)
@@ -96,6 +101,7 @@ const useSessionWorkspace = (sessionId: string) => {
     })
     try {
       await actions.setModel(provider, modelId)
+      saveComposerModel(provider, modelId)
       if (modelSelectionRevision.current === revision) {
         setModelChange(idleModelChange)
       }
@@ -153,17 +159,86 @@ const SessionAgentControls = ({
   snapshot,
 }: Readonly<{ agent?: Agent }> &
   Pick<ReturnType<typeof useSessionWorkspace>, "draftHero" | "snapshot">) =>
-  agent ? (
-    <>
-      <AgentControls agent={agent} showTabs={draftHero} />
-      {draftHero && agent.root ? <AgentNativeSessions agent={agent} snapshot={snapshot} /> : null}
-    </>
+  agent && draftHero && agent.root ? (
+    <AgentNativeSessions agent={agent} snapshot={snapshot} />
   ) : null
+
+const SessionContent = ({
+  agent,
+  sessionId,
+  snapshotQuery,
+  snapshot,
+  draftHero,
+  session,
+  onAnnotate,
+}: {
+  agent?: Agent
+  sessionId: string
+  onAnnotate: ReturnType<typeof useSessionWorkspace>["feedbackDraft"]["add"]
+} & Pick<
+  ReturnType<typeof useSessionWorkspace>,
+  "snapshotQuery" | "snapshot" | "draftHero" | "session"
+>) => {
+  const openingError =
+    snapshotQuery.isError && !snapshot ? (
+      <div {...stylex.props(styles.openError)}>
+        <h2>Conversation unavailable</h2>
+      </div>
+    ) : undefined
+  let content = openingError
+  if (!content) {
+    if (draftHero && session) {
+      content = <EmptyConversation agent={agent} cwd={session.cwd} />
+    } else if (snapshot) {
+      content = (
+        <ConversationTranscript
+          key={sessionId}
+          onAnnotate={onAnnotate}
+          sessionId={sessionId}
+          agentName={agent?.name}
+          messages={snapshot.messages}
+          snapshot={snapshot}
+        />
+      )
+    } else {
+      content = <WorkspaceLoading />
+    }
+  }
+  return content
+}
+
+const SessionFooter = ({
+  agent,
+  sessionId,
+  connected,
+  recovering,
+  modelChange,
+  models,
+  snapshot,
+  session,
+  updateModel,
+}: { agent: Agent; sessionId: string } & Pick<
+  ReturnType<typeof useSessionWorkspace>,
+  "connected" | "recovering" | "modelChange" | "models" | "snapshot" | "session" | "updateModel"
+>) => (
+  <>
+    <ContinueInFolder agent={agent} compact />
+    <ComposerModelControls
+      sessionId={sessionId}
+      disabled={!connected || recovering || modelChange.status === "pending" || models.isPending}
+      models={models.data ?? emptyModels}
+      selectedModel={snapshot?.useful.state.model ?? session?.model}
+      onSelect={(model) => updateModel(model.provider, model.id)}
+    />
+  </>
+)
 
 const PrimeSessionWorkspace = ({
   agent,
   sessionId,
 }: Readonly<{ agent?: Agent; sessionId: string }>) => {
+  const { childChat } = useAppNavigation()
+  const selectedChild = childChat?.parentId === sessionId ? childChat : undefined
   const {
     snapshotQuery,
     models,
@@ -186,36 +261,25 @@ const PrimeSessionWorkspace = ({
     updateModel,
   } = useSessionWorkspace(sessionId)
   const { add: handleAnnotate, remove: handleRemoveAnnotation } = feedbackDraft
-  const openingError =
-    snapshotQuery.isError && !snapshot ? (
-      <div {...stylex.props(styles.openError)}>
-        <h2>Conversation unavailable</h2>
-      </div>
-    ) : undefined
-  let content = openingError
-  if (!content) {
-    if (draftHero && session) {
-      content = <EmptyConversation agent={agent} cwd={session.cwd} />
-    } else if (snapshot) {
-      content = (
-        <ConversationTranscript
-          key={sessionId}
-          onAnnotate={handleAnnotate}
-          sessionId={sessionId}
-          agentName={agent?.name}
-          messages={snapshot.messages}
-          snapshot={snapshot}
-        />
-      )
-    } else {
-      content = <WorkspaceLoading />
-    }
-  }
   return (
     <div {...stylex.props(styles.workspaceContent)}>
       <div {...stylex.props(styles.sessionStage)}>
-        <div {...stylex.props(styles.conversationPane, draftHero && styles.draftConversationPane)}>
-          {content}
+        <div
+          {...stylex.props(
+            styles.conversationPane,
+            draftHero && styles.draftConversationPane,
+            Boolean(selectedChild) && styles.hidden,
+          )}
+        >
+          <SessionContent
+            agent={agent}
+            sessionId={sessionId}
+            snapshotQuery={snapshotQuery}
+            snapshot={snapshot}
+            draftHero={draftHero}
+            session={session}
+            onAnnotate={handleAnnotate}
+          />
           <div
             data-composer-placement={draftHero ? "hero" : "docked"}
             {...stylex.props(styles.composerDock, draftHero && styles.composerPlacementHero)}
@@ -226,6 +290,21 @@ const PrimeSessionWorkspace = ({
             <WorkspaceNotices actionError={actionError} />
             <PrimeComposer
               sessionId={sessionId}
+              footerControl={
+                agent ? (
+                  <SessionFooter
+                    agent={agent}
+                    sessionId={sessionId}
+                    connected={connected}
+                    recovering={recovering}
+                    modelChange={modelChange}
+                    models={models}
+                    snapshot={snapshot}
+                    session={session}
+                    updateModel={updateModel}
+                  />
+                ) : undefined
+              }
               agentName={agent?.name}
               feedback={flow.submission}
               releaseSend={() => flow.release(sessionId)}
@@ -252,6 +331,13 @@ const PrimeSessionWorkspace = ({
             <SessionAgentControls agent={agent} draftHero={draftHero} snapshot={snapshot} />
           </div>
         </div>
+        {selectedChild ? (
+          <SubagentConversation
+            key={selectedChild.childId}
+            parentId={sessionId}
+            childId={selectedChild.childId}
+          />
+        ) : null}
       </div>
     </div>
   )
@@ -260,7 +346,7 @@ const PrimeSessionWorkspace = ({
 export const ChatWorkspace = () => {
   const { adding } = useAgentCreation()
   const { selectedSessionId: sessionId } = usePrimeSessionSelection()
-  const { roster, error } = useAgents()
+  const { roster } = useAgents()
   const activeAgentId = sessionId
     ? roster.agents.find((item) => item.root?.sessionId === sessionId)?.id
     : roster.selectedAgentId
@@ -293,7 +379,7 @@ export const ChatWorkspace = () => {
         utilities={<UiAnnotationTrigger />}
       />
       {content}
-      <RuntimeStatus sessionId={sessionId} actionError={error} />
+      <RuntimeStatus sessionId={sessionId} />
     </section>
   )
 }

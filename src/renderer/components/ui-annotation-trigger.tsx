@@ -19,7 +19,7 @@ export const UiAnnotationTrigger = () => {
         aria-pressed={annotation.active}
         title="Annotate UI · local notes · ⌘⇧A"
         aria-keyshortcuts="Meta+Shift+A Control+Shift+A"
-        {...stylex.props(styles.trigger)}
+        {...stylex.props(styles.trigger, styles.hiddenTrigger)}
         onClick={annotation.handleActivate}
       >
         {annotation.active ? (

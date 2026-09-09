@@ -646,6 +646,11 @@ export class PrimeAgentService extends Service.create({
       )(state)
       const history = await prepareHistory()
       return async () => {
+        if (request.mode === "steer") {
+          requireSuccess(await client.request({ activeSessionId, message: history.content, type: "steer" }))
+          history.finish()
+          return { status: "accepted" }
+        }
         // The native convenience wrapper discards queued:false for a coalesced follow-up.
         const response = requireSuccess(
           await client.request({ activeSessionId, message: history.content, type: "follow_up" }),

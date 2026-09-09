@@ -1,12 +1,14 @@
 import { BrainIcon } from "lucide-react"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeEffort } from "../../packages/prime-agent"
-import { DepthRail } from "./depth-rail"
+import { DepthSlider } from "./depth-slider"
 import { ComposerSelect } from "./composer-select"
 
 const efforts: readonly PrimeEffort[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
 const styles = stylex.create({
-  controls: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 2, minWidth: 0 },
+  controls: { display: "grid", gap: 12, paddingBlockStart: 12 },
+  disclosure: { gridColumn: "1 / -1", minWidth: 0 },
+  summary: { color: "var(--muted)", cursor: "pointer", fontSize: 12, paddingBlock: 4 },
 })
 
 /** Capability-driven effort and per-chat recursion presets retain the accepted values. */
@@ -17,6 +19,7 @@ export const InferenceControls = ({
   depth,
   disabled,
   allowDefault = false,
+  modelName,
   onEffortChange,
   onDepthChange,
 }: {
@@ -26,6 +29,7 @@ export const InferenceControls = ({
   depth: number | undefined
   disabled: boolean
   allowDefault?: boolean
+  modelName?: string
   onEffortChange: (effort?: PrimeEffort) => void
   onDepthChange: (depth?: number) => void
 }) => {
@@ -34,16 +38,24 @@ export const InferenceControls = ({
     label: item.charAt(0).toUpperCase() + item.slice(1),
     value: item,
   }))
-  const defaults = allowDefault ? [{ label: "Default", value: "default" }] : []
+  const defaults = allowDefault
+    ? [
+        {
+          label: modelName ? `Use ${modelName} settings` : "Use the selected model’s settings",
+          value: "default",
+        },
+      ]
+    : []
   const defaultValue = allowDefault ? "default" : undefined
   return (
-    <details>
-      <summary>
-        Reasoning · {effort ?? "Default"} · Depth · {depth ?? "Default"}
+    <details {...stylex.props(styles.disclosure)}>
+      <summary {...stylex.props(styles.summary)}>
+        Reasoning · {effort ?? "Default"} · Depth {depth ?? "Default"}
       </summary>
       <div {...stylex.props(styles.controls)}>
         <ComposerSelect
           label="Reasoning"
+          compact
           icon={BrainIcon}
           description={`How much reasoning effort the model uses. ${effortDescription ?? "Applies when this conversation starts."}`}
           value={effort ?? defaultValue}
@@ -61,16 +73,13 @@ export const InferenceControls = ({
             }
           }}
         />
-        <DepthRail
-          value={depth}
-          disabled={disabled || (!allowDefault && depth === undefined)}
+        <DepthSlider
+          key={depth ?? "default"}
+          depth={depth}
+          disabled={disabled}
+          allowDefault={allowDefault}
           onChange={onDepthChange}
         />
-        {allowDefault && depth !== undefined ? (
-          <button type="button" disabled={disabled} onClick={() => onDepthChange()}>
-            Default
-          </button>
-        ) : null}
       </div>
     </details>
   )

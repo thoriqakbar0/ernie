@@ -139,9 +139,24 @@ export const describeConversationActivity = (
   const responseStatus = describeResponseStatus(settled, ending)
   const active = session.state === "working"
   const summary = describeActivitySummary(snapshot, results.length)
+  const streaming = Option.getOrUndefined(decodeAssistant(useful.streamingMessage))
+  const messagePreview = (streaming?.content ?? [])
+    .flatMap((part) => {
+      const text = Option.getOrUndefined(decodeText(part))
+      return text ? [text.text] : []
+    })
+    .join(" ")
+    .trim()
+  const latestRun = results.at(-1)
+  const commandPreview =
+    active && latestRun && (latestRun.pending || state.activeToolNames.includes(latestRun.name))
+      ? latestRun.code?.trim()
+      : undefined
   return {
     active: active && transport.status === "connected",
     children: useful.children,
+    messagePreview,
+    commandPreview,
     followUps: state.sessionActions.followUps,
     phase: active ? action?.phase : undefined,
     queued: state.sessionActions.queuedCount,

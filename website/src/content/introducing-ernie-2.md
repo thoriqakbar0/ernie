@@ -60,7 +60,7 @@ That’s the interaction I want: **keep working while the agent builds and revis
 
 The flow I’m building is to ask Prime Agent through Ernie’s UI, then have it adapt the interface through Zenbu plugins. I describe what I’m doing, try the view it creates, and ask for changes from there. The framework supports the extension mechanism; that complete interaction still needs end-to-end validation in Ernie.
 
-[Zenbu documents hot reload for application code and plugins](https://github.com/zenbu-labs/zenbu.js#how-does-it-work), including its production app model. It is still an [alpha framework](https://github.com/zenbu-labs/zenbu.js#is-it-ready-for-production-usage). Hot reload alone doesn’t guarantee that every change preserves my work; restarts, data migrations, and state recovery still need handling.
+[Zenbu](https://github.com/zenbu-labs/zenbu.js) makes the interface something we can keep changing as we use it. I can try a view, notice what’s missing, and ask the agent to adjust it. I don’t have to know exactly what I need before I start.
 
 I want it to rearrange the screen while I work. My notes need to survive its interior-design phase. I need to see what changed, undo an edit, and close a panel without losing what I wrote.
 

@@ -4,16 +4,6 @@
       <img src="/screenshots/ernie-home.png" alt="Ernie home screen with agents in the sidebar and a message composer for Remy." width="3420" height="2224" loading="lazy" />
     </a>
   </figure>
-  <figure>
-    <a href="/screenshots/ernie-customize.png" target="_blank" rel="noreferrer" aria-label="View agent customization full size">
-      <img src="/screenshots/ernie-customize.png" alt="Agent settings in Ernie, with a name field and a selection of colorful characters." width="3420" height="2224" loading="lazy" />
-    </a>
-  </figure>
-  <figure>
-    <a href="/screenshots/ernie-research.png" target="_blank" rel="noreferrer" aria-label="View the research session full size">
-      <img src="/screenshots/ernie-research.png" alt="Theo researching electricity trends in Ernie, with two subagents and the code for their research requests visible." width="3420" height="2224" loading="lazy" />
-    </a>
-  </figure>
 </section>
 
 <style>

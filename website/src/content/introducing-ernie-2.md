@@ -28,6 +28,8 @@ Each call still has a context limit, and the agent can choose the wrong approach
 
 Prime Agent describes itself as an RLM agent. Ernie gives me a desktop interface for working with that runtime.
 
+<figure class="article-screenshot"><a href="/screenshots/ernie-research.png" target="_blank" rel="noreferrer"><img src="/screenshots/ernie-research.png" alt="Theo researching electricity trends with two subagents in Ernie." width="3420" height="2224" loading="lazy" /></a></figure>
+
 ## The interface is still getting in the way
 
 The agent can finish its investigation and leave me starting mine: finding the answer in the chat. Comparing its findings means scrolling between messages, with the plan further up and the sources somewhere else.
@@ -41,6 +43,8 @@ For a literature review, that might be a comparison of papers with their methods
 This is what I mean by not micromanaging the agent, but micromanaging how I interact with it. I don’t want to prescribe each step or draw every screen. I want to be particular about the result: whether I can compare the evidence, change the plan, or understand what needs my attention.
 
 The interface should develop with the work. An agent might suggest replacing a planning view with a review view when there’s a draft to inspect. I should be able to keep the current arrangement, accept the suggestion, or ask for something else.
+
+<figure class="article-screenshot"><a href="/screenshots/ernie-customize.png" target="_blank" rel="noreferrer"><img src="/screenshots/ernie-customize.png" alt="Ernie agent settings with a name field and colorful characters." width="3420" height="2224" loading="lazy" /></a></figure>
 
 ## My problem with DeepSeek Harness
 

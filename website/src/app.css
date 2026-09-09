@@ -50,3 +50,7 @@
 .article-end .button { margin-top:0; }
 
 .site-footer .footer-links a:hover, .site-footer .footer-links a:focus-visible { text-decoration:underline; text-underline-offset:4px; }
+
+.article-screenshot { margin: 48px 0; }
+.article-screenshot a { display: block; }
+.article-screenshot img { display: block; width: 100%; height: auto; border: 1px solid #dce0e4; border-radius: 12px; }

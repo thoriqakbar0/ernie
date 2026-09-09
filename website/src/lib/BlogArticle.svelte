@@ -9,5 +9,5 @@
 <section id="introducing-ernie-2" class="article-main" aria-label="Introducing Ernie">
 
   <article class="article-prose">{@html articleHtml}</article>
-  <div class="article-end"><Characters seeds={[356]} /><a class="editorial-link" href="/#workspace">make yourself at home <ArrowUpRight /></a></div>
+  <div class="article-end"><Characters seeds={[356]} /><a class="button" href="https://github.com/thoriqakbar0/ernie">get Ernie on GitHub <ArrowUpRight /></a></div>
 </section>

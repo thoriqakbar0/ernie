@@ -46,3 +46,5 @@
 
 .journal > p { font-size:18px; margin-top:14px; max-width:360px; }
 .journal > .journal-note { font-size:13px; margin-top:24px; color:var(--muted); }
+
+.article-end .button { margin-top:0; }

@@ -17,7 +17,13 @@ import type { Checkpoint } from "../../packages/app-history"
 
 /** Immutable capture policy is compiled into the host, not read from editable source. */
 export const sourceManifest = {
-  directories: ["src", "build/brand"],
+  directories: [
+    "src",
+    "build/brand",
+    "docs",
+    ".agents/skills/iterate-ernie",
+    ".agents/skills/ernie-skill",
+  ],
   optional: ["electron-builder.json", ".gitignore", "vite.config.ts", "doctor.config.json"],
   required: [
     "package.json",
@@ -235,7 +241,7 @@ export class SourceStore {
       }
     }
     await inSequence(sourceManifest.directories, (directory) =>
-      visit(directory, directory === "build/brand"),
+      visit(directory, directory !== "src"),
     )
     await inSequence(sourceManifest.required, (path) => visit(path))
     await inSequence(sourceManifest.optional, (path) => visit(path, true))

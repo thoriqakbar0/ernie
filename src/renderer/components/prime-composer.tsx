@@ -29,6 +29,7 @@ type PrimeComposerProps = Readonly<{
   onModelSelect: (model: PrimeModel) => void
   recovering: boolean
   selectedModel: PrimeModel | undefined
+  modelSelected?: boolean
   sessionSelected: boolean
   stopAction?: () => void | Promise<void>
   stopping: boolean
@@ -50,7 +51,7 @@ const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>, unavailable: b
   event.preventDefault()
   if (!unavailable) {
     const { form } = event.currentTarget
-    const delivery = event.altKey ? "follow-up" : "steer"
+    const delivery = "steer"
     const button = form?.querySelector<HTMLButtonElement>(
       `button[name="delivery"][value="${delivery}"]`,
     )
@@ -83,44 +84,8 @@ const getFeedbackMessage = (feedback: ConversationSubmission | undefined, workin
   }
 }
 
-const InFlightActions = ({
-  working,
-  uncertain,
-  draft,
-  sendDisabled,
-}: {
-  working: boolean
-  uncertain: boolean
-  draft: string
-  sendDisabled: boolean
-}) =>
-  working && !uncertain && draft.trim() ? (
-    <>
-      <InputGroupButton
-        type="submit"
-        name="delivery"
-        value="follow-up"
-        size="sm"
-        disabled={sendDisabled}
-        title="Send after the current work finishes"
-      >
-        Queue
-      </InputGroupButton>
-      <InputGroupButton
-        type="submit"
-        name="delivery"
-        value="steer"
-        size="sm"
-        disabled={sendDisabled}
-        title="Guide the current work"
-      >
-        Steer
-      </InputGroupButton>
-    </>
-  ) : null
-
 const ComposerActions = ({
-  draft,
+  hasContent,
   working,
   stopping,
   connected,
@@ -128,54 +93,49 @@ const ComposerActions = ({
   uncertain,
   sendDisabled,
   reviewRequired,
-}: Pick<PrimeComposerProps, "draft" | "working" | "stopping" | "connected" | "stopAction"> & {
+}: Pick<PrimeComposerProps, "working" | "stopping" | "connected" | "stopAction"> & {
+  hasContent: boolean
   uncertain: boolean
   sendDisabled: boolean
   reviewRequired: boolean
 }) => {
   const showStop = Boolean(stopAction) && (working || stopping) && !uncertain
-  let sendLabel = "Send message"
-  if (showStop) {
-    sendLabel = stopping ? "Stopping Prime Agent" : "Stop Prime Agent"
-  } else if (uncertain) {
-    sendLabel = reviewRequired ? "Review conversation before sending" : "Check send"
-  } else if (working) {
-    sendLabel = "Steer"
-  }
-  let actionContent: ReactNode = <span>{working ? "Steer" : "Send"}</span>
-  if (showStop) {
-    actionContent = <SquareIcon {...stylex.props(sharedStyles.controlIcon)} />
-  } else if (uncertain) {
-    actionContent = <span>{reviewRequired ? "Review send" : "Check send"}</span>
+  const showSend = uncertain || !showStop || hasContent
+  let label = working ? "Steer" : "Send"
+  if (uncertain) {
+    label = reviewRequired ? "Review send" : "Check send"
   }
   return (
     <div {...stylex.props(sharedStyles.composerActions)}>
-      <InFlightActions
-        working={working}
-        uncertain={uncertain}
-        draft={draft}
-        sendDisabled={sendDisabled}
-      />
-      <InputGroupButton
-        name="delivery"
-        value="steer"
-        aria-label={sendLabel}
-        title={sendLabel}
-        disabled={showStop ? !connected || stopping : sendDisabled}
-        size={showStop ? "icon-sm" : "sm"}
-        type={showStop ? "button" : "submit"}
-        onClick={
-          showStop
-            ? () => {
-                void stopAction?.()
-              }
-            : undefined
-        }
-        variant="default"
-        xstyle={[sharedStyles.composerAction]}
-      >
-        {actionContent}
-      </InputGroupButton>
+      {showSend ? (
+        <InputGroupButton
+          type="submit"
+          name="delivery"
+          value="steer"
+          size="sm"
+          variant="default"
+          disabled={sendDisabled || stopping}
+          title={working && !uncertain ? "Guide the current work" : label}
+          xstyle={[sharedStyles.composerAction]}
+        >
+          {label}
+        </InputGroupButton>
+      ) : null}
+      {showStop ? (
+        <InputGroupButton
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          disabled={!connected || stopping}
+          aria-label={stopping ? "Stopping agent" : "Stop agent"}
+          title={stopping ? "Stopping agent" : "Stop agent"}
+          onClick={() => {
+            void stopAction?.()
+          }}
+        >
+          <SquareIcon size={14} aria-hidden="true" />
+        </InputGroupButton>
+      ) : null}
     </div>
   )
 }
@@ -286,6 +246,7 @@ export const PrimeComposer = ({
   opening,
   recovering,
   selectedModel,
+  modelSelected = Boolean(selectedModel),
   sessionSelected,
   stopping,
   stopAction,
@@ -300,7 +261,9 @@ export const PrimeComposer = ({
   const unavailable = submitting || (!uncertain && (!connected || recovering || stopping))
   const message = getFeedbackMessage(feedback, working)
   const sendDisabled =
-    reviewRequired || unavailable || (!uncertain && !draft.trim() && !annotations.length)
+    reviewRequired ||
+    unavailable ||
+    (!uncertain && (!modelSelected || (!draft.trim() && !annotations.length)))
   // Keep pending feedback urgent while external session selection changes during creation.
   return (
     <form
@@ -349,7 +312,7 @@ export const PrimeComposer = ({
           />
           <ComposerActions
             connected={connected}
-            draft={draft}
+            hasContent={Boolean(draft.trim()) || annotations.length > 0}
             stopping={stopping}
             stopAction={stopAction}
             working={working}

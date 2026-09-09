@@ -131,27 +131,6 @@ class PrimeAgentRuntime {
     return this.getWorkspacePath()
   }
 
-  async createSession(initialPrompt?: string) {
-    const cwd = await this.getWorkspacePath()
-    const attached = await this.workspace.createSession({
-      cwd,
-      name: "New Prime Agent session",
-    })
-    this.attachments.set(attached.snapshot.session.id, Promise.resolve(attached))
-    let initialPromptError: string | undefined
-    if (initialPrompt?.trim()) {
-      try {
-        const sent = await attached.chat.submitDraft(initialPrompt)
-        if (sent.status === "unknown" || sent.status === "not-sent") {
-          initialPromptError = sent.message
-        }
-      } catch (error) {
-        initialPromptError = error instanceof Error ? error.message : "Prime Agent command failed"
-      }
-    }
-    return { attached, initialPromptError }
-  }
-
   async getAttachment(sessionId: string) {
     const existing = this.attachments.get(sessionId)
     if (existing) {
@@ -176,9 +155,12 @@ class PrimeAgentRuntime {
 
   async submit(sessionId: string, content: string, delivery?: "steer" | "follow-up") {
     const attachment = await this.getAttachment(sessionId)
-    return attachment.snapshot.session.state === "working"
-      ? delivery === "follow-up" ? attachment.chat.followUp(content) : attachment.chat.steer(content)
-      : attachment.chat.submitDraft(content)
+    if (attachment.snapshot.session.state !== "working") {
+      return attachment.chat.submitDraft(content)
+    }
+    return delivery === "follow-up"
+      ? attachment.chat.followUp(content)
+      : attachment.chat.steer(content)
   }
 
   subscribe(sessionId: string, listener: (snapshot: PrimeSessionSnapshot) => void) {
@@ -396,7 +378,8 @@ export const useConversationCommands = () => {
     () => ({
       release: (sessionId: string) => runtime.releaseSend(sessionId),
       stop: (sessionId: string) => runtime.stop(sessionId),
-      submit: (sessionId: string, content: string, delivery?: "steer" | "follow-up") => runtime.submit(sessionId, content, delivery),
+      submit: (sessionId: string, content: string, delivery?: "steer" | "follow-up") =>
+        runtime.submit(sessionId, content, delivery),
     }),
     [runtime],
   )

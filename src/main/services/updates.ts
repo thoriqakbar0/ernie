@@ -20,6 +20,7 @@ export class UpdatesService extends Service.create({
   deps: { rpc: RpcService, updater: UpdaterService },
   key: "updates",
 }) {
+  private readonly enabled = process.env.ERNIE_ENABLE_UPDATES === "1"
   private currentState: UpdateState = { phase: "disabled" }
   private preparation = new PreparedDependencies()
   private get state(): UpdateState {
@@ -34,8 +35,11 @@ export class UpdatesService extends Service.create({
   private disposed = false
   private cancellation = new AbortController()
 
-  /** Checks packaged installations at startup and every six hours; development stays disabled. */
+  /** Update checks are temporarily opt-in; disabled installations do no update work. */
   async evaluate() {
+    if (!this.enabled) {
+      return
+    }
     const context = await this.ctx.updater.getAppContext()
     if (!context) {
       return
@@ -130,6 +134,9 @@ export class UpdatesService extends Service.create({
 
   /** Checks a separate clone; repeated requests share one operation. */
   check(): Promise<UpdateState> {
+    if (!this.enabled) {
+      return Promise.resolve(this.state)
+    }
     if (this.state.phase === "restarting") {
       return Promise.resolve(this.state)
     }
@@ -162,6 +169,9 @@ export class UpdatesService extends Service.create({
 
   /** Stages dependencies and asks native confirmation before quitting. No renderer input selects source or paths. */
   apply(): Promise<UpdateState> {
+    if (!this.enabled) {
+      return Promise.resolve(this.state)
+    }
     return this.run(async () => {
       const context = await this.ctx.updater.getAppContext()
       const { candidate } = this

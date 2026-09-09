@@ -7,9 +7,13 @@ import { Tabs } from "@base-ui/react/tabs"
 import { Effect } from "effect"
 import { constVoid } from "effect/Function"
 import { useId, useRef, useState } from "react"
-import { FolderIcon, ShuffleIcon } from "lucide-react"
+import { FolderIcon, ShuffleIcon, XIcon } from "lucide-react"
 import type { Agent, AgentSettings } from "../../packages/agents"
-import { randomAgentFirstName, randomAgentNameExcept } from "../../packages/agents/names"
+import {
+  availableAgentName,
+  randomAgentFirstName,
+  randomAgentNameExcept,
+} from "../../packages/agents/names"
 import { useConversationFlow } from "../conversation-flow"
 import { ContinueInFolder } from "./continue-in-folder"
 import { PrimeComposer } from "./prime-composer"
@@ -276,6 +280,42 @@ const SettingsForm = ({
   </form>
 )
 
+const folderControl = (choosing: boolean, cwd: string, systemFolder: string | undefined) => {
+  const selected = Boolean(cwd && cwd !== systemFolder)
+  let label = selected ? cwd.split(/[\\/]/u).findLast(Boolean) || cwd : "Choose folder"
+  if (choosing) {
+    label = "Choosing…"
+  }
+  return { label, selected }
+}
+
+const availableDraftSettings = (
+  requested: AgentSettings,
+  existing: Agent | undefined,
+  id: string,
+  root: Agent["root"] | undefined,
+  sessions: readonly { id: string; name?: string }[],
+  agents: readonly Agent[],
+): AgentSettings => {
+  const reservedNames = new Set<string>()
+  for (const session of sessions) {
+    if (session.id !== root?.sessionId && session.name) {
+      reservedNames.add(session.name)
+    }
+  }
+  for (const item of agents) {
+    if (item.id !== id) {
+      reservedNames.add(item.name)
+    }
+  }
+  return existing
+    ? requested
+    : {
+        ...requested,
+        name: availableAgentName(requested.name, reservedNames),
+      }
+}
+
 /** Creation and refinement share one inline form. */
 export const AgentSettingsDialog = ({
   agent,
@@ -314,12 +354,20 @@ export const AgentSettingsDialog = ({
       settings,
     }
   })
-  const { id, expectedNativeName, expectedRevision, characters, initialSettings, settings } = form
+  const { id, expectedNativeName, expectedRevision, characters, initialSettings } = form
   const setSettings = (updateSettings: (current: AgentSettings) => AgentSettings) =>
     setForm((current) => ({ ...current, settings: updateSettings(current.settings) }))
   const setCharacters = (nextCharacters: Agent["avatar"][]) =>
     setForm((current) => ({ ...current, characters: nextCharacters }))
   const persistedRoot = agent?.root ?? roster.agents.find((item) => item.id === id)?.root
+  const settings = availableDraftSettings(
+    form.settings,
+    agent,
+    id,
+    persistedRoot,
+    sessions.data,
+    roster.agents,
+  )
   const [draft, setDraft] = useConversationDraft(`agent:${id}`)
   const flow = useConversationFlow(`agent:${id}`)
   const { setAdding } = useAgentCreation()
@@ -335,6 +383,12 @@ export const AgentSettingsDialog = ({
   const [previousName, setPreviousName] = useState<string>()
   const nameRef = useRef<HTMLInputElement>(null)
   const folder = settings.cwd || currentWorkspace
+  const modelSelected = [settings.provider, settings.model].every((value) => Boolean(value.trim()))
+  const { label: folderLabel, selected: hasSelectedFolder } = folderControl(
+    choosingFolder,
+    settings.cwd,
+    workspace.data,
+  )
   const update = <K extends keyof AgentSettings>(key: K, value: AgentSettings[K]) =>
     setSettings((current) => ({ ...current, [key]: value }))
   const chooseFolder = async () => {
@@ -442,16 +496,18 @@ export const AgentSettingsDialog = ({
                     }}
                     {...stylex.props(styles.composerFolder, styles.keyboard)}
                   >
-                    {choosingFolder ? "Choosing…" : "choose folder?"}
+                    {folderLabel}
                   </button>
-                  {folder !== workspace.data && !persistedRoot ? (
+                  {hasSelectedFolder && !persistedRoot ? (
                     <button
                       type="button"
+                      aria-label="Clear selected folder"
+                      title="Clear selected folder"
                       disabled={creationStarted || !workspace.data}
                       {...stylex.props(styles.composerFolder, styles.keyboard)}
                       onClick={() => update("cwd", workspace.data ?? "")}
                     >
-                      Use system folder
+                      <XIcon size={16} aria-hidden="true" />
                     </button>
                   ) : null}
                   <DraftComposerControls
@@ -474,6 +530,7 @@ export const AgentSettingsDialog = ({
               onModelSelect={constVoid}
               recovering={false}
               selectedModel={undefined}
+              modelSelected={modelSelected}
               sessionSelected={false}
               stopping={false}
               submitting={submitting || choosingFolder}
@@ -486,8 +543,8 @@ export const AgentSettingsDialog = ({
                   setError("Choose a folder for your Agent first.")
                   return
                 }
-                if (Boolean(settings.provider.trim()) !== Boolean(settings.model.trim())) {
-                  setError("Enter both a provider and model ID, or choose Use default model.")
+                if (!modelSelected) {
+                  setError("Choose a model before sending.")
                   return
                 }
                 if (!settings.name.trim()) {

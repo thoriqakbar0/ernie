@@ -42,6 +42,8 @@ Each Agent binds one durable Prime Agent root. Preparation writes the native fil
 
 [[src/main/services/agents.ts#AgentsService]] owns serialized binding and presentation updates. [[src/main/prime-agent/service.ts#PrimeAgentService]] owns native activation, rename, and validated child inspection. [ADR 0002](../docs/adr/0002-native-agent-roots.md) records the ownership decision.
 
+Saved Agent roots are the only production creation path; the old session-creation RPC and renderer API are removed. Name suggestions exclude known catalog names. Effect retries explicit name conflicts against the same durable root; transport failures do not retry admission.
+
 ## Subagent roster inspection
 
 Subagents appear as additional sidebar chats and beside the parent identity in the conversation header. Each selects its read-only transcript within the existing parent workspace.

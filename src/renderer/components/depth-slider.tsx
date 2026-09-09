@@ -13,8 +13,10 @@ const styles = stylex.create({
   label: { gridColumn: "1 / -1" },
   number: {
     backgroundColor: "var(--surface)",
-    border: "1px solid var(--rule)",
+    borderColor: "var(--rule)",
     borderRadius: 6,
+    borderStyle: "solid",
+    borderWidth: 1,
     color: "var(--ink)",
     minHeight: 28,
     paddingInline: 5,

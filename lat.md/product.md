@@ -68,6 +68,10 @@ Provider tabs in the model catalog stay on one horizontally scrollable row rathe
 
 Custom model ID fields are removed from Agent settings. The composer dropdown selects catalog models.
 
+Send and keyboard submission require a selected model. Draft Agents require both provider and model; receipt recovery remains available independently.
+
+The composer shows the selected custom folder name, with its full path in the tooltip. Returning to the system folder restores the choose-folder prompt.
+
 Failed first-message creation unlocks draft identity controls. Retries save current settings with the last acknowledged revision, preserving the Agent ID and creation request ID. Prepared roots retain immutable folder/model controls.
 
 Pre-session model catalogs load in a bounded worker thread because Prime Agent registry construction reads files synchronously. Concurrent requests share in-flight work; only validated model metadata returns to the host.

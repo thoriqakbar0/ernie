@@ -76,6 +76,8 @@ The restart helper loads its Node-only modules before replacing source. Profile 
 
 ### Update performance boundaries
 
+Updates are temporarily opt-in through `ERNIE_ENABLE_UPDATES=1`; disabled services schedule no checks and reject check/apply work.
+
 Unchanged releases require metadata only. A validated candidate and successful dependency preparation survive retries. Activation records the final-path Zenbu signature; renderer events replace idle status polling.
 
 The signature adapter is checked against the pinned Zenbu implementation. [[src/main/updates/preparation.ts#PreparedDependencies]] owns preparation invalidation. [[src/renderer/components/use-update-state.ts#useUpdateState]] owns subscription lifetime, initial refresh, and immediate feedback.
@@ -88,12 +90,26 @@ InterfaceKit is disabled: the renderer does not import or mount its floating edi
 
 Development keeps local profiles. Releases use the Ernie identity and ad-hoc signing. Prerelease status changes GitHub metadata only. Official signing remains optional.
 
-See [release commands](../docs/releasing.md). Packaged source and app-history paths derive from the validated package identity. Preparation changes local files; publication requires a clean committed checkout.
+See [release commands](../docs/releasing.md). Packaged source and app-history paths derive from the validated package identity. Preparation changes local files; publication requires a clean committed checkout. Local ad-hoc builds accept uncommitted fixes. The packaged child uses production mode so development tools do not mount.
 
 ## Packaged startup ownership
 
 The recovery parent owns the application lock and uses a separate Chromium profile. Its editable child reuses that ownership and reports renderer readiness over IPC. Reopening the app focuses the child.
 
+On macOS, the recovery parent uses accessory activation policy. Only the editable child appears in the Dock and app switcher; recovery windows remain available.
+
 ## Agentation feedback
 
-Development mounts Agentation locally. Send to Agent stages annotated interface feedback in the selected parent chat for review. The interface workflow in docs/workflow.md requires live observation before source edits and HMR verification afterward.
+Development mounts Agentation locally. Send to Agent stages annotated interface feedback in the selected parent chat for review.
+
+The interface workflow in docs/workflow.md requires live observation before source edits and verification in the same running app afterward.
+
+## Ernie session skills
+
+Ernie-configured Prime sessions discover ernie-skill and iterate-ernie through native skills configuration.
+
+An appended system instruction points to the host guide while retaining Agent instructions. Source distribution and history capture include both skills.
+
+## Canonical checkout
+
+`main` in `/Users/thor/work/ernie` owns current development. [Consolidation](../docs/ui-reconciliation.md) records recovered worktree deltas and retained experiments. The everyday app uses its managed source and existing profile.

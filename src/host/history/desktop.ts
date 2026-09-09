@@ -85,6 +85,7 @@ export const startHistoryDesktop = async (bootstrap: Bootstrap) => {
             ERNIE_INITIAL_SOURCE: bootstrap.source,
             ERNIE_MANAGED_SOURCE: directory,
             ERNIE_ZENBU_DB: path.join(bootstrap.source, ".zenbu", "db"),
+            NODE_ENV: "production",
           },
           stdio: ["ignore", "ignore", "ignore", "ipc"],
         },
@@ -306,6 +307,11 @@ export const startHistoryDesktop = async (bootstrap: Bootstrap) => {
     // Keep the recovery host running when all windows close.
   })
   const activateApp = () => {
+    // macOS activates the host while dependencies and the editable app are starting.
+    // Recovery is shown only for an actual failure or an explicit recovery request.
+    if (initializing) {
+      return
+    }
     if (child?.connected) {
       // Node IPC reports asynchronous send failures through its callback.
       // oxlint-disable-next-line promise/prefer-await-to-callbacks

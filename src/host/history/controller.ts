@@ -397,7 +397,19 @@ export class HistoryController {
     }
   }
   private async handleHistoryList(request: Extract<HistoryRequest, { method: "history.list" }>) {
-    const sorted = this.index.checkpoints.toReversed()
+    // Recovery baselines and release changes are internal. Only explicit saves and
+    // registered customization intervals belong in the user's history.
+    const visibleIds = new Set([
+      ...Object.values(this.index.receipts ?? {}),
+      ...this.index.operations.flatMap((operation) =>
+        operation.checkpointId
+          ? [operation.baselineId, operation.checkpointId]
+          : [operation.baselineId],
+      ),
+    ])
+    const sorted = this.index.checkpoints
+      .filter((item) => visibleIds.has(item.id) || item.origin === "manual")
+      .toReversed()
     const start = request.cursor ? sorted.findIndex((item) => item.id === request.cursor) : 0
     if (start < 0) {
       throw new HistoryFailure({
@@ -907,7 +919,12 @@ export class HistoryController {
       const started = revision
       void this.captureInBackground(async () => {
         this.assertIdle()
-        await this.capture("external", "External changes")
+        const operation = this.index.operations.find(
+          (item) => item.state === "editing" && item.workspace === this.index.activeGeneration,
+        )
+        if (operation) {
+          await this.capture("customization", "Customization in progress", operation.id)
+        }
         capturedRevision = started
       })
     }

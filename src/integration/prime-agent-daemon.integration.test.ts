@@ -534,9 +534,13 @@ test(
       provider: "",
       role: "Review",
     }
+    // A root owned by another client is absent from Ernie's roster but reserves its name.
+    await createSession(daemonClient, root, settings.name)
     const first = unwrapAgentResult(
       await connection.agents.save({ ...settings, expectedRevision: 0, id: "fixture-a" }),
     )
+    assert.equal(first.name, "Fixture Agent 2")
+    assert.equal(first.root?.status, "bound")
     unwrapAgentResult(
       await connection.agents.save({
         ...settings,

@@ -52,6 +52,7 @@ export const styles = stylex.create({
     borderRadius: 12,
     borderStyle: "solid",
     borderWidth: 1,
+    display: { ":empty": "none", default: "block" },
     overflow: "hidden",
   },
   checkpointMeta: { color: theme["--muted"], fontSize: 12, lineHeight: 1.5 },
@@ -259,9 +260,9 @@ export const styles = stylex.create({
   selectedCheckpoint: {
     backgroundColor: { ":hover": theme["--focus-soft"], default: theme["--focus-soft"] },
   },
+  selectedTab: { backgroundColor: theme["--surface-muted"], fontWeight: 600 },
   settingsHeader: { gap: 7, marginBottom: 19 },
   settingsPage: { paddingBlockStart: 8, paddingInline: 9 },
-  selectedTab: { backgroundColor: theme["--surface-muted"], fontWeight: 600 },
   tabs: {
     borderBottomStyle: "solid",
     borderBottomWidth: 1,

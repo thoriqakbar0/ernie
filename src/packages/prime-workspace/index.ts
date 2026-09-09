@@ -25,9 +25,6 @@ export interface AttachedPrimeSession {
 
 /** Session discovery and attachment operations used by Ernie. */
 export interface PrimeWorkspace {
-  /** Creates and attaches one new Prime Agent session. */
-  createSession: (input: Readonly<{ cwd: string; name?: string }>) => Promise<AttachedPrimeSession>
-
   /** Attaches an existing session and recovers any event race from a snapshot. */
   attachSession: (sessionId: string) => Promise<AttachedPrimeSession>
 }
@@ -164,10 +161,5 @@ export const createPrimeWorkspace = ({
 
   return {
     attachSession: attach,
-
-    async createSession(input) {
-      const session = await primeAgent.createSession(input)
-      return attach(session.id)
-    },
   }
 }

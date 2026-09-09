@@ -174,7 +174,7 @@ export const styles = stylex.create({
     fontSize: 12,
     fontWeight: 400,
     lineHeight: 1.5,
-    textDecoration: "underline",
+    textDecorationLine: "underline",
     textUnderlineOffset: 3,
   },
   groupParent: {

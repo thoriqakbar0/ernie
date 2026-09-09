@@ -77,3 +77,5 @@ Local UI notes open beside the selected element in a floating popup. Base UI tra
 ## Expanding details
 
 Activity details and subagent lists reveal from their top edge with a short expansion and fade. Reduced motion disables the animation.
+
+The composer uses a single border for focus and a muted disabled Send label. Plain settings tabs use a background for keyboard focus; an empty checkpoint list has no border.

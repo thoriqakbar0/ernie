@@ -9,7 +9,7 @@ import { setTimeout as delay } from "node:timers/promises"
 import { Service } from "@zenbujs/core/runtime"
 import { RpcService } from "@zenbujs/core/services"
 import { Effect, Option, Schema } from "effect"
-import { ConversationOrigin, decodeAgentInput } from "../../packages/agents"
+import type { ConversationOrigin } from "../../packages/agents"
 import { nativeConversationConfig } from "./agent-config"
 import {
   connectPrimeDaemon,
@@ -46,7 +46,7 @@ import {
   chooseAvailableSessionName,
   deriveSessionName,
   isGenericSessionName,
-  isUnavailableSessionNameError,
+  createWithAvailableSessionName,
 } from "./session-name"
 import { createPrimeAgentRecoveryRetry, runPrimeAgentRecoveryLoop } from "./recovery-retry"
 
@@ -91,7 +91,6 @@ const STREAM_REFRESH_INTERVAL_MS = 50
 const RECOVERY_RETRY_INTERVAL_MS = 1000
 const MAX_REFRESH_FAILURES = 2
 const CREATE_SESSION_TIMEOUT_MS = 60_000
-const CREATE_SESSION_NAME_RETRIES = 3
 const ATTACHMENT_STARTUP_TIMEOUT_MS = 10_000
 const ATTACHMENT_STARTUP_RETRY_MS = 100
 const SESSION_CATALOG_REFRESH_MS = 1000
@@ -416,17 +415,26 @@ export class PrimeAgentService extends Service.create({
     await this.inspectAgentRoot(input)
     const active = this.sessionTargets.get(input.sessionId)
     if (!active?.activeSessionId || this.summaries.get(input.sessionId)?.workerFailed) {
-      const created = await this.request(
-        {
-          sessionPath: input.sessionFile,
-          type: "create",
-          ...(input.prepared ? { name: input.name } : {}),
-          ...(input.origin
-            ? { config: nativeConversationConfig(input.origin, !input.prepared) }
-            : {}),
-          lifecycle: "resident",
-        },
-        CREATE_SESSION_TIMEOUT_MS,
+      const listed = await this.request({ all: true, type: "list" })
+      const known = readSessionList(listed).map((entry) => toCatalogSession(entry).summary)
+      const created = await Effect.runPromise(
+        createWithAvailableSessionName(
+          input.prepared ? input.name : undefined,
+          known.filter((session) => session.id !== input.sessionId),
+          (name) =>
+            this.request(
+              {
+                sessionPath: input.sessionFile,
+                type: "create",
+                ...(name ? { name } : {}),
+                ...(input.origin
+                  ? { config: nativeConversationConfig(input.origin, !input.prepared) }
+                  : {}),
+                lifecycle: "resident",
+              },
+              CREATE_SESSION_TIMEOUT_MS,
+            ),
+        ),
       )
       const { summary, target } = toCatalogSession(readRecord(created, "root activation"))
       if (summary.id !== input.sessionId) {
@@ -467,83 +475,6 @@ export class PrimeAgentService extends Service.create({
         : { name: input.name, sessionPath: input.sessionFile, type: "rename_saved_session" },
     )
     await this.refreshSessionCatalog()
-  }
-
-  /** Creates one resident Prime Agent session without attaching a renderer. */
-  async createSession(input: {
-    cwd: string
-    name?: string
-    origin?: ConversationOrigin
-    creationId?: string
-  }) {
-    const origin = input.origin
-      ? await Effect.runPromise(decodeAgentInput(ConversationOrigin, input.origin))
-      : undefined
-    const data = await this.request({ all: true, type: "list" })
-    const knownSessions = readSessionList(data).map((entry) => toCatalogSession(entry).summary)
-    const rejectedNames = new Set<string>()
-    let lastCollision: unknown
-
-    const attemptCreation = async (attempt: number): Promise<PrimeSessionSummary> => {
-      if (attempt > CREATE_SESSION_NAME_RETRIES) {
-        throw new Error("Prime Agent session name stayed unavailable after retries", {
-          cause: lastCollision,
-        })
-      }
-      const name = chooseAvailableSessionName(input.name, knownSessions, rejectedNames)
-      try {
-        const created = await this.request(
-          {
-            config: origin ? nativeConversationConfig(origin) : { cwd: input.cwd },
-            lifecycle: "resident",
-            name,
-            type: "create",
-          },
-          CREATE_SESSION_TIMEOUT_MS,
-        )
-        const { summary: session, target } = toCatalogSession(
-          readRecord(created, "create response"),
-        )
-        this.summaries.set(session.id, session)
-        this.sessionTargets.set(session.id, target)
-        this.upsertCatalogSession(session)
-        if (origin) {
-          await Effect.runPromise(
-            Effect.gen({ self: this }, function* saveAssociation() {
-              const roster = yield* this.ctx.agentStore.read()
-              yield* this.ctx.agentStore.write({
-                ...roster,
-                associations: [
-                  ...roster.associations,
-                  {
-                    sessionId: session.id,
-                    ...(input.creationId ? { creationId: input.creationId } : {}),
-                    agentId: null,
-                    origin,
-                    visitedAt: Date.now(),
-                  },
-                ],
-              })
-            }),
-          )
-        }
-        if (origin?.rlmMaxDepth !== undefined) {
-          await this.setRecurrentDepth({
-            recurrentDepth: origin.rlmMaxDepth,
-            sessionId: session.id,
-          })
-        }
-        return session
-      } catch (error) {
-        if (!name || !isUnavailableSessionNameError(error, name)) {
-          throw error
-        }
-        rejectedNames.add(name)
-        lastCollision = error
-      }
-      return attemptCreation(attempt + 1)
-    }
-    return attemptCreation(0)
   }
 
   /** Attaches one logical connection and returns its current projected snapshot. */
@@ -647,7 +578,9 @@ export class PrimeAgentService extends Service.create({
       const history = await prepareHistory()
       return async () => {
         if (request.mode === "steer") {
-          requireSuccess(await client.request({ activeSessionId, message: history.content, type: "steer" }))
+          requireSuccess(
+            await client.request({ activeSessionId, message: history.content, type: "steer" }),
+          )
           history.finish()
           return { status: "accepted" }
         }

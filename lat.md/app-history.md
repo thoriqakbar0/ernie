@@ -16,7 +16,7 @@ Capture rejects symlinked ancestors of nested manifest entries. Restore installs
 
 The bundled parent process survives editable application startup failures. It owns native approval, generation opening, and readiness checks.
 
-[[src/host/history/desktop.ts#startHistoryDesktop]] opens the recovery window and supervises the editable child. Only its native confirmation can call controller approval. The launcher retains the selected generation and offers bundled official updates for review.
+[[src/host/history/desktop.ts#startHistoryDesktop]] supervises the editable child. Normal startup keeps recovery hidden; failures and explicit recovery requests open it. Only its native confirmation can call controller approval. The launcher retains the selected generation and offers bundled official updates for review.
 
 ## Separate application pages
 
@@ -44,7 +44,9 @@ Settings exposes local appearance preferences and App history. Managed-source cu
 
 ## Checkpoint inspection
 
-History separates saving from recovery. A grouped checkpoint list distinguishes current and selected entries; each row expands inline to inspect metadata and source.
+Visible history contains explicit saves and registered user customization checkpoints. Internal launch, baseline, and release snapshots remain available for recovery but do not appear as user changes.
+
+Automatic capture runs only during a registered customization interval. Development and release file changes outside those intervals do not create automatic user history.
 
 The compact header contains Save checkpoint and an actions disclosure for refresh and previous-state inspection. Status sits below the list. Screenshot stacks show an explicit empty state because checkpoint data has no image capture. Compact metadata keeps exact timestamps and origins in details.
 

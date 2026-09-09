@@ -314,14 +314,6 @@ const Scenario = ({ preset }: { preset: Preset }) => {
         }),
       )
     return {
-      remove: (input) => command(() => {
-        const roster = current.current
-        update({ ...roster,
-          agents: roster.agents.filter((agent) => agent.id !== input.agentId),
-          associations: roster.associations.filter((item) => item.agentId !== input.agentId),
-          selectedAgentId: roster.selectedAgentId === input.agentId ? null : roster.selectedAgentId,
-        })
-      }),
       assign: (input) =>
         command((): undefined => {
           const existing = current.current.associations.find(
@@ -349,7 +341,7 @@ const Scenario = ({ preset }: { preset: Preset }) => {
             await prime.selectSession({ sessionId: previous })
             return previous
           }
-          const session = await prime.createSession({
+          const session = await prime.createFixtureSession({
             cwd: "/example/workspace",
             name: "New conversation",
           })
@@ -388,6 +380,21 @@ const Scenario = ({ preset }: { preset: Preset }) => {
             agents: current.current.agents.map((agent) =>
               agent.id === input.agentId ? { ...agent, pinned: input.pinned } : agent,
             ),
+          })
+        }),
+      remove: (input) =>
+        command(() => {
+          const currentRoster = current.current
+          update({
+            ...currentRoster,
+            agents: currentRoster.agents.filter((agent) => agent.id !== input.agentId),
+            associations: currentRoster.associations.filter(
+              (item) => item.agentId !== input.agentId,
+            ),
+            selectedAgentId:
+              currentRoster.selectedAgentId === input.agentId
+                ? null
+                : currentRoster.selectedAgentId,
           })
         }),
       save: (input) =>

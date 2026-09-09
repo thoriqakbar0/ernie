@@ -54,7 +54,7 @@ const run = (args: string[]) => {
 }
 if (command !== "check") {
   const status = spawnSync("git", ["status", "--porcelain"], { encoding: "utf-8" })
-  if (status.status !== 0 || status.stdout.trim()) {
+  if (status.status !== 0 || (command !== "build-unsigned" && status.stdout.trim())) {
     throw new Error("Release operations require a clean committed checkout")
   }
   if (command === "build") {

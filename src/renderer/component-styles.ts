@@ -6,7 +6,7 @@ export const styles = stylex.create({
   composerAction: {
     backgroundColor: { ":disabled": theme["--surface-strong"], default: theme["--accent"] },
     borderRadius: 999,
-    color: { ":disabled": theme["--muted"], default: theme["--on-accent"] },
+    color: { ":disabled": theme["--faint"], default: theme["--on-accent"] },
     opacity: { ":disabled": 1, default: 1 },
   },
   composerActions: { alignItems: "center", display: "flex", gap: 8, marginLeft: "auto" },
@@ -46,6 +46,10 @@ export const styles = stylex.create({
       default: theme["--rule"],
     },
     borderRadius: 20,
+    boxShadow: {
+      ':has([data-slot="input-group-control"]:focus-visible)': "none",
+      default: "none",
+    },
     opacity: { ":has(:disabled)": 1, default: 1 },
   },
   composerToolbar: { marginTop: 7 },

@@ -125,11 +125,17 @@ module.exports = async function afterPack(context) {
       { mode: 0o755 },
     )
   }
+  await fs.copyFile(
+    path.join(project, "src/host/history/profile.mjs"),
+    path.join(bundle, "profile.mjs"),
+  )
   await fs.writeFile(
     launcher,
     `import { app, BrowserWindow, Menu, MenuItem } from 'electron';
 import { readAppConfig, appsDirFor, resolveMirror, readHostVersion, ensureAppsDir, ensureDepsInstalled, handoff } from './zenbu-bootstrap.mjs';
+import { configureProfile } from './profile.mjs';
 async function launchHistory() {
+const profile = configureProfile(app);
 const childArg = process.argv.find(value => value.startsWith('--ernie-history-child='));
 const cli = process.argv.indexOf('--ernie-history-cli');
 if (cli !== -1) {
@@ -164,17 +170,19 @@ if (cli !== -1) {
 } else {
   // The parent and editable app need separate Chromium profiles. Otherwise
   // the child can replace the parent's singleton socket during startup.
+  // Recovery can open windows without registering a second Dock or app-switcher entry.
+  if (process.platform === 'darwin') app.setActivationPolicy('accessory');
   app.setPath('userData', app.getPath('userData') + '-recovery');
   await app.whenReady();
   const cfg=readAppConfig();
   if (cfg.packageManager.type !== 'pnpm') throw new Error('Ernie app history requires the bundled pnpm installer with frozen lockfiles.');
   const { homedir } = await import('node:os'); const { join } = await import('node:path');
-  const source=join(homedir(),'.zenbu','apps',${JSON.stringify(identity)}); const {version}=readHostVersion(app.getAppPath());
+  const source=profile?.source ?? join(homedir(),'.zenbu','apps',${JSON.stringify(identity)}); const {version}=readHostVersion(app.getAppPath());
   const { existsSync } = await import('node:fs');
   const officialSource=join(app.getAppPath(),'official-source');
   const prepareSource=async()=>{ if (!existsSync(source)) { const {cp,rename,mkdir}=await import('node:fs/promises'); const pending=source+'.install-'+process.pid; await mkdir(join(source,'..'),{recursive:true}); await cp(officialSource,pending,{recursive:true}); await rename(pending,source); } };
   const { startHistoryDesktop }=await import('./history-host.mjs');
-  await startHistoryDesktop({source,version,home:join(homedir(),${JSON.stringify(`.${identity}`)},'app-history'),officialSource,prepareSource,install:directory=>ensureDepsInstalled(directory,cfg.packageManager)});
+  await startHistoryDesktop({source,version,home:profile?.history ?? join(homedir(),${JSON.stringify(`.${identity}`)},'app-history'),officialSource,prepareSource,install:directory=>ensureDepsInstalled(directory,cfg.packageManager)});
 }
 }
 void launchHistory().catch(error=>{console.error('[history] startup failed:',error instanceof Error?error.message:'Unknown failure');app.exit(1);});

@@ -22,13 +22,27 @@ Ernie uses one app identity for development and distribution. macOS archives use
 
 ## Prepare and verify
 
-Use an isolated worktree. Prepare the version, add `docs/releases/<version>.md`, review changes, and run smoke tests before publication. Release commands require a clean committed candidate. Existing remote tags stop publication.
+Use an isolated worktree. Prepare the version, add `docs/releases/<version>.md`, review changes, and run smoke tests before publication. Publication and officially signed builds require a clean committed candidate. Local ad-hoc builds may include uncommitted fixes; record the base SHA and retain the patch beside the archive. Existing remote tags stop publication.
 
 Both publication commands use the same app name, artwork, bundle ID, and source branch. The preview command only selects GitHub prerelease metadata. The historical v0.2.0 Preview tag remains unchanged.
 
 Ernie uses `dev.zenbu.ernie`, source branch `release`, installed source `~/.zenbu/apps/ernie`, and history `~/.ernie/app-history`. Canonical artwork lives in `assets/brand/production.png`.
 
 The app connects to an existing Prime Agent daemon. It does not launch or stop the daemon. Set `ERNIE_PRIME_AGENT_SOCKET` for a custom socket; otherwise the upstream user socket convention applies. The client SDK remains an application dependency.
+
+## Install a manual local build
+
+Run `nub install`, `nub run release:check`, `nub run brand:check`, `nub run link`, `nub run typecheck`, and `nub run lat:check`. Then run `nub run release:build`. This builds locally without pushing, tagging, or publishing.
+
+Verify `dist/Ernie-<version>-arm64-mac.zip` with `unzip -tq` and verify `dist/mac-arm64/Ernie.app` with `codesign --verify --deep --strict`. Record the archive SHA-256 and source revision before installing.
+
+Quit the installed Ernie app. Keep a recoverable copy of `/Applications/Ernie.app`, `~/.zenbu/apps/ernie`, and `~/.ernie/app-history`. Copy the new app into `/Applications`, then launch that exact path.
+
+The app bundle and editable source are separate. Replacing the bundle does not overwrite an existing editable installation. Use the recovery menu’s official-update review to adopt bundled source. For a manual source replacement, preserve a complete backup first, replace only the source manifest files, and keep `.zenbu`, dependencies, credentials, and sessions intact. Verify the installed source against `Contents/Resources/app/official-source`.
+
+The packaged child uses `NODE_ENV=production`; DialKit, Agentation, and development scenarios do not mount. Recovery remains hidden during normal startup. User history lists explicit saves and registered customization intervals; internal release and startup snapshots stay out of that list.
+
+Verify the workspace, Settings navigation, and the Prime Agent connection. Confirm the process runs from `/Applications/Ernie.app` and that the pre-existing daemon remains alive. Keep the backup until the installed candidate is accepted.
 
 ## Publish without Apple credentials
 
@@ -40,7 +54,7 @@ Source, tags, and assets are separate operations. If publication fails, inspect 
 
 ## Apply an update
 
-Packaged Ernie checks ten seconds after startup and every six hours. Development profiles do not check. The update footer also supports manual checks and retry after failure. State changes arrive through events; reconnect, focus, and online transitions refresh the snapshot without an idle polling timer.
+Updates are temporarily disabled by default. The service stays disabled, schedules no checks, and hides update controls. Launch with `ERNIE_ENABLE_UPDATES=1` to opt in again; enabled packaged installations check ten seconds after startup and every six hours. Development profiles do not check. The update footer also supports manual checks and retry after failure. State changes arrive through events; reconnect, focus, and online transitions refresh the snapshot without an idle polling timer.
 
 Checks read the advertised release revision first. An unchanged revision needs one metadata request and no source clone. Changed releases clone into a sibling staging directory. Checks reuse that directory while the advertised revision, installed revision, and staged source remain valid. They require an Ernie manifest and compatible host range. They leave running source unchanged. A changed Git revision is available even when its package version is unchanged.
 
@@ -60,7 +74,7 @@ Power loss or a process kill during the file transaction can interrupt rollback.
 
 Local checks cover Git HTTP discovery, host rejection, dirty installation rejection, profile retention, obsolete source removal, activation conflicts, and publisher safeguards. The isolated browser scenario exercises availability, explicit application, failed checks, and retry without installing or restarting anything.
 
-Before distribution, verify a signed and notarized archive, clean first installation, dependency downloads, and a real earlier-version update. Test interrupted activation and boot recovery on an isolated packaged profile. No mirror branch, GitHub release, or signed archive was published by this implementation.
+Before distribution, verify the ad-hoc signature, clean first installation, dependency downloads, and a real earlier-version update. Official signing additionally requires Developer ID and notarization checks. Test interrupted activation and boot recovery on an isolated packaged profile. No mirror branch, GitHub release, or signed archive was published by this implementation.
 
 ## Run the focused checks
 

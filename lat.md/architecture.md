@@ -130,9 +130,9 @@ Each parent Agent owns its browser tabs, selected tab, and panel visibility for 
 
 Header selection uses a themed background, including the parent avatar. Navigation owns selection; activity indicators remain independent.
 
-### Queued message steering
+### Message steering
 
-The composer sends active-work messages through native steering by default. An explicit Queue action preserves follow-up delivery; the queue-management list is removed.
+The composer sends active-work messages through native steering. Steer is the primary action while working, with a separate stop control.
 
 Idle messages still start a normal turn; existing daemon messages are not resent or cleared.
 
@@ -151,3 +151,7 @@ Model settings use equal-width tabs and a shared minimum panel height to reduce 
 The draft model menu lists concrete models without a synthetic Default model option. Leaving the model unset preserves the runtime's existing default selection. TurnExecutions uses the same count-and-chevron disclosure for every status; the accessible label and tooltip retain completion, failure, or stopped status.
 
 DepthSlider previews drag gestures locally, commits once, and returns to the accepted daemon value on rejection. Reasoning choices come from model capabilities.
+
+### Production profiles
+
+Named production profiles separate editable source, Chromium storage, app history, roster data, and Prime daemon/session directories. Unnamed launches preserve existing paths. See [production profiles](../docs/production-profiles.md).

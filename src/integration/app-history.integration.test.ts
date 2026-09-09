@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { setTimeout } from "node:timers/promises"
 import { Effect, Schema } from "effect"
-import { HistoryIndex } from "../packages/app-history"
+import { HistoryIndex, CheckpointPage } from "../packages/app-history"
 import { HistoryController } from "../host/history/controller"
 import type { HistoryConfig } from "../host/history/controller"
 import { hashContent, sourceManifest } from "../host/history/source-store"
@@ -60,6 +60,17 @@ test("restore changes app files atomically, preserves user data, and supports re
     const baseline = field(await f.request({ method: "history.status" }), "currentCheckpointId")
     await writeFile(path.join(f.source, "src", "app.ts"), "changed")
     await writeFile(path.join(f.source, "src", "new.ts"), "added")
+    const guidanceFiles = [
+      "docs/workflow.md",
+      ".agents/skills/ernie-skill/SKILL.md",
+      ".agents/skills/iterate-ernie/SKILL.md",
+    ]
+    await Promise.all(
+      guidanceFiles.map(async (file) => {
+        await mkdir(path.dirname(path.join(f.source, file)), { recursive: true })
+        await writeFile(path.join(f.source, file), "bundled guidance")
+      }),
+    )
     const proposal = field(
       await f.request({
         checkpointId: baseline,
@@ -89,6 +100,14 @@ test("restore changes app files atomically, preserves user data, and supports re
     assert.equal(
       await readFile(path.join(f.controller.activeGeneration, "src", "new.ts"), "utf-8"),
       "added",
+    )
+    await Promise.all(
+      guidanceFiles.map(async (file) => {
+        assert.equal(
+          await readFile(path.join(f.controller.activeGeneration, file), "utf-8"),
+          "bundled guidance",
+        )
+      }),
     )
     const reopened = await HistoryController.open(f.config)
     assert.equal(reopened.activeGeneration, f.controller.activeGeneration)
@@ -226,7 +245,7 @@ test("diffs paginate all paths and source pages without interpreting source inst
   }
 })
 
-test("registered overlaps are disclosed and watcher captures unregistered changes", async () => {
+test("registered overlaps are disclosed and watcher ignores unregistered changes", async () => {
   const f = await fixture()
   try {
     const a = await f.request({ method: "customization.begin", requestId: "a" })
@@ -253,11 +272,12 @@ test("registered overlaps are disclosed and watcher captures unregistered change
     await writeFile(path.join(f.source, "src", "app.ts"), "external edit")
     await setTimeout(3300)
     const status = await f.request({ method: "history.status" })
-    const checkpoint = await f.request({
-      checkpointId: field(status, "currentCheckpointId"),
-      method: "history.inspect",
-    })
-    assert.equal(field(checkpoint, "origin"), "external")
+    assert.ok(status && typeof status === "object" && "unsavedChanges" in status)
+    assert.equal(status.unsavedChanges, true)
+    const index = Schema.decodeUnknownSync(HistoryIndex)(
+      JSON.parse(await readFile(path.join(f.config.home, "index.json"), "utf-8")),
+    )
+    assert.equal(index.checkpoints.length, 1)
   } finally {
     await f.close()
   }
@@ -475,7 +495,7 @@ test("finish retains summaries and overlapping registrations after automatic cap
     await f.request({ method: "customization.finish", operationId: second, summary: "Second edit" })
     const result = await f.request({ checkpointId: automatic, method: "history.inspect" })
     assert.equal(field(result, "proposedTitle"), "Second edit")
-    assert.equal(field(result, "captureOrigin"), "external")
+    assert.equal(field(result, "captureOrigin"), "customization")
     assert.ok(result && typeof result === "object" && "customizations" in result)
     assert.ok(Array.isArray(result.customizations))
     assert.equal(result.customizations.length, 2)
@@ -531,6 +551,46 @@ test("persisted checkpoints from before lint migration remain restorable", async
       )
     } finally {
       restored.stopWatching()
+    }
+  } finally {
+    await f.close()
+  }
+})
+
+test("user history excludes release snapshots and retains explicit saves and customization", async () => {
+  const f = await fixture()
+  const list = () => f.request({ method: "history.list" })
+  try {
+    assert.deepEqual(Schema.decodeUnknownSync(CheckpointPage)(await list()).items, [])
+    await writeFile(path.join(f.source, "src", "app.ts"), "new release")
+    const reopened = await HistoryController.open(f.config)
+    try {
+      const request = (input: unknown) => Effect.runPromise(reopened.request(input))
+      assert.deepEqual(
+        Schema.decodeUnknownSync(CheckpointPage)(await request({ method: "history.list" })).items,
+        [],
+      )
+      const saved = await request({
+        method: "history.checkpoint",
+        requestId: "user-save",
+        title: "My starting point",
+      })
+      const operation = await request({ method: "customization.begin", requestId: "user-edit" })
+      await writeFile(path.join(f.source, "src", "app.ts"), "user customization")
+      const finished = await request({
+        method: "customization.finish",
+        operationId: field(operation, "id"),
+        summary: "My customization",
+      })
+      const result = await request({ method: "history.list" })
+      const { items } = Schema.decodeUnknownSync(CheckpointPage)(result)
+      assert.ok(Array.isArray(items))
+      assert.deepEqual(
+        items.map((item) => field(item, "id")),
+        [field(finished, "checkpointId"), field(saved, "id")],
+      )
+    } finally {
+      reopened.stopWatching()
     }
   } finally {
     await f.close()

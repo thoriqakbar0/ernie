@@ -2,12 +2,10 @@ import { Schema } from "effect"
 import { SendReceipt } from "./index"
 import type {
   AttachSessionRequest,
-  CreateSessionRequest,
   PrimeAgentModelClient,
   PrimeEffort,
   PrimeModel,
   PrimeSessionEventListener,
-  PrimeSessionSnapshot,
   PrimeSessionState,
   SessionAction,
   SendRequest,
@@ -25,7 +23,6 @@ type PrimeAgentRpc = Readonly<{
   checkSend: (input: SendRequest) => Promise<SendReceipt>
   getSessionState: () => Promise<unknown>
   selectSession: (input: { sessionId?: string }) => Promise<void>
-  createSession: (input: CreateSessionRequest) => Promise<PrimeSessionSnapshot["session"]>
   attachSession: (input: { sessionId: string }) => Promise<unknown>
   abort: (input: SessionAction) => Promise<void>
   waitForIdle: (input: SessionAction) => Promise<void>
@@ -119,7 +116,6 @@ export const createZenbuPrimeAgentClient = (
       }
       return parsed.value
     },
-    createSession: (request: CreateSessionRequest) => rpc.createSession(request),
     dispose() {
       unsubscribeChanges()
       unsubscribeSnapshots()

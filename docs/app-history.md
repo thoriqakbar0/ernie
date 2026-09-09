@@ -6,7 +6,7 @@ Ernie’s installed desktop host owns application-source history. App history is
 
 The immutable `sourceManifest` in `src/host/history/source-store.ts` defines captured application files. Capture rejects symbolic links and missing required inputs. Databases, sessions, environment files, credentials, dependencies, generated builds, and Git metadata are excluded. Development repositories cannot enable restoration through RPC.
 
-The controller saves two matching reads before publishing a checkpoint. Content-addressed objects and atomic metadata replacements live in `~/.ernie/app-history`, outside the managed application. Automatic capture runs after three quiet seconds and periodically during continued edits. Identical compatible source trees reuse their checkpoint identity.
+The controller saves two matching reads before publishing a checkpoint. Content-addressed objects and atomic metadata replacements live in `~/.ernie/app-history`, outside the managed application. Automatic capture runs during registered customization intervals, after three quiet seconds and periodically during continued edits. Unregistered file changes do not create visible history entries. Identical compatible source trees reuse their checkpoint identity.
 
 Checkpoint titles supplied by editing clients are suggestions. Changed-file inventories come from content comparisons. A registered editing interval does not prove exclusive authorship; overlapping registrations are disclosed. Source and diff text remain quoted data in both interfaces.
 

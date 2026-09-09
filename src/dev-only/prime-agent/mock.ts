@@ -2,7 +2,6 @@ import type {
   SendRequest,
   SendReceipt,
   AttachSessionRequest,
-  CreateSessionRequest,
   PrimeAgentModelClient,
   PrimeSessionChange,
   PrimeSessionState,
@@ -19,6 +18,9 @@ import { createPrimeUsefulSessionFixture } from "../../packages/prime-agent/fixt
 
 /** Prime Agent mock used by Ernie's local interactive preview. */
 export interface MockPrimeAgentClient extends PrimeAgentModelClient {
+  createFixtureSession: (
+    request: Readonly<{ cwd: string; name?: string }>,
+  ) => Promise<PrimeSessionSummary>
   /** Changes fixture transport without replacing sessions or receipts. */
   setTransport: (transport: PrimeSessionTransport) => void
   /** Releases timers, listeners, and pending idle waits. */
@@ -287,7 +289,7 @@ export const createMockPrimeAgentClient = (
       await options.afterSend?.()
       return receipt
     },
-    createSession(request: CreateSessionRequest) {
+    createFixtureSession(request: Readonly<{ cwd: string; name?: string }>) {
       const summary: PrimeSessionSummary = {
         cwd: request.cwd,
         id: `mock-session-${crypto.randomUUID()}`,

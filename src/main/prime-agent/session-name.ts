@@ -1,3 +1,5 @@
+import { Effect, Schedule } from "effect"
+import { availableAgentName } from "../../packages/agents/names"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
 
 const GENERIC_SESSION_NAME = /^(?:New Prime Agent session|Untitled conversation)(?: \d+)?$/iu
@@ -18,23 +20,43 @@ export const chooseAvailableSessionName = (
   }
 
   const names = new Set(sessions.flatMap(({ name }) => (name ? [name] : [])))
-  if (!names.has(base) && !rejectedNames.has(base)) {
-    return base
-  }
-
-  for (let suffix = 2; suffix < Number.MAX_SAFE_INTEGER; suffix += 1) {
-    const candidate = `${base} ${suffix}`
-    if (!names.has(candidate) && !rejectedNames.has(candidate)) {
-      return candidate
-    }
-  }
-  throw new Error("Prime Agent session names are exhausted")
+  return availableAgentName(base, new Set([...names, ...rejectedNames]))
 }
 
 /** Identifies Prime Agent's stable duplicate-name failure for one requested name. */
 export const isUnavailableSessionNameError = (error: unknown, name: string) =>
   error instanceof Error &&
   error.message.startsWith(`Agent name ${JSON.stringify(name)} is unavailable:`)
+
+/** Retries only explicit name rejection, never an uncertain or successful admission. */
+export const createWithAvailableSessionName = <A>(
+  requested: string | undefined,
+  sessions: readonly PrimeSessionSummary[],
+  create: (name: string | undefined) => Promise<A>,
+) =>
+  Effect.gen(function* allocateSessionName() {
+    const rejected = new Set<string>()
+    const attempt = Effect.suspend(() => {
+      const name = chooseAvailableSessionName(requested, sessions, rejected)
+      return Effect.tryPromise({
+        catch: (cause) => {
+          if (name && isUnavailableSessionNameError(cause, name)) {
+            rejected.add(name)
+            return { _tag: "SessionNameConflict" as const, cause }
+          }
+          return { _tag: "SessionAdmissionFailure" as const, cause }
+        },
+        try: () => create(name),
+      })
+    })
+    return yield* attempt.pipe(
+      Effect.retry({
+        schedule: Schedule.recurs(32),
+        while: (error) => error._tag === "SessionNameConflict",
+      }),
+      Effect.mapError((error) => error.cause),
+    )
+  })
 
 /** Reports whether Ernie may replace a session name without overwriting user intent. */
 export const isGenericSessionName = (name: string | undefined) =>

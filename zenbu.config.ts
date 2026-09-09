@@ -36,6 +36,9 @@ export default defineConfig({
     ],
     include: [
       "src/**/*",
+      "docs/**/*",
+      ".agents/skills/iterate-ernie/**/*",
+      ".agents/skills/ernie-skill/**/*",
       "build/brand/**/*",
       "electron-builder.json",
       ".gitignore",

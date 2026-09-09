@@ -268,12 +268,6 @@ type PrimeSessionSyncEvent =
 /** Receives ordered changes for one attached Prime Agent session. */
 export type PrimeSessionEventListener = (event: PrimeSessionSyncEvent) => void
 
-/** Values used to create one Prime Agent session. */
-export type CreateSessionRequest = Readonly<{
-  cwd: string
-  name?: string
-}>
-
 /** Values used to attach Ernie to an existing Prime Agent session. */
 export type AttachSessionRequest = Readonly<{
   sessionId: string
@@ -306,9 +300,6 @@ export interface PrimeAgentClient {
 
   /** Selects the session displayed by Ernie, or clears selection. */
   selectSession: (request: Readonly<{ sessionId?: string }>) => Promise<void>
-
-  /** Creates a new session without attaching a renderer to it. */
-  createSession: (request: CreateSessionRequest) => Promise<PrimeSessionSummary>
 
   /** Attaches Ernie and returns the authoritative session snapshot. */
   attachSession: (request: AttachSessionRequest) => Promise<PrimeSessionSnapshotEnvelope>

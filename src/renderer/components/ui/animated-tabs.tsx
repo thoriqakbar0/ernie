@@ -21,7 +21,14 @@ export interface AnimatedTabsProps {
 const styles = stylex.create({
   filledIndicator: { transitionTimingFunction: "cubic-bezier(.22, 1, .36, 1)" },
   filledList: { marginBlock: 0, width: "100%" },
-  filledTab: { flex: "1 1 0", height: "auto", minHeight: 36, minWidth: 0, paddingBlock: 8, whiteSpace: "normal" },
+  filledTab: {
+    flex: "1 1 0",
+    height: "auto",
+    minHeight: 36,
+    minWidth: 0,
+    paddingBlock: 8,
+    whiteSpace: "normal",
+  },
   indicator: {
     backgroundColor: theme["--ink"],
     borderRadius: 999,
@@ -63,13 +70,16 @@ const styles = stylex.create({
     padding: 0,
   },
   plainTab: {
+    backgroundColor: { ":focus-visible": theme["--surface-muted"], default: "transparent" },
     borderBottomColor: { ":is([data-active])": theme["--ink"], default: "transparent" },
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     borderRadius: 0,
+    boxShadow: { ":focus-visible": "none", default: "none" },
     color: { ":is([data-active])": theme["--ink"], default: theme["--muted"] },
     fontSize: 13,
     height: 40,
+    outlineStyle: "none",
     paddingInline: 0,
   },
   radius: (radius: number) => ({ borderRadius: radius }),

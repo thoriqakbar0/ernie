@@ -90,6 +90,8 @@ InterfaceKit is disabled: the renderer does not import or mount its floating edi
 
 Development keeps local profiles. Releases use the Ernie identity and ad-hoc signing. Prerelease status changes GitHub metadata only. Official signing remains optional.
 
+The website derives its download version and GitHub release URL from the root package version through `website/src/release.ts`.
+
 See [release commands](../docs/releasing.md). Packaged source and app-history paths derive from the validated package identity. Preparation changes local files; publication requires a clean committed checkout. Local ad-hoc builds accept uncommitted fixes. The packaged child uses production mode so development tools do not mount.
 
 ## Packaged startup ownership

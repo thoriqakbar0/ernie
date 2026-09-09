@@ -5,6 +5,7 @@
   import WorkspaceDemo from './lib/WorkspaceDemo.svelte'
   import ScreenshotGallery from './lib/ScreenshotGallery.svelte'
   import BlogArticle from './lib/BlogArticle.svelte'
+  import { releaseUrl, releaseVersion } from './release'
   const essayUrl = 'https://ta-0.com/blog/the-best-software-is-yet-to-be-made'
   if (window.location.pathname.replace(/\/$/, '') === '/blog/introducing-ernie-2') {
     window.location.replace('/#introducing-ernie-2')
@@ -18,7 +19,7 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header page-width">
   <Brand />
-  <nav aria-label="Main navigation"><a href="#the-thinking">The idea</a><a class="nav-explore" href="#workspace">Explore Ernie <ArrowUpRight /></a><a href="https://github.com/thoriqakbar0/ernie" target="_blank" rel="noreferrer">GitHub <ArrowUpRight /></a></nav>
+  <nav aria-label="Main navigation"><a href="#the-thinking">The idea</a><a class="nav-explore" href="#workspace">Explore Ernie <ArrowUpRight /></a><a href={releaseUrl}>Download {releaseVersion} <ArrowUpRight /></a></nav>
 </header>
   <main id="main">
     <section class="hero page-width" aria-labelledby="hero-title">

@@ -89,14 +89,10 @@ export const styles = stylex.create({
     minHeight: 40,
     padding: 3,
     position: "relative",
-    borderBottomWidth: 2,
-    borderBottomStyle: "solid",
-    borderBottomColor: "transparent",
   },
   selected: {
     backgroundColor: theme["--surface-muted"],
     color: theme["--ink"],
-    borderBottomColor: theme["--ink"],
   },
   status: {
     alignItems: "center",

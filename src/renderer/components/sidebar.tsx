@@ -1,13 +1,11 @@
-import { SubagentChats } from "./subagent-chats"
-import { Fragment } from "react"
+import { SubagentChats, SubagentChatLabel } from "./subagent-chats"
+import { Fragment, useRef, useState } from "react"
 import { SubagentAvatar } from "./subagent-avatar"
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./sidebar.styles"
 import { styles as rosterStyles } from "./agent-roster.styles"
-import { useRef, useState } from "react"
 import { useViewArgs } from "@zenbujs/core/react"
 import { PanelLeftCloseIcon, StarIcon } from "lucide-react"
-import { ContextMenu } from "@base-ui/react/context-menu"
 import type { Agent } from "../../packages/agents"
 import type { PrimeSessionSummary } from "../../packages/prime-agent"
 import { useAgents } from "../agent-state"
@@ -124,8 +122,9 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
   const connectDaemon = useConnectPrimeDaemon()
   const { selectedSessionId } = usePrimeSessionSelection()
   const [search, setSearch] = useState("")
+  const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>({})
   const searchRef = useRef<HTMLInputElement>(null)
-  const { setAdding, setEditing, draftSettingsDocked, setDraftSettingsHost } = useAgentCreation()
+  const { setAdding, draftSettingsDocked, setDraftSettingsHost } = useAgentCreation()
   const selectedAgentId = selectedSessionId
     ? roster.associations.find((item) => item.sessionId === selectedSessionId)?.agentId
     : roster.selectedAgentId
@@ -218,111 +217,43 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
             return (
               <Fragment key={agent.id}>
                 <li {...stylex.props(rosterStyles.item)}>
-                  <ContextMenu.Root>
-                    <ContextMenu.Trigger
-                      render={
-                        <button type="button" disabled={pending > 0} />
+                  <div
+                    {...stylex.props(
+                      rosterStyles.row,
+                      rosterStyles.parentRow,
+                      !childChat && selectedAgentId === agent.id && rosterStyles.selected,
+                    )}
+                  >
+                  <button
+                    type="button"
+                    disabled={pending > 0}
+                    aria-label={agent.name}
+                    {...stylex.props(rosterStyles.parentTrigger)}
+                    aria-current={!childChat && selectedAgentId === agent.id ? "page" : undefined}
+                    onClick={async () => {
+                      const result = await execute(() => client.select({ agentId: agent.id }))
+                      if (result.ok) {
+                        setAdding(false)
+                        openOnMobile()
                       }
-                      {...stylex.props(
-                        rosterStyles.row,
-                        !childChat && selectedAgentId === agent.id && rosterStyles.selected,
-                      )}
-                      aria-current={!childChat && selectedAgentId === agent.id ? "page" : undefined}
-                      onClick={async () => {
-                        const result = await execute(() => client.select({ agentId: agent.id }))
-                        if (result.ok) {
-                          setAdding(false)
-                          openOnMobile()
-                        }
-                      }}
-                      title={`${agent.name}\n${agent.role}`}
-                    >
-                      <AgentRosterAvatar agent={agent} root={root} />
-                      <span {...stylex.props(rosterStyles.rowText)}>
-                        <strong {...stylex.props(rosterStyles.name)}>{agent.name}</strong>
-                        <span {...stylex.props(rosterStyles.preview)}>
-                          <AgentSubagentStatus
-                            agent={agent}
-                            root={root}
-                            catalogPending={sessions.isPending}
-                            catalogError={sessions.isError}
-                          />
-                        </span>
+                    }}
+                    title={`${agent.name}\n${agent.role}`}
+                  >
+                  </button>
+                    <AgentRosterAvatar agent={agent} root={root} />
+                    <span {...stylex.props(rosterStyles.rowText)}>
+                      <strong {...stylex.props(rosterStyles.name)}>{agent.name}</strong>
+                      {agent.root ? <SubagentChatLabel parentId={agent.root.sessionId} expanded={Boolean(expandedAgents[agent.id]) || Boolean(search.trim())} onToggle={() => setExpandedAgents((current) => ({ ...current, [agent.id]: !current[agent.id] }))} /> : null}
+                      <span {...stylex.props(rosterStyles.preview)}>
+                        <AgentSubagentStatus
+                          agent={agent}
+                          root={root}
+                          catalogPending={sessions.isPending}
+                          catalogError={sessions.isError}
+                        />
                       </span>
-                    </ContextMenu.Trigger>
-                    <ContextMenu.Portal>
-                      <ContextMenu.Positioner collisionPadding={8} {...stylex.props(rosterStyles.menuPositioner)}>
-                        <ContextMenu.Popup {...stylex.props(rosterStyles.contextMenu)}>
-                          <ContextMenu.Item
-                            {...stylex.props(rosterStyles.contextItem)}
-                            disabled={pending > 0}
-                            onClick={async () => {
-                              const result = await execute(() =>
-                                client.select({ agentId: agent.id }),
-                              )
-                              if (result.ok) {
-                                setAdding(false)
-                                openOnMobile()
-                              }
-                            }}
-                          >
-                            Open Agent
-                          </ContextMenu.Item>
-                          <ContextMenu.Item
-                            {...stylex.props(rosterStyles.contextItem)}
-                            disabled={pending > 0}
-                            onClick={async () => {
-                              const result = await execute(() => client.select({ agentId: agent.id }))
-                              if (result.ok) {
-                                setAdding(false)
-                                setEditing({ agentId: agent.id, section: "Customize", focusName: true })
-                                openOnMobile()
-                              }
-                            }}
-                          >
-                            Rename
-                          </ContextMenu.Item>
-                          <ContextMenu.Item
-                            {...stylex.props(rosterStyles.contextItem)}
-                            disabled={pending > 0}
-                            onClick={async () => {
-                              const result = await execute(() =>
-                                client.select({ agentId: agent.id }),
-                              )
-                              if (result.ok) {
-                                setAdding(false)
-                                setEditing({ agentId: agent.id, section: "Customize" })
-                                openOnMobile()
-                              }
-                            }}
-                          >
-                            Customize Agent
-                          </ContextMenu.Item>
-
-                          <ContextMenu.Item
-                            {...stylex.props(rosterStyles.contextItem)}
-                            disabled={pending > 0}
-                            onClick={() => {
-                              void execute(() =>
-                                client.pin({ agentId: agent.id, pinned: !agent.pinned }),
-                              )
-                            }}
-                          >
-                            {agent.pinned ? "Remove from favorites" : "Add to favorites"}
-                          </ContextMenu.Item>
-                          <ContextMenu.Item
-                            {...stylex.props(rosterStyles.contextItem, rosterStyles.destructiveItem)}
-                            disabled={pending > 0}
-                            onClick={() => {
-                              void execute(() => client.remove({ agentId: agent.id }))
-                            }}
-                          >
-                            Remove agent
-                          </ContextMenu.Item>
-                        </ContextMenu.Popup>
-                      </ContextMenu.Positioner>
-                    </ContextMenu.Portal>
-                  </ContextMenu.Root>
+                    </span>
+                  </div>
                   <button
                     {...stylex.props(rosterStyles.favorite, agent.pinned && rosterStyles.favorited)}
                     type="button"
@@ -335,16 +266,15 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
                     }}
                   >
                     <StarIcon
-                      {...stylex.props(
-                        rosterStyles.favoriteIcon,
-                        agent.pinned && rosterStyles.favoriteIconFilled,
-                      )}
+                      fill={agent.pinned ? "currentColor" : "none"}
+                      {...stylex.props(rosterStyles.favoriteIcon)}
                     />
                   </button>
                 </li>
                 {agent.root ? (
                   <li>
                     <SubagentChats
+                      expanded={Boolean(expandedAgents[agent.id])}
                       parentId={agent.root.sessionId}
                       parentName={agent.name}
                       search={search}
@@ -386,7 +316,7 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
   )
 }
 
-/** Stable Agent navigation with actions available from each row context menu. */
+/** Stable Agent navigation with direct actions available from each row. */
 export const Sidebar = () => {
   const { onClose } = useViewArgs<{ onClose: () => void }>()
   return <AgentRoster onClose={onClose} />

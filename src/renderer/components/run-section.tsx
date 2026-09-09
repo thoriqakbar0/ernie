@@ -1,6 +1,6 @@
 import { Accordion } from "@base-ui/react/accordion"
 import { ChevronDownIcon } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
 
 const styles = stylex.create({
@@ -12,10 +12,11 @@ const styles = stylex.create({
     color: "inherit",
     cursor: "pointer",
     display: "flex",
-    fontSize: 13,
-    gap: 8,
+    fontSize: "var(--run-label-size, 13px)",
+    gap: "var(--run-label-gap, 8px)",
     justifyContent: "space-between",
-    padding: "6px 0",
+    padding: "var(--run-label-padding, 6px) 0",
+    minHeight: 28,
     textAlign: "start",
     width: "100%",
     outline: { default: "none", ":focus-visible": "2px solid var(--focus)" },
@@ -24,7 +25,7 @@ const styles = stylex.create({
   expanded: { transform: "rotate(180deg)" },
 })
 
-/** Running output stays visible; settled sections can be folded independently. */
+/** Active and settled output can be folded independently. */
 export const RunSection = ({
   title,
   running = false,
@@ -35,20 +36,23 @@ export const RunSection = ({
   children: ReactNode
 }) => {
   const [open, setOpen] = useState(true)
-  const expanded = running || open
+  useEffect(() => {
+    if (running) setOpen(true)
+  }, [running])
+
+  const expanded = open
   return (
     <Accordion.Root<string>
       value={expanded ? ["section"] : []}
-      onValueChange={(value) => {
-        if (!running) setOpen(value.includes("section"))
-      }}
+      onValueChange={(value) => setOpen(value.includes("section"))}
     >
       <Accordion.Item value="section">
         <Accordion.Header {...stylex.props(styles.header)}>
-          {running ? <span {...stylex.props(styles.trigger)} style={{ cursor: "default" }}>{title} · Running…</span> : <Accordion.Trigger {...stylex.props(styles.trigger)}>
+          <Accordion.Trigger {...stylex.props(styles.trigger)}>
             {title}
+            {running ? " · Running…" : null}
             <ChevronDownIcon size={14} aria-hidden="true" {...stylex.props(expanded && styles.expanded)} />
-          </Accordion.Trigger>}
+          </Accordion.Trigger>
         </Accordion.Header>
         <Accordion.Panel keepMounted aria-label={title}>{children}</Accordion.Panel>
       </Accordion.Item>

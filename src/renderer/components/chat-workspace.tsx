@@ -70,7 +70,7 @@ const useSessionWorkspace = (sessionId: string) => {
     },
     [],
   )
-  const submitAction = (data: FormData) => flow.send({ sessionId, delivery: data.get("delivery") === "steer" ? "steer" : "follow-up" })
+  const submitAction = (_data: FormData) => flow.send({ sessionId, delivery: "steer" })
   const stopAction = () => flow.stopAction(sessionId)
   const snapshot = snapshotQuery.data
   const session = snapshot?.session ?? catalog.data.find((item) => item.id === sessionId)
@@ -259,7 +259,6 @@ const PrimeSessionWorkspace = ({
               }
               agentName={agent?.name}
               feedback={flow.submission}
-              queue={snapshot?.useful.state.sessionActions}
               releaseSend={() => flow.release(sessionId)}
               opening={!snapshot && !snapshotQuery.isError}
               connected={connected}
@@ -299,7 +298,7 @@ const PrimeSessionWorkspace = ({
 export const ChatWorkspace = () => {
   const { adding } = useAgentCreation()
   const { selectedSessionId: sessionId } = usePrimeSessionSelection()
-  const { roster, error } = useAgents()
+  const { roster } = useAgents()
   const activeAgentId = sessionId
     ? roster.agents.find((item) => item.root?.sessionId === sessionId)?.id
     : roster.selectedAgentId
@@ -332,7 +331,7 @@ export const ChatWorkspace = () => {
         utilities={<UiAnnotationTrigger />}
       />
       {content}
-      <RuntimeStatus sessionId={sessionId} actionError={error} />
+      <RuntimeStatus sessionId={sessionId} />
     </section>
   )
 }

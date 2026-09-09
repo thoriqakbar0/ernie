@@ -18,6 +18,7 @@ export const styles = stylex.create({
     justifyContent: "flex-end",
   },
   composerFolder: {
+    backgroundColor: { ":hover": theme["--surface-muted"], default: "transparent" },
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
@@ -30,6 +31,13 @@ export const styles = stylex.create({
     maxWidth: "100%",
     overflowWrap: "anywhere",
   },
+  composerFolderHint: {
+    flexShrink: 0,
+    opacity: 0,
+    transition: "opacity 140ms ease",
+    "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+  },
+  composerFolderHintVisible: { opacity: 1 },
   changeFolder: {
     backgroundColor: { ":hover": theme["--surface-muted"], default: theme["--surface-strong"] },
     borderRadius: 8,

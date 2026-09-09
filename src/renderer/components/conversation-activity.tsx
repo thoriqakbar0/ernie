@@ -144,7 +144,7 @@ export const ConversationActivity = ({ snapshot }: { snapshot: PrimeSessionSnaps
         </span>
         <span {...stylex.props(styles.count)}>
           <Scritto value={activity.results.length} />{" "}
-          {activity.results.length === 1 ? "execution" : "executions"}
+          {activity.results.length === 1 ? "run" : "runs"}
         </span>
         <ChevronDownIcon size={14} aria-hidden="true" />
         {activity.queued > 0 ? (

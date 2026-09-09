@@ -19,8 +19,7 @@ import { AppNavigationProvider, useAppNavigation } from "../app-navigation"
 import { AppSettingsPage } from "./app-settings-page"
 import { ChatWorkspace } from "./chat-workspace"
 import { BrowserWorkspace } from "./browser-workspace"
-
-const DevelopmentDials = import.meta.env.DEV ? lazy(() => import("./execution-dials").then((module) => ({ default: module.ExecutionDials }))) : null
+import { AppShortcuts } from "./app-shortcuts"
 
 const DevelopmentAgentation = import.meta.env.DEV
   ? lazy(() =>
@@ -102,6 +101,7 @@ export const App = ({
             <AgentCreationProvider>
               <ConversationFlowProvider>
                 <MessageReadingProvider>
+                  <AppShortcuts />
                   <div ref={shell} {...stylex.props(styles.appShell)}>
                     <a href="#ernie-main-content" {...stylex.props(styles.skipLink)}>
                       Skip to workspace
@@ -163,7 +163,6 @@ export const App = ({
                       </div>
                     </main>
                     {updates}
-                    {DevelopmentDials ? <Suspense fallback={null}><DevelopmentDials /></Suspense> : null}
                     {DevelopmentAgentation ? (
                       <Suspense fallback={null}>
                         <DevelopmentAgentation />

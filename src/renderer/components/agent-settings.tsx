@@ -7,7 +7,7 @@ import { Tabs } from "@base-ui/react/tabs"
 import { Effect } from "effect"
 import { constVoid } from "effect/Function"
 import { useId, useRef, useState } from "react"
-import { FolderIcon, ShuffleIcon } from "lucide-react"
+import { CircleHelpIcon, FolderIcon, ShuffleIcon } from "lucide-react"
 import type { Agent, AgentSettings } from "../../packages/agents"
 import { randomAgentFirstName, randomAgentNameExcept } from "../../packages/agents/names"
 import { useConversationFlow } from "../conversation-flow"
@@ -329,6 +329,7 @@ export const AgentSettingsDialog = ({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [choosingFolder, setChoosingFolder] = useState(false)
+  const [folderHelpVisible, setFolderHelpVisible] = useState(false)
   const [error, setError] = useState<string>()
   const nameInputId = useId()
   const [previousName, setPreviousName] = useState<string>()
@@ -429,19 +430,28 @@ export const AgentSettingsDialog = ({
                   {control}
                   <button
                     type="button"
-                    title={folder}
-                    aria-label={`Choose working folder. Current folder: ${folder}`}
+                    title={choosingFolder ? "Choosing folder…" : `Current folder: ${folder}`}
+                    aria-label={choosingFolder ? "Choosing working folder…" : `Choose working folder. Current folder: ${folder}`}
                     disabled={creationStarted || choosingFolder}
+                    onPointerEnter={() => setFolderHelpVisible(true)}
+                    onPointerLeave={() => setFolderHelpVisible(false)}
+                    onFocus={() => setFolderHelpVisible(true)}
+                    onBlur={() => setFolderHelpVisible(false)}
                     onClick={() => {
                       void chooseFolder()
                     }}
                     {...stylex.props(styles.composerFolder, styles.keyboard)}
                   >
-                    <FolderIcon size={14} aria-hidden="true" />
-                    {choosingFolder
-                      ? "Choosing…"
-                      : `Folder · ${folder.split("/").filter(Boolean).at(-1) ?? "Choose folder"}`}
+                    {choosingFolder ? "Choosing…" : "Choose folder"}
+                    {choosingFolder ? null : <CircleHelpIcon size={14} aria-hidden="true" {...stylex.props(styles.composerFolderHint, folderHelpVisible && styles.composerFolderHintVisible)} />}
                   </button>
+                  {folder !== workspace.data && !persistedRoot ? (
+                    <button type="button" disabled={creationStarted || !workspace.data}
+                      {...stylex.props(styles.composerFolder, styles.keyboard)}
+                      onClick={() => update("cwd", workspace.data ?? "")}>
+                      Use system folder
+                    </button>
+                  ) : null}
                   <DraftComposerControls
                     sessionId={selectedSessionId ?? undefined}
                     settings={settings}

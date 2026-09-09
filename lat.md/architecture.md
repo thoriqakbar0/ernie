@@ -90,7 +90,7 @@ Desktop browsing uses renderer-hosted Chromium guests to the right of the conver
 
 The conversation fills the available height; its annotation fallback row sizes to content so an empty host reserves no space.
 
-[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel visibility, keyboard tab selection, and overflow reveal. Header controls use its context; toggling the browser does not replace the conversation or page providers. The compact chrome uses one navigation bar; available workspace width controls split or stacked layout. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.
+[[src/renderer/components/browser-workspace.tsx#BrowserWorkspace]] owns panel visibility, keyboard tab selection, and overflow reveal. Header controls and Command+Option+B use its context; toggling the browser does not replace the conversation or page providers. The compact chrome uses one navigation bar; available workspace width controls split or stacked layout. [[src/renderer/components/browser-tab.tsx#BrowserTab]] owns guest navigation. [[src/main/services/browser.ts#BrowserService]] enforces guest isolation; [[src/packages/browser/index.ts#parseBrowserAddress]] validates addresses. [Browser documentation](../docs/browser.md) records source provenance and remaining integration.
 
 ## Roster huddles and streaming motion
 
@@ -112,11 +112,15 @@ Native user-message boundaries group tool runs per turn. Work details precede th
 
 ### Execution disclosure controls
 
-Each turn has one disclosure trigger and a persistent run selector. Run targets use a compact pointer strip and 24px touch targets. Pending output stays visible with a noninteractive Running label; response completion does not imply task success.
+Turns with no recorded runs omit the disclosure. Run targets use compact pointers and 24px touch targets. Pending output stays mounted and marked Running; active sections remain collapsible, and completion does not imply task success.
 
-### Execution tuning
+### Header styling
 
-Development DialKit exposes subagent spacing controls with the saved layout as defaults. Production uses the same CSS fallback values. Execution strips use CSS defaults.
+Agent button and roster spacing use fixed styles shared by development and production. DialKit tuning panels are removed; the selected spacing and active background remain in the owning header styles.
+
+### Keyboard navigation
+
+[[src/renderer/components/app-shortcuts.tsx#AppShortcuts]] maps Cmd+N to the existing Add Agent flow and Cmd+[ / Cmd+] to the current parent's native child roster. Editable fields, IME composition, and unrelated parent rosters remain untouched.
 
 ### Parent-owned browser tabs
 
@@ -124,8 +128,12 @@ Each parent Agent owns its browser tabs, selected tab, and panel visibility for 
 
 ### Active conversation participants
 
-Header selection uses a themed background and underline, including the parent avatar. Navigation owns selection; activity indicators remain independent.
+Header selection uses a themed background and an optional underline, including the parent avatar. Navigation owns selection; activity indicators remain independent.
 
 ### Queued message steering
 
-Each queued follow-up offers Steer. The daemon atomically replaces its lane using the index and expected text, rejecting stale entries. Ernie does not resend the message; failures remain visible beside the queue.
+The composer sends active-work messages through native steering by default. Queue controls and the queue-management list are removed. Idle messages still start a normal turn; existing daemon messages are not resent or cleared.
+
+### Parent roster disclosure
+
+The parent Agent trigger selects its conversation. A separate subagent-count button toggles the child list without changing the selected chat. Search exposes matching children.

@@ -15,11 +15,13 @@ const styles = stylex.create({
     alignContent: "start",
     display: "grid",
     flex: 1,
-    gap: 8,
+    gap: "var(--run-section-gap, 8px)",
     minHeight: 0,
+    minWidth: 0,
     overflowWrap: "anywhere",
     overflowY: "auto",
-    padding: "12px 0",
+    padding: "var(--run-content-padding, 12px) 0",
+    width: "100%",
   },
   far: { transform: "scaleY(1.45)", "@media (prefers-reduced-motion: reduce)": { transform: "none" } },
   heading: {
@@ -30,7 +32,8 @@ const styles = stylex.create({
     fontVariantNumeric: "tabular-nums",
     gap: 12,
     justifyContent: "space-between",
-    padding: "8px 0",
+    padding: "var(--run-heading-padding, 8px) 0",
+    width: "100%",
   },
   map: { minWidth: 0, maxWidth: "min(var(--execution-strip-width, 157px), 100%)", width: "max-content", justifySelf: "start", marginInline: 0, overflowX: "auto" },
   marker: {
@@ -57,12 +60,13 @@ const styles = stylex.create({
   },
   panel: {
     backgroundColor: theme["--surface"],
-    borderRadius: 10,
+    borderRadius: "var(--run-radius, 10px)",
     display: "flex",
     flexDirection: "column",
-    maxHeight: "min(380px, 46dvh)",
+    maxHeight: "min(var(--run-max-height, 380px), 46dvh)",
     minWidth: 0,
     overflow: "hidden",
+    width: "100%",
   },
   peak: { transform: "scale(1.3, 2.6)", "@media (prefers-reduced-motion: reduce)": { transform: "none" } },
   rail: {
@@ -199,9 +203,7 @@ const RunInspectorComponent = ({ results, active, railHost }: { results: Runs; a
             </div>
           </div>
         </>
-      ) : (
-        <p>Waiting for tool output.</p>
-      )}
+      ) : null}
     </>
   )
 }

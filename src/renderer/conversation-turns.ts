@@ -42,7 +42,7 @@ export const conversationTurns = (snapshot: PrimeSessionSnapshot) => {
             : last?.stopReason === "error"
               ? "Response failed"
               : last?.stopReason === "stop"
-                ? "Response finished"
+                ? "Response complete"
                 : "Execution details",
       }
     })

@@ -20,22 +20,46 @@ const styles = stylex.create({
     minHeight: 36,
     padding: "5px 10px",
   },
-  details: { flexBasis: "100%", maxHeight: "25dvh", overflowWrap: "anywhere", overflowY: "auto" },
   footer: {
     alignItems: "center",
     color: theme["--muted"],
     display: "flex",
     flexShrink: 0,
     flexWrap: "wrap",
-    fontSize: 11,
+    fontSize: "var(--runtime-font-size, 11px)",
     fontVariantNumeric: "tabular-nums",
-    gap: "4px 10px",
+    gap: "4px var(--runtime-gap, 10px)",
     justifyContent: "flex-end",
     lineHeight: 1.5,
     padding: "2px 12px",
   },
   recovery: { fontSize: 12, marginInlineEnd: "auto" },
 })
+
+const compactConnectionLabel = (status: PrimeDaemonConnection["state"]["status"]) => {
+  switch (status) {
+    case "connecting":
+      return "Connecting…"
+    case "starting":
+      return "Starting…"
+    case "disconnected":
+      return "Disconnected"
+    case "not-installed":
+      return "Not installed"
+    case "incompatible":
+      return "Incompatible"
+    case "failed":
+      return "Failed"
+    case "unavailable":
+      return "Unavailable"
+    case "connected":
+      return "Connected"
+    default: {
+      const exhaustive: never = status
+      throw new Error("Unrecognized daemon connection status", { cause: exhaustive })
+    }
+  }
+}
 
 const recoveryPresentation = ({
   connection,
@@ -57,7 +81,7 @@ const recoveryPresentation = ({
   if (!connection) {
     return {
       busy: false,
-      label: catalogError ? "Connection unavailable" : "Loading…",
+      label: catalogError ? "Unavailable" : "Loading…",
       needsRecovery: catalogError,
       retrySession: false,
     }
@@ -66,7 +90,7 @@ const recoveryPresentation = ({
     const description = describePrimeDaemonConnection(connection.state)
     return {
       busy: description.busy,
-      label: description.label,
+      label: compactConnectionLabel(connection.state.status),
       needsRecovery: true,
       retrySession: false,
     }
@@ -101,14 +125,8 @@ const recoveryPresentation = ({
   }
 }
 
-/** Owns the actionable connection notice; diagnostics remain collapsed until requested. */
-export const RuntimeStatus = ({
-  sessionId,
-  actionError,
-}: {
-  sessionId?: string
-  actionError?: string
-}) => {
+/** Owns the compact connection state and its recovery action. */
+export const RuntimeStatus = ({ sessionId }: { sessionId?: string }) => {
   const state = usePrimeSessionState()
   const snapshot = usePrimeSessionSnapshot(sessionId)
   const connect = useConnectPrimeDaemon()
@@ -120,7 +138,6 @@ export const RuntimeStatus = ({
     snapshotError: snapshot.isError,
   })
   const { needsRecovery } = presentation
-  const description = connection ? describePrimeDaemonConnection(connection.state) : undefined
   const retry = async () => {
     await (presentation.retrySession ? snapshot.refetch() : connect())
   }
@@ -132,7 +149,6 @@ export const RuntimeStatus = ({
           version={presentation.version}
           clientVersion={primePackage.version}
         />
-        {needsRecovery ? " · Your draft is kept. You can keep writing." : null}
       </output>
       {needsRecovery ? (
         <button
@@ -144,25 +160,7 @@ export const RuntimeStatus = ({
           Retry connection
         </button>
       ) : null}
-      {!needsRecovery && actionError ? (
-        <p role="alert">The last action couldn’t finish. Try it again.</p>
-      ) : null}
       <span>Ernie {erniePackage.version}</span>
-      {needsRecovery || actionError ? (
-        <details {...stylex.props(styles.details)}>
-          <summary>{needsRecovery ? "Connection details" : "Action details"}</summary>
-          {connection ? <div>{connection.socketPath}</div> : null}
-          {description ? <div>{description.message}</div> : null}
-          {snapshot.data?.transport.status === "failed" ? (
-            <div>{snapshot.data.transport.error}</div>
-          ) : null}
-          {snapshot.error instanceof Error ? <div>{snapshot.error.message}</div> : null}
-          {actionError ? <div>{actionError}</div> : null}
-          {needsRecovery ? (
-            <div>For another endpoint, set ERNIE_PRIME_AGENT_SOCKET before launching Ernie.</div>
-          ) : null}
-        </details>
-      ) : null}
     </footer>
   )
 }

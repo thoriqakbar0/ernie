@@ -34,7 +34,7 @@ Closing restores the actual opener's focus and preserves the draft. Once prepare
 
 Keep selection, transcript, composer context, and runtime state aligned. Drafts and reading positions survive navigation for the application lifetime; browser reload clears them.
 
-Enter sends, Shift+Enter inserts a newline, and input-method composition never sends. Focused input shows a keyboard hint in reserved space. Send uses a neutral disabled surface and orange when available. Reject blank submissions. Keep typing available during attachment, sending, and disconnection; command availability follows authoritative state.
+Enter sends, Shift+Enter inserts a newline, and input-method composition never sends. Focused input shows a keyboard hint in reserved space. Send uses a neutral disabled surface and orange when available. Reject blank submissions. Keep typing available during attachment and sending; disable message entry while Prime Agent is unavailable, preserving the draft until recovery. Command availability follows authoritative state.
 
 Show creation, admission, queued, stopping, and error feedback beside its action. Acknowledgement confirms admission, not completion. Active-work messages become follow-ups; Stop is a separate action and settles on authoritative state. Preserve newer draft edits when delayed responses arrive.
 
@@ -54,7 +54,7 @@ The development workspace picker opens an existing conversation; it does not cha
 
 At narrow widths, roster and chat occupy separate views. Selecting an Agent opens chat; Open sidebar returns to navigation. Keep primary flows usable at 320 CSS pixels and 200% zoom. Wrap long content or expose its full value accessibly when truncated.
 
-Command-B toggles the sidebar. Its controls expose the shortcut, and closing a focused sidebar moves focus to its reopen button.
+Command-B toggles the sidebar, and Command-Option-B toggles the embedded browser. Their controls expose the shortcuts, and closing a focused sidebar moves focus to its reopen button.
 
 Use semantic controls, accessible names, visible focus, non-color state cues, and restrained live announcements. Respect reduced motion and forced colors. Earlier transcript readers retain their position and a jump-to-latest action; readers at the end follow output.
 

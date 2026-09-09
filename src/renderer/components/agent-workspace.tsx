@@ -29,7 +29,11 @@ export const AgentWorkspaceHeader = ({
   utilities?: ReactNode
 }) => {
   const { childChat, navigate } = useAppNavigation()
+  const sessions = usePrimeSessionState()
   const annotating = useAgentationActive()
+  const sessionName = sessionId
+    ? sessions.data.find((session) => session.id === sessionId)?.name
+    : undefined
   return (
     <header {...stylex.props(rosterStyles.header, annotating && rosterStyles.annotationHeader)}>
       <div {...stylex.props(rosterStyles.headerLeading)}>
@@ -38,16 +42,16 @@ export const AgentWorkspaceHeader = ({
             avatar={agent ? <AgentAvatar avatar={agent.avatar} animated /> : null}
             onClick={() => navigate("conversation")}
             selected={!childChat}
-            name={agent?.name ?? (sessionId ? "Saved session" : "")}
+            name={agent?.name ?? sessionName ?? ""}
           />
         </div>
         {participants}
       </div>
-      <div {...stylex.props(rosterStyles.headerUtilities)}>
+      {agent || sessionId ? <div {...stylex.props(rosterStyles.headerUtilities)}>
         {utilities}
         <BrowserToggle />
         {agent ? <AgentSettingsPopover agent={agent} /> : null}
-      </div>
+      </div> : null}
     </header>
   )
 }
@@ -97,7 +101,7 @@ export const EmptyAgentWorkspace = ({ agent }: { agent: Agent }) => {
         >
           <PrimeComposer
             agentName={agent.name}
-            connected={!catalog.connection || catalog.connection.state.status === "connected"}
+            connected={catalog.connection?.state.status === "connected"}
             draft={draft}
             draftHero
             feedback={flow.submission}

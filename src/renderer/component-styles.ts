@@ -49,20 +49,6 @@ export const styles = stylex.create({
     opacity: { ":has(:disabled)": 1, default: 1 },
   },
   composerToolbar: { marginTop: 7 },
-  composerHint: {
-    color: theme["--muted"],
-    fontSize: 11,
-    lineHeight: 1.5,
-    margin: "18px 0 0",
-    minHeight: 18,
-    visibility: "hidden",
-  },
-  composerHintDocked: {
-    bottom: "calc(100% + 8px)",
-    margin: 0,
-    position: "absolute",
-  },
-  composerHintVisible: { visibility: "visible" },
   controlIcon: {
     flex: "0 0 auto",
     height: "16px",

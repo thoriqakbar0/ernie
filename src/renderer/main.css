@@ -276,3 +276,16 @@ input:disabled {
   --shiki-token-deleted: var(--shiki-token-keyword);
   --shiki-token-changed: var(--shiki-token-function);
 }
+
+/* The parent row owns hover and current-conversation emphasis. */
+button [data-subagent-count] {
+  text-decoration: none;
+}
+button[aria-current="page"] [data-subagent-count] {
+  text-decoration: underline;
+}
+@media (hover: hover) {
+  button:hover [data-subagent-count] {
+    text-decoration: underline;
+  }
+}

@@ -81,3 +81,7 @@ Header participants switch the transcript in place; selecting the parent name re
 Folder controls prepare a new Agent draft with copied settings and a chosen folder. The original root and messages remain unchanged. The new root is created only on first send; its conversation starts empty.
 
 Composer folder controls also edit unsent drafts.
+
+### System working folder
+
+New drafts without a selected folder resolve to an app-owned workspace inside Electron userData. Existing chats retain their original directory. This is a working directory, not a filesystem sandbox.

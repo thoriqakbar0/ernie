@@ -177,7 +177,7 @@ class PrimeAgentRuntime {
   async submit(sessionId: string, content: string, delivery?: "steer" | "follow-up") {
     const attachment = await this.getAttachment(sessionId)
     return attachment.snapshot.session.state === "working"
-      ? delivery === "steer" ? attachment.chat.steer(content) : attachment.chat.followUp(content)
+      ? delivery === "follow-up" ? attachment.chat.followUp(content) : attachment.chat.steer(content)
       : attachment.chat.submitDraft(content)
   }
 

@@ -129,6 +129,29 @@ export const BrowserWorkspace = ({ children }: { children: ReactNode }) => {
       )
     }
   }
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        !event.metaKey ||
+        !event.altKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.key.toLowerCase() !== "b" ||
+        event.repeat ||
+        event.isComposing
+      ) {
+        return
+      }
+      const trigger = [
+        ...document.querySelectorAll<HTMLButtonElement>('[aria-controls="ernie-browser"]'),
+      ].find((element) => element.getClientRects().length)
+      if (!owner || !trigger) return
+      event.preventDefault()
+      toggle(trigger)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [owner, toggle])
   return (
     <BrowserControlsContext value={{ open, toggle }}>
       <Tooltip.Provider>

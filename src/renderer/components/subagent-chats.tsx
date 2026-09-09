@@ -1,4 +1,3 @@
-import { useId, useState } from "react"
 import { ChevronDownIcon } from "lucide-react"
 import * as stylex from "@stylexjs/stylex"
 import { usePrimeSessionSnapshot } from "../prime-agent-state"
@@ -24,30 +23,8 @@ const layout = stylex.create({
     marginInlineStart: "var(--subagent-list-inset, 30px)",
   },
 
-  row: { minHeight: 36, padding: "2px 8px", borderRadius: 8 },
-  toggle: {
-    position: "relative",
-    marginInlineStart: "var(--subagent-toggle-inset, 62px)",
-    marginBlock: 2,
-    paddingInline: 8,
-    paddingBlock: 0,
-    minHeight: 24,
-    width: "max-content",
-    maxWidth: "calc(100% - 76px)",
-    gap: 4,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-    fontSize: 12,
-    color: "var(--muted)",
-    backgroundColor: "transparent",
-    textDecoration: { default: "none", ":hover": "underline" },
-    textUnderlineOffset: 2,
-    boxShadow: { ":focus-visible": "inset 0 0 0 2px var(--focus)", default: "none" },
-    cursor: "pointer",
-  },
-  toggleLabel: { display: "inline-flex", alignItems: "center", gap: "var(--subagent-chevron-gap, 2px)", paddingBlock: 3, minWidth: 0, lineHeight: 1.5 },
+  row: { minHeight: "var(--subagent-row-height, 36px)", padding: "2px 8px", borderRadius: "var(--subagent-row-radius, 8px)" },
+  toggleLabel: { position: "relative", pointerEvents: "auto", width: "fit-content", backgroundColor: "transparent", borderWidth: 0, paddingInline: 0, cursor: "pointer", textDecoration: { default: "none", ":hover": "underline" }, textUnderlineOffset: 2, color: "var(--muted)", fontSize: 12, display: "inline-flex", alignItems: "center", gap: "var(--subagent-chevron-gap, 2px)", paddingBlock: 3, minWidth: 0, lineHeight: 1.5 },
   chevron: {
     flexShrink: 0,
     overflow: "visible",
@@ -59,13 +36,26 @@ const layout = stylex.create({
   hidden: { display: "none" },
 })
 
+/** The count independently discloses the parent’s child chats. */
+export const SubagentChatLabel = ({ parentId, expanded, onToggle }: { parentId: string; expanded: boolean; onToggle: () => void }) => {
+  const { data } = usePrimeSessionSnapshot(parentId)
+  const count = data?.useful.children.length ?? 0
+  if (!count) return null
+  return <button type="button" onClick={onToggle} aria-expanded={expanded} aria-controls={`subagent-chats-${parentId}`} data-subagent-count {...stylex.props(layout.toggleLabel)}>
+    <span>and {count} {count === 1 ? "other" : "others"}</span>
+    <ChevronDownIcon size={14} aria-hidden="true" {...stylex.props(layout.chevron, expanded && layout.expanded)} />
+  </button>
+}
+
 /** Native children appear as chats under their owning Agent, without creating duplicate roots. */
 export const SubagentChats = ({
   parentId,
   parentName,
   search,
   onOpen,
+  expanded,
 }: {
+  expanded: boolean
   parentId: string
   parentName: string
   search: string
@@ -73,31 +63,12 @@ export const SubagentChats = ({
 }) => {
   const { data } = usePrimeSessionSnapshot(parentId)
   const { childChat, openChildChat } = useAppNavigation()
-  const [expanded, setExpanded] = useState(false)
-  const id = useId()
   const children = data?.useful.children ?? []
   if (!children.length) return null
   const open = expanded || Boolean(search.trim())
   return (
     <div {...stylex.props(layout.container)}>
-      {!search.trim() ? <button
-        type="button"
-        aria-label={`${open ? "Hide" : "Show"} chats for ${parentName}`}
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setExpanded(!expanded)}
-        {...stylex.props(layout.toggle)}
-      >
-        <span {...stylex.props(layout.toggleLabel)}>
-        <span>and {children.length} {children.length === 1 ? "other" : "others"}</span>
-        <ChevronDownIcon
-          size={14}
-          aria-hidden="true"
-          {...stylex.props(layout.chevron, open && layout.expanded)}
-        />
-        </span>
-      </button> : null}
-      <ul id={id} hidden={!open} {...stylex.props(styles.list, layout.list, !open && layout.hidden)}>
+      <ul id={`subagent-chats-${parentId}`} hidden={!open} {...stylex.props(styles.list, layout.list, !open && layout.hidden)}>
         {children
           .filter((child) =>
             `${parentName} ${child.sessionName ?? child.label}`

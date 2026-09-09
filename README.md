@@ -6,6 +6,8 @@ A desktop app for working with [Prime Agent](https://github.com/PrimeIntellect-a
 
 Give your agents a name and a face, choose a working folder, and start a conversation. Ernie explores how an agent can help choose and adapt the interface around your work.
 
+**Ernie is alpha software.** Expect bugs and changes as the app develops.
+
 [Explore Ernie](https://ernie.ta-0.com/) · [Read the introduction](https://ta-0.com/blog/introducing-ernie)
 
 ![Ernie home screen with agents in the sidebar and a message composer](website/public/screenshots/ernie-home.png)

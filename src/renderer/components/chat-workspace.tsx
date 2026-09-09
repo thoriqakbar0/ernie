@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import { ContinueInFolder } from "./continue-in-folder"
 import { ComposerModelControls } from "./composer-model-controls"
 import { saveComposerModel } from "../composer-model"
@@ -147,7 +148,7 @@ const WorkspaceNotices = ({
         <strong>The conversation wasn’t updated.</strong> Try the action again.
       </SessionNotice>
       <details {...stylex.props(styles.errorDescription)}>
-        <summary>Action details</summary>
+        <DisclosureSummary>Action details</DisclosureSummary>
         {actionError}
       </details>
     </>

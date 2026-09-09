@@ -26,6 +26,8 @@ React state selects explicit style variants. Attribute conditions express contro
 
 [[src/renderer/components/model-picker.tsx#ModelPicker]] computes popup coordinates and passes them through a dynamic StyleX style. Base UI retains ownership of its portal positioning and internal inline styles.
 
+[[src/renderer/components/model-settings-popover.tsx#ModelSettingsPopover]] sits above the workspace and below its portaled model pickers and catalog dialog. Keep that ordering so nested model choices remain visible and clickable.
+
 ## CSS boundary
 
 Document defaults and global accessibility resets remain in `src/renderer/main.css`. The static splash page keeps its bootstrap CSS because it renders before React.
@@ -33,6 +35,8 @@ Document defaults and global accessibility resets remain in `src/renderer/main.c
 Vendor styles remain vendor-owned. Generated Zenbu files do not belong to the first-party styling boundary.
 
 `nub run lint:stylex` rejects legacy dependencies, authored component class names, inline JSX styles, and unsupported StyleX shorthands. `nub run lint:outline` checks CSS declarations and TypeScript style objects.
+
+[[src/renderer/components/ui/disclosure-summary.tsx#DisclosureSummary]] owns the native summary element, marker reset, focus state, and default chevron. The StyleX guard rejects raw summary elements elsewhere and runs before commits and release distribution. Callers retain native details behavior and may supply a custom indicator.
 
 Focus indicators use shadows; forced-colors mode uses the document's dashed Highlight border fallback, including summaries and focusable regions. Syntax highlighters pass token colors through dynamic StyleX styles.
 

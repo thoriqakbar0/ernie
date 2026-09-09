@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import { useRef, useState } from "react"
 import * as stylex from "@stylexjs/stylex"
 import type { Agent } from "../../packages/agents"
@@ -89,10 +90,10 @@ export const AgentNativeSessions = ({
       ) : null}
       {children.length ? (
         <details>
-          <summary {...stylex.props(nativeStyles.summary)}>
+          <DisclosureSummary xstyle={nativeStyles.summary}>
             Subagents · {children.length}
             {currentRoster ? "" : " · last known state"}
-          </summary>
+          </DisclosureSummary>
           <div {...stylex.props(nativeStyles.list)}>
             {children.map((child) => (
               <button

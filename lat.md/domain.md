@@ -48,6 +48,8 @@ Saved Agent roots are the only production creation path; the old session-creatio
 
 Subagents appear as additional sidebar chats and beside the parent identity in the conversation header. Each selects its read-only transcript within the existing parent workspace.
 
+Header participants form one horizontally scrollable row at every viewport width. Every child remains a focusable button; overflow never creates a count disclosure or a second list.
+
 Accessible labels report native status; cached status is marked last known and never animates as current activity.
 
 [[src/renderer/components/subagent-activity.tsx#SubagentActivity]] opens child navigation through the shared application navigation owner with a parent return path. [[src/renderer/components/subagent-conversation.tsx#SubagentConversation]] mounts native inspection only while open; failed refreshes preserve prior messages. ConversationMessages owns shared memoized message rendering without execution subscriptions. The parent draft stays attached; no child send, cancel, or resume action is exposed. Waiting derives only from native running activity waiting.

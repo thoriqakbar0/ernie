@@ -1,4 +1,5 @@
 nub run link
 nub run typecheck
+nub run lint:stylex
 nub run test:integration
 nub run lint:debt

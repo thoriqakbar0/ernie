@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import { useState } from "react"
 import * as stylex from "@stylexjs/stylex"
 import type { UiAnnotation } from "./ui-annotation-editor"
@@ -44,7 +45,7 @@ export const UiAnnotationReview = ({
             <strong>{note.element}</strong>
             <p>{note.comment}</p>
             <details>
-              <summary>Context</summary>
+              <DisclosureSummary>Context</DisclosureSummary>
               <pre {...stylex.props(styles.hint)}>{note.context}</pre>
             </details>
             <button

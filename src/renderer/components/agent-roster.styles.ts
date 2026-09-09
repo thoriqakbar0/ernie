@@ -207,7 +207,6 @@ export const styles = stylex.create({
     alignItems: "center",
     display: "flex",
     flex: 1,
-    flexWrap: "wrap",
     gap: 10,
     minWidth: 0,
   },
@@ -256,7 +255,14 @@ export const styles = stylex.create({
     justifyContent: "center",
     width: 34,
   },
-  identity: { alignItems: "center", display: "flex", gap: 9, minWidth: 0 },
+  identity: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    gap: 9,
+    maxWidth: "50%",
+    minWidth: 0,
+  },
   identityText: { minWidth: 0 },
   idleMotion: {
     animationDuration: "3.2s",

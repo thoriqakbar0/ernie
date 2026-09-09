@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import * as stylex from "@stylexjs/stylex"
 import { theme } from "../theme.stylex"
 import type { ResponseAnnotation } from "../response-annotation"
@@ -30,8 +31,11 @@ const styles = stylex.create({
   },
   summary: {
     cursor: "pointer",
-    overflow: "hidden",
     paddingBlock: 10,
+  },
+  summaryLabel: {
+    minWidth: 0,
+    overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
@@ -49,9 +53,11 @@ export const ResponseFeedback = ({
     {annotations.map((annotation, index) => (
       <div key={annotation.id} {...stylex.props(styles.row)}>
         <details {...stylex.props(styles.detail)}>
-          <summary {...stylex.props(styles.summary)}>
-            Feedback {index + 1} · {annotation.agentName}: {annotation.comment}
-          </summary>
+          <DisclosureSummary xstyle={styles.summary}>
+            <span {...stylex.props(styles.summaryLabel)}>
+              Feedback {index + 1} · {annotation.agentName}: {annotation.comment}
+            </span>
+          </DisclosureSummary>
           <blockquote {...stylex.props(styles.quote)}>{annotation.excerpt}</blockquote>
           <p {...stylex.props(styles.comment)}>{annotation.comment}</p>
         </details>

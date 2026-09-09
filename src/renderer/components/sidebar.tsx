@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import { SubagentChats, SubagentChatLabel } from "./subagent-chats"
 import { Fragment, useRef, useState } from "react"
 import { ContextMenu } from "@base-ui/react/context-menu"
@@ -284,7 +285,7 @@ export const AgentRoster = ({ onClose }: { onClose: () => void }) => {
         {error && page !== "conversation" ? (
           <div role="alert" {...stylex.props(rosterStyles.feedback)}>
             <details>
-              <summary>Last action failed</summary>
+              <DisclosureSummary>Last action failed</DisclosureSummary>
               {error}
             </details>
           </div>

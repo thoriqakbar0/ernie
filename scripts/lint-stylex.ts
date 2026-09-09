@@ -43,6 +43,13 @@ const inspectFile = async (filePath: string): Promise<string[]> => {
     violations.push(`${name}:${line}: ${message}`)
   }
   const inspect = (node: ts.Node): void => {
+    if (
+      (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+      node.tagName.getText(file) === "summary" &&
+      name !== "src/renderer/components/ui/disclosure-summary.tsx"
+    ) {
+      report(node, "use DisclosureSummary; native summary markers must not appear in the UI")
+    }
     if (ts.isJsxAttribute(node) && ["className", "style"].includes(node.name.getText(file))) {
       report(node, "use stylex.props or the component's typed xstyle prop")
     }
@@ -110,5 +117,5 @@ if (violations.length) {
   console.error(violations.join("\n"))
   process.exitCode = 1
 } else {
-  console.log("StyleX boundary: no legacy component styles or unsupported shorthands")
+  console.log("StyleX boundary: component styles and disclosure controls passed")
 }

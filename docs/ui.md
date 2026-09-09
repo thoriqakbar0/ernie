@@ -14,6 +14,8 @@ Use readable text, accessible speaker attribution, and restrained inline code tr
 
 Selecting an Agent opens its bound root. The conversation header keeps parent identity, compact participants, and utility controls together. Long names use two visible lines, with the full name available on hover or keyboard focus. Ordinary navigation has no New conversation or reassignment action. Legacy profiles with several sessions need an explicit root choice. Preserve their session files without restoring the removed Saved sessions footer.
 
+Header participants stay in one horizontally scrollable row. Every child remains available without a count disclosure, including on narrow windows. Keep the parent identity and utility controls visible; keyboard focus scrolls child buttons into view.
+
 The sidebar currently shows live roots and drafts working on their first message. An empty, loaded roster shows a tilted translucent procedural Agent with “a little quiet here.” and “let’s make something together.”; loading, failure, and search feedback remain explicit. Idle live conversations remain visible. Filtering never deletes Agent records. The accessibility of excluded Agents is an [open finding](verification.md#open-interface-findings).
 
 Favorites precede other Agents in stable creation order. Sidebar rows show Agent names without subagent counts. Group portraits keep children close to the parent and represent all available direct children.
@@ -43,6 +45,8 @@ An uncertain send is never automatically repeated. Check send inspects the origi
 Conversations with messages omit settings shortcuts and subagent disclosures below the composer. Header settings remains available for empty and active conversations. Child inspection preserves the parent's draft and reading context, uses validated native identity, and never starts a replacement session. Unavailable children show a recoverable error.
 
 ## Pickers and accessibility
+
+Use the shared DisclosureSummary for collapsible details. It preserves native keyboard behavior, suppresses browser markers, and supplies a styled indicator. Custom indicator content belongs in the same control. The StyleX lint guard rejects raw summary elements outside that component and runs before commits and release distribution.
 
 Footer diagnostic metadata uses an accessible tooltip on the connection status, available on hover and keyboard focus and dismissible with Escape. Do not use native details/summary disclosures for this metadata. Keep actionable connection errors and retry controls visible.
 

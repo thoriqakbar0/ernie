@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import * as stylex from "@stylexjs/stylex"
 import type { PrimeDaemonConnection } from "../../packages/prime-agent"
 import { describePrimeDaemonConnection } from "../prime-daemon-status"
@@ -66,7 +67,7 @@ export const SidebarEmptyState = ({
         <output>{title}</output>
       </h2>
       <details {...stylex.props(styles.emptyDescription)}>
-        <summary>Connection details</summary>
+        <DisclosureSummary>Connection details</DisclosureSummary>
         {message}
       </details>
       {connection?.state.status === "not-installed" ? (

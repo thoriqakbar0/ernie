@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./chat-workspace.styles"
 import { AgentAvatar } from "./agent-avatar"
@@ -17,11 +18,11 @@ export const EmptyConversation = ({ agent, cwd }: Readonly<{ agent?: Agent; cwd:
       ) : null}
     </div>
     <details {...stylex.props(styles.workspaceDetails)}>
-      <summary {...stylex.props(styles.emptyWorkspace)}>
+      <DisclosureSummary indicator={null} xstyle={styles.emptyWorkspace}>
         <FolderIcon size={14} aria-hidden="true" />
         <span>Working folder: {getWorkspaceName(cwd)}</span>
         <ChevronDownIcon size={14} aria-hidden="true" />
-      </summary>
+      </DisclosureSummary>
       <p {...stylex.props(styles.workspacePath)}>{cwd || "No working folder selected"}</p>
     </details>
   </div>

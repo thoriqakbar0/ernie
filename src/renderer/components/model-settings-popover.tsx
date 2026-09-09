@@ -13,19 +13,19 @@ const styles = stylex.create({
     alignItems: "center",
     backgroundColor: "var(--surface)",
     borderColor: "var(--rule)",
+    borderRadius: 12,
     borderStyle: "solid",
     borderWidth: 1,
-    borderRadius: 12,
     boxShadow: "0 8px 32px rgb(0 0 0 / .16)",
     color: "var(--ink)",
     display: "grid",
     gap: 16,
     gridTemplateColumns: "minmax(0, 1fr)",
     maxHeight: "var(--available-height)",
+    opacity: { ":is([data-starting-style], [data-ending-style])": 0, default: 1 },
     overflowY: "auto",
     overscrollBehavior: "contain",
     padding: 16,
-    opacity: { ":is([data-starting-style], [data-ending-style])": 0, default: 1 },
     transform: {
       "@media (prefers-reduced-motion: no-preference)": {
         ":is([data-starting-style], [data-ending-style])": "translateY(3px) scale(.985)",
@@ -34,13 +34,24 @@ const styles = stylex.create({
       default: "none",
     },
     transformOrigin: "var(--transform-origin)",
-    transitionDuration: { "@media (prefers-reduced-motion: no-preference)": "220ms", default: "0ms" },
+    transitionDuration: {
+      "@media (prefers-reduced-motion: no-preference)": "220ms",
+      default: "0ms",
+    },
     transitionProperty: "opacity, transform",
     transitionTimingFunction: "cubic-bezier(.22, 1, .36, 1)",
     width: "min(360px, calc(100vw - 24px))",
   },
-  positioner: { zIndex: 1100 },
-  title: { fontSize: 14, fontWeight: 600, gridColumn: "1 / -1", lineHeight: 1.4, margin: 0, paddingInline: 4 },
+  // Nested model pickers and catalog dialogs portal above this panel at layers 40 and 50.
+  positioner: { zIndex: 30 },
+  title: {
+    fontSize: 14,
+    fontWeight: 600,
+    gridColumn: "1 / -1",
+    lineHeight: 1.4,
+    margin: 0,
+    paddingInline: 4,
+  },
   trigger: {
     alignItems: "center",
     color: "var(--muted)",
@@ -98,8 +109,8 @@ export const ModelSettingsPopover = ({
             fill
             tabs={[
               { label: "Model", value: "model" },
-              { label: "Reasoning", value: "reasoning", disabled: inferenceDisabled },
-              { label: "RLM depth", value: "depth", disabled: inferenceDisabled },
+              { disabled: inferenceDisabled, label: "Reasoning", value: "reasoning" },
+              { disabled: inferenceDisabled, label: "RLM depth", value: "depth" },
             ]}
           >
             <Tabs.Panel value="model" {...stylex.props(modelSettingsPanelStyles.panel)}>

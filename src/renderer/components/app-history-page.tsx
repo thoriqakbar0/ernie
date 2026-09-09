@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "./ui/disclosure-summary"
 import { HistoryFeedback } from "./history-feedback"
 import type { KeyboardEvent } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -196,10 +197,10 @@ const CheckpointDetails = ({
       </div>
     </dl>
     <details {...stylex.props(styles.technicalDetails)}>
-      <summary {...stylex.props(styles.technicalSummary)}>
+      <DisclosureSummary indicator={null} xstyle={styles.technicalSummary}>
         <span>Technical details</span>
         <ChevronDownIcon size={16} aria-hidden="true" {...stylex.props(styles.technicalChevron)} />
-      </summary>
+      </DisclosureSummary>
       <p {...stylex.props(styles.description)}>Startup checks do not verify individual features.</p>
       {selected.proposedTitle ? (
         <p {...stylex.props(styles.description)}>Suggested title; it does not verify authorship.</p>
@@ -446,13 +447,14 @@ export const AppHistoryPage = ({
                 </button>
 
                 <details {...stylex.props(styles.historyMenu)}>
-                  <summary
+                  <DisclosureSummary
                     onKeyDown={closeHistoryMenu}
                     aria-label="History actions"
-                    {...stylex.props(styles.button)}
+                    indicator={null}
+                    xstyle={styles.button}
                   >
                     <MoreHorizontalIcon size={16} />
-                  </summary>
+                  </DisclosureSummary>
                   <div {...stylex.props(styles.historyMenuPanel)}>
                     {" "}
                     <button

@@ -22,6 +22,7 @@ nub run release:check
 nub run brand:check
 nub run link
 nub run typecheck
+nub run lint:stylex
 nub run lat:check
 nub run release:build:unsigned
 archive="dist/${product}-${version}-arm64-mac.zip"

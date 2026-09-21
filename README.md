@@ -194,3 +194,7 @@ nub run release:preview
 ```
 
 Use `release:prod` for a production release. Both publication commands use ad-hoc signing without Developer ID or notarization. `release:build:signed` is available separately when official Apple credentials are configured. Both release types use the dedicated `release` source branch.
+
+## License
+
+Ernie is licensed under the [MIT License](LICENSE).

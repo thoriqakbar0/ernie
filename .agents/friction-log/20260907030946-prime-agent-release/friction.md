@@ -1,6 +1,7 @@
 ---
-title: "Prime Agent release URLs block adding renderer dependencies"
-severity: "major"
+title: 'Prime Agent release URLs block adding renderer dependencies'
+severity: 'major'
+issue: 'thoriqakbar0/ernie#41'
 ---
 
 ## Expected Behavior

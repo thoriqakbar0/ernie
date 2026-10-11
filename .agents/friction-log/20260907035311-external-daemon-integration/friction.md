@@ -1,6 +1,7 @@
 ---
-title: "External daemon integration fixture can outlive its launcher"
-severity: "minor"
+title: 'External daemon integration fixture can outlive its launcher'
+severity: 'minor'
+issue: 'thoriqakbar0/ernie#43'
 ---
 
 ## Expected Behavior

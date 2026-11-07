@@ -1,6 +1,7 @@
 ---
 title: 'Manual bundled-source installation shows an update-check failure'
 severity: 'minor'
+issue: 'thoriqakbar0/ernie#60'
 ---
 
 ## Expected Behavior

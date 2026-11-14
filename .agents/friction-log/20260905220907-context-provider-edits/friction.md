@@ -1,6 +1,7 @@
 ---
-title: "Context-provider edits can leave the browser scenario blank during HMR"
-severity: "minor"
+title: 'Context-provider edits can leave the browser scenario blank during HMR'
+severity: 'minor'
+issue: 'thoriqakbar0/ernie#38'
 ---
 
 ### Expected Behavior

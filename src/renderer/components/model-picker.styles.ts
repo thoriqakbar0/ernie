@@ -91,7 +91,7 @@ export const styles = stylex.create({
     borderStyle: "solid",
     borderWidth: "0",
     color: {
-      ":hover": theme["--accent"],
+      ":hover": theme["--accent-text"],
       default: theme["--muted"],
     },
     cursor: "pointer",
@@ -129,8 +129,8 @@ export const styles = stylex.create({
     borderStyle: "solid",
     borderWidth: "0",
     color: {
-      ":hover": theme["--accent"],
-      ':is([aria-pressed="true"])': theme["--accent"],
+      ":hover": theme["--accent-text"],
+      ':is([aria-pressed="true"])': theme["--accent-text"],
       default: theme["--muted"],
     },
     cursor: "pointer",
@@ -188,7 +188,7 @@ export const styles = stylex.create({
     borderRadius: "12px",
     borderStyle: "solid",
     borderWidth: "1px",
-    boxShadow: "0 22px 54px -22px rgb(43 26 7 / 0.48)",
+    boxShadow: "var(--surface-highlight, 0 22px 54px -22px rgb(43 26 7 / 0.48))",
     color: theme["--ink"],
     display: "flex",
     flexDirection: "column",
@@ -322,6 +322,6 @@ export const styles = stylex.create({
     width: "auto",
   },
   selectedIcon: {
-    color: theme["--accent"],
+    color: theme["--accent-text"],
   },
 })

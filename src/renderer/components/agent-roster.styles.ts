@@ -124,7 +124,7 @@ export const styles = stylex.create({
     right: 4,
   },
   favoriteIcon: { height: 14, width: 14 },
-  favorited: { color: theme["--accent"] },
+  favorited: { color: theme["--accent-text"] },
   feedback: { color: theme["--danger"], fontSize: 12, lineHeight: 1.5, margin: "10px 16px" },
   fields: { display: "grid", gap: 15 },
   ghostAgent: {
@@ -153,7 +153,7 @@ export const styles = stylex.create({
   },
   ghostTitle: {
     color: theme["--ink"],
-    fontFamily: "Georgia, serif",
+    fontFamily: "var(--display-font, Georgia, serif)",
     fontSize: 19,
     marginBottom: 5,
   },

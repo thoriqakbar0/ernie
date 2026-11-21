@@ -3,9 +3,8 @@ import { theme } from "../theme.stylex"
 
 /** Styles owned by this surface, including its responsive and interaction states. */
 export const styles = stylex.create({
-  hidden: { display: "none" },
   chatWorkspace: {
-    backgroundColor: theme["--surface"],
+    backgroundColor: "var(--workspace-background, var(--surface))",
     color: theme["--ink"],
     display: "flex",
     flex: 1,
@@ -15,7 +14,7 @@ export const styles = stylex.create({
     overflow: "hidden",
   },
   composerDock: {
-    backgroundColor: theme["--surface"],
+    backgroundColor: "var(--workspace-background, var(--surface))",
     flex: "0 0 auto",
     maxHeight: "60dvh",
     overflowY: "auto",
@@ -130,7 +129,7 @@ export const styles = stylex.create({
   },
   emptyTitle: {
     color: theme["--ink-strong"],
-    fontFamily: '"gelica", Georgia, serif',
+    fontFamily: 'var(--display-font, "gelica", Georgia, serif)',
     fontSize: "clamp(32px, 4.8vw, 48px)",
     fontWeight: 500,
     letterSpacing: "-0.045em",
@@ -163,6 +162,7 @@ export const styles = stylex.create({
     marginTop: "12px",
     maxWidth: "52ch",
   },
+  hidden: { display: "none" },
   openError: {
     alignItems: "center",
     display: "flex",

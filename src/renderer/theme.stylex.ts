@@ -5,6 +5,7 @@ import * as stylex from "@stylexjs/stylex"
 export const theme = stylex.defineVars({
   "--accent": "var(--ernie-light, #ff6f1e) var(--ernie-dark, #ff8d4d)",
   "--accent-hover": "var(--ernie-light, #e65c0a) var(--ernie-dark, #ff6f1e)",
+  "--accent-text": "var(--accent)",
   "--canvas": "var(--ernie-light, #fdfbf9) var(--ernie-dark, #171310)",
   "--danger": "var(--ernie-light, #a63a32) var(--ernie-dark, #ff8a84)",
   "--danger-soft": "var(--ernie-light, #f7dddd) var(--ernie-dark, #48262e)",
@@ -19,8 +20,6 @@ export const theme = stylex.defineVars({
   "--radius": "9px",
   "--rule": "var(--ernie-light, #ded5ce) var(--ernie-dark, #44372f)",
   "--rule-strong": "var(--ernie-light, #c9bbb1) var(--ernie-dark, #635044)",
-  "--shadow-composer":
-    "0 18px 48px -28px var(--ernie-light, rgb(43 26 7 / 0.28)) var(--ernie-dark, rgb(0 0 0 / 0.62)), 0 5px 16px -10px var(--ernie-light, rgb(43 26 7 / 0.14)) var(--ernie-dark, rgb(0 0 0 / 0.5))",
   "--success": "var(--ernie-light, #247154) var(--ernie-dark, #76d5ad)",
   "--success-soft": "var(--ernie-light, #e5f3eb) var(--ernie-dark, #183c2d)",
   "--surface": "var(--ernie-light, #fffaf5) var(--ernie-dark, #211b17)",

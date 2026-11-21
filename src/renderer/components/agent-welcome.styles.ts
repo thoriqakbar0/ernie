@@ -16,7 +16,7 @@ export const styles = stylex.create({
   content: { marginInline: "auto", maxWidth: 650, textAlign: "center", width: "100%" },
   title: {
     color: theme["--ink-strong"],
-    fontFamily: '"gelica", Georgia, serif',
+    fontFamily: 'var(--display-font, "gelica", Georgia, serif)',
     fontSize: "clamp(32px, 4.5vw, 60px)",
     fontWeight: 500,
     letterSpacing: "-0.045em",

@@ -328,7 +328,7 @@ export const styles = stylex.create({
   summary: { cursor: "pointer", minHeight: 32, paddingBlock: 4 },
   title: {
     color: theme["--ink-strong"],
-    fontFamily: '"gelica", Georgia, serif',
+    fontFamily: 'var(--display-font, "gelica", Georgia, serif)',
     fontSize: 32,
     fontWeight: 500,
     letterSpacing: "-0.035em",

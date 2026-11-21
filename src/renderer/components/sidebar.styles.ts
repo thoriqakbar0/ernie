@@ -129,12 +129,13 @@ export const styles = stylex.create({
       ":hover:not(:disabled)": theme["--accent-hover"],
       default: theme["--accent"],
     },
-    borderRadius: "9px",
+    borderRadius: "8px",
     borderStyle: "solid",
     borderWidth: "0",
     boxShadow: {
-      ":hover:not(:disabled)": "0 2px 7px color-mix(in srgb, var(--accent) 35%, transparent)",
-      default: null,
+      ":hover:not(:disabled)":
+        "var(--surface-highlight, 0 2px 7px color-mix(in srgb, var(--accent) 35%, transparent))",
+      default: "var(--surface-highlight, none)",
     },
     color: theme["--on-accent"],
     cursor: "pointer",

@@ -10,3 +10,4 @@
 ### Removed
 
 - Removed the Agentation toolbar from development builds. Thanks @thoriqakbar0.
+- Remove development tuning from the app. Thanks @thoriqakbar0.

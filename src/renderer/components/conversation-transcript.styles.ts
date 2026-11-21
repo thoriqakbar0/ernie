@@ -18,7 +18,7 @@ export const styles = stylex.create({
       "@media (max-width: 720px)": "18px",
       default: null,
     },
-    width: "min(100%, var(--transcript-width, 720px))",
+    width: "min(100%, 720px)",
   },
   conversationTranscriptShell: {
     flex: "1",
@@ -46,7 +46,7 @@ export const styles = stylex.create({
     fontWeight: 400,
     gap: "12px",
     lineHeight: 1.6,
-    maxWidth: "min(100%, var(--transcript-width, 66ch))",
+    maxWidth: "min(100%, 66ch)",
     overflowWrap: "anywhere",
     whiteSpace: "pre-wrap",
   },

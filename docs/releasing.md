@@ -40,7 +40,7 @@ Quit the installed Ernie app. Keep a recoverable copy of `/Applications/Ernie.ap
 
 The app bundle and editable source are separate. Replacing the bundle does not overwrite an existing editable installation. Use the recovery menu’s official-update review to adopt bundled source. For a manual source replacement, preserve a complete backup first, replace only the source manifest files, and keep `.zenbu`, dependencies, credentials, and sessions intact. Verify the installed source against `Contents/Resources/app/official-source`.
 
-The packaged child uses `NODE_ENV=production`; DialKit and development scenarios do not mount. Recovery remains hidden during normal startup. User history lists explicit saves and registered customization intervals; internal release and startup snapshots stay out of that list.
+The packaged child uses `NODE_ENV=production`, which disables development scenarios. Recovery remains hidden during normal startup. User history lists explicit saves and registered customization intervals; internal release and startup snapshots stay out of that list.
 
 Verify the workspace, Settings navigation, and the Prime Agent connection. Confirm the process runs from `/Applications/Ernie.app` and that the pre-existing daemon remains alive. Keep the backup until the installed candidate is accepted.
 

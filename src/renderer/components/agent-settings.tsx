@@ -1,6 +1,6 @@
 import { readComposerModel } from "../composer-model"
 import { DraftComposerControls } from "./draft-composer-controls"
-import { AgentSettingsTabs } from "./agent-settings-tabs"
+import { AnimatedTabs } from "./ui/animated-tabs"
 import * as stylex from "@stylexjs/stylex"
 import { DraftAgentSettingsPanel } from "./draft-agent-settings-panel"
 import { Tabs } from "@base-ui/react/tabs"
@@ -240,7 +240,7 @@ const SettingsForm = ({
       {agent ? (
         renderPanel(section)
       ) : (
-        <AgentSettingsTabs
+        <AnimatedTabs
           shape="rounded"
           tabs={[{ label: "Customize" }, { label: "Folder" }]}
           aria-label="Agent settings"
@@ -261,7 +261,7 @@ const SettingsForm = ({
               {renderPanel(item)}
             </Tabs.Panel>
           ))}
-        </AgentSettingsTabs>
+        </AnimatedTabs>
       )}
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>
@@ -610,7 +610,7 @@ export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTa
             }
           }}
         >
-          <AgentSettingsTabs
+          <AnimatedTabs
             shape="rounded"
             tabs={[{ label: "Customize" }, { label: "Folder" }]}
             aria-label="Agent settings sections"
@@ -634,7 +634,7 @@ export const AgentControls = ({ agent, showTabs = true }: { agent: Agent; showTa
                 }}
               />
             </Tabs.Panel>
-          </AgentSettingsTabs>
+          </AnimatedTabs>
         </div>
       ) : null}
       {!open && saved?.agentId === agent.id ? (

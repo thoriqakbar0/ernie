@@ -10,11 +10,6 @@ export const AgentWelcome = () => {
   return (
     <div {...stylex.props(styles.welcome)}>
       <div {...stylex.props(styles.content)}>
-        <h1 {...stylex.props(styles.title)}>
-          your next idea,
-          <br />
-          <span {...stylex.props(styles.emphasis)}>meet your Agent.</span>
-        </h1>
         <div aria-hidden="true" {...stylex.props(styles.characters)}>
           {[17, 42, 108, 256].map((seed) => (
             <span key={seed} {...stylex.props(styles.character)}>
@@ -22,6 +17,7 @@ export const AgentWelcome = () => {
             </span>
           ))}
         </div>
+        <h1 {...stylex.props(styles.title)}>What shall we make?</h1>
         <AgentSettingsDialog onClose={() => setAdding(false)} />
       </div>
     </div>

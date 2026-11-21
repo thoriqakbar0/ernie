@@ -21,13 +21,6 @@ import { ChatWorkspace } from "./chat-workspace"
 import { BrowserWorkspace } from "./browser-workspace"
 import { AppShortcuts } from "./app-shortcuts"
 
-const DevelopmentAgentation = import.meta.env.DEV
-  ? lazy(async () => {
-      const module = await import("./agentation-toolbar")
-      return { default: module.AgentationToolbar }
-    })
-  : null
-
 const DevelopmentTuning = import.meta.env.DEV
   ? lazy(async () => {
       const module = await import("./development-tuning")
@@ -175,11 +168,6 @@ export const App = ({
                     {DevelopmentTuning ? (
                       <Suspense fallback={null}>
                         <DevelopmentTuning />
-                      </Suspense>
-                    ) : null}
-                    {DevelopmentAgentation ? (
-                      <Suspense fallback={null}>
-                        <DevelopmentAgentation />
                       </Suspense>
                     ) : null}
                   </div>

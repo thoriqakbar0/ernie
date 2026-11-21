@@ -1,4 +1,3 @@
-import { isAgentationInteraction } from "../agentation-interaction"
 import { Popover } from "@base-ui/react/popover"
 import { Tabs } from "@base-ui/react/tabs"
 import { SlidersHorizontalIcon } from "lucide-react"
@@ -78,13 +77,7 @@ export const ModelSettingsPopover = ({
   modelControl: ReactNode
   inferenceDisabled?: boolean
 }>) => (
-  <Popover.Root
-    onOpenChange={(open, details) => {
-      if (!open && isAgentationInteraction(details.event)) {
-        details.cancel()
-      }
-    }}
-  >
+  <Popover.Root>
     <Popover.Trigger
       disabled={disabled}
       aria-label="Model settings"

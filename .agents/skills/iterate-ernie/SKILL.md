@@ -1,6 +1,6 @@
 ---
 name: iterate-ernie
-description: Iterate Ernie UI or its Zenbu integration, diagnose a mismatch between edited source and the running app, or verify an Agentation change in the user's current Ernie instance.
+description: Iterate Ernie UI or its Zenbu integration, diagnose a mismatch between edited source and the running app, or verify an interface change in the user's current Ernie instance.
 ---
 
 # Iterate Ernie

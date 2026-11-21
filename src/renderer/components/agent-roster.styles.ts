@@ -18,7 +18,6 @@ const blink = stylex.keyframes({
 /** Roster identity, workspace controls, and avatar variants using the shared theme. */
 export const styles = stylex.create({
   actions: { display: "flex", flexShrink: 0, gap: 3 },
-  annotationHeader: { WebkitAppRegion: "no-drag", userSelect: "text" },
   avatar: {
     backgroundColor: "transparent",
     display: "inline-flex",

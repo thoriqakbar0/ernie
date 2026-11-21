@@ -1,4 +1,3 @@
-import { useAgentationActive } from "../use-agentation-active"
 import { useAppNavigation } from "../app-navigation"
 import { AgentHeaderName } from "./agent-header-name"
 import type { ReactNode } from "react"
@@ -30,12 +29,11 @@ export const AgentWorkspaceHeader = ({
 }) => {
   const { childChat, navigate } = useAppNavigation()
   const sessions = usePrimeSessionState()
-  const annotating = useAgentationActive()
   const sessionName = sessionId
     ? sessions.data.find((session) => session.id === sessionId)?.name
     : undefined
   return (
-    <header {...stylex.props(rosterStyles.header, annotating && rosterStyles.annotationHeader)}>
+    <header {...stylex.props(rosterStyles.header)}>
       <div {...stylex.props(rosterStyles.headerLeading)}>
         <div {...stylex.props(rosterStyles.identity)}>
           <AgentHeaderName

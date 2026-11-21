@@ -1,5 +1,4 @@
 import { useRef } from "react"
-import { isAgentationInteraction } from "../agentation-interaction"
 import { Popover } from "@base-ui/react/popover"
 import { SettingsIcon } from "lucide-react"
 import * as stylex from "@stylexjs/stylex"
@@ -31,11 +30,7 @@ export const AgentSettingsPopover = ({ agent }: { agent: Agent }) => {
   return (
     <Popover.Root
       open={editing?.agentId === agent.id}
-      onOpenChange={(open, details) => {
-        if (!open && isAgentationInteraction(details.event)) {
-          details.cancel()
-          return
-        }
+      onOpenChange={(open) => {
         setEditing(open ? { agentId: agent.id, section: "Customize" } : null)
       }}
     >

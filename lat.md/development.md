@@ -100,9 +100,7 @@ The recovery parent owns the application lock and uses a separate Chromium profi
 
 On macOS, the recovery parent uses accessory activation policy. Only the editable child appears in the Dock and app switcher; recovery windows remain available.
 
-## Agentation feedback
-
-Development mounts Agentation locally. Send to Agent stages annotated interface feedback in the selected parent chat for review.
+## Interface iteration
 
 The interface workflow in docs/workflow.md requires live observation before source edits and verification in the same running app afterward.
 

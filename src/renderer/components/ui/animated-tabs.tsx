@@ -10,7 +10,6 @@ export interface AnimatedTabsProps {
   disabled?: boolean
   label?: string
   shape?: "pill" | "rounded" | "plain"
-  radii?: { list: number; tab: number; indicator: number }
   wrap?: boolean
   fill?: boolean
   onDeselect?: () => void
@@ -82,7 +81,6 @@ const styles = stylex.create({
     outlineStyle: "none",
     paddingInline: 0,
   },
-  radius: (radius: number) => ({ borderRadius: radius }),
   root: { gridColumn: "1 / -1", minWidth: 0 },
   roundedList: { borderRadius: 12 },
   roundedTab: { borderRadius: 8 },
@@ -121,7 +119,6 @@ export const AnimatedTabs = ({
   children,
   label = "Sections",
   shape = "pill",
-  radii,
   "aria-label": ariaLabel,
 }: AnimatedTabsProps) => (
   <Tabs.Root
@@ -142,7 +139,6 @@ export const AnimatedTabs = ({
         shape === "plain" && styles.plainList,
         wrap && styles.wrap,
         fill && styles.filledList,
-        radii && styles.radius(radii.list),
       )}
     >
       {shape === "plain" ? null : (
@@ -151,7 +147,6 @@ export const AnimatedTabs = ({
             styles.indicator,
             fill && styles.filledIndicator,
             shape === "rounded" && styles.roundedTab,
-            radii && styles.radius(radii.indicator),
           )}
         />
       )}
@@ -170,7 +165,6 @@ export const AnimatedTabs = ({
             shape === "rounded" && styles.roundedTab,
             shape === "plain" && styles.plainTab,
             fill && styles.filledTab,
-            radii && styles.radius(radii.tab),
           )}
         >
           {tab.label}

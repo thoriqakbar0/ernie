@@ -16,7 +16,9 @@ describe("Ernie browser development", () => {
     }
     cy.visit(browserUrl, { log: false })
 
-    cy.get("body").should("have.css", "font-family").and("include", "Geist")
+    cy.get("body")
+      .should("have.css", "font-family")
+      .and("match", /^system-ui(?:,|$)/u)
     cy.get("html").should("have.css", "line-height", "24px")
     cy.get("vite-error-overlay").should("not.exist")
     cy.get("#empty-state-prompt")

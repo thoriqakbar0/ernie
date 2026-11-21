@@ -65,7 +65,7 @@ const styles = stylex.create({
     color: "var(--ink)",
   },
   link: {
-    color: "var(--accent)",
+    color: "var(--accent-text)",
     textDecorationLine: {
       ":hover": "underline",
       default: "none",

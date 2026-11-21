@@ -62,6 +62,7 @@ export const palettes = [
   { label: "Sand", value: "sand" },
 ] as const
 const paletteKey = "ernie:palette:v1"
+const defaultPalette: ThemePalette = "lavender"
 const paletteTokens = {
   amber: {
     "--accent": "light-dark(#edc477, #edc477)",
@@ -75,15 +76,29 @@ const paletteTokens = {
     "--surface-strong": "light-dark(#e4e4e4, #363636)",
   },
   lavender: {
-    "--accent": "light-dark(#bca8ef, #bca8ef)",
-    "--accent-hover": "light-dark(#aa94df, #aa94df)",
-    "--canvas": "light-dark(#f3f0fc, #141414)",
-    "--focus": "light-dark(#444444, #bca8ef)",
+    "--accent": "light-dark(#bca8ef, #7c3aed)",
+    "--accent-hover": "light-dark(#aa94df, #6d28d9)",
+    "--accent-text": "light-dark(#63429c, #a78bfa)",
+    "--canvas": "light-dark(#f3f0fc, #171717)",
+    "--danger": "light-dark(#a63a32, #f87171)",
+    "--display-font": "var(--font-interface)",
+    "--faint": "light-dark(#756b63, #a3a3a3)",
+    "--focus": "light-dark(#444444, #a78bfa)",
     "--focus-soft": "light-dark(#f3f0fc, #282335)",
-    "--on-accent": "#171717",
-    "--surface": "light-dark(#ffffff, #1b1b1b)",
-    "--surface-muted": "light-dark(#f3f0fc, #282335)",
-    "--surface-strong": "light-dark(#e4e4e4, #363636)",
+    "--ink": "light-dark(#171717, #eeeeee)",
+    "--ink-strong": "light-dark(#2b1a07, #ffffff)",
+    "--muted": "light-dark(#6f655d, #bcbcbc)",
+    "--on-accent": "light-dark(#171717, #ffffff)",
+    "--rule": "light-dark(#ded5ce, #3f3f3f)",
+    "--rule-strong": "light-dark(#c9bbb1, #636363)",
+    "--success": "light-dark(#247154, #4ade80)",
+    "--surface": "light-dark(#ffffff, #1e1e1e)",
+    "--surface-highlight":
+      "var(--ernie-light) var(--ernie-dark, inset 0 0 0 1px rgb(255 255 255 / 0.05))",
+    "--surface-muted": "light-dark(#f3f0fc, #252525)",
+    "--surface-strong": "light-dark(#e4e4e4, #303030)",
+    "--warning": "light-dark(#956012, #facc15)",
+    "--workspace-background": "var(--ernie-light, var(--surface)) var(--ernie-dark, var(--canvas))",
   },
   mint: {
     "--accent": "light-dark(#8ed2bc, #8ed2bc)",
@@ -170,13 +185,13 @@ const paletteTokens = {
   },
 }
 
-/** Read the palette independently from light/dark mode, with black and white as fallback. */
+/** Read the palette independently from light/dark mode. */
 export const readPalette = (): ThemePalette => {
   try {
     const parsed = parsePalette(localStorage.getItem(paletteKey))
-    return parsed._tag === "Some" ? parsed.value : "mono"
+    return parsed._tag === "Some" ? parsed.value : defaultPalette
   } catch {
-    return "mono"
+    return defaultPalette
   }
 }
 

@@ -4,7 +4,7 @@ Each Agent represents one native Prime Agent root. [ADR 0002](adr/0002-native-ag
 
 ## Visual direction
 
-Use warm paper surfaces, dark ink, restrained orange accents, and existing character artwork. Start directly with content; never add eyebrow labels. Keep decoration quiet in active transcripts.
+Use the selected palette and existing character artwork. In dark Lavender, use graphite surfaces, light gray type, violet actions and links, and fine inset highlights on raised controls. Start directly with content and keep decoration quiet in active transcripts.
 
 Use [theme tokens](../src/renderer/theme.stylex.ts), colocated styles, and shared controls. Keep exact dimensions, font sizes, breakpoints, and animation timings in source, not duplicated here. [The StyleX map](../lat.md/styling.md) identifies those boundaries.
 
@@ -90,7 +90,7 @@ A compact workspace footer shows the installed Prime Agent package version, sess
 
 ### Theme preference
 
-Settings offers ten palettes, defaulting to Black & white, with System, Light, and Dark modes in the Appearance tab. Changes apply immediately and persist in local browser or app storage. Failed saves keep the current appearance and offer retry by selecting a mode. The native splash continues to follow system appearance.
+Settings offers ten palettes, defaulting to Lavender, with System, Light, and Dark modes in the Appearance tab. Interface typography defaults to the system font. Changes apply immediately and persist in local browser or app storage. Failed saves keep the current appearance and offer retry by selecting a mode. The native splash continues to follow system appearance.
 
 ### Checkpoint browsing
 
@@ -98,7 +98,7 @@ App history puts a white Save checkpoint action in the list header and moves Ref
 
 Checkpoint details use a rounded surface with the changed-file count, a divider, and aligned metadata rows. Startup checks describe readiness only. Settings tabs use a rounded sliding indicator with a reduced-motion alternative.
 
-Appearance also offers independent interface and monospace font dropdowns with live samples. Font preferences persist locally; unavailable fonts use system fallbacks. Code and path text share the monospace preference. Character headings keep their display typeface.
+Appearance also offers independent interface and monospace font dropdowns with live samples. Font preferences persist locally and unavailable fonts use system fallbacks. Code and path text share the monospace preference. In Lavender, character headings follow the interface font.
 
 ### Scoped customization
 

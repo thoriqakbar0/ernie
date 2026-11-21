@@ -3,7 +3,7 @@ import { UiAnnotationHost } from "./ui-annotation-host"
 import { styles as sharedStyles } from "../component-styles"
 import { styles } from "./app.styles"
 import * as stylex from "@stylexjs/stylex"
-import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { collapsedSidebarLayout } from "../shell-layout.stylex"
 import { View } from "@zenbujs/core/react"
@@ -20,13 +20,6 @@ import { AppSettingsPage } from "./app-settings-page"
 import { ChatWorkspace } from "./chat-workspace"
 import { BrowserWorkspace } from "./browser-workspace"
 import { AppShortcuts } from "./app-shortcuts"
-
-const DevelopmentTuning = import.meta.env.DEV
-  ? lazy(async () => {
-      const module = await import("./development-tuning")
-      return { default: module.DevelopmentTuning }
-    })
-  : null
 
 /** Keep the conversation mounted so page navigation preserves drafts and scroll position. */
 const WorkspacePages = () => {
@@ -165,11 +158,6 @@ export const App = ({
                       )}
                     </main>
                     {updates}
-                    {DevelopmentTuning ? (
-                      <Suspense fallback={null}>
-                        <DevelopmentTuning />
-                      </Suspense>
-                    ) : null}
                   </div>
                 </MessageReadingProvider>
               </ConversationFlowProvider>

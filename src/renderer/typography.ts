@@ -41,13 +41,14 @@ const Typography = Schema.Struct({
 export type TypographyPreference = typeof Typography.Type
 const parse = Schema.decodeUnknownOption(Schema.fromJsonString(Typography))
 const key = "ernie:typography:v1"
-/** Read local typography; malformed or unavailable storage uses the original font stacks. */
+const defaultTypography: TypographyPreference = { font: "system", mono: "system" }
+/** Read local typography; malformed or unavailable storage uses system fonts. */
 export const readTypography = (): TypographyPreference => {
   try {
     const result = parse(localStorage.getItem(key))
-    return result._tag === "Some" ? result.value : { font: "geist", mono: "system" }
+    return result._tag === "Some" ? result.value : defaultTypography
   } catch {
-    return { font: "geist", mono: "system" }
+    return defaultTypography
   }
 }
 /** Apply document variables, inherited by controls and portals. */

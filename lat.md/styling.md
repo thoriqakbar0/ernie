@@ -14,15 +14,15 @@ Components apply styles with `stylex.props`. Reusable controls accept typed `xst
 
 The opener follows the workspace in App's DOM order. Electron applies overlapping native drag regions in that order, so an earlier no-drag button can otherwise lose pointer clicks to the workspace header even with a higher z-index.
 
-[[src/renderer/components/agent-settings-tabs.tsx#AgentSettingsTabs]] loads DialKit 2 only during development. Draft and existing Agent settings share a 12px outer radius and 8px tab and indicator radii. Production uses those fixed values without importing the tuning module or vendor styles.
+Draft and existing Agent settings use [[src/renderer/components/ui/animated-tabs.tsx#AnimatedTabs]] with shared rounded tab styles.
 
-[[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the document color scheme. Stable custom property names let document defaults and portal content use the same theme. Orange accents retain dark ink on filled actions, including hover states; status colors keep their semantic roles. Faint text remains readable on the sidebar and picker surfaces.
+[[src/renderer/theme.stylex.ts#theme]] defines shared light and dark values that follow the document color scheme. Stable custom property names let document defaults and portal content use the same theme. Filled actions use the paired on-accent color, while links and active icons use the accent text color. Dark Lavender uses inset highlights on the composer, Add Agent button, and model picker.
 
 ## Dynamic state and portals
 
 React state selects explicit style variants. Attribute conditions express control states, and a StyleX ancestor marker reveals model actions on hover.
 
-[[src/renderer/components/development-tuning.tsx#DevelopmentTuning]] owns one development-only DialKit root, open by default. Message scroller width adjusts the transcript and message measure from 360px to 1600px, clamped by the available viewport. Production retains the 720px transcript and 66ch message defaults.
+The transcript and message measure use the same responsive limits in development and production.
 
 [[src/renderer/components/model-picker.tsx#ModelPicker]] computes popup coordinates and passes them through a dynamic StyleX style. Base UI retains ownership of its portal positioning and internal inline styles.
 
@@ -48,11 +48,11 @@ Full integration tests, desktop smoke checks, builds, and Electron restarts requ
 
 ## Saved appearance
 
-Settings uses dropdowns for ten palettes, defaulting to Black & white and System, Light, and Dark modes. Preferences persist locally and apply before React mounts. Unavailable storage falls back to System on restart.
+Settings offers ten palettes and System, Light, and Dark modes. Without saved preferences, the renderer uses Lavender, System mode, and system fonts. Preferences persist locally and apply before React mounts.
 
 [[src/renderer/appearance.ts#saveAppearance]] applies the document color scheme and reports storage failure. Shared tokens reach portals and native controls. Explicit CSS branch variables avoid color-function lowering differences between the StyleX and document stylesheets. The separate native splash retains system appearance.
 
-Unknown or removed saved palettes fall back to Black & white. Semantic status colors remain shared.
+Unknown or removed saved palettes fall back to Lavender. Semantic status colors retain their roles across palettes.
 
 ## Animated tabs
 
@@ -60,7 +60,7 @@ Unknown or removed saved palettes fall back to Black & white. Semantic status co
 
 ## Saved typography
 
-[[src/renderer/typography.ts]] persists interface and monospace font choices locally. Document variables apply before React mounts; code, file paths, and portal controls inherit them. Character display headings retain their own typeface.
+[[src/renderer/typography.ts]] persists interface and monospace font choices locally. Document variables apply before React mounts. Lavender headings follow the interface font, and code and file paths use the monospace font.
 
 Font lists use local faces with system fallbacks. Appearance shows separate text and code previews.
 

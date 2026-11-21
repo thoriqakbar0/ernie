@@ -4,7 +4,7 @@ Repository-specific rules supplement global guidance. Explicit user requests tak
 
 ## UI iteration
 
-- for interface requests, first inspect the live page and interact with the affected controls. Use [the interface workflow](docs/workflow.md#interface-iteration) for Agentation feedback, tool access, and visual verification.
+- for interface requests, first inspect the live page and interact with the affected controls. Use [the interface workflow](docs/workflow.md#interface-iteration) for tool access and visual verification.
 
 - for Ernie UI and Zenbu iteration, use [iterate-ernie](.agents/skills/iterate-ernie/SKILL.md). Use the current production instance unless development is explicitly requested; keep one user-facing instance.
 - run builds, automated tests, or smoke checks for UI work only when Thoriq asks.

@@ -1,6 +1,7 @@
 ---
-title: "Daemon restart integration check can lose snapshot framing"
-severity: "minor"
+title: 'Daemon restart integration check can lose snapshot framing'
+severity: 'minor'
+issue: 'thoriqakbar0/ernie#39'
 ---
 
 ### Expected Behavior
